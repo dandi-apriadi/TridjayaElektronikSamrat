@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Filter, SlidersHorizontal, Battery, Zap, Leaf } from 'lucide-react';
 import { getProductsByCategory } from '../data';
 import { ProductCard, Badge } from '../components/ui';
-import heroBike from '../assets/images/hero-bike.png';
+import heroBike from '../assets/images/hero-bike.webp';
 
 const filters = ['Semua', 'Goda', 'Winfly', 'Nuv'];
 const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
@@ -102,7 +102,7 @@ const BikesCatalogPage: React.FC = () => {
       </section>
 
       {/* Catalog */}
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           {/* Filter bar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">

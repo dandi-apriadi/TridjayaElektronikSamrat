@@ -76,7 +76,7 @@ const ArticleDetailPage: React.FC = () => {
       </section>
 
       {/* Article */}
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           <div className="max-w-3xl mx-auto -mt-24 relative z-10">
             {/* Card */}

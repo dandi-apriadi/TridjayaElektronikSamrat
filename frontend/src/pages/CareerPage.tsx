@@ -60,7 +60,7 @@ const CareerPage: React.FC = () => {
       </section>
 
       {/* Openings */}
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           <SectionHeader
             title="Lowongan Aktif"
@@ -205,7 +205,7 @@ const CareerPage: React.FC = () => {
       </section>
 
       {/* Talent Community CTA */}
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           <div className="relative overflow-hidden rounded-3xl glass-card p-10 md:p-16 text-center">
             <div className="absolute inset-0 mesh-bg opacity-30" />

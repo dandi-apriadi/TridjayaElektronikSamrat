@@ -5,10 +5,10 @@ import {
   ArrowRight, Play, ChevronDown, Zap, Battery, Shield, Wrench, TrendingUp,
 } from 'lucide-react';
 import { products, promos, formatPrice } from '../data';
-import { ProductCard, SectionHeader, StatsRow } from '../components/ui';
-import heroBike from '../assets/images/hero-bike.png';
-import sofaImg from '../assets/images/sofa.png';
-import tvImg from '../assets/images/tv.png';
+import { ProductCard, SectionHeader, StatsRow, PartnerLogos } from '../components/ui';
+import heroBike from '../assets/images/hero-bike.webp';
+import sofaImg from '../assets/images/sofa.webp';
+import tvImg from '../assets/images/tv.webp';
 
 /* ========================
    HERO SECTION
@@ -298,7 +298,7 @@ const FeaturedProducts: React.FC = () => {
   const bikes = products.filter((p) => p.category === 'bike');
 
   return (
-    <section className="section-padding bg-surface-low">
+    <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
       <div className="container-custom">
         <div className="flex items-end justify-between mb-12">
           <SectionHeader
@@ -462,7 +462,7 @@ const WhyUs: React.FC = () => {
   ];
 
   return (
-    <section className="section-padding bg-surface-low">
+    <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
       <div className="container-custom">
         <SectionHeader
           eyebrow="Mengapa Tridjaya?"
@@ -561,6 +561,19 @@ const HomePage: React.FC = () => {
       <FeaturedProducts />
       <PromoHighlight />
       <WhyUs />
+      
+      {/* Brand Partners */}
+      <section className="section-padding-sm bg-surface/50">
+        <div className="container-custom">
+          <SectionHeader
+            title="Partner Strategis Kami"
+            subtitle="Bekerja sama dengan brand terbaik untuk menghadirkan kualitas tanpa kompromi."
+            align="center"
+          />
+          <PartnerLogos />
+        </div>
+      </section>
+
       <CTASection />
     </>
   );

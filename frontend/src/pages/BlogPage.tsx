@@ -5,7 +5,7 @@ import { Clock, Tag, ArrowRight, Search } from 'lucide-react';
 import { blogPosts } from '../data';
 import { Badge } from '../components/ui';
 import type { BlogPost } from '../types';
-import blogHeroImg from '../assets/images/blog-hero.png';
+import blogHeroImg from '../assets/images/blog-hero.webp';
 
 const categories = ['Semua', 'Review', 'Tips & Trik', 'Edukasi', 'Home Styling'];
 
@@ -135,7 +135,7 @@ const BlogPage: React.FC = () => {
         </div>
       </section>
 
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           {/* Featured */}
           {featured && !searchQuery && activeCategory === 'Semua' && !activeTag && (

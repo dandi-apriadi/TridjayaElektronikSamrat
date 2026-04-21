@@ -25,7 +25,7 @@ const PromoDetailPage: React.FC = () => {
   const promoProducts = products.filter((p) => promo.productIds?.includes(p.id));
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface/50 backdrop-blur-sm">
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-surface/50 to-surface" />
@@ -101,7 +101,7 @@ const PromoDetailPage: React.FC = () => {
                 alt={promo.title}
                 className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-surface/60 to-transparent" />
+              {/* No overlay blur as per user request */}
               
               {/* Floating Badge */}
               <div className="absolute bottom-8 right-8 p-6 glass-premium rounded-[2rem] border-primary/30 backdrop-blur-2xl">
@@ -121,7 +121,7 @@ const PromoDetailPage: React.FC = () => {
       </section>
 
       {/* Featured Products Part of Promo */}
-      <section className="py-24 bg-surface-low/30 border-t border-outline-variant/10">
+      <section className="py-24 bg-surface-low/95 backdrop-blur-sm border-t border-outline-variant/10">
         <div className="container-custom">
           <SectionHeader 
             title="Produk Terpilih" 
@@ -147,7 +147,7 @@ const PromoDetailPage: React.FC = () => {
                         alt={product.name}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-surface/80 to-transparent" />
+                      {/* No overlay blur as per user request */}
                       
                       {/* Product Badges */}
                       <div className="absolute top-6 left-6 flex flex-col gap-2">

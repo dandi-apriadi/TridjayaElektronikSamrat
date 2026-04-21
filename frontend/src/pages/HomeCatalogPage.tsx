@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import { Monitor, Thermometer, Wind, Sofa } from 'lucide-react';
 import { products } from '../data';
 import { ProductCard, Badge } from '../components/ui';
-import sofaImg from '../assets/images/sofa.png';
-import tvImg from '../assets/images/tv.png';
+import sofaImg from '../assets/images/sofa.webp';
+import tvImg from '../assets/images/tv.webp';
 
 const categories = [
   { id: 'all', label: 'Semua', icon: null },
@@ -54,7 +54,7 @@ const HomeCatalogPage: React.FC = () => {
       </section>
 
       {/* Catalog */}
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           {/* Category tabs */}
           <div className="flex items-center gap-3 flex-wrap mb-8">

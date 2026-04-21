@@ -1,4 +1,5 @@
 import React from 'react';
+export * from './PartnerLogos';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Star, Zap, Shield, Award, Clock } from 'lucide-react';

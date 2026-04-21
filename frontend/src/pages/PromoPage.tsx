@@ -3,14 +3,14 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ticket, ArrowRight, Zap, Clock, Info, Share2 } from 'lucide-react';
 import { promos, formatPrice } from '../data';
-import { Badge, SectionHeader } from '../components/ui';
+import { Badge, SectionHeader, PartnerLogos } from '../components/ui';
 
 const PromoPage: React.FC = () => {
   const heroPromo = promos.find(p => p.variant === 'hero') || promos[0];
   const standardPromos = promos.filter(p => p.id !== heroPromo.id);
 
   return (
-    <div className="bg-surface transition-colors duration-500">
+    <div className="bg-surface/50 transition-colors duration-500">
       {/* 1. HERO SECTION - Immersive Glass Header */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         {/* Abstract Background Elements */}
@@ -67,7 +67,7 @@ const PromoPage: React.FC = () => {
                     alt={heroPromo.title}
                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-surface/80 via-transparent to-transparent" />
+                  {/* No overlay blur as per user request */}
                   
                   {/* Floating Badge */}
                   <div className="absolute top-8 left-8 flex flex-col gap-3">
@@ -129,7 +129,7 @@ const PromoPage: React.FC = () => {
       </section>
 
       {/* 2. PROMO GRID - Modern Bento Style */}
-      <section className="pb-32 relative">
+      <section className="pb-32 relative bg-surface-low/95 backdrop-blur-sm">
         <div className="container-custom">
           <SectionHeader
             title="Penawaran Lainnya"
@@ -155,7 +155,7 @@ const PromoPage: React.FC = () => {
                         alt={promo.title}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-surface/80 to-transparent" />
+                      {/* No overlay blur as per user request */}
                       <div className="absolute top-4 right-4 px-3 py-1.5 glass-premium rounded-xl text-label-md font-bold text-primary border-primary/30">
                         {promo.badge}
                       </div>
@@ -231,13 +231,7 @@ const PromoPage: React.FC = () => {
       {/* Trust Badges Bar */}
       <section className="pb-24 border-t border-outline-variant/10 pt-24 bg-surface-low/20">
         <div className="container-custom">
-          <div className="flex flex-wrap justify-center items-center gap-12 lg:gap-24 opacity-60 grayscale hover:grayscale-0 transition-all duration-700">
-            {['Official Partner', 'Instant Approval', 'Trusted Service', 'Premium Quality'].map((text) => (
-              <span key={text} className="font-display font-black text-headline-sm text-outline-variant tracking-tighter uppercase whitespace-nowrap">
-                {text}
-              </span>
-            ))}
-          </div>
+          <PartnerLogos />
         </div>
       </section>
     </div>

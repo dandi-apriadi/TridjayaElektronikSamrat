@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Zap, Shield, User, ArrowRight, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import type { UserRole } from '../store/authStore';
-import logoPng from '../assets/images/logo.png';
+import logoPng from '../assets/images/logo.webp';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();

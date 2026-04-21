@@ -238,7 +238,7 @@ const ProductDetailPage: React.FC = () => {
 
       {/* Related */}
       {relatedProducts.length > 0 && (
-        <section className="pb-20 bg-surface-low">
+        <section className="pb-20 bg-surface-low/90 backdrop-blur-sm">
           <div className="container-custom pt-12">
             <SectionHeader
               eyebrow="Rekomendasi"

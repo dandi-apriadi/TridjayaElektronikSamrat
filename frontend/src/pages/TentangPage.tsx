@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Users, MapPin, Zap, Star, TrendingUp, Handshake } from 'lucide-react';
-import { Badge, SectionHeader, StatsRow } from '../components/ui';
-import sofaImg from '../assets/images/sofa.png';
-import blogHeroImg from '../assets/images/blog-hero.png';
+import { Badge, SectionHeader, StatsRow, PartnerLogos } from '../components/ui';
+import sofaImg from '../assets/images/sofa.webp';
+import blogHeroImg from '../assets/images/blog-hero.webp';
 
 const TentangPage: React.FC = () => {
   return (
@@ -32,7 +32,7 @@ const TentangPage: React.FC = () => {
       </section>
 
       {/* Story */}
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div
@@ -79,7 +79,7 @@ const TentangPage: React.FC = () => {
       </section>
 
       {/* Vision Mission */}
-      <section className="section-padding bg-surface-low">
+      <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
         <div className="container-custom">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.div
@@ -169,9 +169,23 @@ const TentangPage: React.FC = () => {
       </section>
 
       {/* Stats */}
-      <section className="section-padding bg-surface-low">
+      <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
         <div className="container-custom">
           <StatsRow />
+        </div>
+      </section>
+
+      {/* Partners Ecosystem */}
+      <section className="section-padding border-b border-outline-variant/10">
+        <div className="container-custom">
+          <SectionHeader
+            eyebrow="Ekosistem Mitra"
+            title="Membangun Masa Depan Bersama Brand Terbaik"
+            align="center"
+          />
+          <div className="mt-12">
+            <PartnerLogos />
+          </div>
         </div>
       </section>
 

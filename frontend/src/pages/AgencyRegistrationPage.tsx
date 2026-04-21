@@ -249,7 +249,7 @@ const AgencyRegistrationPage: React.FC = () => {
       </section>
 
       {/* FAQ Mini */}
-      <section className="pb-20">
+      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
         <div className="container-custom">
           <SectionHeader
             title="Sering Ditanyakan"

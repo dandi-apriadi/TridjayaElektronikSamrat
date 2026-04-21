@@ -4,7 +4,7 @@ import { FileCheck2, Scale, Handshake, ArrowLeft } from 'lucide-react';
 
 const TermsOfServicePage: React.FC = () => {
   return (
-    <section className="pt-28 pb-20">
+    <section className="pt-28 pb-20 bg-surface/90 backdrop-blur-sm">
       <div className="container-custom max-w-4xl">
         <Link to="/" className="inline-flex items-center gap-2 text-body-sm text-on-surface-variant hover:text-primary transition-colors mb-6">
           <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda

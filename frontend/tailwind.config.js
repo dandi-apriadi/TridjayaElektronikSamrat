@@ -97,7 +97,7 @@ export default {
         'neon-cyan-sm': '0 0 10px rgba(143, 245, 255, 0.2)',
         'neon-lime': '0 0 20px rgba(162, 243, 31, 0.3), 0 0 40px rgba(162, 243, 31, 0.1)',
         'neon-magenta': '0 0 20px rgba(255, 81, 250, 0.3), 0 0 40px rgba(255, 81, 250, 0.1)',
-        'ambient-dark': '0 24px 48px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3)',
+        'ambient-dark': '0 24px 48px rgba(0, 0, 0, 0.25), 0 8px 16px rgba(0, 0, 0, 0.1)',
         'ambient-light': '0 24px 48px rgba(0, 30, 64, 0.08), 0 8px 16px rgba(0, 30, 64, 0.04)',
         'glass': 'inset 0 1px 0 rgba(255, 255, 255, 0.08)',
       },

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Menu, X, ChevronDown, Zap, ShoppingBag } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
-import logoPng from '../../assets/images/logo.png';
+import logoPng from '../../assets/images/logo.webp';
 
 const navItems = [
   { label: 'Beranda', href: '/' },

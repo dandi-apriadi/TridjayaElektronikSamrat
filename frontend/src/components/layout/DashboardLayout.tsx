@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
-import logoPng from '../../assets/images/logo.png';
+import logoPng from '../../assets/images/logo.webp';
 
 const DashboardLayout: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
