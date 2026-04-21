@@ -53,7 +53,7 @@ const CircuitBackground: React.FC = () => {
               fill="none"
               stroke="currentColor"
               strokeWidth="0.1"
-              className="text-primary/10 dark:text-primary/5"
+              className="text-primary/10 dark:text-sky-300/20"
             />
             
             {/* Animated Living Traces - Subset of lines to keep it light */}
@@ -62,24 +62,29 @@ const CircuitBackground: React.FC = () => {
               fill="none"
               stroke="currentColor"
               strokeWidth="0.15"
-              className="text-primary electric-line"
+              className="text-primary dark:text-sky-300 electric-line"
             />
             <path
               d="M 10 0 V 5 H 20 V 12 M 5 25 V 20 H 0"
               fill="none"
               stroke="currentColor"
               strokeWidth="0.12"
-              className="text-primary/60 electric-line-alt"
+              className="text-primary/60 dark:text-blue-400/80 electric-line-alt"
             />
             
             {/* Optimized Connection Nodes (CSS Animated) */}
-            <circle cx="5" cy="10" r="0.3" className="text-primary/40 fill-current node-pulse" />
-            <circle cx="20" cy="12" r="0.3" className="text-secondary/40 fill-current node-pulse" style={{ animationDelay: '1s' }} />
+            <circle cx="5" cy="10" r="0.3" className="text-primary/40 dark:text-sky-300/70 fill-current node-pulse" />
+            <circle cx="20" cy="12" r="0.3" className="text-secondary/40 dark:text-blue-400/70 fill-current node-pulse" style={{ animationDelay: '1s' }} />
           </pattern>
 
           <linearGradient id="surge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="transparent" />
             <stop offset="50%" stopColor="currentColor" className="text-primary" />
+            <stop offset="100%" stopColor="transparent" />
+          </linearGradient>
+          <linearGradient id="surge-gradient-dark" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="transparent" />
+            <stop offset="50%" stopColor="#38BDF8" />
             <stop offset="100%" stopColor="transparent" />
           </linearGradient>
         </defs>
@@ -88,18 +93,26 @@ const CircuitBackground: React.FC = () => {
         <rect width="100" height="100" fill="url(#circuit-grid-optimized)" />
 
         {/* Minimal High-Voltage Surges (Managed with Framer Motion) */}
-        <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} />
-        <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} />
+        <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="dark:hidden" />
+        <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="dark:hidden" />
+        <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
+        <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
       </svg>
     </div>
   );
 };
 
-const SurgePulse: React.FC<{ d: string; delay: number }> = ({ d, delay }) => (
+const SurgePulse: React.FC<{ d: string; delay: number; className?: string; gradient?: string }> = ({
+  d,
+  delay,
+  className,
+  gradient = 'url(#surge-gradient)',
+}) => (
   <motion.path
     d={d}
+    className={className}
     fill="none"
-    stroke="url(#surge-gradient)"
+    stroke={gradient}
     strokeWidth="0.3"
     strokeLinecap="round"
     initial={{ pathLength: 0, opacity: 0 }}
