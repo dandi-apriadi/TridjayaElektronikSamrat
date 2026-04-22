@@ -152,10 +152,10 @@ const AdminAgentDirectoryPage: React.FC = () => {
                   </span>
                 </td>
                 <td className="py-3">
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <a href={`mailto:${agent.email}`} className="p-1.5 rounded-md bg-surface-highest text-on-surface-variant hover:text-primary transition-colors" title="Kirim Email">
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Link to={`/dashboard/admin/agents/edit/${agent.id}`} className="p-1.5 rounded-md bg-surface-highest text-on-surface-variant hover:text-primary transition-colors" title="Lihat Detail">
                       <Eye className="w-4 h-4" />
-                    </a>
+                    </Link>
                     <button type="button" className="p-1.5 rounded-md bg-error/10 text-error hover:bg-error/20 transition-colors" title="Suspend Agen">
                       <UserX className="w-4 h-4" />
                     </button>

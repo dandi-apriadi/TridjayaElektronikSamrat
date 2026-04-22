@@ -94,7 +94,7 @@ const PromoDetailPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 1 }}
-              className="relative aspect-square lg:aspect-video rounded-[3rem] overflow-hidden group shadow-2xl"
+              className="relative aspect-square lg:aspect-video rounded-2xl overflow-hidden group shadow-2xl border border-outline-variant/10 glass-card"
             >
               <img 
                 src={promo.image} 
@@ -104,7 +104,7 @@ const PromoDetailPage: React.FC = () => {
               {/* No overlay blur as per user request */}
               
               {/* Floating Badge */}
-              <div className="absolute bottom-8 right-8 p-6 glass-premium rounded-[2rem] border-primary/30 backdrop-blur-2xl">
+              <div className="absolute bottom-8 right-8 p-5 glass-premium rounded-2xl border border-primary/30 shadow-lg">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-neon-cyan">
                     <Shield className="w-8 h-8 text-surface" />
@@ -140,7 +140,7 @@ const PromoDetailPage: React.FC = () => {
                   transition={{ delay: i * 0.1 }}
                   className="group relative"
                 >
-                  <div className="glass-card rounded-[2.5rem] overflow-hidden flex flex-col h-full hover:shadow-neon-cyan-sm transition-all duration-500 border-outline-variant/20">
+                  <div className="glass-card rounded-2xl overflow-hidden flex flex-col h-full hover:shadow-neon-cyan-sm transition-all duration-500 border-outline-variant/20">
                     <div className="relative h-72 overflow-hidden">
                       <img
                         src={product.image}

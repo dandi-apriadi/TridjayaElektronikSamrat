@@ -331,12 +331,13 @@ const AdminAgentsPage: React.FC = () => {
                                 >
                                   <XCircle className="w-3.5 h-3.5" /> Tolak
                                 </button>
-                                <a
-                                  href={`mailto:${item.email}?subject=Review%20Pendaftaran%20Agen%20${item.id}`}
+                                <button
+                                  type="button"
+                                  onClick={() => alert(`Review alert sent to ${item.email}`)}
                                   className="px-3 py-1.5 rounded-md bg-surface-high text-on-surface-variant text-label-sm font-semibold hover:text-on-surface transition-colors"
                                 >
-                                  Email
-                                </a>
+                                  Review Notification
+                                </button>
                               </>
                             )}
                           </div>
@@ -352,24 +353,26 @@ const AdminAgentsPage: React.FC = () => {
                               animate={{ opacity: 1, y: 0 }}
                               className="grid grid-cols-1 md:grid-cols-3 gap-4"
                             >
-                              <div className="p-4 rounded-lg bg-surface-low border border-outline-variant/10">
-                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-2">Motivasi Bergabung</div>
-                                <p className="text-body-sm text-on-surface italic">"{item.motivation}"</p>
+                              <div className="p-5 rounded-xl glass-card border border-outline-variant/10 relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-primary/70" />
+                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Motivasi Bergabung</div>
+                                <p className="text-body-sm text-on-surface italic leading-relaxed">"{item.motivation}"</p>
                               </div>
-                              <div className="p-4 rounded-lg bg-surface-low border border-outline-variant/10">
-                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-2">Informasi Kontak</div>
-                                <div className="space-y-1.5 text-body-sm text-on-surface-variant">
-                                  <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" /> {item.phone}</div>
-                                  <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5" /> {item.email}</div>
-                                  <div className="flex items-center gap-2"><Share2 className="w-3.5 h-3.5" /> {item.instagram}</div>
+                              <div className="p-5 rounded-xl glass-card border border-outline-variant/10">
+                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Informasi Kontak</div>
+                                <div className="space-y-2.5 text-body-sm text-on-surface-variant">
+                                  <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-primary" /> <span className="font-medium text-on-surface">{item.phone}</span></div>
+                                  <div className="flex items-center gap-3"><Mail className="w-4 h-4 text-tertiary" /> <span className="font-medium text-on-surface">{item.email}</span></div>
+                                  <div className="flex items-center gap-3"><Share2 className="w-4 h-4 text-secondary" /> <span className="font-medium text-on-surface">{item.instagram}</span></div>
                                 </div>
                               </div>
-                              <div className="p-4 rounded-lg bg-surface-low border border-outline-variant/10">
-                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-2">Lokasi & Jangkauan</div>
-                                <div className="space-y-1.5 text-body-sm text-on-surface-variant">
-                                  <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5" /> {item.city}, {item.province}</div>
-                                  <div className="flex items-center gap-2"><Star className="w-3.5 h-3.5 text-yellow-400" /> Social Reach: <strong className="text-on-surface">{item.socialReach}</strong></div>
-                                  <div className="flex items-center gap-2"><AlertCircle className="w-3.5 h-3.5" /> Prioritas: <strong className={priorityConfig[item.priority].cls.split(' ')[1]}>{priorityConfig[item.priority].label}</strong></div>
+                              <div className="p-5 rounded-xl glass-card border border-outline-variant/10 relative overflow-hidden">
+                                <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-secondary/10 rounded-full blur-xl" />
+                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Lokasi & Insight</div>
+                                <div className="space-y-2.5 text-body-sm text-on-surface-variant relative z-10">
+                                  <div className="flex items-center gap-3"><MapPin className="w-4 h-4" /> {item.city}, {item.province}</div>
+                                  <div className="flex items-center gap-3"><Star className="w-4 h-4 text-yellow-400" /> Jangkauan: <strong className="text-on-surface font-display">{item.socialReach} Follower</strong></div>
+                                  <div className="flex items-center gap-3"><AlertCircle className="w-4 h-4" /> Antrian: <strong className={priorityConfig[item.priority].cls.split(' ')[1]}>{priorityConfig[item.priority].label}</strong></div>
                                 </div>
                               </div>
                             </motion.div>
@@ -519,12 +522,13 @@ const AdminAgentsPage: React.FC = () => {
                         <Wallet className="w-3.5 h-3.5" /> Tandai Dibayar
                       </button>
                     )}
-                    <a
-                      href={`mailto:finance@tridjaya.co.id?subject=Konfirmasi%20Payout%20${req.id}`}
+                    <button
+                      type="button"
+                      onClick={() => alert(`Detail request ${req.id} opened for verification.`)}
                       className="px-3 py-1.5 rounded-md bg-surface-high text-on-surface-variant text-label-sm font-semibold hover:text-on-surface transition-colors"
                     >
-                      Konfirmasi
-                    </a>
+                      Detail
+                    </button>
                   </div>
                 </div>
               );

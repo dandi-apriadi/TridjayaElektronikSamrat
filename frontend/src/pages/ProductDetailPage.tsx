@@ -215,22 +215,35 @@ const ProductDetailPage: React.FC = () => {
               )}
 
               {/* Spesifikasi */}
-              <div>
-                <h3 className="font-display text-title-md font-bold text-white mb-4">Spesifikasi Teknis</h3>
-                <div className="glass-card rounded-xl overflow-hidden">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="mt-8"
+              >
+                <div className="flex items-center gap-3 mb-5 border-b border-outline-variant/10 pb-3">
+                  <span className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center text-surface shadow-neon-cyan-sm">
+                    <Shield className="w-4 h-4" />
+                  </span>
+                  <h3 className="font-display text-title-md font-bold text-white">Spesifikasi Teknis</h3>
+                </div>
+                
+                <div className="glass-premium rounded-2xl overflow-hidden border border-outline-variant/20 shadow-lg relative">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+                  
                   {Object.entries(product.specs).map(([key, val], i) => (
                     <div
                       key={key}
-                      className={`flex items-center justify-between px-4 py-3 ${
-                        i < Object.entries(product.specs).length - 1 ? 'border-b border-outline-variant/20' : ''
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 hover:bg-surface-high/50 transition-colors group ${
+                        i < Object.entries(product.specs).length - 1 ? 'border-b border-outline-variant/10' : ''
                       }`}
                     >
-                      <span className="font-body text-body-md text-on-surface-variant">{key}</span>
-                      <span className="font-body text-body-md font-semibold text-white">{val}</span>
+                      <span className="font-body text-body-md text-on-surface-variant group-hover:text-primary transition-colors">{key}</span>
+                      <span className="font-body text-body-md font-bold text-white mt-1 sm:mt-0 text-right">{val}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
           </div>
         </div>

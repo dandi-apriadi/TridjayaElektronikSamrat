@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ShieldCheck, UserCog, Search, Plus,
@@ -86,12 +87,12 @@ const AdminUsersPage: React.FC = () => {
               {showPerms ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               {showPerms ? 'Sembunyikan' : 'Lihat'} Permissions
             </button>
-            <a
-              href="mailto:admin@tridjaya.co.id?subject=Request%20User%20Baru"
+            <Link
+              to="/dashboard/admin/users/new"
               className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"
             >
               <Plus className="w-4 h-4" /> Tambah User
-            </a>
+            </Link>
           </div>
         </div>
       </motion.div>
@@ -224,11 +225,11 @@ const AdminUsersPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{user.createdAt}</td>
                     <td className="py-3.5">
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a href={`mailto:admin@tridjaya.co.id?subject=Change%20Role%20for%20${user.id}`}
+                      <div className="flex items-center gap-2 transition-opacity">
+                        <Link to={`/dashboard/admin/users/edit/${user.id}`}
                           className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Ubah Role">
                           <UserCog className="w-4 h-4" />
-                        </a>
+                        </Link>
                         <button type="button" onClick={() => toggleSuspend(user.id)}
                           className={`p-1.5 rounded-md transition-colors ${isSuspended && user.status !== 'Active' ? 'bg-secondary/15 text-secondary hover:bg-secondary/25' : 'bg-error/10 text-error hover:bg-error/20'}`}
                           title={isSuspended ? 'Aktifkan' : 'Suspend'}>

@@ -144,9 +144,9 @@ export default {
       backgroundImage: {
         'neon-gradient': 'linear-gradient(135deg, #8ff5ff 0%, #00eefc 50%, #a2f31f 100%)',
         'neon-gradient-radial': 'radial-gradient(ellipse at center, rgba(143, 245, 255, 0.15) 0%, transparent 70%)',
-        'dark-gradient': 'linear-gradient(135deg, #0e0e0e 0%, #1a1a1a 100%)',
+        'dark-gradient': 'linear-gradient(135deg, #06162b 0%, #0b2a4a 100%)',
         'primary-gradient': 'linear-gradient(135deg, #8ff5ff 0%, #00eefc 100%)',
-        'hero-gradient': 'linear-gradient(180deg, rgba(14, 14, 14, 0) 0%, rgba(14, 14, 14, 0.6) 40%, rgba(14, 14, 14, 0.95) 100%)',
+        'hero-gradient': 'linear-gradient(180deg, rgba(6, 22, 43, 0) 0%, rgba(6, 22, 43, 0.6) 40%, rgba(6, 22, 43, 0.95) 100%)',
       },
     },
   },

@@ -57,12 +57,12 @@ const AdminPromoPage: React.FC = () => {
               Kelola campaign aktif, jadwal promo, dan produk yang di-link. Koordinasikan dengan tim agen untuk distribusi.
             </p>
           </div>
-          <a
-            href="mailto:promo@tridjaya.co.id?subject=Request%20Campaign%20Baru"
+          <Link
+            to="/dashboard/admin/promo/new"
             className="px-4 py-2.5 rounded-lg bg-tertiary/15 text-tertiary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-tertiary/25 transition-colors w-fit"
           >
             <Plus className="w-4 h-4" /> Buat Campaign
-          </a>
+          </Link>
         </div>
       </motion.div>
 
@@ -154,10 +154,10 @@ const AdminPromoPage: React.FC = () => {
                   <Link to={`/promo/${promo.id}`} className="p-2 rounded-lg bg-surface-high text-on-surface-variant hover:text-primary transition-colors" title="Preview">
                     <Eye className="w-4 h-4" />
                   </Link>
-                  <a href={`mailto:promo@tridjaya.co.id?subject=Edit%20Campaign%20${promo.id}`}
+                  <Link to={`/dashboard/admin/promo/edit/${promo.id}`}
                     className="p-2 rounded-lg bg-tertiary/10 text-tertiary hover:bg-tertiary/20 transition-colors" title="Edit">
                     <Edit3 className="w-4 h-4" />
-                  </a>
+                  </Link>
                 </div>
               </div>
             );

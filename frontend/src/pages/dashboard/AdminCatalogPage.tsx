@@ -72,12 +72,12 @@ const AdminCatalogPage: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <a
-              href="mailto:catalog@tridjaya.co.id?subject=Permintaan%20Tambah%20Produk%20Baru"
+            <Link
+              to="/dashboard/admin/catalog/new"
               className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"
             >
               <Plus className="w-4 h-4" /> Tambah Produk
-            </a>
+            </Link>
             <Link
               to="/produk/home"
               className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors"
@@ -116,9 +116,12 @@ const AdminCatalogPage: React.FC = () => {
             <strong className="text-error">{totalOut} produk habis stok</strong> dan{' '}
             <strong className="text-tertiary">{totalLow} produk stok kritis</strong> — segera koordinasi dengan tim inventory.
           </p>
-          <a href="mailto:inventory@tridjaya.co.id?subject=Restock%20Alert" className="ml-auto flex-shrink-0 text-label-sm text-primary font-semibold hover:underline">
+          <button
+            onClick={() => alert('Restock alert sent to inventory team!')}
+            className="ml-auto flex-shrink-0 text-label-sm text-primary font-semibold hover:underline"
+          >
             Kirim Alert →
-          </a>
+          </button>
         </motion.div>
       )}
 
@@ -220,13 +223,13 @@ const AdminCatalogPage: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold ${statusStyle[p.status]}`}>{p.status}</span>
                   </td>
                   <td className="py-3.5">
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <Link to={`/produk/${p.slug}`} className="p-1.5 rounded-md bg-surface-highest text-on-surface-variant hover:text-primary transition-colors" title="Preview">
                         <Eye className="w-4 h-4" />
                       </Link>
-                      <a href={`mailto:catalog@tridjaya.co.id?subject=Edit%20Produk%20${p.id}`} className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Edit">
+                      <Link to={`/dashboard/admin/catalog/edit/${p.id}`} className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Edit">
                         <Edit3 className="w-4 h-4" />
-                      </a>
+                      </Link>
                     </div>
                   </td>
                 </tr>

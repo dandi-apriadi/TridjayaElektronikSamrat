@@ -42,12 +42,12 @@ const AdminContentPage: React.FC = () => {
           </h3>
           <p className="text-body-sm text-on-surface-variant mt-1">Kelola artikel, edukasi produk, dan tips untuk mendukung aktivitas penjualan agen.</p>
         </div>
-        <a
-          href="mailto:content@tridjaya.co.id?subject=Request%20Artikel%20Baru"
+        <Link
+          to="/dashboard/admin/content/new"
           className="px-4 py-2 rounded-lg bg-primary/20 text-primary font-semibold inline-flex items-center gap-2 w-fit text-label-sm"
         >
           <Plus className="w-4 h-4" /> Buat Artikel
-        </a>
+        </Link>
       </div>
 
       {/* KPI */}
@@ -109,12 +109,12 @@ const AdminContentPage: React.FC = () => {
                 >
                   <Eye className="w-3.5 h-3.5" /> Preview
                 </Link>
-                <a
-                  href={`mailto:content@tridjaya.co.id?subject=Edit%20Artikel%20${article.id}`}
+                <Link
+                  to={`/dashboard/admin/content/edit/${article.id}`}
                   className="px-3 py-1.5 rounded-md bg-primary/20 text-primary text-label-sm font-semibold hover:bg-primary/30 transition-colors"
                 >
                   Edit
-                </a>
+                </Link>
               </div>
             </div>
           );

@@ -460,7 +460,7 @@ const AdminDashboard: React.FC = () => {
                       {action.label}
                     </span>
                   </div>
-                  <ArrowUpRight className="w-3.5 h-3.5 text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-on-surface-variant flex-shrink-0" />
                 </Link>
               ))}
             </div>

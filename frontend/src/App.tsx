@@ -31,6 +31,7 @@ import AgentSupportPage from './pages/dashboard/AgentSupportPage';
 import AdminAgentDirectoryPage from './pages/dashboard/AdminAgentDirectoryPage';
 import AdminFinancePage from './pages/dashboard/AdminFinancePage';
 import AdminContentPage from './pages/dashboard/AdminContentPage';
+import AdminFormPage from './pages/dashboard/AdminFormPage';
 import AgentPushProspekPage from './pages/dashboard/AgentPushProspekPage';
 import AgentReferralPage from './pages/dashboard/AgentReferralPage';
 import { useThemeStore } from './store/themeStore';
@@ -142,10 +143,42 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="admin/catalog/new"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/catalog/edit/:id"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
             path="admin/promo"
             element={
               <PrivateRoute role="admin">
                 <AdminPromoPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/promo/new"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/promo/edit/:id"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
               </PrivateRoute>
             }
           />
@@ -162,6 +195,22 @@ const App: React.FC = () => {
             element={
               <PrivateRoute role="admin">
                 <AdminUsersPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/users/new"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/users/edit/:id"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
               </PrivateRoute>
             }
           />
@@ -186,6 +235,22 @@ const App: React.FC = () => {
             element={
               <PrivateRoute role="admin">
                 <AdminContentPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/content/new"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/content/edit/:id"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFormPage />
               </PrivateRoute>
             }
           />

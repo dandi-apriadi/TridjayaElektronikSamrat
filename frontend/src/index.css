@@ -8,13 +8,13 @@
    DESIGN TOKENS - CSS VARIABLES
 ===================================== */
 :root {
-  /* DARK MODE (DEFAULT) - Neon Nocturne */
-  --color-surface: 14 14 14;
-  --color-surface-low: 19 19 19;
-  --color-surface-container: 26 26 26;
-  --color-surface-high: 32 32 31;
-  --color-surface-highest: 38 38 38;
-  --color-surface-bright: 44 44 44;
+  /* DARK MODE (DEFAULT) - Warm Blue */
+  --color-surface: 6 22 43;
+  --color-surface-low: 8 30 56;
+  --color-surface-container: 11 42 74;
+  --color-surface-high: 16 53 91;
+  --color-surface-highest: 21 65 108;
+  --color-surface-bright: 27 77 125;
 
   --color-primary: 143 245 255;
   --color-primary-dim: 0 222 236;
@@ -28,15 +28,15 @@
   --color-tertiary: 255 81 250;
   --color-tertiary-container: 254 0 254;
 
-  --color-on-surface: 255 255 255;
-  --color-on-surface-variant: 173 170 170;
+  --color-on-surface: 242 233 216;
+  --color-on-surface-variant: 143 179 199;
   --color-on-primary: 0 93 99;
   --color-on-secondary: 54 87 0;
 
   --color-outline: 118 117 117;
   --color-outline-variant: 72 72 71;
 
-  --glass-bg: 26 26 26 / 0.75;
+  --glass-bg: 11 42 74 / 0.75;
   --glass-border: 143 245 255 / 0.12;
   --shadow-ambient: 0 24px 48px rgba(0, 0, 0, 0.6);
 }
@@ -131,6 +131,19 @@ body.light-mode .glass-card {
   background: rgb(var(--color-surface-container) / 0.6);
   border-color: rgb(var(--color-primary) / 0.2);
   transform: translateY(-2px);
+}
+
+.glass-dark {
+  background: rgb(var(--color-surface-container) / 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgb(var(--color-on-surface) / 0.08);
+  transition: all 0.3s ease;
+}
+
+body.light-mode .glass-dark {
+  background: rgb(var(--color-surface-container));
+  border-color: rgb(var(--color-on-surface) / 0.05);
 }
 
 .neon-text {

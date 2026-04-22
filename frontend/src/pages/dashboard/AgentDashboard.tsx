@@ -220,7 +220,7 @@ const AgentDashboard: React.FC = () => {
                   <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold hidden sm:block ${lead.statusCls}`}>
                     {lead.status}
                   </span>
-                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     <a href={`https://wa.me/62${lead.phone.replace(/^0/, '').replace(/\D/g, '')}?text=${waText}`}
                       target="_blank" rel="noopener noreferrer"
                       className="p-2 rounded-lg bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25 transition-colors" title="WhatsApp">
@@ -259,7 +259,7 @@ const AgentDashboard: React.FC = () => {
                     <a.icon className={`w-4 h-4 ${a.color}`} />
                     <span className="font-body text-body-sm font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{a.label}</span>
                   </div>
-                  <ArrowUpRight className="w-3.5 h-3.5 text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-on-surface-variant flex-shrink-0" />
                 </Link>
               ))}
             </div>

@@ -20,7 +20,8 @@ import {
   UserCheck,
   Send,
   Share2,
-  FileText
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -58,6 +59,18 @@ const DashboardLayout: React.FC = () => {
         { label: 'Referral & Link', icon: Share2, path: '/dashboard/agent/referral' },
         { label: 'Komisi & Penarikan', icon: Wallet, path: '/dashboard/agent/earnings' },
         { label: 'Support', icon: Headphones, path: '/dashboard/agent/support' },
+      ];
+
+  const quickActions = user?.role === 'admin'
+    ? [
+        { label: 'Produk', icon: Package, path: '/dashboard/admin/catalog', color: 'text-primary' },
+        { label: 'Agen', icon: UserCheck, path: '/dashboard/admin/agents', color: 'text-secondary' },
+        { label: 'Finance', icon: Wallet, path: '/dashboard/admin/finance', color: 'text-tertiary' },
+      ]
+    : [
+        { label: 'Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge', color: 'text-primary' },
+        { label: 'Push', icon: Send, path: '/dashboard/agent/push', color: 'text-secondary' },
+        { label: 'Referral', icon: Share2, path: '/dashboard/agent/referral', color: 'text-tertiary' },
       ];
 
   const activeItem = navItems.find((item) => location.pathname === item.path);
@@ -141,13 +154,44 @@ const DashboardLayout: React.FC = () => {
       >
         {/* Top Header */}
         <header className="h-20 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 px-8 flex items-center justify-between sticky top-0 z-30">
-          <div>
-            <h2 className="font-display text-title-lg font-bold text-on-surface">
-              {activeItem?.label || 'Dashboard'}
-            </h2>
+           <div>
+             <h2 className="font-display text-title-lg font-bold text-on-surface">
+               {activeItem?.label || 'Dashboard'}
+             </h2>
+           </div>
+          {/* Quick Actions - Desktop View */}
+          <div className="hidden lg:flex items-center gap-3 bg-surface-low/40 px-4 py-2 rounded-2xl border border-outline-variant/10">
+            <span className="font-body text-label-sm font-bold text-on-surface-variant uppercase tracking-widest mr-2">Quick Access:</span>
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  key={action.path}
+                  to={action.path}
+                  className="flex items-center gap-2 pr-4 pl-2 py-1.5 rounded-xl glass-card border border-outline-variant/10 hover:border-primary/40 hover:shadow-neon-cyan-sm transition-all duration-300 group"
+                >
+                  <div className={`p-1 rounded-lg bg-surface-high group-hover:bg-primary/20 transition-colors ${action.color}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <span className="font-body text-body-sm font-bold text-on-surface-variant group-hover:text-on-surface whitespace-nowrap">
+                    {action.label}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
-          
+
           <div className="flex items-center gap-4">
+            <Link 
+              to="/"
+              className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl glass-card border border-outline-variant/10 hover:border-primary/40 hover:text-primary transition-all duration-300"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span className="font-body text-body-sm font-bold">Landing Page</span>
+            </Link>
+            
+            <div className="h-6 w-px bg-outline-variant/20 mx-1 hidden md:block" />
+
             {/* Theme Toggle */}
             <button 
               onClick={toggleTheme}
