@@ -1,70 +1,215 @@
-import React from 'react';
-import { Headset, LifeBuoy, MessageSquareWarning } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Headphones, MessageCircle, Phone, Mail, Clock,
+  CheckCircle2, AlertCircle, ArrowUpRight, BookOpen, Zap,
+} from 'lucide-react';
 
-const tickets = [
-  { id: 'SUP-402', title: 'Referral link tidak aktif', category: 'Teknis', status: 'In Progress' },
-  { id: 'SUP-397', title: 'Konfirmasi payout belum masuk', category: 'Keuangan', status: 'Waiting Admin' },
-  { id: 'SUP-391', title: 'Harga produk berbeda dengan katalog', category: 'Katalog', status: 'Resolved' },
+const faqs = [
+  { q: 'Kapan komisi saya dikreditkan ke saldo?', a: 'Komisi dikreditkan H+1 setelah transaksi dikonfirmasi dan pembayaran diterima oleh sistem.' },
+  { q: 'Berapa minimum penarikan saldo?', a: 'Minimum penarikan adalah Rp 500.000. Proses cair dalam 1×24 jam kerja setelah admin menyetujui.' },
+  { q: 'Bagaimana cara mendapatkan materil promosi (foto/video)?', a: 'Unduh melalui menu Product Knowledge, atau minta langsung ke admin melalui tombol chat support.' },
+  { q: 'Bagaimana cara mengaktifkan link referral saya?', a: 'Link referral otomatis aktif saat akun agen disetujui. Cek di menu Referral & Link di sidebar.' },
+  { q: 'Saya lupa password. Apa yang harus dilakukan?', a: 'Hubungi admin melalui WhatsApp di bawah. Reset password hanya bisa dilakukan oleh admin sistem.' },
 ];
 
+const tickets = [
+  { id: 'TKT-012', subject: 'Komisi Tidak Masuk untuk TRX-0041', priority: 'high', status: 'Open', createdAt: '2 jam lalu' },
+  { id: 'TKT-009', subject: 'Request Foto Produk Goda GD120 HD', priority: 'medium', status: 'In Progress', createdAt: '1 hari lalu' },
+  { id: 'TKT-007', subject: 'Link Referral Tidak Berfungsi', priority: 'high', status: 'Resolved', createdAt: '3 hari lalu' },
+];
+
+const priorityCls: Record<string, string> = {
+  high:   'bg-error/15 text-error',
+  medium: 'bg-tertiary/15 text-tertiary',
+  low:    'bg-surface-highest text-on-surface-variant',
+};
+const statusCls: Record<string, string> = {
+  Open:        'bg-primary/15 text-primary',
+  'In Progress':'bg-tertiary/15 text-tertiary',
+  Resolved:    'bg-secondary/15 text-secondary',
+};
+
+const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
+const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
+
 const AgentSupportPage: React.FC = () => {
+  const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(null);
+  const [newTicketSubject, setNewTicketSubject] = useState('');
+  const [newTicketMsg, setNewTicketMsg] = useState('');
+  const [ticketSent, setTicketSent] = useState(false);
+
+  const handleSubmitTicket = () => {
+    if (!newTicketSubject.trim()) return;
+    setTicketSent(true);
+    setTimeout(() => { setTicketSent(false); setNewTicketSubject(''); setNewTicketMsg(''); }, 3000);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="glass-card rounded-3xl p-6">
-        <h3 className="font-display text-title-md font-bold text-on-surface inline-flex items-center gap-2">
-          <Headset className="w-5 h-5 text-primary" /> Support Center
-        </h3>
-        <p className="text-body-sm text-on-surface-variant mt-1">Hubungi tim support untuk isu teknis, finansial, atau pembaruan data produk.</p>
+    <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
+
+      {/* Header */}
+      <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p className="text-label-sm text-on-surface-variant font-semibold uppercase tracking-widest mb-1">Bantuan & Support</p>
+            <h2 className="font-display text-headline-sm font-bold text-on-surface inline-flex items-center gap-3">
+              <Headphones className="w-6 h-6 text-primary" /> Help Center
+            </h2>
+            <p className="text-body-sm text-on-surface-variant mt-1">
+              Tim admin siap membantu. Hubungi kami via WA, email, atau buka ticket support.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1.5 rounded-lg bg-secondary/10 text-secondary text-label-sm font-bold inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
+              Admin Online
+            </span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Quick Contact */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          {
+            label: 'WhatsApp Admin',
+            desc: 'Respons tercepat · Jam 08.00–21.00 WIB',
+            icon: MessageCircle,
+            color: 'text-[#25D366]',
+            bg: 'bg-[#25D366]/10 border-[#25D366]/20',
+            action: 'Chat Sekarang',
+            href: 'https://wa.me/628529999999?text=Halo Admin Tridjaya Samrat, saya butuh bantuan.',
+          },
+          {
+            label: 'Telepon Admin',
+            desc: '+62 852-9999-9999 · Jam kerja',
+            icon: Phone,
+            color: 'text-primary',
+            bg: 'bg-primary/10 border-primary/20',
+            action: 'Hubungi',
+            href: 'tel:+628529999999',
+          },
+          {
+            label: 'Email Dukungan',
+            desc: 'agent@tridjaya.co.id · Balas <24 jam',
+            icon: Mail,
+            color: 'text-tertiary',
+            bg: 'bg-tertiary/10 border-tertiary/20',
+            action: 'Kirim Email',
+            href: 'mailto:agent@tridjaya.co.id?subject=Bantuan Agen',
+          },
+        ].map((c) => (
+          <motion.div key={c.label} variants={iv} className={`glass-card rounded-xl p-5 border ${c.bg} relative overflow-hidden`}>
+            <div className={`p-2.5 rounded-lg bg-opacity-20 ${c.color} w-fit mb-3`}><c.icon className="w-5 h-5" /></div>
+            <div className="font-display font-bold text-on-surface text-title-sm mb-0.5">{c.label}</div>
+            <div className="text-label-sm text-on-surface-variant mb-4">{c.desc}</div>
+            <a href={c.href} target="_blank" rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-label-sm ${c.color} bg-surface-high hover:bg-surface-highest transition-colors`}>
+              {c.action} <ArrowUpRight className="w-3.5 h-3.5" />
+            </a>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="glass-card rounded-2xl p-5 border border-outline-variant/15">
-          <h4 className="font-semibold text-on-surface mb-3 inline-flex items-center gap-2">
-            <LifeBuoy className="w-4 h-4 text-secondary" /> Kanal Bantuan
-          </h4>
-          <ul className="space-y-2 text-body-sm text-on-surface-variant">
-            <li>• Live chat operasional: 08.00 - 20.00 WITA</li>
-            <li>• Email: <a href="mailto:support@tridjaya.co.id" className="text-primary hover:underline">support@tridjaya.co.id</a></li>
-            <li>• Hotline prioritas: <a href="tel:+6281200007788" className="text-primary hover:underline">+62 812-0000-7788</a></li>
-          </ul>
-        </div>
-
-        <div className="glass-card rounded-2xl p-5 border border-outline-variant/15">
-          <h4 className="font-semibold text-on-surface mb-3 inline-flex items-center gap-2">
-            <MessageSquareWarning className="w-4 h-4 text-tertiary" /> Buat Tiket Baru
-          </h4>
-          <a
-            href="mailto:support@tridjaya.co.id?subject=Tiket%20Support%20Baru%20Agen"
-            className="px-4 py-2 rounded-xl bg-primary/20 text-primary font-semibold inline-block"
-          >
-            Open Ticket
-          </a>
-        </div>
-      </div>
-
-      <div className="glass-card rounded-3xl p-6 overflow-x-auto">
-        <table className="w-full min-w-[620px] text-left">
-          <thead>
-            <tr className="text-label-sm text-on-surface-variant border-b border-outline-variant/20">
-              <th className="py-3 pr-3">ID Tiket</th>
-              <th className="py-3 pr-3">Judul</th>
-              <th className="py-3 pr-3">Kategori</th>
-              <th className="py-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tickets.map((ticket) => (
-              <tr key={ticket.id} className="border-b border-outline-variant/10">
-                <td className="py-3 pr-3 text-on-surface-variant">{ticket.id}</td>
-                <td className="py-3 pr-3 text-on-surface font-semibold">{ticket.title}</td>
-                <td className="py-3 pr-3 text-on-surface-variant">{ticket.category}</td>
-                <td className="py-3 text-on-surface-variant">{ticket.status}</td>
-              </tr>
+      {/* Ticket History + New Ticket */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* My Tickets */}
+        <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+          <h3 className="font-display text-title-md font-bold text-on-surface mb-5">Riwayat Ticket Saya</h3>
+          <div className="space-y-3">
+            {tickets.map((t) => (
+              <div key={t.id} className="flex items-start gap-3 p-3.5 rounded-xl border border-outline-variant/10 hover:bg-surface-high/30 transition-colors">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.status === 'Resolved' ? 'bg-secondary/15' : t.status === 'In Progress' ? 'bg-tertiary/15' : 'bg-primary/15'}`}>
+                  {t.status === 'Resolved'
+                    ? <CheckCircle2 className="w-4 h-4 text-secondary" />
+                    : <AlertCircle className={`w-4 h-4 ${t.status === 'In Progress' ? 'text-tertiary' : 'text-primary'}`} />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-on-surface text-body-sm">{t.subject}</div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-label-xs text-on-surface-variant">{t.id}</span>
+                    <span className={`px-1.5 py-0.5 rounded-md text-label-xs font-bold ${priorityCls[t.priority]}`}>
+                      {t.priority === 'high' ? 'Tinggi' : t.priority === 'medium' ? 'Normal' : 'Rendah'}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded-md text-label-xs font-bold ${statusCls[t.status]}`}>
+                      {t.status}
+                    </span>
+                  </div>
+                  <div className="text-label-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3 h-3" />{t.createdAt}
+                  </div>
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </motion.div>
+
+        {/* New Ticket */}
+        <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/30 to-transparent" />
+          <h3 className="font-display text-title-md font-bold text-on-surface mb-2">Buka Ticket Baru</h3>
+          <p className="text-body-sm text-on-surface-variant mb-5">Deskripsikan masalah Anda dan tim kami akan merespons secepatnya.</p>
+          {ticketSent ? (
+            <div className="text-center py-8">
+              <CheckCircle2 className="w-12 h-12 text-secondary mx-auto mb-3" />
+              <p className="font-bold text-on-surface">Ticket terkirim!</p>
+              <p className="text-body-sm text-on-surface-variant mt-1">Admin akan membalas dalam 1×24 jam.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="text-label-sm text-on-surface-variant font-semibold block mb-1.5">Judul Masalah *</label>
+                <input type="text" placeholder="Contoh: Komisi tidak masuk..." value={newTicketSubject}
+                  onChange={(e) => setNewTicketSubject(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-sm"
+                />
+              </div>
+              <div>
+                <label className="text-label-sm text-on-surface-variant font-semibold block mb-1.5">Deskripsi</label>
+                <textarea rows={4} placeholder="Jelaskan masalah secara detail..." value={newTicketMsg}
+                  onChange={(e) => setNewTicketMsg(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-sm resize-none"
+                />
+              </div>
+              <button type="button" onClick={handleSubmitTicket}
+                className="w-full py-3 rounded-xl bg-primary/20 text-primary font-bold text-body-sm hover:bg-primary/30 transition-colors inline-flex items-center justify-center gap-2">
+                <Zap className="w-4 h-4" /> Kirim Ticket
+              </button>
+            </div>
+          )}
+        </motion.div>
       </div>
-    </div>
+
+      {/* FAQ */}
+      <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        <div className="flex items-center gap-2 mb-5">
+          <BookOpen className="w-5 h-5 text-primary" />
+          <h3 className="font-display text-title-md font-bold text-on-surface">FAQ — Pertanyaan Umum</h3>
+        </div>
+        <div className="space-y-2">
+          {faqs.map((faq, i) => (
+            <div key={i} className="rounded-xl border border-outline-variant/10 overflow-hidden">
+              <button type="button" onClick={() => setOpenFaqIdx(openFaqIdx === i ? null : i)}
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-surface-high/30 transition-colors gap-4">
+                <span className="font-semibold text-on-surface text-body-sm">{faq.q}</span>
+                <span className={`text-lg text-primary flex-shrink-0 transition-transform ${openFaqIdx === i ? 'rotate-45' : ''}`}>+</span>
+              </button>
+              {openFaqIdx === i && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                  className="px-4 pb-4 text-body-sm text-on-surface-variant border-t border-outline-variant/10 pt-3">
+                  {faq.a}
+                </motion.div>
+              )}
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 };
 

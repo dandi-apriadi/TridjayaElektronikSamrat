@@ -1,9 +1,9 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Zap, MessageSquare, ArrowRight, Star, Shield, Info } from 'lucide-react';
+import { ArrowLeft, Clock, Zap, ArrowRight, Star, Shield, Info } from 'lucide-react';
 import { promos, products, formatPrice } from '../data';
-import { Badge, SectionHeader } from '../components/ui';
+import { SectionHeader } from '../components/ui';
 
 const PromoDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();

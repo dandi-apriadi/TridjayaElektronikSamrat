@@ -28,6 +28,11 @@ import AgentKnowledgePage from './pages/dashboard/AgentKnowledgePage';
 import AgentLeadsPage from './pages/dashboard/AgentLeadsPage';
 import AgentEarningsPage from './pages/dashboard/AgentEarningsPage';
 import AgentSupportPage from './pages/dashboard/AgentSupportPage';
+import AdminAgentDirectoryPage from './pages/dashboard/AdminAgentDirectoryPage';
+import AdminFinancePage from './pages/dashboard/AdminFinancePage';
+import AdminContentPage from './pages/dashboard/AdminContentPage';
+import AgentPushProspekPage from './pages/dashboard/AgentPushProspekPage';
+import AgentReferralPage from './pages/dashboard/AgentReferralPage';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import { Navigate } from 'react-router-dom';
@@ -161,6 +166,30 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="admin/agents/directory"
+            element={
+              <PrivateRoute role="admin">
+                <AdminAgentDirectoryPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/finance"
+            element={
+              <PrivateRoute role="admin">
+                <AdminFinancePage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/content"
+            element={
+              <PrivateRoute role="admin">
+                <AdminContentPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
             path="agent"
             element={
               <PrivateRoute role="agent">
@@ -197,6 +226,22 @@ const App: React.FC = () => {
             element={
               <PrivateRoute role="agent">
                 <AgentSupportPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="agent/push"
+            element={
+              <PrivateRoute role="agent">
+                <AgentPushProspekPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="agent/referral"
+            element={
+              <PrivateRoute role="agent">
+                <AgentReferralPage />
               </PrivateRoute>
             }
           />

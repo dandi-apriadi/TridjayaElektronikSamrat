@@ -1,58 +1,279 @@
-import React from 'react';
-import { ShieldCheck, UserCog } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  ShieldCheck, UserCog, Search, Plus,
+  CheckCircle2, XCircle, Clock, Shield,
+  Users, Lock, Unlock, Eye, EyeOff,
+  AlertTriangle, ArrowUpRight, Filter,
+} from 'lucide-react';
 
+/* ─── Mock Data ───────────────────────────────────── */
 const users = [
-  { id: 'USR-001', name: 'Administrator Tridjaya', role: 'admin', email: 'admin@tridjaya.co.id', status: 'Active' },
-  { id: 'USR-043', name: 'Agen Samrat Makassar', role: 'agent', email: 'agent.mks@tridjaya.co.id', status: 'Active' },
-  { id: 'USR-057', name: 'Operator Catalog', role: 'operator', email: 'operator.catalog@tridjaya.co.id', status: 'Suspended' },
+  { id: 'USR-001', name: 'Budi Susanto', role: 'admin',    email: 'admin@tridjaya.co.id',          status: 'Active',    lastLogin: '5 menit lalu',  createdAt: '01 Jan 2024', actions: 122 },
+  { id: 'USR-002', name: 'Nia Hartati',  role: 'admin',    email: 'nia.h@tridjaya.co.id',           status: 'Active',    lastLogin: '2 jam lalu',    createdAt: '15 Feb 2024', actions: 88 },
+  { id: 'USR-043', name: 'Agen Samrat Makassar', role: 'agent', email: 'agent.mks@tridjaya.co.id', status: 'Active',    lastLogin: '1 jam lalu',    createdAt: '10 Mar 2024', actions: 45 },
+  { id: 'USR-057', name: 'Operator Catalog',    role: 'operator', email: 'op.catalog@tridjaya.co.id', status: 'Suspended', lastLogin: '3 hari lalu', createdAt: '20 Apr 2024', actions: 12 },
+  { id: 'USR-081', name: 'Dian Fitriani',  role: 'agent',  email: 'dian.f@tridjaya.co.id',          status: 'Active',    lastLogin: '30 mnt lalu',  createdAt: '05 Mei 2024', actions: 37 },
+  { id: 'USR-095', name: 'Reviewer Konten', role: 'operator', email: 'review.content@tridjaya.co.id',status: 'Pending',  lastLogin: 'Belum pernah', createdAt: '18 Jun 2024', actions: 0 },
 ];
 
+const roleConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
+  admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
+  agent:    { cls: 'bg-secondary/15 text-secondary', label: 'Agent',  icon: <Users className="w-3 h-3" /> },
+  operator: { cls: 'bg-tertiary/15 text-tertiary', label: 'Operator', icon: <UserCog className="w-3 h-3" /> },
+};
+
+const statusConfig: Record<string, { cls: string; dot: string }> = {
+  Active:    { cls: 'bg-secondary/15 text-secondary', dot: 'bg-secondary animate-pulse' },
+  Suspended: { cls: 'bg-error/15 text-error',         dot: 'bg-error' },
+  Pending:   { cls: 'bg-tertiary/15 text-tertiary',   dot: 'bg-tertiary' },
+};
+
+const permissions = [
+  { role: 'Admin',    perms: ['Dashboard Overview', 'Kelola Agen', 'Kelola Katalog', 'Kelola Promo', 'Kelola Konten', 'Keuangan & Payout', 'User & Akses', 'Telemetri'] },
+  { role: 'Agent',    perms: ['Command Center', 'Product Knowledge', 'Pipeline Prospek', 'Push Prospek', 'Referral & Link', 'Komisi & Earning'] },
+  { role: 'Operator', perms: ['Dashboard Overview', 'Kelola Katalog', 'Kelola Konten'] },
+];
+
+const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
+const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
+
 const AdminUsersPage: React.FC = () => {
+  const [search, setSearch]           = useState('');
+  const [roleFilter, setRoleFilter]   = useState('Semua');
+  const [statusFilter, setStatusFilter] = useState('Semua');
+  const [suspendedIds, setSuspendedIds]  = useState<string[]>([]);
+  const [showPerms, setShowPerms]       = useState(false);
+
+  const toggleSuspend = (id: string) =>
+    setSuspendedIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
+
+  const filtered = users.filter((u) => {
+    const matchSearch = `${u.name} ${u.email} ${u.id}`.toLowerCase().includes(search.toLowerCase());
+    const matchRole   = roleFilter   === 'Semua' || u.role === roleFilter.toLowerCase();
+    const matchStatus = statusFilter === 'Semua' || u.status === statusFilter;
+    return matchSearch && matchRole && matchStatus;
+  });
+
+  const totalAdmin    = users.filter((u) => u.role === 'admin').length;
+  const totalAgent    = users.filter((u) => u.role === 'agent').length;
+  const totalOperator = users.filter((u) => u.role === 'operator').length;
+  const totalSuspended = users.filter((u) => u.status === 'Suspended').length;
+
   return (
-    <div className="space-y-6">
-      <div className="glass-card rounded-3xl p-6">
-        <h3 className="font-display text-title-md font-bold text-on-surface inline-flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-primary" /> Manajemen Akses User
-        </h3>
-        <p className="text-body-sm text-on-surface-variant mt-2">Kontrol role dan status akun untuk admin, agen, dan operator.</p>
+    <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
+
+      {/* Header */}
+      <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+        <div className="absolute -right-16 -top-16 w-56 h-56 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p className="text-label-sm text-on-surface-variant font-semibold uppercase tracking-widest mb-1">IAM — Identity & Access</p>
+            <h2 className="font-display text-headline-sm font-bold text-on-surface inline-flex items-center gap-3">
+              <Shield className="w-6 h-6 text-primary" /> User & Akses
+            </h2>
+            <p className="text-body-sm text-on-surface-variant mt-1">
+              Kelola role, hak akses, dan status akun semua pengguna sistem Tridjaya Samrat.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowPerms(!showPerms)}
+              className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors"
+            >
+              {showPerms ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPerms ? 'Sembunyikan' : 'Lihat'} Permissions
+            </button>
+            <a
+              href="mailto:admin@tridjaya.co.id?subject=Request%20User%20Baru"
+              className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Tambah User
+            </a>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Admin',     value: totalAdmin,    color: 'text-primary',   bg: 'bg-primary/10',   icon: ShieldCheck },
+          { label: 'Total Agent',     value: totalAgent,    color: 'text-secondary', bg: 'bg-secondary/10', icon: Users },
+          { label: 'Total Operator',  value: totalOperator, color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: UserCog },
+          { label: 'Akun Suspended',  value: totalSuspended, color: 'text-error',   bg: 'bg-error/10',     icon: AlertTriangle },
+        ].map((k) => (
+          <motion.div key={k.label} variants={iv} className="glass-card rounded-xl p-5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+            <div className={`p-2.5 rounded-lg ${k.bg} ${k.color} w-fit mb-3`}><k.icon className="w-4 h-4" /></div>
+            <div className="text-label-xs text-on-surface-variant uppercase tracking-widest">{k.label}</div>
+            <div className="font-display text-headline-sm font-bold text-on-surface mt-1">{k.value}</div>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="glass-card rounded-3xl p-6 overflow-x-auto">
-        <table className="w-full min-w-[680px] text-left">
-          <thead>
-            <tr className="text-label-sm text-on-surface-variant border-b border-outline-variant/20">
-              <th className="py-3 pr-3">ID</th>
-              <th className="py-3 pr-3">Nama</th>
-              <th className="py-3 pr-3">Role</th>
-              <th className="py-3 pr-3">Email</th>
-              <th className="py-3 pr-3">Status</th>
-              <th className="py-3">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className="border-b border-outline-variant/10">
-                <td className="py-3 pr-3 text-on-surface-variant">{user.id}</td>
-                <td className="py-3 pr-3 text-on-surface font-semibold">{user.name}</td>
-                <td className="py-3 pr-3">
-                  <span className="px-2 py-1 rounded-md bg-surface-high text-label-sm text-on-surface-variant uppercase">{user.role}</span>
-                </td>
-                <td className="py-3 pr-3 text-on-surface-variant">{user.email}</td>
-                <td className="py-3 pr-3 text-on-surface-variant">{user.status}</td>
-                <td className="py-3">
-                  <a
-                    href={`mailto:security@tridjaya.co.id?subject=Permintaan%20Perubahan%20Role%20${user.id}`}
-                    className="px-3 py-1.5 rounded-lg bg-primary/20 text-primary text-label-sm font-semibold inline-flex items-center gap-1"
-                  >
-                    <UserCog className="w-4 h-4" /> Ubah Role
-                  </a>
-                </td>
-              </tr>
+      {/* Permissions Matrix (Collapsible) */}
+      {showPerms && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
+          <div className="flex items-center gap-2 mb-5">
+            <Lock className="w-5 h-5 text-secondary" />
+            <h3 className="font-display text-title-md font-bold text-on-surface">Permission Matrix</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {permissions.map((p) => {
+              const rc = roleConfig[p.role.toLowerCase()];
+              return (
+                <div key={p.role} className="p-4 rounded-xl bg-surface-low border border-outline-variant/10">
+                  <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-label-sm font-bold mb-3 ${rc.cls}`}>
+                    {rc.icon}{p.role}
+                  </div>
+                  <ul className="space-y-1.5">
+                    {p.perms.map((perm) => (
+                      <li key={perm} className="flex items-center gap-2 text-body-sm text-on-surface">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-secondary flex-shrink-0" />{perm}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Users Table */}
+      <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+
+        {/* Toolbar */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+            <input type="text" placeholder="Cari nama, email, ID..." value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-sm placeholder:text-on-surface-variant/50"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-4 h-4 text-on-surface-variant" />
+            {['Semua', 'Admin', 'Agent', 'Operator'].map((r) => (
+              <button key={r} type="button" onClick={() => setRoleFilter(r)}
+                className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${roleFilter === r ? 'bg-primary/20 text-primary' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
+                {r}
+              </button>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+            <div className="w-px h-5 bg-outline-variant/20" />
+            {['Semua', 'Active', 'Suspended', 'Pending'].map((s) => (
+              <button key={s} type="button" onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${statusFilter === s ? 'bg-surface-highest text-on-surface' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left min-w-[860px]">
+            <thead>
+              <tr className="text-label-xs text-on-surface-variant border-b border-outline-variant/20 uppercase tracking-widest">
+                <th className="py-3 pr-4">User</th>
+                <th className="py-3 pr-4">Role</th>
+                <th className="py-3 pr-4">Status</th>
+                <th className="py-3 pr-4">Last Login</th>
+                <th className="py-3 pr-4">Dibuat</th>
+                <th className="py-3 pr-4">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((user) => {
+                const rc = roleConfig[user.role];
+                const isSuspended = suspendedIds.includes(user.id) || user.status === 'Suspended';
+                const effectiveStatus = suspendedIds.includes(user.id)
+                  ? (user.status === 'Suspended' ? 'Active' : 'Suspended')
+                  : user.status;
+                const sc = statusConfig[effectiveStatus] || statusConfig['Pending'];
+                return (
+                  <tr key={user.id} className={`border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group ${isSuspended && user.status !== 'Active' ? 'opacity-60' : ''}`}>
+                    <td className="py-3.5 pr-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center font-bold text-on-primary text-sm flex-shrink-0">
+                          {user.name[0]}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-on-surface text-body-sm">{user.name}</div>
+                          <div className="text-label-xs text-on-surface-variant">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1 ${rc.cls}`}>
+                        {rc.icon}{rc.label}
+                      </span>
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1.5 ${sc.cls}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{effectiveStatus}
+                      </span>
+                    </td>
+                    <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">
+                      <div className="flex items-center gap-1"><Clock className="w-3 h-3" />{user.lastLogin}</div>
+                    </td>
+                    <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{user.createdAt}</td>
+                    <td className="py-3.5">
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href={`mailto:admin@tridjaya.co.id?subject=Change%20Role%20for%20${user.id}`}
+                          className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Ubah Role">
+                          <UserCog className="w-4 h-4" />
+                        </a>
+                        <button type="button" onClick={() => toggleSuspend(user.id)}
+                          className={`p-1.5 rounded-md transition-colors ${isSuspended && user.status !== 'Active' ? 'bg-secondary/15 text-secondary hover:bg-secondary/25' : 'bg-error/10 text-error hover:bg-error/20'}`}
+                          title={isSuspended ? 'Aktifkan' : 'Suspend'}>
+                          {isSuspended && user.status !== 'Active' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                        </button>
+                        {user.status === 'Pending' && (
+                          <button type="button" className="p-1.5 rounded-md bg-secondary/15 text-secondary hover:bg-secondary/25 transition-colors" title="Approve">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant text-body-sm">Tidak ada user yang sesuai filter.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between text-label-sm">
+          <span className="text-on-surface-variant">
+            <strong className="text-on-surface">{filtered.length}</strong> dari {users.length} user
+          </span>
+          <button type="button" className="text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
+            Export CSV <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Security Warning if any suspended */}
+      {users.some((u) => u.status === 'Suspended') && (
+        <motion.div variants={iv} className="flex items-center gap-3 p-4 rounded-xl bg-error/8 border border-error/20">
+          <AlertTriangle className="w-5 h-5 text-error flex-shrink-0" />
+          <p className="text-body-sm text-on-surface">
+            <strong className="text-error">{users.filter((u) => u.status === 'Suspended').length} akun</strong> sedang dalam status suspended. Pantau aktivitas login mereka secara berkala.
+          </p>
+          <button type="button" className="ml-auto flex-shrink-0 text-label-sm text-primary font-semibold hover:underline inline-flex items-center gap-1">
+            Detail <XCircle className="w-3.5 h-3.5" />
+          </button>
+        </motion.div>
+      )}
+    </motion.div>
   );
 };
 

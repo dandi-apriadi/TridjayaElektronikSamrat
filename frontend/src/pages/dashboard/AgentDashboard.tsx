@@ -1,191 +1,319 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  DollarSign, 
-  Users, 
-  Target, 
-  TrendingUp, 
-  ArrowUpRight, 
-  Search,
-  ExternalLink,
-  MessageSquare
+import {
+  DollarSign, Users, Target, TrendingUp, ArrowUpRight,
+  MessageCircle, ExternalLink, Clock, CheckCircle2,
+  Send, Share2, Star, Zap, BookOpen, Wallet,
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Cell,
+  AreaChart, Area,
 } from 'recharts';
 
-const earningData = [
-  { day: 'Mon', amount: 450000 },
-  { day: 'Tue', amount: 1200000 },
-  { day: 'Wed', amount: 800000 },
-  { day: 'Thu', amount: 1500000 },
-  { day: 'Fri', amount: 2100000 },
-  { day: 'Sat', amount: 950000 },
-  { day: 'Sun', amount: 400000 },
+/* ─── Mock Data ───────────────────────────────────────── */
+const weeklyData = [
+  { day: 'Sen', amount: 450000 },
+  { day: 'Sel', amount: 1200000 },
+  { day: 'Rab', amount: 800000 },
+  { day: 'Kam', amount: 1500000 },
+  { day: 'Jum', amount: 2100000 },
+  { day: 'Sab', amount: 950000 },
+  { day: 'Min', amount: 400000 },
 ];
 
-const leads = [
-  { name: 'Andi Jaya', interest: 'Goda GD120', status: 'Follow Up', slug: 'goda-gd120' },
-  { name: 'Rina Melati', interest: 'Sofa Premium L', status: 'Negotiation', slug: 'sofa-premium-l' },
-  { name: 'Hendra Saputra', interest: 'Winfly W200', status: 'Payment Pending', slug: 'winfly-w200' },
-  { name: 'Santi Wijaya', interest: 'Smart TV OLED', status: 'Cold', slug: 'smart-tv-65' },
+const monthlyTrend = [
+  { month: 'Nov', komisi: 1800000 },
+  { month: 'Des', komisi: 2100000 },
+  { month: 'Jan', komisi: 2500000 },
+  { month: 'Feb', komisi: 3200000 },
+  { month: 'Mar', komisi: 2900000 },
+  { month: 'Apr', komisi: 3800000 },
 ];
 
+const hotLeads = [
+  { name: 'Andi Wijaya',    product: 'Goda GD120',      status: 'Follow Up',      statusCls: 'bg-primary/15 text-primary',      phone: '0812-3344-5566', slug: 'goda-gd120' },
+  { name: 'Dewi Lestari',   product: 'Smart TV OLED 55"', status: 'Negotiation',    statusCls: 'bg-tertiary/15 text-tertiary',    phone: '0822-9988-7766', slug: 'smart-tv-65' },
+  { name: 'Hendra Saputra', product: 'Winfly W200',      status: 'Payment Pending', statusCls: 'bg-yellow-500/15 text-yellow-400', phone: '0813-5544-3322', slug: 'winfly-w200' },
+  { name: 'Santi Wijaya',   product: 'Sofa Premium L',  status: 'Cold',             statusCls: 'bg-surface-highest text-on-surface-variant', phone: '0811-7766-5544', slug: 'sofa-premium-l' },
+];
+
+const recentActivity = [
+  { icon: CheckCircle2, color: 'text-secondary bg-secondary/10', label: 'Deal closed! Bagas Surya – Goda GD120', time: '4 jam lalu' },
+  { icon: Send,         color: 'text-primary bg-primary/10',     label: 'Push prospek baru: Dewi Lestari', time: '6 jam lalu' },
+  { icon: Share2,       color: 'text-tertiary bg-tertiary/10',   label: 'Link referral diklik 12x hari ini', time: '8 jam lalu' },
+  { icon: Wallet,       color: 'text-secondary bg-secondary/10', label: 'Komisi Rp 840rb dikreditkan', time: 'Kemarin' },
+];
+
+/* ─── Variants ────────────────────────────────────────── */
+const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
+const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
+
+/* ─── Component ───────────────────────────────────────── */
 const AgentDashboard: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const visibleLeads = useMemo(
-    () => leads.filter((lead) =>
-      `${lead.name} ${lead.interest}`.toLowerCase().includes(searchQuery.toLowerCase())
-    ),
-    [searchQuery]
-  );
+  const kpis = [
+    { label: 'Komisi Bulan Ini',  value: 'Rp 3.82jt', change: '+18.5%', up: true, icon: DollarSign, color: 'text-primary',   bg: 'bg-primary/10',   href: '/dashboard/agent/earnings' },
+    { label: 'Penjualan Sukses',  value: '12 Unit',   change: '+2',     up: true, icon: Target,     color: 'text-secondary', bg: 'bg-secondary/10', href: '/dashboard/agent/leads' },
+    { label: 'Prospek Aktif',     value: '28',        change: '+4',     up: true, icon: Users,      color: 'text-tertiary',  bg: 'bg-tertiary/10',  href: '/dashboard/agent/leads' },
+    { label: 'Konversi Rate',     value: '14.2%',     change: '+2.1%',  up: true, icon: TrendingUp, color: 'text-primary',   bg: 'bg-primary/10',   href: '/dashboard/agent/knowledge' },
+  ];
 
   return (
-    <div className="space-y-8">
-      {/* Top Welcome / Quick Search */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-surface-low p-8 rounded-3xl border border-outline-variant/10">
-        <div>
-          <h2 className="font-display text-headline-sm font-bold text-on-surface mb-1">Semangat Pagi, Agen Samrat!</h2>
-          <p className="font-body text-body-md text-on-surface-variant">Hari ini Anda memiliki <span className="text-secondary font-bold">4 prospek baru</span> yang perlu dihubungi.</p>
-        </div>
-        <div className="relative max-w-md w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
-          <input 
-            type="text" 
-            placeholder="Cek harga produk / stok..."
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-surface-high border-none rounded-2xl outline-none focus:ring-2 focus:ring-primary/50 transition-all font-body text-body-md"
-          />
-        </div>
-      </div>
+    <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { label: 'Total Earnings', value: 'Rp 6,420,000', change: '+18.5%', icon: DollarSign, color: 'text-primary', href: '/dashboard/agent/earnings' },
-          { label: 'Successful Sales', value: '12 Units', change: '+2', icon: Target, color: 'text-secondary', href: '/dashboard/agent/leads' },
-          { label: 'Active Prospects', value: '28', change: '+4', icon: Users, color: 'text-tertiary', href: '/dashboard/agent/leads' },
-          { label: 'Conversion Rate', value: '14.2%', change: '+2.1%', icon: TrendingUp, color: 'text-secondary', href: '/dashboard/agent/knowledge' },
-        ].map((kpi, i) => (
-          <motion.div
-            key={kpi.label}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.1 }}
-            className="glass-card rounded-2xl p-6 hover:shadow-neon-cyan transition-all duration-300"
-          >
-            <div className={`w-12 h-12 rounded-xl bg-surface-high flex items-center justify-center mb-4 ${kpi.color}`}>
-              <kpi.icon className="w-6 h-6" />
+      {/* ── Welcome Banner ────────────────────────────── */}
+      <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+        <div className="absolute -right-16 -top-16 w-56 h-56 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p className="text-label-sm text-on-surface-variant font-semibold uppercase tracking-widest mb-1">
+              Selamat Datang Kembali 👋
+            </p>
+            <h2 className="font-display text-headline-sm font-bold text-on-surface">
+              Command Center Agen
+            </h2>
+            <p className="text-body-sm text-on-surface-variant mt-1">
+              Anda punya <strong className="text-secondary">4 prospek</strong> perlu follow-up hari ini dan{' '}
+              <strong className="text-primary">Rp 1.62jt</strong> saldo siap ditarik.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <Link
+              to="/dashboard/agent/push"
+              className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"
+            >
+              <Send className="w-4 h-4" /> Push Prospek
+            </Link>
+            <Link
+              to="/dashboard/agent/earnings"
+              className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors"
+            >
+              <Wallet className="w-4 h-4" /> Tarik Saldo
+            </Link>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── KPI Cards ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpis.map((kpi) => (
+          <motion.div key={kpi.label} variants={iv} whileHover={{ scale: 1.02, y: -4 }}
+            className="glass-card rounded-xl p-5 relative overflow-hidden group">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-2.5 rounded-lg ${kpi.bg} ${kpi.color}`}>
+                <kpi.icon className="w-5 h-5" />
+              </div>
+              <span className={`px-2 py-1 rounded-md text-label-xs font-bold inline-flex items-center gap-0.5 ${kpi.up ? 'bg-secondary/10 text-secondary' : 'bg-error/10 text-error'}`}>
+                <ArrowUpRight className="w-3 h-3" />{kpi.change}
+              </span>
             </div>
-            <div className="font-body text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">{kpi.label}</div>
-            <div className="font-display text-headline-sm font-bold text-on-surface mb-2">{kpi.value}</div>
-            <div className="flex items-center gap-1 text-label-xs font-bold text-secondary">
-              <ArrowUpRight className="w-3 h-3" />
-              {kpi.change} <span className="text-on-surface-variant opacity-60 ml-1">this month</span>
-            </div>
-            <Link to={kpi.href} className="inline-block mt-2 text-label-sm text-primary font-semibold hover:underline">
-              Lihat detail
+            <div className="text-label-xs text-on-surface-variant uppercase tracking-widest">{kpi.label}</div>
+            <div className="font-display text-headline-sm font-bold text-on-surface mt-1 mb-3">{kpi.value}</div>
+            <Link to={kpi.href} className="text-label-xs text-primary font-semibold inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+              Lihat detail <ArrowUpRight className="w-3 h-3" />
             </Link>
           </motion.div>
         ))}
       </div>
 
+      {/* ── Charts Row ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Earnings Chart */}
-        <div className="lg:col-span-2 glass-card rounded-3xl p-8">
-          <div className="flex items-center justify-between mb-8">
-             <h3 className="font-display text-title-md font-bold text-on-surface">Weekly Earnings Performance</h3>
-             <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-primary" />
-                <span className="font-body text-label-sm text-on-surface-variant">IDR Output</span>
-             </div>
+        {/* Weekly Bar Chart */}
+        <motion.div variants={iv} className="lg:col-span-2 glass-card rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="font-display text-title-md font-bold text-on-surface">Komisi Mingguan</h3>
+              <p className="text-label-sm text-on-surface-variant mt-0.5">Performa 7 hari terakhir (IDR)</p>
+            </div>
+            <div className="text-right">
+              <div className="font-display font-bold text-secondary text-title-md">Rp 7.4jt</div>
+              <div className="text-label-xs text-on-surface-variant">Total minggu ini</div>
+            </div>
           </div>
-          <div className="h-[300px] w-full">
+          <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={earningData}>
+              <BarChart data={weeklyData} barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
-                <XAxis 
-                  dataKey="day" 
-                  stroke="#ADAAAA" 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={false} 
+                <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false}
+                  tickFormatter={(v: number) => `${(v / 1000000).toFixed(1)}M`} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(143,245,255,0.05)' }}
+                  contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF', fontSize: '12px' }}
+                  formatter={(v: unknown) => [`Rp ${((v as number) / 1000).toLocaleString('id-ID')}k`, 'Komisi']}
                 />
-                <YAxis 
-                  stroke="#ADAAAA" 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={false}
-                  hide 
-                />
-                <Tooltip 
-                  cursor={{ fill: 'rgba(143, 245, 255, 0.05)' }}
-                  contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '12px', color: '#FFF' }}
-                />
-                <Bar 
-                  dataKey="amount" 
-                  radius={[6, 6, 0, 0]}
-                >
-                   {earningData.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 4 ? '#A2F31F' : '#8FF5FF'} />
+                <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                  {weeklyData.map((_e, i) => (
+                    <Cell key={i} fill={i === 4 ? '#A2F31F' : '#8FF5FF'} fillOpacity={i === 4 ? 0.9 : 0.6} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Hot Leads / Recent Prospects */}
-        <div className="glass-card rounded-3xl p-8">
-          <h3 className="font-display text-title-md font-bold text-on-surface mb-6">Hot Leads</h3>
-          <div className="space-y-4">
-            {visibleLeads.map((lead, i) => (
-              <div key={i} className="group p-4 rounded-2xl hover:bg-surface-high transition-all border border-outline-variant/5">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="font-body text-title-xs font-bold text-on-surface group-hover:text-primary transition-colors">{lead.name}</div>
-                  <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    lead.status === 'Payment Pending' ? 'bg-secondary/20 text-secondary' : 'bg-surface-highest text-on-surface-variant'
-                  }`}>{lead.status}</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-body text-label-sm text-on-surface-variant">{lead.interest}</span>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <a
-                      href={`https://wa.me/628529999999?text=${encodeURIComponent(`Halo ${lead.name}, kami tindak lanjuti minat Anda untuk ${lead.interest}.`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 bg-primary/10 rounded-lg text-primary hover:bg-primary/20"
-                      aria-label={`Follow up ${lead.name}`}
-                    >
-                      <MessageSquare className="w-4 h-4" />
+        {/* Monthly Trend */}
+        <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
+          <div className="mb-4">
+            <h3 className="font-display text-title-md font-bold text-on-surface">Tren 6 Bulan</h3>
+            <p className="text-label-sm text-on-surface-variant mt-0.5">Pertumbuhan komisi</p>
+          </div>
+          <div className="h-[180px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyTrend}>
+                <defs>
+                  <linearGradient id="agGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#A2F31F" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#A2F31F" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
+                <XAxis dataKey="month" stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis hide />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF', fontSize: '12px' }}
+                  formatter={(v: unknown) => [`Rp ${((v as number) / 1000000).toFixed(1)}jt`, 'Komisi']}
+                />
+                <Area type="monotone" dataKey="komisi" stroke="#A2F31F" strokeWidth={2.5} fill="url(#agGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 p-3 rounded-lg bg-surface-high">
+            <div className="text-label-xs text-on-surface-variant">Komisi April (tertinggi)</div>
+            <div className="font-display font-bold text-secondary">Rp 3.8jt</div>
+            <div className="text-label-xs text-primary">↑ +31% vs Maret</div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ── Bottom Row ────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Hot Leads */}
+        <motion.div variants={iv} className="lg:col-span-2 glass-card rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              <h3 className="font-display text-title-md font-bold text-on-surface">Hot Leads</h3>
+            </div>
+            <Link to="/dashboard/agent/leads" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
+              Semua <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {hotLeads.map((lead) => {
+              const waText = encodeURIComponent(`Halo ${lead.name}, saya dari Tridjaya Samrat. Ingin menindaklanjuti minat Anda pada ${lead.product}.`);
+              return (
+                <div key={lead.name} className="flex items-center gap-3 p-3.5 rounded-xl border border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
+                  <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center font-bold text-on-primary text-sm flex-shrink-0">
+                    {lead.name[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-on-surface text-body-sm">{lead.name}</div>
+                    <div className="text-label-xs text-on-surface-variant">{lead.product}</div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold hidden sm:block ${lead.statusCls}`}>
+                    {lead.status}
+                  </span>
+                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <a href={`https://wa.me/62${lead.phone.replace(/^0/, '').replace(/\D/g, '')}?text=${waText}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="p-2 rounded-lg bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25 transition-colors" title="WhatsApp">
+                      <MessageCircle className="w-4 h-4" />
                     </a>
-                    <Link to={`/produk/${lead.slug}`} className="p-2 bg-secondary/10 rounded-lg text-secondary hover:bg-secondary/20" aria-label={`Lihat ${lead.interest}`}>
+                    <Link to={`/produk/${lead.slug}`}
+                      className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Lihat Produk">
                       <ExternalLink className="w-4 h-4" />
                     </Link>
                   </div>
                 </div>
-              </div>
-            ))}
-            {visibleLeads.length === 0 && (
-              <p className="text-body-sm text-on-surface-variant">Tidak ada lead yang cocok dengan pencarian.</p>
-            )}
+              );
+            })}
           </div>
-          <Link to="/dashboard/agent/leads" className="w-full mt-6 py-4 border border-dashed border-outline-variant/30 rounded-2xl font-body text-label-md font-bold text-on-surface-variant hover:text-primary hover:border-primary/50 transition-all block text-center">
-            + Add New Lead
+          <Link to="/dashboard/agent/push"
+            className="mt-4 w-full py-3 rounded-xl border border-dashed border-outline-variant/30 flex items-center justify-center gap-2 text-label-sm font-bold text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all">
+            <Send className="w-4 h-4" /> Push Prospek Baru
           </Link>
+        </motion.div>
+
+        {/* Right Column */}
+        <div className="flex flex-col gap-4">
+          {/* Quick Actions */}
+          <motion.div variants={iv} className="glass-card rounded-xl p-5">
+            <h4 className="font-display text-title-sm font-bold text-on-surface mb-4">Quick Actions</h4>
+            <div className="space-y-2">
+              {[
+                { label: 'Product Knowledge', href: '/dashboard/agent/knowledge', icon: BookOpen, color: 'text-primary' },
+                { label: 'Push Prospek Baru',  href: '/dashboard/agent/push',      icon: Send,     color: 'text-secondary' },
+                { label: 'Link Referral',       href: '/dashboard/agent/referral',  icon: Share2,   color: 'text-tertiary' },
+                { label: 'Tarik Komisi',         href: '/dashboard/agent/earnings',  icon: Wallet,   color: 'text-primary' },
+              ].map((a) => (
+                <Link key={a.href} to={a.href}
+                  className="w-full flex items-center justify-between p-2.5 rounded-lg hover:bg-surface-high transition-colors group border border-transparent hover:border-outline-variant/10">
+                  <div className="flex items-center gap-3">
+                    <a.icon className={`w-4 h-4 ${a.color}`} />
+                    <span className="font-body text-body-sm font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{a.label}</span>
+                  </div>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Recent Activity */}
+          <motion.div variants={iv} className="glass-card rounded-xl p-5 relative overflow-hidden flex-1">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/30 to-transparent" />
+            <div className="flex items-center gap-2 mb-4">
+              <Zap className="w-4 h-4 text-secondary" />
+              <h4 className="font-display text-title-sm font-bold text-on-surface">Aktivitas Terbaru</h4>
+            </div>
+            <div className="space-y-3">
+              {recentActivity.map((act, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${act.color}`}>
+                    <act.icon className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-body-sm text-on-surface leading-snug">{act.label}</p>
+                    <div className="flex items-center gap-1 text-label-xs text-on-surface-variant mt-0.5">
+                      <Clock className="w-2.5 h-2.5" />{act.time}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Leaderboard Teaser */}
+          <motion.div variants={iv} className="glass-card rounded-xl p-5 relative overflow-hidden border border-secondary/15">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
+            <div className="flex items-center gap-2 mb-3">
+              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+              <h4 className="font-display text-title-sm font-bold text-on-surface">Ranking Anda</h4>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-display text-headline-sm font-bold text-secondary">#3</div>
+                <div className="text-label-xs text-on-surface-variant">dari 1,284 agen aktif</div>
+              </div>
+              <div className="text-right">
+                <div className="text-label-xs text-on-surface-variant">Selisih ke #1</div>
+                <div className="font-bold text-on-surface text-body-sm">2 penjualan</div>
+              </div>
+            </div>
+            <div className="mt-3 w-full h-2 rounded-full bg-surface-high overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-secondary to-primary" style={{ width: '78%' }} />
+            </div>
+            <p className="text-label-xs text-on-surface-variant mt-1.5">78% menuju posisi #1</p>
+          </motion.div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
