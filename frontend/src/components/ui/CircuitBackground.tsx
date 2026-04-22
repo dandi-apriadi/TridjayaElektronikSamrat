@@ -1,7 +1,69 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 const CircuitBackground: React.FC = () => {
+  const [isStaticMode, setIsStaticMode] = useState(false);
+
+  useEffect(() => {
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const lowCoreCount = typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4;
+    const lowMemory = typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4;
+
+    if (prefersReducedMotion || lowCoreCount || lowMemory) {
+      setIsStaticMode(true);
+      return;
+    }
+
+    const monitorDurationMs = 2800;
+    let frameCount = 0;
+    let slowFrameCount = 0;
+    let longTaskCount = 0;
+    let rafId = 0;
+    let animationStartedAt = performance.now();
+    let lastFrameAt = animationStartedAt;
+
+    let observer: PerformanceObserver | null = null;
+    try {
+      if ('PerformanceObserver' in window) {
+        observer = new PerformanceObserver((list) => {
+          longTaskCount += list.getEntries().length;
+        });
+        observer.observe({ entryTypes: ['longtask'] });
+      }
+    } catch {
+      observer = null;
+    }
+
+    const assess = (now: number) => {
+      const frameDelta = now - lastFrameAt;
+      lastFrameAt = now;
+      frameCount += 1;
+
+      if (frameDelta > 34) {
+        slowFrameCount += 1;
+      }
+
+      const elapsed = now - animationStartedAt;
+      if (elapsed >= monitorDurationMs) {
+        const averageFps = frameCount / (elapsed / 1000);
+        const slowFrameRatio = slowFrameCount / Math.max(frameCount, 1);
+        const unstableDevice = averageFps < 50 || slowFrameRatio > 0.25 || longTaskCount >= 2;
+        setIsStaticMode(unstableDevice);
+        return;
+      }
+
+      rafId = window.requestAnimationFrame(assess);
+    };
+
+    rafId = window.requestAnimationFrame(assess);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      observer?.disconnect();
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none select-none opacity-[0.4] dark:opacity-[0.25] will-change-transform">
       <style>
@@ -62,19 +124,19 @@ const CircuitBackground: React.FC = () => {
               fill="none"
               stroke="currentColor"
               strokeWidth="0.15"
-              className="text-primary dark:text-sky-300 electric-line"
+              className={`text-primary dark:text-sky-300 ${isStaticMode ? '' : 'electric-line'}`}
             />
             <path
               d="M 10 0 V 5 H 20 V 12 M 5 25 V 20 H 0"
               fill="none"
               stroke="currentColor"
               strokeWidth="0.12"
-              className="text-primary/60 dark:text-blue-400/80 electric-line-alt"
+              className={`text-primary/60 dark:text-blue-400/80 ${isStaticMode ? '' : 'electric-line-alt'}`}
             />
             
             {/* Optimized Connection Nodes (CSS Animated) */}
-            <circle cx="5" cy="10" r="0.3" className="text-primary/40 dark:text-sky-300/70 fill-current node-pulse" />
-            <circle cx="20" cy="12" r="0.3" className="text-secondary/40 dark:text-blue-400/70 fill-current node-pulse" style={{ animationDelay: '1s' }} />
+            <circle cx="5" cy="10" r="0.3" className={`text-primary/40 dark:text-sky-300/70 fill-current ${isStaticMode ? '' : 'node-pulse'}`} />
+            <circle cx="20" cy="12" r="0.3" className={`text-secondary/40 dark:text-blue-400/70 fill-current ${isStaticMode ? '' : 'node-pulse'}`} style={isStaticMode ? undefined : { animationDelay: '1s' }} />
           </pattern>
 
           <linearGradient id="surge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -93,10 +155,10 @@ const CircuitBackground: React.FC = () => {
         <rect width="100" height="100" fill="url(#circuit-grid-optimized)" />
 
         {/* Minimal High-Voltage Surges (Managed with Framer Motion) */}
-        <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="dark:hidden" />
-        <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="dark:hidden" />
-        <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
-        <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
+        {!isStaticMode && <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="dark:hidden" />}
+        {!isStaticMode && <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="dark:hidden" />}
+        {!isStaticMode && <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />}
+        {!isStaticMode && <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />}
       </svg>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Menu, X, ChevronDown, Zap, ShoppingBag } from 'lucide-react';
+import { Sun, Moon, Menu, X, ChevronDown, ShoppingBag, LogIn } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import logoPng from '../../assets/images/logo.webp';
 
@@ -156,6 +156,14 @@ const Navbar: React.FC = () => {
 
             {/* CTA Button */}
             <Link
+              to="/login"
+              className="hidden lg:flex items-center gap-2 px-4 py-2.5 glass-card rounded-lg font-body text-body-md font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
+            >
+              <LogIn className="w-4 h-4" />
+              Login
+            </Link>
+
+            <Link
               to="/daftar-agen"
               className="hidden lg:flex items-center gap-2 px-5 py-2.5 gradient-primary rounded-lg font-body text-body-md font-semibold text-surface hover:shadow-neon-cyan transition-all duration-300"
             >
@@ -238,6 +246,13 @@ const Navbar: React.FC = () => {
                 ))}
               </div>
               <div className="mt-auto">
+                <Link
+                  to="/login"
+                  className="mb-3 flex items-center justify-center gap-2 w-full py-3.5 glass-card rounded-xl font-body text-title-sm font-semibold text-on-surface-variant"
+                >
+                  <LogIn className="w-4.5 h-4.5" />
+                  Login
+                </Link>
                 <Link
                   to="/daftar-agen"
                   className="flex items-center justify-center gap-2 w-full py-4 gradient-primary rounded-xl font-body text-title-sm font-bold text-surface"

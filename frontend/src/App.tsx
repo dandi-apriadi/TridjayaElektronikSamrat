@@ -15,6 +15,7 @@ import AgencyRegistrationPage from './pages/AgencyRegistrationPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import AdminDashboard from './pages/dashboard/AdminDashboard';
 import AgentDashboard from './pages/dashboard/AgentDashboard';
@@ -99,6 +100,7 @@ const App: React.FC = () => {
 
         {/* Auth Routes */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
         {/* Dashboard Routes */}
         <Route

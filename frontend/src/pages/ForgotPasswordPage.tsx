@@ -1,35 +1,14 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Building2, Lock, Mail, ShieldCheck, Sparkles, Zap, Loader2, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Mail, Sparkles, ShieldCheck, RefreshCcw, CheckCircle2, Loader2 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
-import { useAuthStore } from '../store/authStore';
 import logoPng from '../assets/images/logo.webp';
 
-const benefits = [
-  {
-    icon: ShieldCheck,
-    title: 'Role otomatis di server',
-    description: 'Admin, agent, editor, dan operator dibedakan oleh backend, bukan pilihan manual.',
-  },
-  {
-    icon: Zap,
-    title: 'Portal terpadu',
-    description: 'Satu pintu untuk masuk ke dashboard internal tanpa menu login terpisah.',
-  },
-  {
-    icon: Building2,
-    title: 'Akses yang lebih aman',
-    description: 'Autentikasi, refresh token, dan pembatasan akses dijalankan dari server Rust.',
-  },
-];
-
-const LoginPage: React.FC = () => {
-  const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
+const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -38,10 +17,22 @@ const LoginPage: React.FC = () => {
     setErrorMessage('');
 
     try {
-      await login({ email, password });
-      navigate('/dashboard');
+      const response = await fetch('http://localhost:8080/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.message || 'Permintaan reset gagal');
+      }
+
+      setSubmitted(true);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Login gagal, silakan coba lagi.');
+      setErrorMessage(error instanceof Error ? error.message : 'Permintaan reset gagal, silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -60,7 +51,7 @@ const LoginPage: React.FC = () => {
       </div>
 
       <div className="relative z-10 container-custom min-h-screen flex items-center py-28 lg:py-32">
-        <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-14 items-center w-full">
+        <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-14 items-center w-full">
           <motion.section
             initial={{ opacity: 0, x: -24 }}
             animate={{ opacity: 1, x: 0 }}
@@ -70,34 +61,24 @@ const LoginPage: React.FC = () => {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass-dark border border-primary/20 mb-6">
               <Sparkles className="w-4 h-4 text-secondary" />
               <span className="font-body text-label-md font-bold text-secondary uppercase tracking-widest">
-                Portal Internal
+                Forgot Password
               </span>
             </div>
 
             <h1 className="font-display text-display-sm md:text-display-lg font-bold text-on-surface leading-[1.02] tracking-tight mb-6">
-              Masuk ke <span className="gradient-text-primary">satu portal</span> yang terasa seperti bagian dari halaman publik
+              Reset akses <span className="gradient-text-primary">portal internal</span> dengan aman
             </h1>
 
             <p className="font-body text-body-lg md:text-title-sm text-on-surface-variant max-w-xl leading-relaxed mb-8">
-              Desain ini diselaraskan dengan halaman publik lain: atmosfir premium, komposisi hero yang tegas, dan fokus ke satu tindakan utama. Role pengguna tetap ditentukan otomatis oleh backend Rust setelah login berhasil.
+              Masukkan email yang terdaftar untuk menerima instruksi reset password. Alurnya tetap konsisten dengan gaya visual halaman publik lain: tegas, premium, dan ringan.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3 mb-8">
-              <Link
-                to="/"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl glass-card border border-outline-variant/20 hover:border-primary/50 font-body text-body-md font-semibold text-on-surface-variant hover:text-primary transition-all duration-300 hover:shadow-neon-cyan-sm"
-              >
-                Kembali ke publik
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-              <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl glass-dark border border-primary/20 font-body text-body-md font-semibold text-primary hover:shadow-neon-cyan-sm transition-all duration-300">
-                <CheckCircle2 className="w-4 h-4" />
-                Satu login untuk semua role
-              </div>
-            </div>
-
             <div className="grid md:grid-cols-3 gap-4">
-              {benefits.map((item, index) => {
+              {[
+                { icon: ShieldCheck, title: 'Aman', description: 'Permintaan reset diproses secara server-side.' },
+                { icon: RefreshCcw, title: 'Cepat', description: 'Instruksi dikirim segera setelah validasi email.' },
+                { icon: CheckCircle2, title: 'Jelas', description: 'Satu alur untuk semua role pengguna.' },
+              ].map((item, index) => {
                 const Icon = item.icon;
 
                 return (
@@ -121,20 +102,6 @@ const LoginPage: React.FC = () => {
                 );
               })}
             </div>
-
-            <div className="mt-6 rounded-3xl glass-premium border border-primary/20 p-5 md:p-6 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-primary/40 hover:shadow-neon-cyan-sm transition-all duration-300">
-              <div className="w-12 h-12 rounded-2xl bg-secondary/15 flex items-center justify-center shrink-0">
-                <Building2 className="w-5 h-5 text-secondary" />
-              </div>
-              <div className="flex-1">
-                <div className="font-display text-title-md font-bold text-on-surface mb-1">
-                  Tampilan dibuat serasi dengan landing page
-                </div>
-                <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
-                  Background lembut, glass card, dan aksen neon mengikuti bahasa visual dari halaman publik lain agar alurnya terasa satu ekosistem.
-                </p>
-              </div>
-            </div>
           </motion.section>
 
           <motion.section
@@ -153,7 +120,7 @@ const LoginPage: React.FC = () => {
                 </div>
                 <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl glass-card border border-outline-variant/10">
                   <ShieldCheck className="w-4 h-4 text-primary" />
-                  <span className="font-body text-label-sm font-semibold text-on-surface-variant">Secure access</span>
+                  <span className="font-body text-label-sm font-semibold text-on-surface-variant">Secure reset</span>
                 </div>
               </div>
 
@@ -161,14 +128,14 @@ const LoginPage: React.FC = () => {
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass-dark border border-primary/20 mb-4">
                   <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
                   <span className="font-body text-label-md font-bold text-secondary uppercase tracking-widest">
-                    Access Portal
+                    Password Recovery
                   </span>
                 </div>
                 <h2 className="font-display text-headline-sm font-bold text-on-surface mb-2">
-                  Login ke Portal Internal
+                  Kirim Instruksi Reset
                 </h2>
                 <p className="font-body text-body-md text-on-surface-variant">
-                  Masukkan email dan password Anda. Role akan dipetakan otomatis oleh backend Rust setelah autentikasi berhasil.
+                  Kami akan mengirimkan tautan reset ke email yang terdaftar.
                 </p>
               </div>
 
@@ -189,31 +156,6 @@ const LoginPage: React.FC = () => {
                   />
                 </label>
 
-                <label className="block">
-                  <span className="flex items-center gap-2 font-body text-label-sm font-semibold text-on-surface-variant mb-2">
-                    <Lock className="w-4 h-4" />
-                    Password
-                  </span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    autoComplete="current-password"
-                    placeholder="Masukkan password"
-                    className="w-full px-4 py-3.5 rounded-xl glass-dark border border-outline-variant/30 hover:border-outline-variant/50 focus:border-primary/50 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-surface transition-all duration-200"
-                    required
-                  />
-                </label>
-
-                <div className="flex items-center justify-end">
-                  <Link
-                    to="/forgot-password"
-                    className="font-body text-body-sm font-semibold text-primary hover:text-primary/80 hover:underline transition-all duration-200"
-                  >
-                    Lupa password?
-                  </Link>
-                </div>
-
                 {errorMessage && (
                   <motion.div
                     initial={{ opacity: 0, y: -8 }}
@@ -225,6 +167,19 @@ const LoginPage: React.FC = () => {
                   </motion.div>
                 )}
 
+                {submitted ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="rounded-2xl glass-premium border border-primary/20 p-4 hover:border-primary/40 hover:shadow-neon-cyan-sm transition-all duration-300"
+                  >
+                    <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
+                      Jika email terdaftar, instruksi reset sudah dikirim. Silakan cek inbox atau folder spam.
+                    </p>
+                  </motion.div>
+                ) : null}
+
                 <button
                   type="submit"
                   disabled={loading}
@@ -233,20 +188,21 @@ const LoginPage: React.FC = () => {
                   {loading ? (
                     <>
                       <Loader2 className="w-4.5 h-4.5 animate-spin" />
-                      Menyiapkan Portal...
+                      Mengirim instruksi...
                     </>
                   ) : (
                     <>
-                      Masuk ke Portal
+                      Kirim Instruksi Reset
                       <ArrowRight className="w-4.5 h-4.5" />
                     </>
                   )}
                 </button>
 
-                <div className="rounded-2xl glass-premium border border-primary/20 p-4 hover:border-primary/40 hover:shadow-neon-cyan-sm transition-all duration-300">
-                  <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
-                    Backend menetapkan akses berdasarkan role pengguna. Satu halaman login untuk semua level akses.
-                  </p>
+                <div className="flex items-center justify-between gap-3 text-body-sm font-medium">
+                  <Link to="/login" className="text-on-surface-variant hover:text-primary transition-colors">
+                    Kembali ke login
+                  </Link>
+                  <span className="text-on-surface-variant/70">Backend endpoint: /api/auth/forgot-password</span>
                 </div>
               </form>
             </div>
@@ -257,4 +213,4 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+export default ForgotPasswordPage;

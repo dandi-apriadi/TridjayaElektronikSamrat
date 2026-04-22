@@ -120,6 +120,15 @@ const BlogPage: React.FC = () => {
             <p className="font-body text-body-lg text-on-surface-variant max-w-xl mx-auto mb-8">
               Tips perawatan, review produk, dan inspirasi gaya hidup modern dari para ahli kami.
             </p>
+            <div className="flex justify-center mb-6">
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-primary text-surface font-body text-body-md font-semibold shadow-neon-cyan-sm hover:shadow-neon-cyan transition-all duration-200"
+              >
+                Login
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
             {/* Search */}
             <div className="relative max-w-md mx-auto">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-on-surface-variant" />
