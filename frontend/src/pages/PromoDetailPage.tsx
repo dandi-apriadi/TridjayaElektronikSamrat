@@ -2,12 +2,28 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Clock, Zap, ArrowRight, Star, Shield, Info } from 'lucide-react';
-import { promos, products, formatPrice } from '../data';
+import { formatPrice } from '../data';
 import { SectionHeader } from '../components/ui';
+import { usePromoStore } from '../store/usePromoStore';
+import { useProductStore } from '../store/useProductStore';
 
 const PromoDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const promo = promos.find((p) => p.id === id);
+  const { promos, getPromoById, isLoading: isPromoLoading } = usePromoStore();
+  const { products, isLoading: isProductLoading } = useProductStore();
+  
+  const promo = getPromoById(id || '');
+
+  if (isPromoLoading || isProductLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface/50">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-on-surface-variant font-body">Memuat Detail Promo...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!promo) {
     return (

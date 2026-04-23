@@ -40,35 +40,8 @@ interface AuthState {
   logout: () => void;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8080';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
 const API_URL = `${API_BASE_URL}/api`;
-
-const createFallbackUser = (email: string): User => {
-  const normalizedEmail = email.toLowerCase();
-  const role: UserRole = normalizedEmail.includes('agent')
-    ? 'agent'
-    : normalizedEmail.includes('editor')
-      ? 'editor'
-      : normalizedEmail.includes('operator')
-        ? 'operator'
-        : 'admin';
-
-  return {
-    id: role === 'admin' ? 'adm-001' : role === 'agent' ? 'age-001' : role === 'editor' ? 'edt-001' : 'opr-001',
-    email,
-    name:
-      role === 'admin'
-        ? 'Administrator Tridjaya'
-        : role === 'agent'
-          ? 'Agen Samrat Makassar'
-          : role === 'editor'
-            ? 'Editor Konten'
-            : 'Operator Internal',
-    role,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${role}`,
-    isActive: true,
-  };
-};
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -108,19 +81,7 @@ export const useAuthStore = create<AuthState>()(
 
           return authData.user;
         } catch (error) {
-          if (!isNetworkError(error)) {
-            throw error;
-          }
-
-          const fallbackUser = createFallbackUser(email);
-          await new Promise((resolve) => setTimeout(resolve, 600));
-          set({
-            user: fallbackUser,
-            isAuthenticated: true,
-            accessToken: null,
-            refreshToken: null,
-          });
-          return fallbackUser;
+          throw error;
         }
       },
       logout: () => {

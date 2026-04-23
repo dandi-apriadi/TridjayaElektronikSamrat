@@ -39,6 +39,9 @@ import AgentLeaderboardPage from './pages/dashboard/AgentLeaderboardPage';
 import { NotificationContainer } from './components/ui/Notification';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
+import { useProductStore } from './store/useProductStore';
+import { usePromoStore } from './store/usePromoStore';
+import { useBlogStore } from './store/useBlogStore';
 import { Navigate } from 'react-router-dom';
 
 // Protected Route Component
@@ -85,6 +88,10 @@ const App: React.FC = () => {
     } else {
       setTheme('dark');
     }
+    // Fetch initial product, promo, and blog data
+    useProductStore.getState().fetchProducts();
+    usePromoStore.getState().fetchPromos();
+    useBlogStore.getState().fetchPosts();
   }, [setTheme]);
 
   return (

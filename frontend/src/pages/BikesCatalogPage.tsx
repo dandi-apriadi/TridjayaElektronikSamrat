@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Filter, SlidersHorizontal, Battery, Zap, Leaf } from 'lucide-react';
-import { getProductsByCategory } from '../data';
+import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
 
@@ -22,6 +22,7 @@ const BikesCatalogPage: React.FC = () => {
   const [stockFilter, setStockFilter] = useState<'all' | 'available' | 'indent'>('all');
   const [priceFilter, setPriceFilter] = useState<'all' | 'under20' | 'above20'>('all');
 
+  const { getProductsByCategory, isLoading } = useProductStore();
   const bikes = getProductsByCategory('bike');
   const filteredByBrand = activeFilter === 'Semua'
     ? bikes
@@ -207,13 +208,28 @@ const BikesCatalogPage: React.FC = () => {
           )}
 
           {/* Product grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="glass-card rounded-2xl h-96 animate-pulse">
+                  <div className="h-48 bg-surface-highest rounded-t-2xl"></div>
+                  <div className="p-4 space-y-4">
+                    <div className="h-6 bg-surface-highest rounded w-3/4"></div>
+                    <div className="h-4 bg-surface-highest rounded w-1/2"></div>
+                    <div className="h-10 bg-surface-highest rounded mt-4"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filtered.map((product, i) => (
+                <ProductCard key={product.id} product={product} index={i} />
+              ))}
+            </div>
+          )}
 
-          {filtered.length === 0 && (
+          {!isLoading && filtered.length === 0 && (
             <div className="text-center py-20">
               <Filter className="w-10 h-10 text-on-surface-variant mx-auto mb-4" />
               <p className="font-body text-body-lg text-on-surface-variant">Tidak ada produk yang sesuai filter.</p>

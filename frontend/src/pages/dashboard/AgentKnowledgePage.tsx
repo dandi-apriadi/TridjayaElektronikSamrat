@@ -6,9 +6,10 @@ import {
   ChevronDown, ChevronUp, Zap, ShoppingCart, Eye,
   Share2, Shield, CreditCard, Copy, Info, Image as ImageIcon
 } from 'lucide-react';
-import { products, formatPrice } from '../../data';
+import { formatPrice } from '../../data';
 import type { Product } from '../../types';
 import { useNotificationStore } from '../../store/useNotificationStore';
+import { useProductStore } from '../../store/useProductStore';
 
 /* ─── Marketing Mappings ─────────────────────────────── */
 // We map extra marketing data for products that don't have it natively.
@@ -57,6 +58,7 @@ const AgentKnowledgePage: React.FC = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeTabs, setActiveTabs] = useState<Record<string, 'sales' | 'specs' | 'gallery' | 'installments'>>({});
   const addNotification = useNotificationStore((state) => state.addNotification);
+  const { products, isLoading } = useProductStore();
 
   const filtered = products.filter((k) => {
     const mappedCat = mapCategory(k.category);
@@ -164,8 +166,28 @@ const AgentKnowledgePage: React.FC = () => {
 
       {/* Knowledge Cards */}
       <div className="space-y-3 pb-20">
-        {filtered.map((item) => {
-          const isExpanded = expandedId === item.id;
+        {isLoading ? (
+          <div className="space-y-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="glass-card rounded-xl p-5 animate-pulse flex flex-col md:flex-row gap-5">
+                 <div className="w-full md:w-48 h-32 bg-surface-highest rounded-lg shrink-0" />
+                 <div className="flex-1 space-y-3 py-2">
+                    <div className="h-6 bg-surface-highest rounded w-1/3" />
+                    <div className="h-4 bg-surface-highest rounded w-2/3" />
+                    <div className="h-4 bg-surface-highest rounded w-1/2" />
+                 </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="glass-card rounded-xl p-12 text-center">
+            <Search className="w-12 h-12 text-on-surface-variant mx-auto mb-4 opacity-50" />
+            <p className="font-display text-title-md font-semibold text-white">Tidak Ada Hasil</p>
+            <p className="text-body-sm text-on-surface-variant mt-1">Coba gunakan kata kunci atau kategori lain.</p>
+          </div>
+        ) : (
+          filtered.map((item) => {
+            const isExpanded = expandedId === item.id;
           const currentTab = getTab(item.id);
           const mappedCat = mapCategory(item.category);
           const mkt = getMarketingInfo(item.id);
@@ -415,14 +437,8 @@ const AgentKnowledgePage: React.FC = () => {
               </AnimatePresence>
             </motion.div>
           );
-        })}
-        {filtered.length === 0 && (
-          <div className="text-center py-20 px-4 glass-card rounded-xl">
-             <Package className="w-12 h-12 text-on-surface-variant/30 mx-auto mb-4" />
-             <h3 className="text-title-md font-display font-bold text-on-surface mb-2">Produk tidak ditemukan</h3>
-             <p className="text-body-sm text-on-surface-variant">Coba gunakan kata kunci lain atau ubah filter kategori Anda.</p>
-          </div>
-        )}
+        })
+      )}
       </div>
     </motion.div>
   );

@@ -5,14 +5,25 @@ import {
   Star, Shield, CreditCard, Phone, Share2
 } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
-import { getProductBySlug, products, formatPrice } from '../data';
+import { formatPrice } from '../data';
+import { useProductStore } from '../store/useProductStore';
 import { Badge, ProductCard, SectionHeader } from '../components/ui';
 
 const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const { getProductBySlug, products, isLoading } = useProductStore();
+  
   const product = getProductBySlug(slug || '');
   const [selectedColor, setSelectedColor] = useState(0);
   const [showCreditForm, setShowCreditForm] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center pt-24">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
 
   if (!product) {
     return (

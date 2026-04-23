@@ -2,10 +2,24 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ticket, ArrowRight, Zap, Clock, Info, Share2 } from 'lucide-react';
-import { promos, formatPrice } from '../data';
+import { formatPrice } from '../data';
 import { Badge, SectionHeader, PartnerLogos } from '../components/ui';
+import { usePromoStore } from '../store/usePromoStore';
 
 const PromoPage: React.FC = () => {
+  const { promos, isLoading } = usePromoStore();
+
+  if (isLoading || promos.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface/50">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-on-surface-variant font-body">Memuat Penawaran Spesial...</p>
+        </div>
+      </div>
+    );
+  }
+
   const heroPromo = promos.find(p => p.variant === 'hero') || promos[0];
   const standardPromos = promos.filter(p => p.id !== heroPromo.id);
 

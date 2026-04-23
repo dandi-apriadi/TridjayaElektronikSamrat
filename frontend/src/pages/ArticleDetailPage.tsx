@@ -3,17 +3,31 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, ArrowLeft, Share2, Tag } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
-import { blogPosts } from '../data';
 import { Badge, ProductCard } from '../components/ui';
-import { products } from '../data';
+import { useBlogStore } from '../store/useBlogStore';
+import { useProductStore } from '../store/useProductStore';
 
 const ArticleDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const post = blogPosts.find((p) => p.slug === slug);
+  const { posts, getPostBySlug, isLoading: isBlogLoading } = useBlogStore();
+  const { products, isLoading: isProductLoading } = useProductStore();
+
+  const post = getPostBySlug(slug || '');
+
+  if (isBlogLoading || isProductLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface/50">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-on-surface-variant font-body">Memuat Artikel...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!post) {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-24">
+      <div className="min-h-screen flex items-center justify-center pt-24 text-center">
         <div className="text-center">
           <p className="font-display text-headline-md text-on-surface-variant mb-4">Artikel tidak ditemukan</p>
           <Link to="/blog" className="flex items-center gap-2 px-6 py-3 gradient-primary rounded-xl font-body text-body-md font-bold text-surface mx-auto w-fit">
@@ -24,7 +38,7 @@ const ArticleDetailPage: React.FC = () => {
     );
   }
 
-  const related = blogPosts.filter((p) => p.id !== post.id).slice(0, 2);
+  const related = posts.filter((p) => p.id !== post.id).slice(0, 2);
   const relatedBikes = products.filter((p) => p.category === 'bike').slice(0, 3);
 
   const handleShareArticle = async () => {

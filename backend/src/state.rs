@@ -59,7 +59,7 @@ impl UserRecord {
             id: self.id.clone(),
             email: self.email.clone(),
             name: self.name.clone(),
-            role: self.role.clone(),
+            role: self.role.to_lowercase(),
             avatar: self.avatar.clone(),
             is_active: self.is_active,
         }

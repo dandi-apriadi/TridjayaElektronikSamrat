@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, Tag, ArrowRight, Search } from 'lucide-react';
-import { blogPosts } from '../data';
 import { Badge } from '../components/ui';
+import { useBlogStore } from '../store/useBlogStore';
 import type { BlogPost } from '../types';
 import blogHeroImg from '../assets/images/blog-hero.webp';
 
@@ -85,13 +85,25 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
 };
 
 const BlogPage: React.FC = () => {
+  const { posts, isLoading } = useBlogStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
   const activeTag = searchParams.get('tag');
 
-  const featured = blogPosts.find((p) => p.featured);
-  const others = blogPosts.filter((p) => !p.featured);
+  const featured = posts.find((p) => p.featured);
+  const others = posts.filter((p) => !p.featured);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-on-surface-variant font-body">Memuat Artikel...</p>
+        </div>
+      </div>
+    );
+  }
 
   const filtered = (activeCategory === 'Semua' ? others : others.filter((p) => p.category === activeCategory))
     .filter((p) => searchQuery === '' || p.title.toLowerCase().includes(searchQuery.toLowerCase()))

@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Monitor, Thermometer, Wind, Sofa } from 'lucide-react';
-import { products } from '../data';
+import { Monitor, Thermometer, Wind, Sofa, Tv, Refrigerator } from 'lucide-react';
+import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
+import homeHeroImg from '../assets/images/fridge.webp';
 import sofaImg from '../assets/images/sofa.webp';
 import tvImg from '../assets/images/tv.webp';
 
+const filters = ['Semua', 'Televisi', 'Kulkas', 'AC', 'Mesin Cuci', 'Sofa'];
+const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
+
 const categories = [
   { id: 'all', label: 'Semua', icon: null },
-  { id: 'tv', label: 'Televisi', icon: Monitor },
-  { id: 'kulkas', label: 'Kulkas', icon: Thermometer },
+  { id: 'televisi', label: 'Televisi', icon: Tv },
+  { id: 'kulkas', label: 'Kulkas', icon: Refrigerator },
   { id: 'kipas', label: 'Kipas & AC', icon: Wind },
   { id: 'sofa', label: 'Sofa', icon: Sofa },
 ];
@@ -18,10 +22,13 @@ const categories = [
 const HomeCatalogPage: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('all');
 
-  const homeProducts = products.filter((p) => p.category === 'electronics' || p.category === 'furniture');
+  const { getProductsByCategory, isLoading } = useProductStore();
+  
+  // Combine electronics and furniture for the home catalog
+  const homeProducts = [...getProductsByCategory('electronics'), ...getProductsByCategory('furniture')];
   const filtered = activeCategory === 'all'
     ? homeProducts
-    : homeProducts.filter((p) => p.subcategory.toLowerCase().includes(activeCategory));
+    : homeProducts.filter((p) => p.subcategory?.toLowerCase().includes(activeCategory.toLowerCase()));
 
   return (
     <>
@@ -112,13 +119,28 @@ const HomeCatalogPage: React.FC = () => {
           )}
 
           {/* Product grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filtered.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="glass-card rounded-2xl h-96 animate-pulse">
+                  <div className="h-48 bg-surface-highest rounded-t-2xl"></div>
+                  <div className="p-4 space-y-4">
+                    <div className="h-6 bg-surface-highest rounded w-3/4"></div>
+                    <div className="h-4 bg-surface-highest rounded w-1/2"></div>
+                    <div className="h-10 bg-surface-highest rounded mt-4"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {filtered.map((product, i) => (
+                <ProductCard key={product.id} product={product} index={i} />
+              ))}
+            </div>
+          )}
 
-          {filtered.length === 0 && (
+          {!isLoading && filtered.length === 0 && (
             <div className="text-center py-16">
               <p className="font-body text-body-lg text-on-surface-variant">Produk tidak ditemukan.</p>
             </div>

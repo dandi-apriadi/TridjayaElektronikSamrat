@@ -238,8 +238,7 @@ async fn pixel_event(State(state): State<AppState>, Json(payload): Json<Value>) 
     json_ok("Pixel event recorded", json!({ "received": payload }))
 }
 
-async fn list_jobs(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let jobs: Vec<Value> = sqlx::query("SELECT * FROM job_listings")
         .fetch_all(&state.pool)
         .await
@@ -264,7 +263,7 @@ async fn list_jobs(State(state): State<AppState>, headers: HeaderMap) -> Result<
             })
         })
         .collect();
-    Ok(json_ok(format!("Jobs fetched by {}", user.email), json!({ "items": jobs })))
+    Ok(json_ok("Jobs fetched", json!({ "items": jobs })))
 }
 
 async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
@@ -277,8 +276,7 @@ async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
     Ok(json_ok(format!("Job {} updated by {}", id, user.email), json!({ "id": id, "received": payload })))
 }
 
-async fn list_articles(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn list_articles(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let articles: Vec<Value> = sqlx::query("SELECT * FROM blog_posts")
         .fetch_all(&state.pool)
         .await
@@ -306,7 +304,7 @@ async fn list_articles(State(state): State<AppState>, headers: HeaderMap) -> Res
             })
         })
         .collect();
-    Ok(json_ok(format!("Articles fetched by {}", user.email), json!({ "items": articles })))
+    Ok(json_ok("Articles fetched", json!({ "items": articles })))
 }
 
 async fn create_article(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
