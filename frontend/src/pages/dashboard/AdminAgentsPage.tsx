@@ -11,7 +11,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  Share2,
   TrendingUp,
   ExternalLink,
   Search,
@@ -21,62 +20,9 @@ import {
   Star,
 } from 'lucide-react';
 
-/* ─── Mock Data ──────────────────────────────────────── */
-const pendingAgents = [
-  {
-    id: 'REG-1021',
-    name: 'Rani Syafitri',
-    city: 'Makassar',
-    province: 'Sulawesi Selatan',
-    phone: '+62 812-0011-2233',
-    email: 'rani.s@gmail.com',
-    instagram: '@rani.samrat',
-    socialReach: '12.4k',
-    motivation: 'Ingin mengembangkan jaringan penjualan di area Makassar Utara.',
-    submittedAt: '2 jam lalu',
-    priority: 'high',
-  },
-  {
-    id: 'REG-1019',
-    name: 'Fahri Ramadhan',
-    city: 'Gowa',
-    province: 'Sulawesi Selatan',
-    phone: '+62 813-9988-7766',
-    email: 'fahri.r@gmail.com',
-    instagram: '@fahri.official',
-    socialReach: '8.1k',
-    motivation: 'Memiliki toko kecil elektronik, ingin menambah lini produk.',
-    submittedAt: '5 jam lalu',
-    priority: 'medium',
-  },
-  {
-    id: 'REG-1018',
-    name: 'Sri Wulandari',
-    city: 'Parepare',
-    province: 'Sulawesi Selatan',
-    phone: '+62 811-5544-3322',
-    email: 'sri.wulan@gmail.com',
-    instagram: '@sriwulan.kreasi',
-    socialReach: '5.6k',
-    motivation: 'Reseller aktif brand elektronik lain, ingin diversifikasi.',
-    submittedAt: '1 hari lalu',
-    priority: 'medium',
-  },
-  {
-    id: 'REG-1014',
-    name: 'Denny Kusuma',
-    city: 'Bone',
-    province: 'Sulawesi Selatan',
-    phone: '+62 822-1234-5678',
-    email: 'denny.k@gmail.com',
-    instagram: '@dennyk_sepeda',
-    socialReach: '3.2k',
-    motivation: 'Penggemar sepeda listrik, komunitas lokal aktif di Bone.',
-    submittedAt: '2 hari lalu',
-    priority: 'low',
-  },
-];
+import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 
+/* ─── Mock Data ──────────────────────────────────────── */
 const withdrawalRequests = [
   { id: 'WD-4401', agent: 'Agen Samrat Makassar', agentId: 'AGT-001', amount: 'Rp 2.400.000', raw: 2400000, period: 'Apr 2026', submittedAt: '2 jam lalu', status: 'Pending' },
   { id: 'WD-4398', agent: 'Dian Sales Partner', agentId: 'AGT-002', amount: 'Rp 1.800.000', raw: 1800000, period: 'Apr 2026', submittedAt: '5 jam lalu', status: 'Need Review' },
@@ -94,14 +40,9 @@ const itemVariants = {
   visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } },
 };
 
-const priorityConfig: Record<string, { label: string; cls: string }> = {
-  high:   { label: 'Prioritas Tinggi', cls: 'bg-error/15 text-error' },
-  medium: { label: 'Normal',           cls: 'bg-tertiary/15 text-tertiary' },
-  low:    { label: 'Rendah',           cls: 'bg-surface-highest text-on-surface-variant' },
-};
-
 /* ─── Component ──────────────────────────────────────── */
 const AdminAgentsPage: React.FC = () => {
+  const { registrations, fetchRegistrations, updateRegistrationStatus } = useAdminNetworkStore();
   const [approvedIds, setApprovedIds]   = useState<string[]>([]);
   const [rejectedIds, setRejectedIds]   = useState<string[]>([]);
   const [wdStatuses, setWdStatuses]     = useState<Record<string, string>>({});
@@ -109,22 +50,28 @@ const AdminAgentsPage: React.FC = () => {
   const [searchQuery, setSearchQuery]   = useState('');
   const [activeTab, setActiveTab]       = useState<'queue' | 'payout'>('queue');
 
+  React.useEffect(() => {
+    fetchRegistrations();
+  }, [fetchRegistrations]);
+
   const handleApprove = (id: string) => {
     setApprovedIds((p) => (p.includes(id) ? p : [...p, id]));
     setRejectedIds((p) => p.filter((x) => x !== id));
+    updateRegistrationStatus(id, 'approved');
   };
 
   const handleReject = (id: string) => {
     setRejectedIds((p) => (p.includes(id) ? p : [...p, id]));
     setApprovedIds((p) => p.filter((x) => x !== id));
+    updateRegistrationStatus(id, 'rejected');
   };
 
   const handleWd = (id: string, status: string) => {
     setWdStatuses((p) => ({ ...p, [id]: status }));
   };
 
-  const filteredAgents = pendingAgents.filter((a) =>
-    `${a.name} ${a.city} ${a.id}`.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredAgents = registrations.filter((a) =>
+    `${a.fullName} ${a.city} ${a.id}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const totalPending = withdrawalRequests
@@ -256,7 +203,7 @@ const AdminAgentsPage: React.FC = () => {
                   const isApproved = approvedIds.includes(item.id);
                   const isRejected = rejectedIds.includes(item.id);
                   const isExpanded = expandedId === item.id;
-                  const p = priorityConfig[item.priority];
+                  const ptLabel = item.status === 'pending' ? 'Menunggu' : item.status;
 
                   return (
                     <React.Fragment key={item.id}>
@@ -269,18 +216,18 @@ const AdminAgentsPage: React.FC = () => {
                         <td className="py-3.5 pr-4">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center font-bold text-on-primary text-sm flex-shrink-0">
-                              {item.name[0]}
+                              {item.fullName[0]}
                             </div>
                             <div>
-                              <div className="font-semibold text-on-surface text-body-sm">{item.name}</div>
+                              <div className="font-semibold text-on-surface text-body-sm">{item.fullName}</div>
                               <div className="text-label-xs text-on-surface-variant">{item.id}</div>
                             </div>
                           </div>
                         </td>
                         <td className="py-3.5 pr-4">
                           <div className="flex flex-col gap-0.5 text-label-xs text-on-surface-variant">
-                            <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {item.phone}</span>
-                            <span className="inline-flex items-center gap-1"><Share2 className="w-3 h-3" /> {item.instagram}</span>
+                            <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {item.whatsapp}</span>
+                            <span className="inline-flex items-center gap-1"><Mail className="w-3 h-3" /> {item.email}</span>
                           </div>
                         </td>
                         <td className="py-3.5 pr-4">
@@ -292,12 +239,12 @@ const AdminAgentsPage: React.FC = () => {
                         <td className="py-3.5 pr-4">
                           <div className="inline-flex items-center gap-1.5 font-bold text-on-surface text-body-sm">
                             <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                            {item.socialReach}
+                            -
                           </div>
                         </td>
                         <td className="py-3.5 pr-4">
-                          <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold ${p.cls}`}>
-                            {p.label}
+                          <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold bg-tertiary/15 text-tertiary uppercase`}>
+                            {ptLabel}
                           </span>
                         </td>
                         <td className="py-3.5 pr-4">
@@ -355,24 +302,24 @@ const AdminAgentsPage: React.FC = () => {
                             >
                               <div className="p-5 rounded-xl glass-card border border-outline-variant/10 relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1 h-full bg-primary/70" />
-                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Motivasi Bergabung</div>
-                                <p className="text-body-sm text-on-surface italic leading-relaxed">"{item.motivation}"</p>
+                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Minat Produk</div>
+                                <p className="text-body-sm text-on-surface italic leading-relaxed">
+                                  "{item.preferredProducts?.join(', ') || 'Semua Produk'}"
+                                </p>
                               </div>
                               <div className="p-5 rounded-xl glass-card border border-outline-variant/10">
                                 <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Informasi Kontak</div>
                                 <div className="space-y-2.5 text-body-sm text-on-surface-variant">
-                                  <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-primary" /> <span className="font-medium text-on-surface">{item.phone}</span></div>
+                                  <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-primary" /> <span className="font-medium text-on-surface">{item.whatsapp}</span></div>
                                   <div className="flex items-center gap-3"><Mail className="w-4 h-4 text-tertiary" /> <span className="font-medium text-on-surface">{item.email}</span></div>
-                                  <div className="flex items-center gap-3"><Share2 className="w-4 h-4 text-secondary" /> <span className="font-medium text-on-surface">{item.instagram}</span></div>
                                 </div>
                               </div>
                               <div className="p-5 rounded-xl glass-card border border-outline-variant/10 relative overflow-hidden">
                                 <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-secondary/10 rounded-full blur-xl" />
-                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Lokasi & Insight</div>
+                                <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest mb-3">Lokasi & Status</div>
                                 <div className="space-y-2.5 text-body-sm text-on-surface-variant relative z-10">
                                   <div className="flex items-center gap-3"><MapPin className="w-4 h-4" /> {item.city}, {item.province}</div>
-                                  <div className="flex items-center gap-3"><Star className="w-4 h-4 text-yellow-400" /> Jangkauan: <strong className="text-on-surface font-display">{item.socialReach} Follower</strong></div>
-                                  <div className="flex items-center gap-3"><AlertCircle className="w-4 h-4" /> Antrian: <strong className={priorityConfig[item.priority].cls.split(' ')[1]}>{priorityConfig[item.priority].label}</strong></div>
+                                  <div className="flex items-center gap-3"><Star className="w-4 h-4 text-yellow-400" /> Alamat Lengkap: <strong className="text-on-surface font-display">{item.address || '-'}</strong></div>
                                 </div>
                               </div>
                             </motion.div>

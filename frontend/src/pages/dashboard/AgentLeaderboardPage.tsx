@@ -15,6 +15,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useAgentStore } from '../../store/useAgentStore';
 
 /* ─── Mock Data ─────────────────────────────────────── */
 const leaderboardData = [
@@ -74,12 +75,21 @@ const itemVariants = {
 /* ─── Component ─────────────────────────────────────── */
 const AgentLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
+  const { stats, fetchStats } = useAgentStore();
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'rewards'>('leaderboard');
   const [search, setSearch] = useState('');
+
+  React.useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const filteredLeaderboard = leaderboardData.filter(a => 
     a.name.toLowerCase().includes(search.toLowerCase()) || a.city.toLowerCase().includes(search.toLowerCase())
   );
+
+  const currentPoints = stats?.points || 0;
+
+  const dynamicRewardTiers = rewardTiers.map(t => ({ ...t, current: currentPoints }));
 
   return (
     <motion.div
@@ -282,11 +292,10 @@ const AgentLeaderboardPage: React.FC = () => {
         </>
       ) : (
         /* ── Rewards Tab ─────────────────────────────── */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Rewards Progress Tiers */}
-          <div className="lg:col-span-8 space-y-6">
-            {rewardTiers.map((tier) => {
-              const progress = Math.min((tier.current / tier.target) * 100, 100);
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
+          <div className="lg:col-span-6 space-y-6">
+            {dynamicRewardTiers.map(tier => {
+              const progress = Math.min(100, (tier.current / tier.target) * 100);
               const TierIcon = tier.icon;
               const isUnlocked = progress === 100;
 

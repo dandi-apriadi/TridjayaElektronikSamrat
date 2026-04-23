@@ -9,8 +9,10 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, AreaChart, Area,
 } from 'recharts';
+import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
+import type { TelemetryStats } from '../../store/useAdminNetworkStore';
 
-/* ─── Mock Data ───────────────────────────────────── */
+/* ─── Mock Data Fallbacks ──────────────────────────── */
 const trafficData = [
   { day: 'Sen', clicks: 1280, leads: 74, conversions: 48 },
   { day: 'Sel', clicks: 1460, leads: 82, conversions: 55 },
@@ -66,13 +68,29 @@ const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { stagge
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AdminTelemetryPage: React.FC = () => {
-  const [logFilter, setLogFilter] = useState('Semua');
-  const totalClicks = trafficData.reduce((s, d) => s + d.clicks, 0);
-  const totalLeads  = trafficData.reduce((s, d) => s + d.leads, 0);
-  const totalConvs  = trafficData.reduce((s, d) => s + d.conversions, 0);
-  const convRate    = ((totalConvs / totalClicks) * 100).toFixed(2);
+  const { telemetryStats, fetchTelemetryStats } = useAdminNetworkStore();
+  
+  React.useEffect(() => {
+    fetchTelemetryStats();
+  }, [fetchTelemetryStats]);
 
-  const displayedLogs = errorLogs.filter((l) => {
+  const [logFilter, setLogFilter] = useState('Semua');
+
+  // Map state or fallback to mock
+  const data: TelemetryStats = telemetryStats || {
+    trafficData,
+    monthlyPageViews,
+    sourceRows,
+    systemMetrics,
+    errorLogs
+  };
+
+  const totalClicks = data.trafficData.reduce((s, d) => s + d.clicks, 0);
+  const totalLeads  = data.trafficData.reduce((s, d) => s + d.leads, 0);
+  const totalConvs  = data.trafficData.reduce((s, d) => s + d.conversions, 0);
+  const convRate    = totalClicks > 0 ? ((totalConvs / totalClicks) * 100).toFixed(2) : "0.00";
+
+  const displayedLogs = data.errorLogs.filter((l) => {
     if (logFilter === 'Semua') return true;
     if (logFilter === 'Error') return l.level === 'error';
     if (logFilter === 'Warning') return l.level === 'warning';
@@ -99,13 +117,13 @@ const AdminTelemetryPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className={`px-3 py-1.5 rounded-lg text-label-sm font-bold inline-flex items-center gap-1.5 ${
-              errorLogs.filter((l) => !l.resolved && l.level === 'error').length > 0
+              data.errorLogs.filter((l) => !l.resolved && l.level === 'error').length > 0
                 ? 'bg-error/15 text-error'
                 : 'bg-secondary/10 text-secondary'
             }`}>
               <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
-              {errorLogs.filter((l) => !l.resolved && l.level === 'error').length > 0
-                ? `${errorLogs.filter((l) => !l.resolved && l.level === 'error').length} Error Aktif`
+              {data.errorLogs.filter((l) => !l.resolved && l.level === 'error').length > 0
+                ? `${data.errorLogs.filter((l) => !l.resolved && l.level === 'error').length} Error Aktif`
                 : 'Sistem Normal'
               }
             </span>
@@ -151,7 +169,7 @@ const AdminTelemetryPage: React.FC = () => {
           </div>
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trafficData}>
+              <LineChart data={data.trafficData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
@@ -173,7 +191,7 @@ const AdminTelemetryPage: React.FC = () => {
           </div>
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyPageViews}>
+              <AreaChart data={data.monthlyPageViews}>
                 <defs>
                   <linearGradient id="pvGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#A2F31F" stopOpacity={0.3} />
@@ -204,11 +222,14 @@ const AdminTelemetryPage: React.FC = () => {
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-tertiary/30 to-transparent" />
           <h3 className="font-display text-title-md font-bold text-on-surface mb-5">Sumber Klik & Konversi</h3>
           <div className="space-y-4">
-            {sourceRows.map((row) => (
+            {data.sourceRows.map((row) => {
+              const IconComp = sourceRows.find(x => x.source === row.source)?.icon || Share2;
+              const colorCls = sourceRows.find(x => x.source === row.source)?.color || 'text-primary';
+              return (
               <div key={row.source} className="group">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <row.icon className={`w-4 h-4 ${row.color}`} />
+                    <IconComp className={`w-4 h-4 ${colorCls}`} />
                     <span className="font-semibold text-on-surface text-body-sm">{row.source}</span>
                   </div>
                   <div className="flex items-center gap-4 text-label-sm">
@@ -221,7 +242,8 @@ const AdminTelemetryPage: React.FC = () => {
                     style={{ width: `${row.bar}%` }} />
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </motion.div>
 
@@ -233,7 +255,7 @@ const AdminTelemetryPage: React.FC = () => {
             <h3 className="font-display text-title-md font-bold text-on-surface">System Health</h3>
           </div>
           <div className="space-y-3">
-            {systemMetrics.map((m) => (
+            {data.systemMetrics.map((m) => (
               <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-surface-high/30 transition-colors">
                 <div>
                   <div className="text-body-sm font-semibold text-on-surface">{m.label}</div>

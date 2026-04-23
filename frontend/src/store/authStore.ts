@@ -23,14 +23,6 @@ interface LoginResponse {
   user: User;
 }
 
-const isNetworkError = (error: unknown) => {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  return error.name === 'TypeError' || /fetch|network/i.test(error.message);
-};
-
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;

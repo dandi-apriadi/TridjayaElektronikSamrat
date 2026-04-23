@@ -9,21 +9,21 @@ const defaultForm = {
   notes: '',
 };
 
-type ProspectEntry = typeof defaultForm & { id: string; submittedAt: string; status: string };
-
-const initialPushed: ProspectEntry[] = [
-  { id: 'P-0041', name: 'Andi Wijaya', phone: '0812-3344-5566', product: 'Goda GD120', source: 'WhatsApp', notes: 'Tertarik DP mulai 1.25jt', submittedAt: '10:30', status: 'Diproses' },
-  { id: 'P-0040', name: 'Dewi Lestari', phone: '0822-9988-7766', product: 'Smart TV OLED 55"', source: 'Instagram', notes: 'Mau cicilan 12 bulan', submittedAt: '08:15', status: 'Menunggu' },
-];
+import { useAgentStore } from '../../store/useAgentStore';
+import type { Lead } from '../../store/useAgentStore';
 
 const products = ['Goda GD120', 'Winfly W200', 'Smart TV OLED 55"', 'Sofa Premium L', 'Sofa Flexi 2', 'AC Inverter 1.5PK', 'Lainnya'];
 const sources = ['WhatsApp', 'Instagram', 'Facebook', 'Referral Teman', 'Walk-in', 'Blog/Website', 'Lainnya'];
 
 const AgentPushProspekPage: React.FC = () => {
+  const { leads, createLead, fetchLeads } = useAgentStore();
   const [form, setForm] = useState(defaultForm);
-  const [pushed, setPushed] = useState<ProspectEntry[]>(initialPushed);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<Partial<typeof defaultForm>>({});
+
+  React.useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
 
   const validate = () => {
     const e: Partial<typeof defaultForm> = {};
@@ -35,19 +35,23 @@ const AgentPushProspekPage: React.FC = () => {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (ev: React.FormEvent) => {
+  const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!validate()) return;
-    const newEntry: ProspectEntry = {
-      ...form,
-      id: `P-${(1000 + pushed.length + 1).toString().padStart(4, '0')}`,
-      submittedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-      status: 'Menunggu',
-    };
-    setPushed((prev) => [newEntry, ...prev]);
-    setForm(defaultForm);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+    
+    const success = await createLead({
+      customerName: form.name,
+      phoneNumber: form.phone,
+      interestedProduct: form.product,
+      notes: form.notes + ` (Source: ${form.source})`,
+      status: 'Follow Up'
+    });
+
+    if (success) {
+      setForm(defaultForm);
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    }
   };
 
   return (
@@ -65,7 +69,7 @@ const AgentPushProspekPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="glass-card rounded-lg p-5">
           <div className="text-label-sm text-on-surface-variant">Push Hari Ini</div>
-          <div className="font-display text-headline-sm text-primary font-bold mt-1">{pushed.length}</div>
+          <div className="font-display text-headline-sm text-primary font-bold mt-1">{leads.length}</div>
         </div>
         <div className="glass-card rounded-lg p-5">
           <div className="text-label-sm text-on-surface-variant">Target Bulanan</div>
@@ -177,21 +181,21 @@ const AgentPushProspekPage: React.FC = () => {
             <h4 className="font-display text-title-sm font-bold text-on-surface">Prospek Hari Ini</h4>
           </div>
           <div className="space-y-3">
-            {pushed.map((p) => (
+            {leads.map((p: Lead) => (
               <div key={p.id} className="p-3 rounded-lg border border-outline-variant/10 bg-surface-low/30 hover:bg-surface-high/40 transition-colors">
                 <div className="flex items-center justify-between mb-1">
-                  <div className="font-semibold text-on-surface text-body-sm">{p.name}</div>
-                  <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1 ${p.status === 'Diproses' ? 'bg-secondary/15 text-secondary' : 'bg-tertiary/15 text-tertiary'}`}>
-                    {p.status === 'Diproses' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                  <div className="font-semibold text-on-surface text-body-sm">{p.customerName}</div>
+                  <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1 ${p.status === 'Closed Won' ? 'bg-secondary/15 text-secondary' : 'bg-tertiary/15 text-tertiary'}`}>
+                    {p.status === 'Closed Won' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
                     {p.status}
                   </span>
                 </div>
-                <div className="text-label-xs text-on-surface-variant">{p.phone} · {p.product}</div>
-                <div className="text-label-xs text-on-surface-variant">Sumber: {p.source} · {p.submittedAt}</div>
+                <div className="text-label-xs text-on-surface-variant">{p.phoneNumber} · {p.interestedProduct}</div>
+                <div className="text-label-xs text-on-surface-variant">{p.createdAt}</div>
                 {p.notes && <div className="mt-1.5 text-label-xs italic text-on-surface-variant/70">"{p.notes}"</div>}
               </div>
             ))}
-            {pushed.length === 0 && (
+            {leads.length === 0 && (
               <p className="text-body-sm text-on-surface-variant text-center py-6">Belum ada prospek yang di-push hari ini.</p>
             )}
           </div>

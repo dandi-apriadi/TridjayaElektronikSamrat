@@ -25,6 +25,7 @@ import {
   AreaChart, 
   Area
 } from 'recharts';
+import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 
 /* ─── Mock Data ─────────────────────────────────────── */
 const networkGrowthData = [
@@ -32,12 +33,6 @@ const networkGrowthData = [
   { month: 'Feb', silver: 156, gold: 48, diamond: 9 },
   { month: 'Mar', silver: 182, gold: 56, diamond: 12 },
   { month: 'Apr', silver: 215, gold: 64, diamond: 15 },
-];
-
-const pendingRewardClaims = [
-  { id: 'CLM-001', agent: 'Agen Samrat Makassar', tier: 'Diamond', reward: 'Exclusive Trip Bali', submitted: '2 jam lalu', status: 'Pending' },
-  { id: 'CLM-002', agent: 'Dian Sales Partner', tier: 'Gold', reward: 'Voucher Belanja Rp 500rb', submitted: '5 jam lalu', status: 'Pending' },
-  { id: 'CLM-003', agent: 'Krisna Network', tier: 'Silver', reward: 'Physical Badge Set', submitted: '1 hari lalu', status: 'Need Action' },
 ];
 
 const topPeformers = [
@@ -66,7 +61,12 @@ const itemVariants = {
 
 /* ─── Component ─────────────────────────────────────── */
 const AdminLeaderboardPage: React.FC = () => {
+  const { claims, fetchClaims, updateClaimStatus } = useAdminNetworkStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'manage' | 'claims'>('overview');
+
+  React.useEffect(() => {
+    fetchClaims();
+  }, [fetchClaims]);
 
   return (
     <motion.div
@@ -104,7 +104,7 @@ const AdminLeaderboardPage: React.FC = () => {
                onClick={() => setActiveTab('claims')}
                className={`px-4 py-2 rounded-lg text-label-sm font-bold transition-all ${activeTab === 'claims' ? 'bg-primary text-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
              >
-               Claims {pendingRewardClaims.length > 0 && <span className="ml-1 bg-secondary text-surface px-1.5 py-0.5 rounded-full text-[10px]">{pendingRewardClaims.length}</span>}
+               Claims {claims.length > 0 && <span className="ml-1 bg-secondary text-surface px-1.5 py-0.5 rounded-full text-[10px]">{claims.length}</span>}
              </button>
           </div>
         </div>
@@ -274,29 +274,42 @@ const AdminLeaderboardPage: React.FC = () => {
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
-                   {pendingRewardClaims.map((claim) => (
+                   {claims.map((claim) => (
                      <tr key={claim.id} className="hover:bg-surface-high/40 transition-colors group">
                         <td className="px-6 py-4 font-mono text-[11px] font-bold text-on-surface-variant">{claim.id}</td>
                         <td className="px-6 py-4">
-                           <div className="font-body text-body-sm font-bold text-on-surface">{claim.agent}</div>
+                           <div className="font-body text-body-sm font-bold text-on-surface">{claim.agentName}</div>
                         </td>
                         <td className="px-6 py-4">
-                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${claim.tier === 'Diamond' ? 'bg-cyan-400/10 text-cyan-400' : 'bg-amber-400/10 text-amber-400'}`}>
-                              {claim.tier.toUpperCase()}
+                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${claim.tierId === 'Diamond' ? 'bg-cyan-400/10 text-cyan-400' : 'bg-amber-400/10 text-amber-400'}`}>
+                              {claim.tierId.toUpperCase()}
                            </span>
                         </td>
-                        <td className="px-6 py-4 font-medium text-body-sm text-on-surface">{claim.reward}</td>
+                        <td className="px-6 py-4 font-medium text-body-sm text-on-surface">{claim.rewardName}</td>
                         <td className="px-6 py-4 text-label-xs text-on-surface-variant inline-flex items-center gap-1.5 mt-2">
-                           <Clock className="w-3.5 h-3.5" /> {claim.submitted}
+                           <Clock className="w-3.5 h-3.5" /> {claim.submittedAt}
                         </td>
                         <td className="px-6 py-4 text-right">
                            <div className="flex items-center justify-end gap-2">
-                              <button className="px-3 py-1.5 rounded-lg bg-secondary text-surface text-label-xs font-bold hover:shadow-neon-cyan transition-all">Approve</button>
-                              <button className="px-3 py-1.5 rounded-lg bg-surface-highest text-on-surface-variant text-label-xs font-bold hover:text-error transition-all">Manual Review</button>
+                              {claim.status === 'completed' ? (
+                                <span className="px-3 py-1.5 rounded-lg bg-secondary/15 text-secondary text-label-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Approved</span>
+                              ) : claim.status === 'cancelled' ? (
+                                <span className="px-3 py-1.5 rounded-lg bg-error/15 text-error text-label-xs font-bold">Rejected</span>
+                              ) : (
+                                <>
+                                  <button onClick={() => updateClaimStatus(claim.id, 'completed')} className="px-3 py-1.5 rounded-lg bg-secondary text-surface text-label-xs font-bold hover:shadow-neon-cyan transition-all">Approve</button>
+                                  <button onClick={() => updateClaimStatus(claim.id, 'cancelled')} className="px-3 py-1.5 rounded-lg bg-surface-highest text-on-surface-variant text-label-xs font-bold hover:text-error transition-all">Reject</button>
+                                </>
+                              )}
                            </div>
                         </td>
                      </tr>
                    ))}
+                   {claims.length === 0 && (
+                     <tr>
+                        <td colSpan={6} className="px-6 py-10 text-center text-on-surface-variant text-body-sm">Belum ada reward yang di klaim agen untuk saat ini.</td>
+                     </tr>
+                   )}
                 </tbody>
               </table>
            </div>

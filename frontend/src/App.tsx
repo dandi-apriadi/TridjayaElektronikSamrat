@@ -32,6 +32,9 @@ import AdminAgentDirectoryPage from './pages/dashboard/AdminAgentDirectoryPage';
 import AdminFinancePage from './pages/dashboard/AdminFinancePage';
 import AdminContentPage from './pages/dashboard/AdminContentPage';
 import AdminFormPage from './pages/dashboard/AdminFormPage';
+import AdminProductFormPage from './pages/dashboard/AdminProductFormPage';
+import AdminPromoFormPage from './pages/dashboard/AdminPromoFormPage';
+import AdminArticleFormPage from './pages/dashboard/AdminArticleFormPage';
 import AgentPushProspekPage from './pages/dashboard/AgentPushProspekPage';
 import AdminLeaderboardPage from './pages/dashboard/AdminLeaderboardPage';
 import AgentLeaderboardPage from './pages/dashboard/AgentLeaderboardPage';
@@ -67,12 +70,17 @@ const DashboardRoot = () => {
   return <Navigate to="/dashboard/agent" replace />;
 };
 
-// Scroll to top on route change
-const ScrollToTop = () => {
+import { useTelemetryTracker } from './store/useTelemetryTracker';
+
+// Scroll to top and track telemetry on route change
+const RouteListener = () => {
   const { pathname } = useLocation();
+  useTelemetryTracker();
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+  
   return null;
 };
 
@@ -96,7 +104,7 @@ const App: React.FC = () => {
 
   return (
     <Router>
-      <ScrollToTop />
+      <RouteListener />
       <NotificationContainer />
       <Routes>
         <Route path="/" element={<Layout />}>
@@ -157,7 +165,7 @@ const App: React.FC = () => {
             path="admin/catalog/new"
             element={
               <PrivateRoute role="admin">
-                <AdminFormPage />
+                <AdminProductFormPage />
               </PrivateRoute>
             }
           />
@@ -165,7 +173,7 @@ const App: React.FC = () => {
             path="admin/catalog/edit/:id"
             element={
               <PrivateRoute role="admin">
-                <AdminFormPage />
+                <AdminProductFormPage />
               </PrivateRoute>
             }
           />
@@ -181,7 +189,7 @@ const App: React.FC = () => {
             path="admin/promo/new"
             element={
               <PrivateRoute role="admin">
-                <AdminFormPage />
+                <AdminPromoFormPage />
               </PrivateRoute>
             }
           />
@@ -189,7 +197,23 @@ const App: React.FC = () => {
             path="admin/promo/edit/:id"
             element={
               <PrivateRoute role="admin">
-                <AdminFormPage />
+                <AdminPromoFormPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/content/new"
+            element={
+              <PrivateRoute role="admin">
+                <AdminArticleFormPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="admin/content/edit/:id"
+            element={
+              <PrivateRoute role="admin">
+                <AdminArticleFormPage />
               </PrivateRoute>
             }
           />
@@ -258,22 +282,7 @@ const App: React.FC = () => {
             }
           />
 
-          <Route
-            path="admin/content/new"
-            element={
-              <PrivateRoute role="admin">
-                <AdminFormPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="admin/content/edit/:id"
-            element={
-              <PrivateRoute role="admin">
-                <AdminFormPage />
-              </PrivateRoute>
-            }
-          />
+
           <Route
             path="agent"
             element={

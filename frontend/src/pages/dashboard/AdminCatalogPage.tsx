@@ -6,18 +6,9 @@ import {
   Eye, Edit3, ArrowUpRight, Tag, Star, ChevronDown,
 } from 'lucide-react';
 
-const products = [
-  { id: 'PRD-001', name: 'Goda GD120', category: 'Sepeda Listrik', price: 'Rp 7.500.000', stock: 24, views: 2482, conversion: '12%', rating: 4.8, status: 'Active', slug: 'goda-gd120' },
-  { id: 'PRD-002', name: 'Winfly W200', category: 'Sepeda Listrik', price: 'Rp 9.200.000', stock: 11, views: 1940, conversion: '10%', rating: 4.6, status: 'Active', slug: 'winfly-w200' },
-  { id: 'PRD-003', name: 'Nuv City Skuter', category: 'Skuter Listrik', price: 'Rp 12.800.000', stock: 7, views: 1621, conversion: '9.2%', rating: 4.5, status: 'Active', slug: 'nuv-city' },
-  { id: 'PRD-004', name: 'Smart TV OLED 55"', category: 'Elektronik', price: 'Rp 8.400.000', stock: 7, views: 1421, conversion: '8.8%', rating: 4.7, status: 'Active', slug: 'smart-tv-65' },
-  { id: 'PRD-005', name: 'Sofa Premium L', category: 'Furnitur', price: 'Rp 5.200.000', stock: 3, views: 1204, conversion: '8.5%', rating: 4.4, status: 'Low Stock', slug: 'sofa-premium-l' },
-  { id: 'PRD-006', name: 'AC Inverter 1.5PK', category: 'Elektronik', price: 'Rp 4.800.000', stock: 0, views: 980, conversion: '6.1%', rating: 4.2, status: 'Out of Stock', slug: 'ac-inverter' },
-  { id: 'PRD-007', name: 'Kulkas 2 Pintu 320L', category: 'Elektronik', price: 'Rp 6.100.000', stock: 14, views: 840, conversion: '5.8%', rating: 4.3, status: 'Active', slug: 'kulkas-2-pintu' },
-  { id: 'PRD-008', name: 'Sofa Flexi 2 Seater', category: 'Furnitur', price: 'Rp 3.600.000', stock: 2, views: 650, conversion: '4.9%', rating: 4.1, status: 'Low Stock', slug: 'sofa-flexi' },
-];
+import { useProductStore } from '../../store/useProductStore';
 
-const categories = ['Semua', 'Sepeda Listrik', 'Skuter Listrik', 'Elektronik', 'Furnitur'];
+const categories = ['Semua', 'bike', 'electronics', 'furniture'];
 const statuses   = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
 
 const statusStyle: Record<string, string> = {
@@ -30,29 +21,50 @@ const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, trans
 const itemVariants = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AdminCatalogPage: React.FC = () => {
+  const { products, isLoading, error } = useProductStore();
   const [search, setSearch]     = useState('');
   const [category, setCategory] = useState('Semua');
   const [status, setStatus]     = useState('Semua');
   const [sortBy, setSortBy]     = useState('views');
 
+  if (isLoading) {
+    return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data produk...</div>;
+  }
+  if (error) {
+    return <div className="text-center py-20 text-error">Galat memuat data: {error}</div>;
+  }
+
   const filtered = products
     .filter((p) => {
       const matchSearch   = `${p.name} ${p.id}`.toLowerCase().includes(search.toLowerCase());
       const matchCategory = category === 'Semua' || p.category === category;
-      const matchStatus   = status === 'Semua'   || p.status === status;
+      
+      let pStatus = 'Active';
+      if (typeof p.stock === 'string') {
+        if (p.stock === 'hidden') pStatus = 'Out of Stock';
+        else if (p.stock === 'indent') pStatus = 'Low Stock';
+      }
+      const matchStatus   = status === 'Semua'   || pStatus === status;
       return matchSearch && matchCategory && matchStatus;
     })
     .sort((a, b) => {
-      if (sortBy === 'views')      return b.views - a.views;
-      if (sortBy === 'stock')      return b.stock - a.stock;
-      if (sortBy === 'rating')     return b.rating - a.rating;
+      if (sortBy === 'views')      return (b.reviewCount || 0) - (a.reviewCount || 0);
+      if (sortBy === 'rating')     return (b.rating || 0) - (a.rating || 0);
       return 0;
     });
 
-  const totalActive   = products.filter((p) => p.status === 'Active').length;
-  const totalLow      = products.filter((p) => p.status === 'Low Stock').length;
-  const totalOut      = products.filter((p) => p.status === 'Out of Stock').length;
-  const totalViews    = products.reduce((s, p) => s + p.views, 0);
+  const getStatus = (stock: any) => {
+    if (typeof stock === 'string') {
+      if (stock === 'hidden') return 'Out of Stock';
+      if (stock === 'indent') return 'Low Stock';
+    }
+    return 'Active';
+  };
+
+  const totalActive   = products.filter((p) => getStatus(p.stock) === 'Active').length;
+  const totalLow      = products.filter((p) => getStatus(p.stock) === 'Low Stock').length;
+  const totalOut      = products.filter((p) => getStatus(p.stock) === 'Out of Stock').length;
+  const totalViews    = products.reduce((s, p) => s + (p.reviewCount || 0), 0);
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -202,25 +214,21 @@ const AdminCatalogPage: React.FC = () => {
                       <Tag className="w-2.5 h-2.5" />{p.category}
                     </span>
                   </td>
-                  <td className="py-3.5 pr-4 font-semibold text-on-surface text-body-sm">{p.price}</td>
+                  <td className="py-3.5 pr-4 font-semibold text-on-surface text-body-sm">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(p.price)}</td>
                   <td className="py-3.5 pr-4">
-                    <div className={`font-bold text-body-sm ${p.stock === 0 ? 'text-error' : p.stock < 5 ? 'text-tertiary' : 'text-on-surface'}`}>
-                      {p.stock} unit
-                    </div>
-                    <div className="w-16 h-1 rounded-full bg-surface-highest mt-1 overflow-hidden">
-                      <div className={`h-full rounded-full ${p.stock === 0 ? 'bg-error' : p.stock < 5 ? 'bg-tertiary' : 'bg-secondary'}`}
-                        style={{ width: `${Math.min((p.stock / 30) * 100, 100)}%` }} />
+                    <div className={`font-bold text-body-sm ${p.stock === 'hidden' ? 'text-error' : p.stock === 'indent' ? 'text-tertiary' : 'text-on-surface'}`}>
+                      {p.stock === 'hidden' ? 'Habis' : p.stock === 'indent' ? 'Pre-Order' : 'Tersedia'}
                     </div>
                   </td>
-                  <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{p.views.toLocaleString('id-ID')}</td>
-                  <td className="py-3.5 pr-4 font-bold text-secondary text-body-sm">{p.conversion}</td>
+                  <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{p.reviewCount?.toLocaleString('id-ID') || 0}</td>
+                  <td className="py-3.5 pr-4 font-bold text-secondary text-body-sm">-</td>
                   <td className="py-3.5 pr-4">
                     <div className="inline-flex items-center gap-1 font-bold text-on-surface text-body-sm">
-                      <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />{p.rating}
+                      <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />{p.rating || 0}
                     </div>
                   </td>
                   <td className="py-3.5 pr-4">
-                    <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold ${statusStyle[p.status]}`}>{p.status}</span>
+                    <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold ${statusStyle[p.stock === 'hidden' ? 'Out of Stock' : p.stock === 'indent' ? 'Low Stock' : 'Active']}`}>{p.stock === 'hidden' ? 'Out of Stock' : p.stock === 'indent' ? 'Low Stock' : 'Active'}</span>
                   </td>
                   <td className="py-3.5">
                     <div className="flex items-center gap-2 flex-shrink-0">

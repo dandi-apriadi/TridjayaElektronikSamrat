@@ -2,21 +2,9 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Eye, Archive, Plus, Tag, Clock, CheckCircle2 } from 'lucide-react';
 
-const articles = [
-  { id: 'ART-101', title: 'Panduan Memilih Sepeda Listrik untuk Komuter Harian', category: 'Edukasi', status: 'Published', views: 1842, publishedAt: '15 Apr 2026', slug: 'panduan-memilih-sepeda-listrik' },
-  { id: 'ART-102', title: '5 Keunggulan Goda GD120 Dibanding Kompetitor', category: 'Produk', status: 'Published', views: 2140, publishedAt: '10 Apr 2026', slug: 'panduan-memilih-sepeda-listrik' },
-  { id: 'ART-103', title: 'Tips Closing Penjualan untuk Agen Reseller Elektronik', category: 'Tips Agen', status: 'Published', views: 987, publishedAt: '05 Apr 2026', slug: 'panduan-memilih-sepeda-listrik' },
-  { id: 'ART-104', title: 'Promo Ramadan 2026: Daftar Produk Diskon Spesial', category: 'Promo', status: 'Draft', views: 0, publishedAt: '—', slug: 'panduan-memilih-sepeda-listrik' },
-  { id: 'ART-105', title: 'Cara Memaksimalkan Link Referral sebagai Agen Samrat', category: 'Tips Agen', status: 'Draft', views: 0, publishedAt: '—', slug: 'panduan-memilih-sepeda-listrik' },
-  { id: 'ART-106', title: 'Smart TV OLED vs LED: Mana yang Lebih Worth It?', category: 'Edukasi', status: 'Archived', views: 3210, publishedAt: '01 Jan 2026', slug: 'panduan-memilih-sepeda-listrik' },
-];
+import { useBlogStore } from '../../store/useBlogStore';
 
-const categoryColors: Record<string, string> = {
-  'Edukasi': 'bg-primary/15 text-primary',
-  'Produk': 'bg-secondary/15 text-secondary',
-  'Tips Agen': 'bg-tertiary/15 text-tertiary',
-  'Promo': 'bg-orange-500/15 text-orange-400',
-};
+
 
 const statusConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
   Published: { cls: 'bg-secondary/15 text-secondary', icon: <CheckCircle2 className="w-3 h-3" /> },
@@ -25,11 +13,24 @@ const statusConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
 };
 
 const AdminContentPage: React.FC = () => {
+  const { posts, isLoading, error } = useBlogStore();
   const [filterStatus, setFilterStatus] = useState('Semua');
 
-  const filtered = articles.filter((a) => filterStatus === 'Semua' || a.status === filterStatus);
-  const publishedCount = articles.filter((a) => a.status === 'Published').length;
-  const totalViews = articles.reduce((s, a) => s + a.views, 0);
+  if (isLoading) {
+    return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data artikel...</div>;
+  }
+  if (error) {
+    return <div className="text-center py-20 text-error">Galat memuat data: {error}</div>;
+  }
+
+  // Frontend mock statuses
+  const getStatus = (dateStr: string) => {
+    return new Date(dateStr) > new Date() ? 'Draft' : 'Published';
+  };
+
+  const filtered = posts.filter((a) => filterStatus === 'Semua' || getStatus(a.publishedAt) === filterStatus);
+  const publishedCount = posts.filter((a) => getStatus(a.publishedAt) === 'Published').length;
+  const totalViews = posts.length * 1500;
 
   return (
     <div className="space-y-6">
@@ -62,7 +63,7 @@ const AdminContentPage: React.FC = () => {
         </div>
         <div className="glass-card rounded-lg p-5">
           <div className="text-label-sm text-on-surface-variant">Draft Menunggu Review</div>
-          <div className="font-display text-headline-sm text-tertiary font-bold mt-1">{articles.filter((a) => a.status === 'Draft').length}</div>
+          <div className="font-display text-headline-sm text-tertiary font-bold mt-1">{posts.filter((a) => getStatus(a.publishedAt) === 'Draft').length}</div>
         </div>
       </div>
 
@@ -84,22 +85,24 @@ const AdminContentPage: React.FC = () => {
       {/* Article List */}
       <div className="glass-card rounded-xl p-6 space-y-3">
         {filtered.map((article) => {
-          const sc = statusConfig[article.status];
+          const status = getStatus(article.publishedAt);
+          const sc = statusConfig[status];
+          const fakeViews = 1500;
           return (
             <div key={article.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 rounded-lg border border-outline-variant/10 hover:bg-surface-high/40 transition-colors group">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold ${categoryColors[article.category] || 'bg-surface-highest text-on-surface-variant'}`}>
-                    <span className="inline-flex items-center gap-1"><Tag className="w-2.5 h-2.5" /> {article.category}</span>
+                  <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold bg-surface-highest text-on-surface-variant`}>
+                    <span className="inline-flex items-center gap-1"><Tag className="w-2.5 h-2.5" /> {(article.tags && article.tags[0]) || 'Lainnya'}</span>
                   </span>
-                  <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1 ${sc.cls}`}>
-                    {sc.icon} {article.status}
+                  <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1 ${sc?.cls || ''}`}>
+                    {sc?.icon || null} {status}
                   </span>
                 </div>
                 <div className="font-semibold text-on-surface text-body-sm group-hover:text-primary transition-colors truncate">{article.title}</div>
                 <div className="text-label-xs text-on-surface-variant mt-1">
-                  {article.id} · {article.status === 'Draft' ? 'Belum dipublish' : `Publish: ${article.publishedAt}`}
-                  {article.views > 0 && ` · ${article.views.toLocaleString('id-ID')} Views`}
+                  {article.id} · {status === 'Draft' ? 'Belum dipublish' : `Publish: ${article.publishedAt}`}
+                  {` · ${fakeViews.toLocaleString('id-ID')} Views`}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">

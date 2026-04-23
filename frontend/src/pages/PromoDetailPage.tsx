@@ -9,7 +9,7 @@ import { useProductStore } from '../store/useProductStore';
 
 const PromoDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { promos, getPromoById, isLoading: isPromoLoading } = usePromoStore();
+  const { getPromoById, isLoading: isPromoLoading } = usePromoStore();
   const { products, isLoading: isProductLoading } = useProductStore();
   
   const promo = getPromoById(id || '');

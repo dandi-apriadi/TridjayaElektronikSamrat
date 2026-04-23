@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Monitor, Thermometer, Wind, Sofa, Tv, Refrigerator } from 'lucide-react';
+import { Wind, Sofa, Tv, Refrigerator } from 'lucide-react';
 import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
-import homeHeroImg from '../assets/images/fridge.webp';
+
 import sofaImg from '../assets/images/sofa.webp';
 import tvImg from '../assets/images/tv.webp';
 
-const filters = ['Semua', 'Televisi', 'Kulkas', 'AC', 'Mesin Cuci', 'Sofa'];
-const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
 
 const categories = [
   { id: 'all', label: 'Semua', icon: null },

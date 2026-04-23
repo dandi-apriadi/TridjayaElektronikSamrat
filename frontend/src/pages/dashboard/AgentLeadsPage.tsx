@@ -3,18 +3,12 @@ import { motion } from 'framer-motion';
 import {
   Users, Search, Filter, MessageCircle, Phone,
   Clock, TrendingUp, CheckCircle2, ArrowUpRight,
-  MapPin, Package, Circle, Plus,
+  Package, Circle, Plus,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const leadsData = [
-  { id: 'LID-041', name: 'Andi Wijaya', phone: '0812-3344-5566', product: 'Goda GD120', source: 'WhatsApp', status: 'Follow Up', notes: 'Tertarik DP 1.25jt, minta catalog', city: 'Makassar', addedAt: '2 jam lalu', priority: 'high', slug: 'goda-gd120' },
-  { id: 'LID-040', name: 'Dewi Lestari', phone: '0822-9988-7766', product: 'Smart TV OLED 55"', source: 'Instagram', status: 'Negotiation', notes: 'Mau cicilan 12 bulan 0%', city: 'Gowa', addedAt: '5 jam lalu', priority: 'high', slug: 'smart-tv-65' },
-  { id: 'LID-039', name: 'Hendra Saputra', phone: '0813-5544-3322', product: 'Winfly W200', source: 'Referral', status: 'Payment Pending', notes: 'Transfer sebagian, tunggu pelunasan', city: 'Makassar', addedAt: '1 hari lalu', priority: 'medium', slug: 'winfly-w200' },
-  { id: 'LID-038', name: 'Santi Wijaya', phone: '0811-7766-5544', product: 'Sofa Premium L', source: 'Walk-in', status: 'Cold', notes: 'Belum ada respons 3 hari', city: 'Gowa', addedAt: '3 hari lalu', priority: 'low', slug: 'sofa-premium-l' },
-  { id: 'LID-037', name: 'Bagas Surya', phone: '0815-1122-3344', product: 'Goda GD120', source: 'Facebook', status: 'Closed Won', notes: 'Deal sukses! Lunas cash', city: 'Makassar', addedAt: '4 hari lalu', priority: 'low', slug: 'goda-gd120' },
-  { id: 'LID-036', name: 'Rina Melati', phone: '0819-8877-6655', product: 'AC Inverter 1.5PK', source: 'Blog', status: 'Closed Lost', notes: 'Pilih kompetitor karena harga', city: 'Parepare', addedAt: '5 hari lalu', priority: 'low', slug: 'ac-inverter' },
-];
+import { useAgentStore } from '../../store/useAgentStore';
+import type { Lead } from '../../store/useAgentStore';
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
   'Follow Up':      { cls: 'bg-primary/15 text-primary',      dot: 'bg-primary' },
@@ -25,28 +19,31 @@ const statusConfig: Record<string, { cls: string; dot: string }> = {
   'Closed Lost':    { cls: 'bg-error/15 text-error',          dot: 'bg-error' },
 };
 
-const sourceColors: Record<string, string> = {
-  'WhatsApp': 'text-[#25D366]', 'Instagram': 'text-pink-400',
-  'Facebook': 'text-blue-400', 'Referral': 'text-primary',
-  'Walk-in': 'text-tertiary', 'Blog': 'text-secondary',
-};
-
 const statuses = ['Semua', 'Follow Up', 'Negotiation', 'Payment Pending', 'Cold', 'Closed Won', 'Closed Lost'];
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AgentLeadsPage: React.FC = () => {
+  const { leads, fetchLeads, isLoading } = useAgentStore();
   const [search, setSearch]       = useState('');
   const [filterStatus, setFilter] = useState('Semua');
 
-  const filtered = leadsData.filter((l) => {
-    const matchSearch = `${l.name} ${l.product} ${l.id}`.toLowerCase().includes(search.toLowerCase());
+  React.useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
+  const filtered = leads.filter((l) => {
+    const matchSearch = `${l.customerName} ${l.interestedProduct} ${l.id}`.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'Semua' || l.status === filterStatus;
     return matchSearch && matchStatus;
   });
 
-  const countByStatus = (s: string) => leadsData.filter((l) => l.status === s).length;
+  const countByStatus = (s: string) => leads.filter((l) => l.status === s).length;
+
+  if (isLoading && leads.length === 0) {
+    return <div className="text-center text-on-surface-variant py-20 animate-pulse font-bold">Memuat data pipeline prospek...</div>;
+  }
 
   return (
     <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
@@ -77,10 +74,10 @@ const AgentLeadsPage: React.FC = () => {
       {/* KPI Pipeline */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Leads', value: leadsData.length, sub: 'semua status', color: 'text-primary', bg: 'bg-primary/10', icon: Users },
+          { label: 'Total Leads', value: leads.length, sub: 'semua status', color: 'text-primary', bg: 'bg-primary/10', icon: Users },
           { label: 'Aktif (Follow Up)', value: countByStatus('Follow Up') + countByStatus('Negotiation'), sub: 'perlu tindakan', color: 'text-tertiary', bg: 'bg-tertiary/10', icon: Clock },
           { label: 'Closed Won', value: countByStatus('Closed Won'), sub: 'deal berhasil', color: 'text-secondary', bg: 'bg-secondary/10', icon: CheckCircle2 },
-          { label: 'Conv. Rate', value: `${((countByStatus('Closed Won') / leadsData.length) * 100).toFixed(0)}%`, sub: 'dari total leads', color: 'text-primary', bg: 'bg-primary/10', icon: TrendingUp },
+          { label: 'Conv. Rate', value: `${leads.length > 0 ? ((countByStatus('Closed Won') / leads.length) * 100).toFixed(0) : 0}%`, sub: 'dari total leads', color: 'text-primary', bg: 'bg-primary/10', icon: TrendingUp },
         ].map((k) => (
           <motion.div key={k.label} variants={iv} className="glass-card rounded-xl p-5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
@@ -106,7 +103,7 @@ const AgentLeadsPage: React.FC = () => {
             { s: 'Closed Lost', color: 'bg-error' },
           ].map(({ s, color }) => {
             const count = countByStatus(s);
-            const pct = Math.round((count / leadsData.length) * 100);
+            const pct = leads.length > 0 ? Math.round((count / leads.length) * 100) : 0;
             if (pct === 0) return null;
             return (
               <div key={s} className={`${color} h-8 rounded-md flex items-center justify-center text-label-xs font-bold text-white/80 transition-all hover:opacity-90`}
@@ -155,29 +152,27 @@ const AgentLeadsPage: React.FC = () => {
 
         {/* Cards */}
         <div className="space-y-3">
-          {filtered.map((lead) => {
-            const sc = statusConfig[lead.status];
-            const waText = encodeURIComponent(`Halo ${lead.name}, saya dari Tridjaya Samrat. Saya ingin menindaklanjuti ketertarikan Anda pada ${lead.product}. Ada yang bisa saya bantu?`);
+          {filtered.map((lead: Lead) => {
+            const sc = statusConfig[lead.status] || { cls: 'bg-surface-highest', dot: 'bg-on-surface-variant' };
+            const waText = encodeURIComponent(`Halo ${lead.customerName}, saya dari Tridjaya Samrat. Saya ingin menindaklanjuti ketertarikan Anda pada ${lead.interestedProduct}. Ada yang bisa saya bantu?`);
             return (
               <div key={lead.id} className="flex flex-col md:flex-row md:items-start gap-4 p-4 rounded-xl border border-outline-variant/10 hover:bg-surface-high/30 transition-colors">
                 {/* Avatar */}
                 <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center font-bold text-on-primary text-sm flex-shrink-0">
-                  {lead.name[0]}
+                  {lead.customerName[0]}
                 </div>
                 {/* Main Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-display font-bold text-on-surface">{lead.name}</span>
+                    <span className="font-display font-bold text-on-surface">{lead.customerName}</span>
                     <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1 ${sc.cls}`}>
                       <Circle className={`w-1.5 h-1.5 ${sc.dot} fill-current`} />{lead.status}
                     </span>
                     <span className="text-label-xs text-on-surface-variant">{lead.id}</span>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-label-xs text-on-surface-variant mb-2">
-                    <span className="inline-flex items-center gap-1"><Package className="w-3 h-3" /> {lead.product}</span>
-                    <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" /> {lead.city}</span>
-                    <span className={`font-semibold ${sourceColors[lead.source] || 'text-on-surface-variant'}`}>{lead.source}</span>
-                    <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {lead.addedAt}</span>
+                    <span className="inline-flex items-center gap-1"><Package className="w-3 h-3" /> {lead.interestedProduct}</span>
+                    <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {lead.createdAt}</span>
                   </div>
                   {lead.notes && (
                     <p className="text-body-sm text-on-surface-variant italic">"{lead.notes}"</p>
@@ -185,11 +180,11 @@ const AgentLeadsPage: React.FC = () => {
                 </div>
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <a href={`tel:${lead.phone}`}
+                  <a href={`tel:${lead.phoneNumber}`}
                     className="p-2 rounded-lg bg-surface-high text-on-surface-variant hover:text-primary transition-colors" title="Telepon">
                     <Phone className="w-4 h-4" />
                   </a>
-                  <a href={`https://wa.me/62${lead.phone.replace(/^0/, '').replace(/\D/g, '')}?text=${waText}`}
+                  <a href={`https://wa.me/62${lead.phoneNumber.replace(/^0/, '').replace(/\D/g, '')}?text=${waText}`}
                     target="_blank" rel="noopener noreferrer"
                     className="px-3 py-2 rounded-lg bg-[#25D366]/15 text-[#25D366] font-semibold text-label-sm inline-flex items-center gap-1.5 hover:bg-[#25D366]/25 transition-colors">
                     <MessageCircle className="w-3.5 h-3.5" /> Follow Up
@@ -205,7 +200,7 @@ const AgentLeadsPage: React.FC = () => {
 
         <div className="mt-5 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
           <div className="text-label-sm text-on-surface-variant">
-            <strong className="text-on-surface">{filtered.length}</strong> dari {leadsData.length} leads
+            <strong className="text-on-surface">{filtered.length}</strong> dari {leads.length} leads
           </div>
           <Link to="/dashboard/agent/push" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
             Push Prospek Baru <ArrowUpRight className="w-3.5 h-3.5" />
