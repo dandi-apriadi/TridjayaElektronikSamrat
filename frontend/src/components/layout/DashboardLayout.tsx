@@ -7,6 +7,7 @@ import {
   Package, 
   Ticket, 
   BarChart3, 
+  Trophy,
   LogOut, 
   Menu, 
   X,
@@ -19,7 +20,6 @@ import {
   Shield,
   UserCheck,
   Send,
-  Share2,
   FileText,
   ExternalLink
 } from 'lucide-react';
@@ -48,6 +48,7 @@ const DashboardLayout: React.FC = () => {
         { label: 'Promo & Campaign', icon: Ticket, path: '/dashboard/admin/promo' },
         { label: 'Konten & Blog', icon: FileText, path: '/dashboard/admin/content' },
         { label: 'Telemetri', icon: BarChart3, path: '/dashboard/admin/telemetry' },
+        { label: 'Leaderboard', icon: Trophy, path: '/dashboard/admin/leaderboard' },
         { label: 'Keuangan', icon: Wallet, path: '/dashboard/admin/finance' },
         { label: 'User & Akses', icon: Shield, path: '/dashboard/admin/users' },
       ]
@@ -56,7 +57,7 @@ const DashboardLayout: React.FC = () => {
         { label: 'Product Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge' },
         { label: 'Pipeline Prospek', icon: Users, path: '/dashboard/agent/leads' },
         { label: 'Push Prospek', icon: Send, path: '/dashboard/agent/push' },
-        { label: 'Referral & Link', icon: Share2, path: '/dashboard/agent/referral' },
+        { label: 'Leaderboard', icon: Trophy, path: '/dashboard/agent/leaderboard' },
         { label: 'Komisi & Penarikan', icon: Wallet, path: '/dashboard/agent/earnings' },
         { label: 'Support', icon: Headphones, path: '/dashboard/agent/support' },
       ];
@@ -70,7 +71,6 @@ const DashboardLayout: React.FC = () => {
     : [
         { label: 'Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge', color: 'text-primary' },
         { label: 'Push', icon: Send, path: '/dashboard/agent/push', color: 'text-secondary' },
-        { label: 'Referral', icon: Share2, path: '/dashboard/agent/referral', color: 'text-tertiary' },
       ];
 
   const activeItem = navItems.find((item) => location.pathname === item.path);

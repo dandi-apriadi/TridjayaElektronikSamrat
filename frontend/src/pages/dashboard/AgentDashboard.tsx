@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   DollarSign, Users, Target, TrendingUp, ArrowUpRight,
   MessageCircle, ExternalLink, Clock, CheckCircle2,
-  Send, Share2, Star, Zap, BookOpen, Wallet,
+  Send, Star, Zap, BookOpen, Wallet,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -42,7 +42,6 @@ const hotLeads = [
 const recentActivity = [
   { icon: CheckCircle2, color: 'text-secondary bg-secondary/10', label: 'Deal closed! Bagas Surya – Goda GD120', time: '4 jam lalu' },
   { icon: Send,         color: 'text-primary bg-primary/10',     label: 'Push prospek baru: Dewi Lestari', time: '6 jam lalu' },
-  { icon: Share2,       color: 'text-tertiary bg-tertiary/10',   label: 'Link referral diklik 12x hari ini', time: '8 jam lalu' },
   { icon: Wallet,       color: 'text-secondary bg-secondary/10', label: 'Komisi Rp 840rb dikreditkan', time: 'Kemarin' },
 ];
 
@@ -250,7 +249,6 @@ const AgentDashboard: React.FC = () => {
               {[
                 { label: 'Product Knowledge', href: '/dashboard/agent/knowledge', icon: BookOpen, color: 'text-primary' },
                 { label: 'Push Prospek Baru',  href: '/dashboard/agent/push',      icon: Send,     color: 'text-secondary' },
-                { label: 'Link Referral',       href: '/dashboard/agent/referral',  icon: Share2,   color: 'text-tertiary' },
                 { label: 'Tarik Komisi',         href: '/dashboard/agent/earnings',  icon: Wallet,   color: 'text-primary' },
               ].map((a) => (
                 <Link key={a.href} to={a.href}

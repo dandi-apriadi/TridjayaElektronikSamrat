@@ -883,20 +883,7 @@ export const promos: PromoItem[] = [
     variant: 'standard',
     productIds: ['sofa-premium-l'],
   },
-  {
-    id: 'promo-referral-special',
-    title: 'Referral Rewards Program',
-    subtitle: 'Dapatkan Cash Reward Rp 500rb',
-    description: 'Ajak teman atau keluarga membeli produk Tridjaya Samrat dan dapatkan uang tunai langsung Rp 500.000 per unit.',
-    discount: 0,
-    originalPrice: 500000,
-    promoPrice: 0,
-    image: uwinflyD7s,
-    badge: 'Cuan Terus',
-    validUntil: '2025-12-31',
-    category: 'bike',
-    variant: 'standard',
-  },
+
 ];
 
 export const blogPosts: BlogPost[] = [

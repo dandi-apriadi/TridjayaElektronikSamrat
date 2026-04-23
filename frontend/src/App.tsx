@@ -33,7 +33,10 @@ import AdminFinancePage from './pages/dashboard/AdminFinancePage';
 import AdminContentPage from './pages/dashboard/AdminContentPage';
 import AdminFormPage from './pages/dashboard/AdminFormPage';
 import AgentPushProspekPage from './pages/dashboard/AgentPushProspekPage';
-import AgentReferralPage from './pages/dashboard/AgentReferralPage';
+import AdminLeaderboardPage from './pages/dashboard/AdminLeaderboardPage';
+import AgentLeaderboardPage from './pages/dashboard/AgentLeaderboardPage';
+
+import { NotificationContainer } from './components/ui/Notification';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import { Navigate } from 'react-router-dom';
@@ -87,6 +90,7 @@ const App: React.FC = () => {
   return (
     <Router>
       <ScrollToTop />
+      <NotificationContainer />
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
@@ -239,6 +243,15 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="admin/leaderboard"
+            element={
+              <PrivateRoute role="admin">
+                <AdminLeaderboardPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
             path="admin/content/new"
             element={
               <PrivateRoute role="admin">
@@ -303,13 +316,14 @@ const App: React.FC = () => {
             }
           />
           <Route
-            path="agent/referral"
+            path="agent/leaderboard"
             element={
               <PrivateRoute role="agent">
-                <AgentReferralPage />
+                <AgentLeaderboardPage />
               </PrivateRoute>
             }
           />
+
           <Route path="agen" element={<Navigate to="/dashboard/admin/agents" replace />} />
           <Route path="katalog" element={<Navigate to="/dashboard/admin/catalog" replace />} />
           <Route path="promo" element={<Navigate to="/dashboard/admin/promo" replace />} />

@@ -5,6 +5,7 @@ import {
   Zap, Check, Shield, TrendingUp, Handshake, Users, 
   ChevronRight, Phone, Send, Info, Award
 } from 'lucide-react';
+import { toast } from '../store/useNotificationStore';
 import { Badge, SectionHeader } from '../components/ui';
 
 const steps = [
@@ -23,6 +24,7 @@ const AgencyRegistrationPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormSubmitted(true);
+    toast.success('Pendaftaran Berhasil Dikirim', 'Tim kami akan menghubungi Anda dalam waktu dekat melalui WhatsApp.');
   };
 
   return (

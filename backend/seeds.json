@@ -1,0 +1,274 @@
+{
+  "users": [
+    { "id": "adm-001", "email": "admin@tridjaya.com", "name": "Administrator Tridjaya", "role": "Admin", "password": "Admin123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" },
+    { "id": "age-001", "email": "agent@tridjaya.com", "name": "Agen Samrat Makassar", "role": "Agent", "password": "Agent123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Agen001" },
+    { "id": "age-002", "email": "dian@tridjaya.com", "name": "Dian Sales Partner", "role": "Agent", "password": "Agent123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Dian" },
+    { "id": "age-003", "email": "krisna@tridjaya.com", "name": "Krisna Network", "role": "Agent", "password": "Agent123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Krisna" },
+    { "id": "age-004", "email": "ratna@tridjaya.com", "name": "Ratna Mobile Palu", "role": "Agent", "password": "Agent123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Ratna" },
+    { "id": "age-005", "email": "bagas@tridjaya.com", "name": "Bagas Elektro Kendari", "role": "Agent", "password": "Agent123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Bagas" },
+    { "id": "edt-001", "email": "editor@tridjaya.com", "name": "Editor Konten", "role": "Editor", "password": "Editor123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Editor" },
+    { "id": "opr-001", "email": "operator@tridjaya.com", "name": "Operator Internal", "role": "Operator", "password": "Operator123!", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Operator" }
+  ],
+  "reward_tiers": [
+    { "id": "silver", "name": "Silver Tier", "threshold_points": 5000, "icon": "Medal", "color": "text-slate-400", "benefits": ["Komisi Extra 1%", "Badge Profil Silver", "Prioritas Support"] },
+    { "id": "gold", "name": "Gold Tier", "threshold_points": 15000, "icon": "Trophy", "color": "text-amber-400", "benefits": ["Komisi Extra 2.5%", "Akses Produk Pre-launch", "Voucher Belanja Rp 500rb"] },
+    { "id": "diamond", "name": "Diamond Tier", "threshold_points": 50000, "icon": "Crown", "color": "text-cyan-400", "benefits": ["Komisi Extra 5%", "Exclusive Gathering", "Trip Liburan Tahunan"] }
+  ],
+  "agent_stats": [
+    { "user_id": "age-001", "points": 12500, "sales_count": 48, "monthly_growth": 12.5, "current_tier_id": "silver" },
+    { "user_id": "age-002", "points": 10800, "sales_count": 35, "monthly_growth": 8.2, "current_tier_id": "silver" },
+    { "user_id": "age-003", "points": 9200, "sales_count": 29, "monthly_growth": 15.0, "current_tier_id": "silver" },
+    { "user_id": "age-004", "points": 8100, "sales_count": 22, "monthly_growth": -2.4, "current_tier_id": "silver" },
+    { "user_id": "age-005", "points": 7500, "sales_count": 18, "monthly_growth": 20.1, "current_tier_id": "silver" }
+  ],
+  "achievements": [
+    { "id": "ach-pioneer", "name": "Pioneer", "description": "Bergabung di awal ekosistem Tridjaya", "icon": "Star", "color": "text-blue-400" },
+    { "id": "ach-quickstart", "name": "Quick Start", "description": "Mencapai 5 penjualan dalam minggu pertama", "icon": "Zap", "color": "text-yellow-400" },
+    { "id": "ach-areamaster", "name": "Area Master", "description": "Menguasai pangsa pasar di satu kota", "icon": "MapPin", "color": "text-green-400" }
+  ],
+  "agent_achievements": [
+    { "agent_id": "age-001", "achievement_id": "ach-pioneer" },
+    { "agent_id": "age-001", "achievement_id": "ach-quickstart" },
+    { "agent_id": "age-002", "achievement_id": "ach-pioneer" }
+  ],
+  "reward_claims": [
+    { "id": "CLM-001", "agent_id": "age-001", "tier_id": "diamond", "reward_name": "Exclusive Trip Bali", "status": "pending" },
+    { "id": "CLM-002", "agent_id": "age-002", "tier_id": "gold", "reward_name": "Voucher Belanja Rp 500rb", "status": "pending" }
+  ],
+  "products": [
+    {
+      "id": "goda-gd120", "slug": "goda-gd120", "name": "Goda GD120", "category": "bike", "subcategory": "Electric Bike",
+      "price": 22500000.0, "priceInstallment": 625000.0, "dpMin": 3000000.0,
+      "image": "/assets/images/bike-goda.webp", "images": ["/assets/images/bike-goda.webp"],
+      "badge": "popular", "badgeText": "Terlaris", "rating": 4.8, "reviewCount": 124,
+      "shortDesc": "Sepeda listrik performa tinggi dengan jangkauan 120 km per charge.",
+      "description": "Goda GD120 adalah sepeda listrik unggulan dengan motor bantuan listrik 750W yang menghasilkan akselerasi responsif dan kendali tinggi.",
+      "specs": { "Motor": "750W Mid-Drive Motor", "Baterai": "72V 32Ah Lithium Ion", "Jangkauan": "120 km / charge" },
+      "stock": "available", "colors": ["Obsidian Black", "Midnight Navy", "Carbon Gray"]
+    },
+    {
+      "id": "winfly-w200", "slug": "winfly-w200", "name": "Winfly W200", "category": "bike", "subcategory": "Electric Scooter",
+      "price": 18900000.0, "priceInstallment": 525000.0, "dpMin": 2500000.0,
+      "image": "/assets/images/bike-winfly.webp", "images": ["/assets/images/bike-winfly.webp"],
+      "badge": "new", "badgeText": "Baru", "rating": 4.7, "reviewCount": 89,
+      "shortDesc": "Sepeda listrik elegan dengan desain futuristik dan jangkauan 100 km.",
+      "description": "Winfly W200 hadir dengan desain yang simpel namun memukau.",
+      "specs": { "Motor": "500W BLDC", "Baterai": "60V 30Ah Lithium", "Jangkauan": "100 km / charge" },
+      "stock": "available", "colors": ["Pearl White", "Silver Frost", "Cyan Blue"]
+    },
+    {
+      "id": "nuv-city", "slug": "nuv-city", "name": "Nuv City", "category": "bike", "subcategory": "Electric Scooter",
+      "price": 14500000.0, "priceInstallment": 403000.0, "dpMin": 2000000.0,
+      "image": "/assets/images/bike-nuv.webp", "images": ["/assets/images/bike-nuv.webp"],
+      "badge": "eco", "badgeText": "Eco Friendly", "rating": 4.6, "reviewCount": 67,
+      "shortDesc": "Pilihan urban terbaik, ringan, lincah, dan ramah lingkungan.",
+      "description": "Nuv City dirancang khusus untuk mobilitas perkotaan yang cerdas.",
+      "specs": { "Motor": "350W Hub Motor", "Baterai": "48V 24Ah Lithium", "Jangkauan": "80 km" },
+      "stock": "available", "colors": ["Mint Green", "Sky Blue", "Coral Pink"]
+    },
+    {
+      "id": "uwinfly-d7s", "slug": "uwinfly-d7s", "name": "Uwinfly DragonFly D7S", "category": "bike", "subcategory": "Electric Moped",
+      "price": 4500000.0, "priceInstallment": 125000.0, "dpMin": 500000.0,
+      "image": "/assets/images/uwinfly-d7s.webp", "images": ["/assets/images/uwinfly-d7s.webp"],
+      "badge": "popular", "badgeText": "Favorit", "rating": 4.5, "reviewCount": 245,
+      "shortDesc": "Solusi transportasi harian yang hemat dan bergaya.",
+      "description": "Uwinfly DragonFly D7S adalah moped listrik yang paling digemari di Indonesia.",
+      "specs": { "Motor": "500W Power Motor", "Baterai": "48V 12Ah Lead-Acid", "Jangkauan": "40 km" },
+      "stock": "available"
+    },
+    {
+      "id": "uwinfly-d8d", "slug": "uwinfly-d8d", "name": "Uwinfly D8D", "category": "bike", "subcategory": "Electric Moped",
+      "price": 5200000.0, "priceInstallment": 145000.0, "dpMin": 700000.0,
+      "image": "/assets/images/uwinfly-d8d.webp", "images": ["/assets/images/uwinfly-d8d.webp"],
+      "badge": "new", "badgeText": "Baru", "rating": 4.6, "reviewCount": 112,
+      "shortDesc": "Generasi terbaru dengan dek kaki lebih luas dan baterai lebih awet.",
+      "description": "Penyempurnaan dari seri sebelumnya, D8D menawarkan kenyamanan ekstra.",
+      "specs": { "Motor": "500W Power Motor", "Baterai": "48V 12Ah ChiaoMao", "Jangkauan": "45 km" },
+      "stock": "available"
+    },
+    {
+      "id": "selis-walet", "slug": "selis-walet", "name": "Selis Walet", "category": "bike", "subcategory": "Electric Bike",
+      "price": 4800000.0, "priceInstallment": 133000.0, "dpMin": 600000.0,
+      "image": "/assets/images/selis-walet.webp", "images": ["/assets/images/selis-walet.webp"],
+      "badge": "popular", "badgeText": "Populer", "rating": 4.4, "reviewCount": 312,
+      "shortDesc": "Si gesit yang lincah dengan daya tahan baterai terukur.",
+      "description": "Selis Walet adalah ikon sepeda listrik di Indonesia.",
+      "specs": { "Motor": "350W Hub Motor", "Baterai": "48V 12Ah VRV", "Jangkauan": "35 km" },
+      "stock": "available"
+    },
+    {
+      "id": "selis-mandalika", "slug": "selis-mandalika", "name": "Selis Mandalika", "category": "bike", "subcategory": "Electric Bike",
+      "price": 5100000.0, "priceInstallment": 142000.0, "dpMin": 750000.0,
+      "image": "/assets/images/selis-mandalika.webp", "images": ["/assets/images/selis-mandalika.webp"],
+      "badge": "popular", "badgeText": "Terlaris", "rating": 4.5, "reviewCount": 189,
+      "shortDesc": "Desain modern dengan rangka yang lebih kuat.",
+      "description": "Selis Mandalika hadir dengan visual yang lebih bold dan rangka yang dirancang untuk beban lebih berat.",
+      "specs": { "Motor": "350W Power Motor", "Baterai": "48V 12Ah Lead-Acid", "Jangkauan": "30 km" },
+      "stock": "available"
+    },
+    {
+      "id": "voxa-liberty", "slug": "voxa-liberty", "name": "Voxa Liberty", "category": "bike", "subcategory": "Electric Moped",
+      "price": 3900000.0, "priceInstallment": 108000.0, "dpMin": 500000.0,
+      "image": "/assets/images/voxa-liberty.webp", "images": ["/assets/images/voxa-liberty.webp"],
+      "badge": "sale", "badgeText": "Promo", "rating": 4.3, "reviewCount": 56,
+      "shortDesc": "Moped listrik termurah dengan kualitas bersaing.",
+      "description": "Voxa Liberty menawarkan nilai terbaik di kelasnya.",
+      "specs": { "Motor": "350W Power Motor", "Baterai": "48V 12Ah", "Jangkauan": "30 km" },
+      "stock": "available"
+    },
+    {
+      "id": "genio-easton", "slug": "genio-easton", "name": "Genio Easton S2", "category": "bike", "subcategory": "Electric Moped",
+      "price": 4300000.0, "priceInstallment": 119000.0, "dpMin": 600000.0,
+      "image": "/assets/images/genio-easton.webp", "images": ["/assets/images/genio-easton.webp"],
+      "badge": "popular", "badgeText": "Populer", "rating": 4.6, "reviewCount": 142,
+      "shortDesc": "Akselerasi responsif dari motor bertenaga 750W.",
+      "description": "Genio Easton S2 mengunggulkan torsi yang besar.",
+      "specs": { "Motor": "750W Peak Power", "Baterai": "48V 12Ah", "Jangkauan": "40 km" },
+      "stock": "available"
+    },
+    {
+      "id": "genio-x2", "slug": "genio-x2", "name": "Genio X2", "category": "bike", "subcategory": "Electric Moped",
+      "price": 5400000.0, "priceInstallment": 150000.0, "dpMin": 800000.0,
+      "image": "/assets/images/genio-x2.webp", "images": ["/assets/images/genio-x2.webp"],
+      "badge": "new", "badgeText": "Baru", "rating": 4.7, "reviewCount": 94,
+      "shortDesc": "Desain kontemporer dengan performa mumpuni.",
+      "description": "Genio X2 adalah kasta tertinggi dari seri Genio.",
+      "specs": { "Motor": "750W Peak Power", "Baterai": "48V 12Ah", "Jangkauan": "45 km" },
+      "stock": "available"
+    },
+    {
+      "id": "polygon-kalosi", "slug": "polygon-kalosi", "name": "Polygon Kalosi Cruise", "category": "bike", "subcategory": "Hybrid E-Bike",
+      "price": 18500000.0, "priceInstallment": 514000.0, "dpMin": 3500000.0,
+      "image": "/assets/images/polygon-kalosi.webp", "images": ["/assets/images/polygon-kalosi.webp"],
+      "badge": "popular", "badgeText": "Premium", "rating": 4.9, "reviewCount": 42,
+      "shortDesc": "Hybrid e-bike premium for pecinta gowes.",
+      "description": "Polygon Kalosi Cruise menggabungkan kenyamanan sepeda urban.",
+      "specs": { "Motor": "250W Pedal Assist", "Baterai": "36V 11.6Ah Lithium", "Jangkauan": "80 km" },
+      "stock": "available"
+    },
+    {
+      "id": "viar-akasha", "slug": "viar-akasha", "name": "Viar Akasha 3", "category": "bike", "subcategory": "Electric Scooter",
+      "price": 7200000.0, "priceInstallment": 200000.0, "dpMin": 1000000.0,
+      "image": "/assets/images/viar-akasha.webp", "images": ["/assets/images/viar-akasha.webp"],
+      "badge": "popular", "badgeText": "Hot Deal", "rating": 4.7, "reviewCount": 156,
+      "shortDesc": "Power besar dan jangkauan terjauh di kelas moped.",
+      "description": "Viar Akasha 3 menggunakan baterai VRLA yang lebih besar.",
+      "specs": { "Motor": "500W Power Motor", "Baterai": "48V 20Ah VRLA", "Jangkauan": "75 km" },
+      "stock": "available"
+    },
+    {
+      "id": "smart-tv-65", "slug": "smart-tv-65", "name": "Smart TV OLED 65\"", "category": "electronics", "subcategory": "Televisi",
+      "price": 15900000.0, "priceInstallment": 442000.0, "dpMin": 2000000.0,
+      "image": "/assets/images/tv.webp", "images": ["/assets/images/tv.webp"],
+      "badge": "new", "badgeText": "Baru", "rating": 4.9, "reviewCount": 45,
+      "shortDesc": "Layar OLED 65 inci 4K dengan audio Dolby Atmos.",
+      "description": "Smart TV OLED 65 inci with resolusi 4K Ultra HD.",
+      "specs": { "Layar": "65\" OLED 4K UHD", "Resolusi": "3840 x 2160 px", "Refresh Rate": "120Hz" },
+      "stock": "available"
+    },
+    {
+      "id": "samsung-neo-qled", "slug": "samsung-neo-qled", "name": "Samsung Neo QLED 8K 75\"", "category": "electronics", "subcategory": "Televisi",
+      "price": 42500000.0, "priceInstallment": 1180000.0, "dpMin": 6000000.0,
+      "image": "/assets/images/tv.webp", "images": ["/assets/images/tv.webp"],
+      "badge": "new", "badgeText": "Premium", "rating": 5.0, "reviewCount": 12,
+      "shortDesc": "Puncak teknologi visual dengan resolusi 8K.",
+      "description": "Samsung Neo QLED 75 inci memberikan detail yang sangat tajam.",
+      "specs": { "Layar": "75\" Neo QLED 8K", "Resolusi": "7680 x 4320 px" },
+      "stock": "available"
+    },
+    {
+      "id": "kulkas-2pintu", "slug": "kulkas-2pintu", "name": "Kulkas French Door 520L", "category": "electronics", "subcategory": "Kulkas",
+      "price": 12500000.0, "priceInstallment": 347000.0, "dpMin": 1500000.0,
+      "image": "/assets/images/fridge.webp", "images": ["/assets/images/fridge.webp"],
+      "badge": "popular", "badgeText": "Populer", "rating": 4.7, "reviewCount": 38,
+      "shortDesc": "Kulkas French Door 520L with teknologi inverter.",
+      "description": "Kulkas French Door modern dengan kapasitas 520 liter.",
+      "specs": { "Kapasitas": "520 Liter", "Jenis": "French Door", "Teknologi": "Inverter" },
+      "stock": "available"
+    },
+    {
+      "id": "lg-side-by-side", "slug": "lg-side-by-side", "name": "LG Side by Side 600L", "category": "electronics", "subcategory": "Kulkas",
+      "price": 18900000.0, "priceInstallment": 525000.0, "dpMin": 2500000.0,
+      "image": "/assets/images/lg-fridge.webp", "images": ["/assets/images/lg-fridge.webp"],
+      "badge": "popular", "badgeText": "Populer", "rating": 4.8, "reviewCount": 22,
+      "shortDesc": "InstaView Door-in-Door yang mewah.",
+      "description": "Ketuk dua kali to melihat isi kulkas tanpa membuka pintu.",
+      "specs": { "Kapasitas": "600 Liter", "Sistem": "InstaView Door-in-Door" },
+      "stock": "available"
+    },
+    {
+      "id": "sharp-ac-15pk", "slug": "sharp-ac-15pk", "name": "Sharp Air Conditioner 1.5 PK", "category": "electronics", "subcategory": "Cooling",
+      "price": 5800000.0, "priceInstallment": 161000.0, "dpMin": 800000.0,
+      "image": "/assets/images/sharp-ac.webp", "images": ["/assets/images/sharp-ac.webp"],
+      "badge": "popular", "badgeText": "Terlaris", "rating": 4.7, "reviewCount": 112,
+      "shortDesc": "Teknologi Plasmacluster.",
+      "description": "AC Sharp with sistem ion plasmacluster.",
+      "specs": { "Kapasitas": "1.5 PK", "Teknologi": "Plasmacluster Ion" },
+      "stock": "available"
+    },
+    {
+      "id": "polytron-front-load", "slug": "polytron-front-load", "name": "Polytron Washing Machine 9kg", "category": "electronics", "subcategory": "Washing Machine",
+      "price": 4950000.0, "priceInstallment": 137000.0, "dpMin": 700000.0,
+      "image": "/assets/images/polytron-washer.webp", "images": ["/assets/images/polytron-washer.webp"],
+      "badge": "new", "badgeText": "Baru", "rating": 4.6, "reviewCount": 54,
+      "shortDesc": "Wonder Wash with efisiensi tinggi.",
+      "description": "Mesin cuci front load Polytron.",
+      "specs": { "Kapasitas": "9 kg", "Kecepatan": "1200 RPM" },
+      "stock": "available"
+    },
+    {
+      "id": "sofa-premium-l", "slug": "sofa-premium-l", "name": "Sofa Sectional Premium L", "category": "furniture", "subcategory": "Sofa",
+      "price": 8900000.0, "priceInstallment": 247000.0, "dpMin": 1200000.0,
+      "image": "/assets/images/sofa.webp", "images": ["/assets/images/sofa.webp"],
+      "badge": "popular", "badgeText": "Terlaris", "rating": 4.8, "reviewCount": 92,
+      "shortDesc": "Sofa sectional premium with material fabric.",
+      "description": "Sofa Sectional Premium L hadir with desain kontemporer.",
+      "specs": { "Material": "Fabric Grade-A", "Dimensi": "280 x 180 x 85 cm" },
+      "stock": "available", "colors": ["Dark Charcoal", "Deep Navy", "Warm Ivory"]
+    }
+  ],
+  "promos": [
+    {
+      "id": "promo-mega-combo", "title": "Mega Combo Home & Drive", "subtitle": "Potongan Rp 5 Juta",
+      "description": "Beli Paket Paket Sepeda Listrik + Smart TV 55\" dan dapatkan diskon langsung Rp 5 Juta.",
+      "discount": 25, "originalPrice": 32000000.0, "promoPrice": 27000000.0,
+      "image": "/assets/images/blog-hero.webp", "badge": "Paket Ultimate", "validUntil": "2025-06-30",
+      "category": "bike", "variant": "hero", "productIds": ["goda-gd120", "smart-tv-65", "lg-side-by-side"]
+    },
+    {
+      "id": "promo-electric-freedom", "title": "Electric Freedom Festival", "subtitle": "Hemat hingga Rp 3 Juta",
+      "description": "Dapatkan potongan harga spesial for semua varian Goda & Winfly.",
+      "discount": 15, "originalPrice": 22500000.0, "promoPrice": 19125000.0,
+      "image": "/assets/images/bike-goda.webp", "badge": "Terbatas", "validUntil": "2025-05-31",
+      "category": "bike", "variant": "standard", "productIds": ["winfly-w200", "nuv-city", "uwinfly-d7s"]
+    }
+  ],
+  "blogPosts": [
+    {
+      "id": "post-1", "slug": "goda-vs-winfly-perbandingan-lengkap", "title": "Goda GD120 vs Winfly W200",
+      "excerpt": "Perbandingan lengkap dua flagship sepeda listrik.",
+      "author": "Ahmad Fauzi", "authorRole": "Teknisi Senior", "authorImage": "",
+      "heroImage": "/assets/images/blog-hero.webp", "category": "Review", "tags": ["Sepeda Listrik", "Review"],
+      "publishedAt": "2025-04-10", "readTime": 8, "featured": true
+    },
+    {
+      "id": "post-2", "slug": "cara-merawat-baterai-sepeda-listrik", "title": "7 Cara Jitu Merawat Baterai",
+      "excerpt": "Baterai adalah jantung dari sepeda listrik Anda.",
+      "author": "Rina Sari", "authorRole": "Product Specialist", "authorImage": "",
+      "heroImage": "/assets/images/bike-goda.webp", "category": "Tips & Trik", "tags": ["Baterai", "Perawatan"],
+      "publishedAt": "2025-04-05", "readTime": 5, "featured": false
+    }
+  ],
+  "jobListings": [
+    {
+      "id": "job-1", "title": "Sales Executive", "department": "Sales", "location": "Makassar",
+      "type": "fulltime", "level": "mid", "description": "Bergabunglah sebagai Sales Executive.",
+      "requirements": ["Pengalaman sales min. 2 tahun"], "benefits": ["Gaji pokok + komisi"], "postedAt": "2025-04-01"
+    },
+    {
+      "id": "job-2", "title": "Teknisi Sepeda Listrik", "department": "Technical Support", "location": "Makassar",
+      "type": "fulltime", "level": "junior", "description": "Kami mencari teknisi skilled.",
+      "requirements": ["Lulus SMK Teknik"], "benefits": ["Gaji kompetitif"], "postedAt": "2025-04-05"
+    }
+  ]
+}

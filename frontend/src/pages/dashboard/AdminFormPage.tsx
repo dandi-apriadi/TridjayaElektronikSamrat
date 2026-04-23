@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft, Save, X, Package, Tag, Megaphone, User,
+  ArrowLeft, Save, X, Package, Megaphone, User,
   Layout, AlertCircle, CheckCircle2, ChevronRight, BarChart3, Activity, Clock,
   Plus, Trash2, Image as ImageIcon, CreditCard, Shield, List
 } from 'lucide-react';
+import { toast } from '../../store/useNotificationStore';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
@@ -41,7 +42,6 @@ const AdminFormPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<string>('details');
   const [isSaving, setIsSaving] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
 
   // Advanced States for Catalog
   const [specs, setSpecs] = useState([{ key: 'Motor Power', value: '500W' }, { key: 'Top Speed', value: '45 km/h' }]);
@@ -54,7 +54,7 @@ const AdminFormPage: React.FC = () => {
     // Mock API call
     setTimeout(() => {
       setIsSaving(false);
-      setShowSuccess(true);
+      toast.success(`${config.title} Berhasil Diperbarui`, 'Data telah disinkronkan ke seluruh sistem.');
       setTimeout(() => navigate(-1), 1500);
     }, 1000);
   };
@@ -103,17 +103,15 @@ const AdminFormPage: React.FC = () => {
           <button
             form="admin-form"
             type="submit"
-            disabled={isSaving || showSuccess}
+            disabled={isSaving}
             className="px-6 py-2.5 rounded-xl bg-primary text-on-primary font-bold text-label-md flex items-center gap-2 shadow-neon-cyan/20 shadow-lg hover:shadow-neon-cyan/40 transition-all disabled:opacity-50"
           >
             {isSaving ? (
               <div className="w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />
-            ) : showSuccess ? (
-              <CheckCircle2 className="w-4 h-4" />
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {showSuccess ? 'Tersimpan!' : isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+            {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
       </motion.div>
@@ -198,7 +196,7 @@ const AdminFormPage: React.FC = () => {
       <motion.div variants={iv} className="glass-card rounded-2xl p-8 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
-        {activeTab === 'details' ? (
+        {activeTab !== 'insights' ? (
         <form id="admin-form" onSubmit={handleSave} className="space-y-8">
           {activeTab === 'details' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">

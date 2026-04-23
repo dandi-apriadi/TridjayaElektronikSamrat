@@ -6,6 +6,7 @@ use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
+use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -23,6 +24,19 @@ impl Display for Role {
             Self::Agent => write!(f, "agent"),
             Self::Editor => write!(f, "editor"),
             Self::Operator => write!(f, "operator"),
+        }
+    }
+}
+
+impl FromStr for Role {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "admin" => Ok(Self::Admin),
+            "agent" => Ok(Self::Agent),
+            "editor" => Ok(Self::Editor),
+            "operator" => Ok(Self::Operator),
+            _ => Err(()),
         }
     }
 }
@@ -93,11 +107,15 @@ pub async fn login_with_request(
         });
     }
 
-    let user = {
-        let users = state.users.read().await;
-        users.get(&request.email).cloned()
-    }
-    .ok_or(AppError::Unauthorized)?;
+    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE email = ?")
+        .bind(&request.email)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::Unauthorized)?;
 
     if !user.is_active || !verify_password(&request.password, &user.password_hash) {
         return Err(AppError::Unauthorized);
@@ -108,17 +126,19 @@ pub async fn login_with_request(
     let expires_at = Utc::now() + Duration::minutes(15);
     let refresh_expires_at = Utc::now() + Duration::days(7);
 
+    let role = Role::from_str(&user.role).unwrap_or(Role::Agent);
+
     let access_session = AccessSession {
         token: access_token.clone(),
         refresh_token: refresh_token.clone(),
         user_id: user.id.clone(),
-        role: user.role.clone(),
+        role: role.clone(),
         expires_at,
     };
     let refresh_session = RefreshSession {
         token: refresh_token.clone(),
         user_id: user.id.clone(),
-        role: user.role.clone(),
+        role: role.clone(),
         expires_at: refresh_expires_at,
     };
 
@@ -149,11 +169,15 @@ pub async fn refresh_with_request(
         return Err(AppError::Unauthorized);
     }
 
-    let user = {
-        let users = state.users.read().await;
-        users.values().find(|candidate| candidate.id == session.user_id).cloned()
-    }
-    .ok_or(AppError::Unauthorized)?;
+    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+        .bind(&session.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::Unauthorized)?;
 
     let access_token = Uuid::new_v4().to_string();
     let refresh_token = Uuid::new_v4().to_string();
@@ -164,7 +188,7 @@ pub async fn refresh_with_request(
             token: access_token.clone(),
             refresh_token: refresh_token.clone(),
             user_id: user.id.clone(),
-            role: user.role.clone(),
+            role: session.role.clone(),
             expires_at: Utc::now() + Duration::minutes(15),
         },
     );
@@ -173,7 +197,7 @@ pub async fn refresh_with_request(
         RefreshSession {
             token: refresh_token.clone(),
             user_id: user.id.clone(),
-            role: user.role.clone(),
+            role: session.role.clone(),
             expires_at: Utc::now() + Duration::days(7),
         },
     );
@@ -198,13 +222,13 @@ pub async fn logout_with_headers(state: &AppState, headers: &HeaderMap) -> Resul
     .ok_or(AppError::Unauthorized)?;
 
     state.refresh_sessions.write().await.remove(&session.refresh_token);
-    let user_email = {
-        let users = state.users.read().await;
-        users
-            .values()
-            .find(|candidate| candidate.id == session.user_id)
-            .map(|user| user.email.clone())
-    };
+    
+    // Audit logout
+    let user_email: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
+        .bind(&session.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
 
     state.audit("auth.logout", user_email.as_deref()).await;
     Ok(())
@@ -230,11 +254,15 @@ pub async fn authorize(
         return Err(AppError::Forbidden);
     }
 
-    let user = {
-        let users = state.users.read().await;
-        users.values().find(|candidate| candidate.id == session.user_id).cloned()
-    }
-    .ok_or(AppError::Unauthorized)?;
+    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+        .bind(&session.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::Unauthorized)?;
 
     Ok(user)
 }

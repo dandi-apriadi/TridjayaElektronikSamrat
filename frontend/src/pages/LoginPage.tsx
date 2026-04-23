@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Building2, Lock, Mail, ShieldCheck, Sparkles, Zap, Loader2, ChevronRight, CheckCircle2 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import { useAuthStore } from '../store/authStore';
+import { toast } from '../store/useNotificationStore';
 import logoPng from '../assets/images/logo.webp';
 
 const benefits = [
@@ -39,9 +40,12 @@ const LoginPage: React.FC = () => {
 
     try {
       await login({ email, password });
+      toast.success('Login Berhasil', 'Selamat datang di Portal Internal Tridjaya Samrat.');
       navigate('/dashboard');
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Login gagal, silakan coba lagi.');
+      const msg = error instanceof Error ? error.message : 'Login gagal, silakan coba lagi.';
+      setErrorMessage(msg);
+      toast.error('Gagal Masuk', msg);
     } finally {
       setLoading(false);
     }

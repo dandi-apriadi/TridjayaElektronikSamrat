@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Star, Shield, CreditCard, Phone, Share2
 } from 'lucide-react';
+import { toast } from '../store/useNotificationStore';
 import { getProductBySlug, products, formatPrice } from '../data';
 import { Badge, ProductCard, SectionHeader } from '../components/ui';
 
@@ -50,7 +51,7 @@ const ProductDetailPage: React.FC = () => {
     }
 
     await navigator.clipboard.writeText(url);
-    window.alert('Link produk berhasil disalin.');
+    toast.success('Link Produk Berhasil Disalin', 'Anda dapat membagikannya kepada calon pembeli.');
   };
 
   return (

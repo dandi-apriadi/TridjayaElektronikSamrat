@@ -1,7 +1,7 @@
 use crate::{
     auth::{authorize, login_with_request, logout_with_headers, refresh_with_request, LoginRequest, RefreshRequest, Role},
     response::{json_ok, AppError},
-    state::AppState,
+    state::{AppState, UserPublic},
 };
 use axum::{extract::{Path, State}, http::HeaderMap, routing::{get, post, patch}, Json, Router};
 use serde_json::{json, Value};
@@ -64,7 +64,11 @@ async fn reset_password() -> ResponseBody {
 
 async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    let users = state.users.read().await.values().map(|record| record.public()).collect::<Vec<_>>();
+    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, is_active FROM users")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        
     Ok(json_ok(format!("Users fetched by {}", user.email), json!({ "items": users })))
 }
 
@@ -88,8 +92,42 @@ async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     Ok(json_ok(format!("User {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
 
-async fn list_catalogs() -> ResponseBody {
-    json_ok("Catalogs fetched", json!({ "items": [] }))
+async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+    let products: Vec<Value> = sqlx::query("SELECT * FROM products")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            json!({
+                "id": row.get::<String, _>("id"),
+                "slug": row.get::<String, _>("slug"),
+                "name": row.get::<String, _>("name"),
+                "category": row.get::<String, _>("category"),
+                "subcategory": row.get::<Option<String>, _>("subcategory"),
+                "price": row.get::<f64, _>("price"),
+                "priceInstallment": row.get::<Option<f64>, _>("price_installment"),
+                "dpMin": row.get::<Option<f64>, _>("dp_min"),
+                "image": row.get::<String, _>("image"),
+                "images": serde_json::from_str::<Value>(&row.get::<String, _>("images")).unwrap_or(json!([])),
+                "badge": row.get::<Option<String>, _>("badge"),
+                "badgeText": row.get::<Option<String>, _>("badge_text"),
+                "rating": row.get::<f64, _>("rating"),
+                "reviewCount": row.get::<i64, _>("review_count"),
+                "shortDesc": row.get::<Option<String>, _>("short_desc"),
+                "description": row.get::<Option<String>, _>("description"),
+                "specs": serde_json::from_str::<Value>(&row.get::<String, _>("specs")).unwrap_or(json!({})),
+                "stock": row.get::<String, _>("stock"),
+                "colors": serde_json::from_str::<Value>(&row.get::<String, _>("colors")).unwrap_or(json!([])),
+            })
+        })
+        .collect();
+
+    Ok(json_ok("Catalogs fetched", json!({ "items": products })))
 }
 
 async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
@@ -111,8 +149,35 @@ async fn delete_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
     Ok(json_ok(format!("Catalog {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
 
-async fn list_promotions() -> ResponseBody {
-    json_ok("Promotions fetched", json!({ "items": [] }))
+async fn list_promotions(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+    let promos: Vec<Value> = sqlx::query("SELECT * FROM promos")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            json!({
+                "id": row.get::<String, _>("id"),
+                "title": row.get::<String, _>("title"),
+                "subtitle": row.get::<Option<String>, _>("subtitle"),
+                "description": row.get::<Option<String>, _>("description"),
+                "discount": row.get::<Option<i64>, _>("discount"),
+                "originalPrice": row.get::<Option<f64>, _>("original_price"),
+                "promoPrice": row.get::<Option<f64>, _>("promo_price"),
+                "image": row.get::<String, _>("image"),
+                "badge": row.get::<Option<String>, _>("badge"),
+                "validUntil": row.get::<Option<String>, _>("valid_until"),
+                "category": row.get::<Option<String>, _>("category"),
+                "variant": row.get::<Option<String>, _>("variant"),
+                "productIds": serde_json::from_str::<Value>(&row.get::<String, _>("product_ids")).unwrap_or(json!([])),
+            })
+        })
+        .collect();
+    Ok(json_ok("Promotions fetched", json!({ "items": promos })))
 }
 
 async fn create_promotion(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
@@ -175,7 +240,31 @@ async fn pixel_event(State(state): State<AppState>, Json(payload): Json<Value>) 
 
 async fn list_jobs(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
-    Ok(json_ok(format!("Jobs fetched by {}", user.email), json!({ "items": [] })))
+    let jobs: Vec<Value> = sqlx::query("SELECT * FROM job_listings")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            json!({
+                "id": row.get::<String, _>("id"),
+                "title": row.get::<String, _>("title"),
+                "department": row.get::<Option<String>, _>("department"),
+                "location": row.get::<Option<String>, _>("location"),
+                "type": row.get::<Option<String>, _>("type"),
+                "level": row.get::<Option<String>, _>("level"),
+                "description": row.get::<Option<String>, _>("description"),
+                "requirements": serde_json::from_str::<Value>(&row.get::<String, _>("requirements")).unwrap_or(json!([])),
+                "benefits": serde_json::from_str::<Value>(&row.get::<String, _>("benefits")).unwrap_or(json!([])),
+                "postedAt": row.get::<Option<String>, _>("posted_at"),
+            })
+        })
+        .collect();
+    Ok(json_ok(format!("Jobs fetched by {}", user.email), json!({ "items": jobs })))
 }
 
 async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
@@ -190,7 +279,34 @@ async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
 
 async fn list_articles(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
-    Ok(json_ok(format!("Articles fetched by {}", user.email), json!({ "items": [] })))
+    let articles: Vec<Value> = sqlx::query("SELECT * FROM blog_posts")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            json!({
+                "id": row.get::<String, _>("id"),
+                "slug": row.get::<String, _>("slug"),
+                "title": row.get::<String, _>("title"),
+                "excerpt": row.get::<Option<String>, _>("excerpt"),
+                "author": row.get::<Option<String>, _>("author"),
+                "authorRole": row.get::<Option<String>, _>("author_role"),
+                "authorImage": row.get::<Option<String>, _>("author_image"),
+                "heroImage": row.get::<Option<String>, _>("hero_image"),
+                "category": row.get::<Option<String>, _>("category"),
+                "tags": serde_json::from_str::<Value>(&row.get::<String, _>("tags")).unwrap_or(json!([])),
+                "publishedAt": row.get::<Option<String>, _>("published_at"),
+                "readTime": row.get::<Option<i64>, _>("read_time"),
+                "featured": row.get::<bool, _>("featured"),
+            })
+        })
+        .collect();
+    Ok(json_ok(format!("Articles fetched by {}", user.email), json!({ "items": articles })))
 }
 
 async fn create_article(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {

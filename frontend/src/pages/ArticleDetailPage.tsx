@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, ArrowLeft, Share2, Tag } from 'lucide-react';
+import { toast } from '../store/useNotificationStore';
 import { blogPosts } from '../data';
 import { Badge, ProductCard } from '../components/ui';
 import { products } from '../data';
@@ -40,7 +41,7 @@ const ArticleDetailPage: React.FC = () => {
     }
 
     await navigator.clipboard.writeText(url);
-    window.alert('Link artikel berhasil disalin.');
+    toast.success('Link Artikel Berhasil Disalin', 'Anda dapat membagikannya melalui media sosial.');
   };
 
   const articleContent = `
