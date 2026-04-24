@@ -36,7 +36,7 @@ async fn main() {
     }
 
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173".to_string());
+        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5176,http://127.0.0.1:5176".to_string());
     let origins: Vec<HeaderValue> = allowed_origins
         .split(',')
         .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())

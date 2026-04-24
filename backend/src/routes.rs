@@ -1468,6 +1468,22 @@ async fn insert_telemetry(state: &AppState, event_type: &str, payload: &Value) {
     .bind(metadata_str)
     .execute(&state.pool)
     .await;
+
+    // Update referral counters if source matches a referral slug
+    if source != "direct" && source != "anonymous" && !source.is_empty() {
+        let update_query = match event_type {
+            "whatsapp_click" | "pixel_event" => "UPDATE referrals SET leads = leads + 1 WHERE slug = ?",
+            "click" | "page_view" => "UPDATE referrals SET clicks = clicks + 1 WHERE slug = ?",
+            _ => "",
+        };
+
+        if !update_query.is_empty() {
+            let _ = sqlx::query(update_query)
+                .bind(source)
+                .execute(&state.pool)
+                .await;
+        }
+    }
 }
 
 async fn page_view(State(state): State<AppState>, Json(payload): Json<Value>) -> ResponseBody {
@@ -2164,9 +2180,9 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
 
     let traffic_rows = sqlx::query(
         "SELECT strftime('%Y-%m-%d', created_at) AS day,
-                SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END) AS clicks,
-                SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads,
-                SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS conversions
+                COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) AS clicks,
+                COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
+                COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
          FROM telemetry_events
          WHERE created_at >= datetime('now', '-6 days')
          GROUP BY strftime('%Y-%m-%d', created_at)
@@ -2181,7 +2197,7 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
 
     let monthly_rows = sqlx::query(
         "SELECT strftime('%Y-%m', created_at) AS month,
-                SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END) AS views
+                COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views
          FROM telemetry_events
          WHERE created_at >= datetime('now', '-180 days')
          GROUP BY strftime('%Y-%m', created_at)
@@ -2197,7 +2213,7 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
     let source_rows = sqlx::query(
         "SELECT COALESCE(source, 'unknown') AS source,
                 COUNT(*) AS clicks,
-                SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads
+                COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads
          FROM telemetry_events
          GROUP BY COALESCE(source, 'unknown')
          ORDER BY clicks DESC
@@ -2213,9 +2229,9 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
     let totals_row = sqlx::query(
         "SELECT
             COUNT(*) AS total_events,
-            SUM(CASE WHEN created_at >= datetime('now', '-24 hours') THEN 1 ELSE 0 END) AS events_24h,
+            COALESCE(SUM(CASE WHEN created_at >= datetime('now', '-24 hours') THEN 1 ELSE 0 END), 0) AS events_24h,
             COUNT(DISTINCT path) AS total_paths,
-            SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS total_conversions
+            COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS total_conversions
          FROM telemetry_events"
     )
     .fetch_one(&state.pool)
