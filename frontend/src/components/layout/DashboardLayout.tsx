@@ -77,7 +77,7 @@ const DashboardLayout: React.FC = () => {
   const notificationsPath = user?.role === 'admin' ? '/dashboard/admin/telemetry' : '/dashboard/agent/support';
 
   return (
-    <div className="min-h-screen bg-surface flex text-on-surface relative overflow-hidden">
+    <div className="min-h-screen bg-surface flex text-on-surface relative overflow-hidden page-shell">
       {/* Decorative Background Blobs */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
          <div className="bg-blob bg-primary/20 -top-24 -left-24 animate-[blob-float_25s_infinite_ease-in-out]" />
@@ -88,8 +88,9 @@ const DashboardLayout: React.FC = () => {
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: isSidebarOpen ? 280 : 80 }}
-        className="fixed left-0 top-0 bottom-0 z-40 bg-surface-low/95 border-r border-outline-variant/20 flex flex-col backdrop-blur-sm"
+        animate={{ width: isSidebarOpen ? 280 : 80, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+        className="fixed left-0 top-0 bottom-0 z-40 bg-surface-low/95 border-r border-outline-variant/20 flex flex-col backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
       >
         {/* Brand */}
         <div className="h-20 flex items-center px-6 gap-4 overflow-hidden border-b border-outline-variant/10">
@@ -153,7 +154,12 @@ const DashboardLayout: React.FC = () => {
         style={{ marginLeft: isSidebarOpen ? 280 : 80 }}
       >
         {/* Top Header */}
-        <header className="h-20 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 px-8 flex items-center justify-between sticky top-0 z-30">
+        <motion.header
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          className="h-20 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 px-8 flex items-center justify-between sticky top-0 z-30"
+        >
            <div>
              <h2 className="font-display text-title-lg font-bold text-on-surface">
                {activeItem?.label || 'Dashboard'}
@@ -221,7 +227,7 @@ const DashboardLayout: React.FC = () => {
               </div>
             </div>
           </div>
-        </header>
+        </motion.header>
 
         {/* Content Outlet */}
         <div className="p-8 flex-1 relative z-10">
@@ -232,6 +238,7 @@ const DashboardLayout: React.FC = () => {
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="reveal-fade"
             >
               <Outlet />
             </motion.div>

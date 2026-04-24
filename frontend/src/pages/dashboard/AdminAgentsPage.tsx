@@ -22,14 +22,6 @@ import {
 
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 
-/* ─── Mock Data ──────────────────────────────────────── */
-const withdrawalRequests = [
-  { id: 'WD-4401', agent: 'Agen Samrat Makassar', agentId: 'AGT-001', amount: 'Rp 2.400.000', raw: 2400000, period: 'Apr 2026', submittedAt: '2 jam lalu', status: 'Pending' },
-  { id: 'WD-4398', agent: 'Dian Sales Partner', agentId: 'AGT-002', amount: 'Rp 1.800.000', raw: 1800000, period: 'Apr 2026', submittedAt: '5 jam lalu', status: 'Need Review' },
-  { id: 'WD-4391', agent: 'Krisna Network', agentId: 'AGT-003', amount: 'Rp 1.200.000', raw: 1200000, period: 'Mar 2026', submittedAt: '1 hari lalu', status: 'Pending' },
-  { id: 'WD-4385', agent: 'Ratna Mobile Palu', agentId: 'AGT-004', amount: 'Rp 900.000', raw: 900000, period: 'Mar 2026', submittedAt: '2 hari lalu', status: 'Pending' },
-];
-
 /* ─── Variants ───────────────────────────────────────── */
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -42,17 +34,24 @@ const itemVariants = {
 
 /* ─── Component ──────────────────────────────────────── */
 const AdminAgentsPage: React.FC = () => {
-  const { registrations, fetchRegistrations, updateRegistrationStatus } = useAdminNetworkStore();
+  const {
+    registrations,
+    claims,
+    fetchRegistrations,
+    fetchClaims,
+    updateRegistrationStatus,
+    updateClaimStatus,
+  } = useAdminNetworkStore();
   const [approvedIds, setApprovedIds]   = useState<string[]>([]);
   const [rejectedIds, setRejectedIds]   = useState<string[]>([]);
-  const [wdStatuses, setWdStatuses]     = useState<Record<string, string>>({});
   const [expandedId, setExpandedId]     = useState<string | null>(null);
   const [searchQuery, setSearchQuery]   = useState('');
   const [activeTab, setActiveTab]       = useState<'queue' | 'payout'>('queue');
 
   React.useEffect(() => {
     fetchRegistrations();
-  }, [fetchRegistrations]);
+    fetchClaims();
+  }, [fetchRegistrations, fetchClaims]);
 
   const handleApprove = (id: string) => {
     setApprovedIds((p) => (p.includes(id) ? p : [...p, id]));
@@ -66,17 +65,17 @@ const AdminAgentsPage: React.FC = () => {
     updateRegistrationStatus(id, 'rejected');
   };
 
-  const handleWd = (id: string, status: string) => {
-    setWdStatuses((p) => ({ ...p, [id]: status }));
+  const handleClaimStatus = async (id: string, status: 'processing' | 'cancelled' | 'completed') => {
+    await updateClaimStatus(id, status);
   };
 
   const filteredAgents = registrations.filter((a) =>
     `${a.fullName} ${a.city} ${a.id}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalPending = withdrawalRequests
-    .filter((r) => (wdStatuses[r.id] || r.status) === 'Pending')
-    .reduce((s, r) => s + r.raw, 0);
+  const pendingRegistrations = registrations.filter((a) => !approvedIds.includes(a.id) && !rejectedIds.includes(a.id));
+  const payoutClaims = claims;
+  const pendingPayouts = payoutClaims.filter((c) => c.status === 'pending' || c.status === 'processing');
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -118,9 +117,9 @@ const AdminAgentsPage: React.FC = () => {
       {/* ── KPI Row ──────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Agen Aktif',   value: '1,284', sub: '+19 bulan ini',  color: 'text-primary',   bg: 'bg-primary/10',   icon: Users },
-          { label: 'Queue Registrasi',    value: '23',    sub: '4 prioritas tinggi', color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: Clock },
-          { label: 'Payout Pending',      value: `Rp ${(totalPending/1000000).toFixed(1)}jt`, sub: `${withdrawalRequests.filter((r) => (wdStatuses[r.id] || r.status) === 'Pending').length} request`, color: 'text-secondary', bg: 'bg-secondary/10', icon: Wallet },
+          { label: 'Total Agen Aktif',   value: `${registrations.filter((a) => a.status === 'approved').length}`, sub: `${registrations.length} total registrasi`,  color: 'text-primary',   bg: 'bg-primary/10',   icon: Users },
+          { label: 'Queue Registrasi',    value: `${pendingRegistrations.length}`,    sub: `${registrations.filter((a) => a.status === 'pending').length} pending`, color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: Clock },
+          { label: 'Payout Pending',      value: `${pendingPayouts.length}`, sub: `total claim ${payoutClaims.length}`, color: 'text-secondary', bg: 'bg-secondary/10', icon: Wallet },
           { label: 'Disetujui Hari Ini',  value: `${approvedIds.length}`,   sub: 'dari antrian aktif', color: 'text-primary',   bg: 'bg-primary/10',   icon: CheckCircle2 },
         ].map((kpi) => (
           <motion.div key={kpi.label} variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
@@ -138,8 +137,8 @@ const AdminAgentsPage: React.FC = () => {
       {/* ── Tab Navigation ──────────────────────────── */}
       <motion.div variants={itemVariants} className="flex items-center gap-1 p-1 bg-surface-high/50 rounded-xl w-fit border border-outline-variant/10">
         {([
-          { key: 'queue',  label: 'Queue Registrasi',   count: filteredAgents.filter((a) => !approvedIds.includes(a.id) && !rejectedIds.includes(a.id)).length },
-          { key: 'payout', label: 'Payout & Penarikan', count: withdrawalRequests.filter((r) => (wdStatuses[r.id] || r.status) === 'Pending').length },
+          { key: 'queue',  label: 'Queue Registrasi',   count: pendingRegistrations.length },
+          { key: 'payout', label: 'Payout & Penarikan', count: pendingPayouts.length },
         ] as const).map((tab) => (
           <button
             key={tab.key}
@@ -375,7 +374,7 @@ const AdminAgentsPage: React.FC = () => {
             <div>
               <h3 className="font-display text-title-md font-bold text-on-surface">Manajemen Payout Komisi</h3>
               <p className="text-body-sm text-on-surface-variant mt-0.5">
-                Total pending: <strong className="text-primary">Rp {totalPending.toLocaleString('id-ID')}</strong>
+                Total pending claim: <strong className="text-primary">{pendingPayouts.length}</strong>
               </p>
             </div>
             <Link
@@ -387,12 +386,12 @@ const AdminAgentsPage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {withdrawalRequests.map((req) => {
-              const currentStatus = wdStatuses[req.id] || req.status;
-              const isPending = currentStatus === 'Pending';
-              const isNeedReview = currentStatus === 'Need Review';
-              const isApproved = currentStatus === 'Approved';
-              const isPaid = currentStatus === 'Paid';
+            {payoutClaims.map((req) => {
+              const currentStatus = req.status;
+              const isPending = currentStatus === 'pending';
+              const isNeedReview = currentStatus === 'processing';
+              const isApproved = currentStatus === 'completed';
+              const isPaid = currentStatus === 'completed';
 
               return (
                 <div
@@ -401,12 +400,12 @@ const AdminAgentsPage: React.FC = () => {
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center font-bold text-on-primary text-sm flex-shrink-0">
-                      {req.agent[0]}
+                      {(req.agentName || req.agentId)[0]}
                     </div>
                     <div>
-                      <div className="font-semibold text-on-surface text-body-sm">{req.agent}</div>
+                      <div className="font-semibold text-on-surface text-body-sm">{req.agentName || req.agentId}</div>
                       <div className="text-label-xs text-on-surface-variant">
-                        {req.id} · {req.agentId} · Periode {req.period}
+                        {req.id} · {req.agentId} · Tier {req.tierId}
                       </div>
                       <div className="text-label-xs text-on-surface-variant inline-flex items-center gap-1 mt-0.5">
                         <Clock className="w-3 h-3" /> {req.submittedAt}
@@ -415,7 +414,7 @@ const AdminAgentsPage: React.FC = () => {
                   </div>
 
                   <div className="font-display text-title-md font-bold text-primary flex-shrink-0">
-                    {req.amount}
+                    {req.rewardName}
                   </div>
 
                   <div className="flex-shrink-0">
@@ -426,7 +425,7 @@ const AdminAgentsPage: React.FC = () => {
                     )}
                     {isNeedReview && (
                       <span className="px-2 py-1 rounded-md bg-error/10 text-error text-label-xs font-bold inline-flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> Perlu Review
+                        <AlertCircle className="w-3 h-3" /> Diproses
                       </span>
                     )}
                     {isApproved && (
@@ -446,14 +445,14 @@ const AdminAgentsPage: React.FC = () => {
                       <>
                         <button
                           type="button"
-                          onClick={() => handleWd(req.id, 'Approved')}
+                          onClick={() => handleClaimStatus(req.id, 'completed')}
                           className="px-3 py-1.5 rounded-md bg-secondary/20 text-secondary text-label-sm font-semibold inline-flex items-center gap-1 hover:bg-secondary/30 transition-colors"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleWd(req.id, 'Rejected')}
+                          onClick={() => handleClaimStatus(req.id, 'cancelled')}
                           className="px-3 py-1.5 rounded-md bg-error/10 text-error text-label-sm font-semibold inline-flex items-center gap-1 hover:bg-error/20 transition-colors"
                         >
                           <XCircle className="w-3.5 h-3.5" /> Tolak
@@ -463,7 +462,7 @@ const AdminAgentsPage: React.FC = () => {
                     {isApproved && (
                       <button
                         type="button"
-                        onClick={() => handleWd(req.id, 'Paid')}
+                        onClick={() => handleClaimStatus(req.id, 'completed')}
                         className="px-3 py-1.5 rounded-md bg-primary/20 text-primary text-label-sm font-semibold inline-flex items-center gap-1 hover:bg-primary/30 transition-colors"
                       >
                         <Wallet className="w-3.5 h-3.5" /> Tandai Dibayar
@@ -480,6 +479,11 @@ const AdminAgentsPage: React.FC = () => {
                 </div>
               );
             })}
+            {payoutClaims.length === 0 && (
+              <div className="py-10 text-center text-on-surface-variant text-body-sm">
+                Belum ada claim payout.
+              </div>
+            )}
           </div>
 
           <div className="mt-6 pt-4 border-t border-outline-variant/10">

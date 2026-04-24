@@ -92,6 +92,24 @@ body {
   color: rgb(var(--color-on-surface));
   transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-x: hidden;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at top left, rgb(var(--color-primary) / 0.06), transparent 36%),
+    radial-gradient(circle at top right, rgb(var(--color-tertiary) / 0.05), transparent 32%),
+    linear-gradient(180deg, rgb(var(--color-surface)) 0%, rgb(var(--color-surface-low)) 100%);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: rgb(var(--color-primary) / 0.24);
+  color: rgb(var(--color-on-surface));
+}
+
+body * {
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Fix for hardcoded white text in light mode */
@@ -231,6 +249,32 @@ body.light-mode .bg-blob {
   box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.5), 0 0 15px rgba(var(--color-primary), 0.1);
 }
 
+.page-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.page-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 20%, rgb(var(--color-primary) / 0.05), transparent 20%),
+    radial-gradient(circle at 80% 0%, rgb(var(--color-secondary) / 0.04), transparent 18%),
+    radial-gradient(circle at 50% 100%, rgb(var(--color-tertiary) / 0.03), transparent 24%);
+  z-index: -1;
+}
+
+.reveal-fade {
+  animation: reveal-fade 0.4s ease both;
+}
+
+@keyframes reveal-fade {
+  from { opacity: 0; transform: translateY(10px); filter: blur(10px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
 .pulse-primary {
   animation: pulse-glow 2s infinite ease-in-out;
 }
@@ -250,4 +294,20 @@ body.light-mode .bg-blob {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--color-primary) / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .bg-blob,
+  .pulse-primary,
+  .glass-card:hover {
+    animation: none !important;
+    transform: none !important;
+  }
 }

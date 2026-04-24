@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-04-24T16:00:53.434Z",
+  "thresholds": {
+    "maxLargestJsKb": 900,
+    "maxTotalJsKb": 2400,
+    "maxHealthLatencyMs": 300,
+    "strictMode": false
+  },
+  "assetSummary": {
+    "fileCount": 110,
+    "jsCount": 58,
+    "cssCount": 1,
+    "largestJs": {
+      "file": "dist/assets/vendor-charts-aR6-yjFR.js",
+      "bytes": 383166,
+      "kb": 374.19
+    },
+    "totalJs": {
+      "bytes": 1322482,
+      "kb": 1291.49
+    },
+    "totalCss": {
+      "bytes": 91163,
+      "kb": 89.03
+    }
+  },
+  "health": {
+    "status": 200,
+    "latencyMs": 61,
+    "ok": true
+  },
+  "gate": {
+    "checks": [
+      {
+        "key": "largest_js",
+        "label": "Largest JS chunk size",
+        "value": 374.19,
+        "unit": "KB",
+        "threshold": 900,
+        "passed": true
+      },
+      {
+        "key": "total_js",
+        "label": "Total JS size",
+        "value": 1291.49,
+        "unit": "KB",
+        "threshold": 2400,
+        "passed": true
+      },
+      {
+        "key": "health_latency",
+        "label": "Health endpoint latency",
+        "value": 61,
+        "unit": "ms",
+        "threshold": 300,
+        "passed": true
+      }
+    ],
+    "passed": true
+  }
+}

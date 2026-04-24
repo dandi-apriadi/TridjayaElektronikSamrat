@@ -100,7 +100,7 @@ const AgentKnowledgePage: React.FC = () => {
   const totalProducts = products.length;
   const avgRating = (products.reduce((acc, p) => acc + (p.rating || 4.5), 0) / totalProducts).toFixed(1);
   const totalReviews = products.reduce((acc, p) => acc + (p.reviewCount || 0), 0).toLocaleString('id-ID');
-  const criticalStock = 5; // mock critical stock threshold
+  const criticalStock = products.filter((product) => product.stock !== 'available').length;
 
   return (
     <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
@@ -363,9 +363,8 @@ const AgentKnowledgePage: React.FC = () => {
                               <div className="w-full lg:w-2/3">
                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {[12, 18, 24, 36].map((tenor) => {
-                                       // Simple mock calculation: Principal = Price - DP. Total = Principal * (1 + (tenor * 0.02)). Monthly = Total / tenor
                                        const principal = item.price - (item.dpMin || item.price * 0.15);
-                                       const monthlyRate = 0.021; // 2.1% flat per month assumed
+                                       const monthlyRate = 0.021;
                                        const totalLease = principal + (principal * monthlyRate * tenor);
                                        const installment = Math.ceil(totalLease / tenor / 1000) * 1000;
 

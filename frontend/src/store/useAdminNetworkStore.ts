@@ -48,7 +48,8 @@ interface AdminNetworkState {
   fetchTelemetryStats: () => Promise<void>;
 }
 
-const API_BASE_URL = 'http://localhost:8081/api/admin';
+const API_ROOT = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+const API_BASE_URL = `${API_ROOT}/api/admin`;
 
 export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   registrations: [],

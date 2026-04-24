@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
@@ -27,28 +27,6 @@ import {
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 
-/* ─── Mock Data ─────────────────────────────────────── */
-const networkGrowthData = [
-  { month: 'Jan', silver: 124, gold: 42, diamond: 8 },
-  { month: 'Feb', silver: 156, gold: 48, diamond: 9 },
-  { month: 'Mar', silver: 182, gold: 56, diamond: 12 },
-  { month: 'Apr', silver: 215, gold: 64, diamond: 15 },
-];
-
-const topPeformers = [
-  { id: 'AGT-001', name: 'Agen Samrat Makassar', city: 'Makassar', points: 12500, growth: '+12%', tier: 'Diamond' },
-  { id: 'AGT-002', name: 'Dian Sales Partner', city: 'Gowa', points: 10800, growth: '+8%', tier: 'Gold' },
-  { id: 'AGT-003', name: 'Krisna Network', city: 'Manado', points: 9200, growth: '+15%', tier: 'Gold' },
-  { id: 'AGT-004', name: 'Ratna Mobile Palu', city: 'Palu', points: 8100, growth: '-2%', tier: 'Silver' },
-  { id: 'AGT-005', name: 'Bagas Elektro Kendari', city: 'Kendari', points: 7500, growth: '+20%', tier: 'Silver' },
-];
-
-const rewardConfig = [
-  { id: 'silver', name: 'Silver', threshold: '5,000 pts', agents: 215, active: true },
-  { id: 'gold', name: 'Gold', threshold: '15,000 pts', agents: 64, active: true },
-  { id: 'diamond', name: 'Diamond', threshold: '50,000 pts', agents: 15, active: true },
-];
-
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -61,12 +39,109 @@ const itemVariants = {
 
 /* ─── Component ─────────────────────────────────────── */
 const AdminLeaderboardPage: React.FC = () => {
-  const { claims, fetchClaims, updateClaimStatus } = useAdminNetworkStore();
+   const { registrations, claims, fetchRegistrations, fetchClaims, updateClaimStatus } = useAdminNetworkStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'manage' | 'claims'>('overview');
 
-  React.useEffect(() => {
+   useEffect(() => {
+      fetchRegistrations();
     fetchClaims();
-  }, [fetchClaims]);
+   }, [fetchClaims, fetchRegistrations]);
+
+   const networkGrowthData = useMemo(() => {
+      return Array.from({ length: 4 }).map((_, index) => {
+         const date = new Date();
+         date.setMonth(date.getMonth() - (3 - index));
+         const key = `${date.getFullYear()}-${date.getMonth()}`;
+
+         const silver = registrations.filter((item) => {
+            const submitted = new Date(item.submittedAt);
+            return `${submitted.getFullYear()}-${submitted.getMonth()}` === key && item.status !== 'rejected';
+         }).length;
+
+         const gold = claims.filter((claim) => {
+            const submitted = new Date(claim.submittedAt);
+            return `${submitted.getFullYear()}-${submitted.getMonth()}` === key && claim.status !== 'cancelled';
+         }).length;
+
+         const diamond = claims.filter((claim) => {
+            const submitted = new Date(claim.submittedAt);
+            return `${submitted.getFullYear()}-${submitted.getMonth()}` === key && claim.status === 'completed';
+         }).length;
+
+         return {
+            month: date.toLocaleDateString('id-ID', { month: 'short' }),
+            silver,
+            gold,
+            diamond,
+         };
+      });
+   }, [claims, registrations]);
+
+   const rewardConfig = useMemo(() => {
+      const counts = claims.reduce<Record<string, number>>((accumulator, claim) => {
+         accumulator[claim.tierId] = (accumulator[claim.tierId] || 0) + 1;
+         return accumulator;
+      }, {});
+
+      return [
+         { id: 'silver', name: 'Silver', threshold: '5,000 pts', agents: counts.silver || 0, active: true },
+         { id: 'gold', name: 'Gold', threshold: '15,000 pts', agents: counts.gold || 0, active: true },
+         { id: 'diamond', name: 'Diamond', threshold: '50,000 pts', agents: counts.diamond || 0, active: true },
+      ];
+   }, [claims]);
+
+   const topPeformers = useMemo(() => {
+      const performanceByAgent = new Map<string, {
+         id: string;
+         name: string;
+         city: string;
+         points: number;
+         growth: string;
+         tier: string;
+      }>();
+
+      registrations.forEach((registration) => {
+         performanceByAgent.set(registration.id, {
+            id: registration.id,
+            name: registration.fullName,
+            city: registration.city,
+            points: registration.status === 'approved' ? 1500 : 500,
+            growth: registration.status === 'approved' ? '+10%' : '+0%',
+            tier: registration.status === 'approved' ? 'Gold' : 'Silver',
+         });
+      });
+
+      claims.forEach((claim) => {
+         const existing = performanceByAgent.get(claim.agentId) || {
+            id: claim.agentId,
+            name: claim.agentName || 'Agent',
+            city: '-',
+            points: 0,
+            growth: '+0%',
+            tier: claim.tierId === 'diamond' ? 'Diamond' : claim.tierId === 'gold' ? 'Gold' : 'Silver',
+         };
+
+         if (claim.status === 'completed') {
+            existing.points += claim.tierId === 'diamond' ? 7000 : claim.tierId === 'gold' ? 4000 : 2000;
+            existing.growth = '+15%';
+         }
+
+         performanceByAgent.set(claim.agentId, existing);
+      });
+
+      return Array.from(performanceByAgent.values())
+         .sort((left, right) => right.points - left.points)
+         .slice(0, 5);
+   }, [claims, registrations]);
+
+   const totalPoints = claims.reduce((sum, claim) => {
+      if (claim.status !== 'completed') return sum;
+      return sum + (claim.tierId === 'diamond' ? 7000 : claim.tierId === 'gold' ? 4000 : 2000);
+   }, 0);
+
+   const activeSilverAgents = rewardConfig.find((tier) => tier.id === 'silver')?.agents ?? 0;
+   const activeGoldAgents = rewardConfig.find((tier) => tier.id === 'gold')?.agents ?? 0;
+   const legendaryDiamondAgents = rewardConfig.find((tier) => tier.id === 'diamond')?.agents ?? 0;
 
   return (
     <motion.div
@@ -115,10 +190,10 @@ const AdminLeaderboardPage: React.FC = () => {
           {/* ── KPI Row ───────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
              {[
-               { label: 'Total Points Distributed', value: '1.2M', sub: '+15.2% MoM', icon: Star, color: 'text-primary', bg: 'bg-primary/10' },
-               { label: 'Active Silver Agents', value: '215', sub: '+33 new this month', icon: Medal, color: 'text-slate-400', bg: 'bg-slate-400/10' },
-               { label: 'Active Gold Agents', value: '64', sub: '+8 new this month', icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-400/10' },
-               { label: 'Legendary Diamond', value: '15', sub: 'Elite performers', icon: Crown, color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
+                      { label: 'Total Points Distributed', value: totalPoints.toLocaleString('id-ID'), sub: 'berdasarkan claim completed', icon: Star, color: 'text-primary', bg: 'bg-primary/10' },
+                      { label: 'Active Silver Agents', value: activeSilverAgents.toString(), sub: `${registrations.filter((item) => item.status === 'pending').length} pending`, icon: Medal, color: 'text-slate-400', bg: 'bg-slate-400/10' },
+                      { label: 'Active Gold Agents', value: activeGoldAgents.toString(), sub: `${registrations.filter((item) => item.status === 'approved').length} approved`, icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-400/10' },
+                      { label: 'Legendary Diamond', value: legendaryDiamondAgents.toString(), sub: 'claim completed tier diamond', icon: Crown, color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
              ].map((kpi, i) => (
                <motion.div key={i} variants={itemVariants} className="glass-card rounded-xl p-5 border border-outline-variant/10">
                  <div className="flex justify-between items-start mb-3">
@@ -278,10 +353,10 @@ const AdminLeaderboardPage: React.FC = () => {
                      <tr key={claim.id} className="hover:bg-surface-high/40 transition-colors group">
                         <td className="px-6 py-4 font-mono text-[11px] font-bold text-on-surface-variant">{claim.id}</td>
                         <td className="px-6 py-4">
-                           <div className="font-body text-body-sm font-bold text-on-surface">{claim.agentName}</div>
+                           <div className="font-body text-body-sm font-bold text-on-surface">{claim.agentName || 'Unknown Agent'}</div>
                         </td>
                         <td className="px-6 py-4">
-                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${claim.tierId === 'Diamond' ? 'bg-cyan-400/10 text-cyan-400' : 'bg-amber-400/10 text-amber-400'}`}>
+                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${claim.tierId === 'diamond' ? 'bg-cyan-400/10 text-cyan-400' : claim.tierId === 'gold' ? 'bg-amber-400/10 text-amber-400' : 'bg-slate-400/10 text-slate-400'}`}>
                               {claim.tierId.toUpperCase()}
                            </span>
                         </td>
@@ -305,9 +380,9 @@ const AdminLeaderboardPage: React.FC = () => {
                         </td>
                      </tr>
                    ))}
-                   {claims.length === 0 && (
+                            {claims.length === 0 && (
                      <tr>
-                        <td colSpan={6} className="px-6 py-10 text-center text-on-surface-variant text-body-sm">Belum ada reward yang di klaim agen untuk saat ini.</td>
+                                    <td colSpan={6} className="px-6 py-10 text-center text-on-surface-variant text-body-sm">Belum ada reward yang diklaim agen untuk saat ini.</td>
                      </tr>
                    )}
                 </tbody>

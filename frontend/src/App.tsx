@@ -1,43 +1,14 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect } from 'react';
+import {
+  BrowserRouter as Router,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
-import BikesCatalogPage from './pages/BikesCatalogPage';
-import HomeCatalogPage from './pages/HomeCatalogPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import BlogPage from './pages/BlogPage';
-import ArticleDetailPage from './pages/ArticleDetailPage';
-import PromoPage from './pages/PromoPage';
-import PromoDetailPage from './pages/PromoDetailPage';
-import CareerPage from './pages/CareerPage';
-import TentangPage from './pages/TentangPage';
-import AgencyRegistrationPage from './pages/AgencyRegistrationPage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import TermsOfServicePage from './pages/TermsOfServicePage';
-import LoginPage from './pages/LoginPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import DashboardLayout from './components/layout/DashboardLayout';
-import AdminDashboard from './pages/dashboard/AdminDashboard';
-import AgentDashboard from './pages/dashboard/AgentDashboard';
-import AdminAgentsPage from './pages/dashboard/AdminAgentsPage';
-import AdminCatalogPage from './pages/dashboard/AdminCatalogPage';
-import AdminPromoPage from './pages/dashboard/AdminPromoPage';
-import AdminTelemetryPage from './pages/dashboard/AdminTelemetryPage';
-import AdminUsersPage from './pages/dashboard/AdminUsersPage';
-import AgentKnowledgePage from './pages/dashboard/AgentKnowledgePage';
-import AgentLeadsPage from './pages/dashboard/AgentLeadsPage';
-import AgentEarningsPage from './pages/dashboard/AgentEarningsPage';
-import AgentSupportPage from './pages/dashboard/AgentSupportPage';
-import AdminAgentDirectoryPage from './pages/dashboard/AdminAgentDirectoryPage';
-import AdminFinancePage from './pages/dashboard/AdminFinancePage';
-import AdminContentPage from './pages/dashboard/AdminContentPage';
-import AdminFormPage from './pages/dashboard/AdminFormPage';
-import AdminProductFormPage from './pages/dashboard/AdminProductFormPage';
-import AdminPromoFormPage from './pages/dashboard/AdminPromoFormPage';
-import AdminArticleFormPage from './pages/dashboard/AdminArticleFormPage';
-import AgentPushProspekPage from './pages/dashboard/AgentPushProspekPage';
-import AdminLeaderboardPage from './pages/dashboard/AdminLeaderboardPage';
-import AgentLeaderboardPage from './pages/dashboard/AgentLeaderboardPage';
+import { useTelemetryTracker } from './store/useTelemetryTracker';
 
 import { NotificationContainer } from './components/ui/Notification';
 import { useThemeStore } from './store/themeStore';
@@ -45,7 +16,58 @@ import { useAuthStore } from './store/authStore';
 import { useProductStore } from './store/useProductStore';
 import { usePromoStore } from './store/usePromoStore';
 import { useBlogStore } from './store/useBlogStore';
-import { Navigate } from 'react-router-dom';
+
+const BikesCatalogPage = lazy(() => import('./pages/BikesCatalogPage'));
+const HomeCatalogPage = lazy(() => import('./pages/HomeCatalogPage'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const BlogPage = lazy(() => import('./pages/BlogPage'));
+const ArticleDetailPage = lazy(() => import('./pages/ArticleDetailPage'));
+const PromoPage = lazy(() => import('./pages/PromoPage'));
+const PromoDetailPage = lazy(() => import('./pages/PromoDetailPage'));
+const CareerPage = lazy(() => import('./pages/CareerPage'));
+const TentangPage = lazy(() => import('./pages/TentangPage'));
+const AgencyRegistrationPage = lazy(() => import('./pages/AgencyRegistrationPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+
+const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
+const AdminDashboard = lazy(() => import('./pages/dashboard/AdminDashboard'));
+const AgentDashboard = lazy(() => import('./pages/dashboard/AgentDashboard'));
+const AdminAgentsPage = lazy(() => import('./pages/dashboard/AdminAgentsPage'));
+const AdminCatalogPage = lazy(() => import('./pages/dashboard/AdminCatalogPage'));
+const AdminPromoPage = lazy(() => import('./pages/dashboard/AdminPromoPage'));
+const AdminTelemetryPage = lazy(() => import('./pages/dashboard/AdminTelemetryPage'));
+const AdminUsersPage = lazy(() => import('./pages/dashboard/AdminUsersPage'));
+const AgentKnowledgePage = lazy(() => import('./pages/dashboard/AgentKnowledgePage'));
+const AgentLeadsPage = lazy(() => import('./pages/dashboard/AgentLeadsPage'));
+const AgentEarningsPage = lazy(() => import('./pages/dashboard/AgentEarningsPage'));
+const AgentSupportPage = lazy(() => import('./pages/dashboard/AgentSupportPage'));
+const AdminAgentDirectoryPage = lazy(() => import('./pages/dashboard/AdminAgentDirectoryPage'));
+const AdminFinancePage = lazy(() => import('./pages/dashboard/AdminFinancePage'));
+const AdminContentPage = lazy(() => import('./pages/dashboard/AdminContentPage'));
+const AdminFormPage = lazy(() => import('./pages/dashboard/AdminFormPage'));
+const AdminProductFormPage = lazy(() => import('./pages/dashboard/AdminProductFormPage'));
+const AdminPromoFormPage = lazy(() => import('./pages/dashboard/AdminPromoFormPage'));
+const AdminArticleFormPage = lazy(() => import('./pages/dashboard/AdminArticleFormPage'));
+const AgentPushProspekPage = lazy(() => import('./pages/dashboard/AgentPushProspekPage'));
+const AdminLeaderboardPage = lazy(() => import('./pages/dashboard/AdminLeaderboardPage'));
+const AgentLeaderboardPage = lazy(() => import('./pages/dashboard/AgentLeaderboardPage'));
+
+const RouteLoading: React.FC = () => (
+  <div className="min-h-[40vh] w-full grid place-items-center px-4">
+    <div className="glass-card rounded-xl px-5 py-3 text-label-sm text-on-surface-variant">
+      Memuat halaman...
+    </div>
+  </div>
+);
+
+const lazyPage = (Page: React.LazyExoticComponent<React.ComponentType>) => (
+  <Suspense fallback={<RouteLoading />}>
+    <Page />
+  </Suspense>
+);
 
 // Protected Route Component
 const PrivateRoute: React.FC<{ children: React.ReactElement; role?: 'admin' | 'agent' }> = ({ children, role }) => {
@@ -69,8 +91,6 @@ const DashboardRoot = () => {
   if (user?.role === 'admin') return <Navigate to="/dashboard/admin" replace />;
   return <Navigate to="/dashboard/agent" replace />;
 };
-
-import { useTelemetryTracker } from './store/useTelemetryTracker';
 
 // Scroll to top and track telemetry on route change
 const RouteListener = () => {
@@ -96,6 +116,10 @@ const App: React.FC = () => {
     } else {
       setTheme('dark');
     }
+    
+    // Restore session from HttpOnly cookies (if available)
+    useAuthStore.getState().restoreSession();
+    
     // Fetch initial product, promo, and blog data
     useProductStore.getState().fetchProducts();
     usePromoStore.getState().fetchPromos();
@@ -109,30 +133,30 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="produk/bike" element={<BikesCatalogPage />} />
-          <Route path="produk/home" element={<HomeCatalogPage />} />
-          <Route path="produk/:slug" element={<ProductDetailPage />} />
-          <Route path="promo" element={<PromoPage />} />
-          <Route path="promo/:id" element={<PromoDetailPage />} />
-          <Route path="blog" element={<BlogPage />} />
-          <Route path="blog/:slug" element={<ArticleDetailPage />} />
-          <Route path="karier" element={<CareerPage />} />
-          <Route path="tentang" element={<TentangPage />} />
-          <Route path="daftar-agen" element={<AgencyRegistrationPage />} />
-          <Route path="kebijakan-privasi" element={<PrivacyPolicyPage />} />
-          <Route path="syarat-layanan" element={<TermsOfServicePage />} />
+          <Route path="produk/bike" element={lazyPage(BikesCatalogPage)} />
+          <Route path="produk/home" element={lazyPage(HomeCatalogPage)} />
+          <Route path="produk/:slug" element={lazyPage(ProductDetailPage)} />
+          <Route path="promo" element={lazyPage(PromoPage)} />
+          <Route path="promo/:id" element={lazyPage(PromoDetailPage)} />
+          <Route path="blog" element={lazyPage(BlogPage)} />
+          <Route path="blog/:slug" element={lazyPage(ArticleDetailPage)} />
+          <Route path="karier" element={lazyPage(CareerPage)} />
+          <Route path="tentang" element={lazyPage(TentangPage)} />
+          <Route path="daftar-agen" element={lazyPage(AgencyRegistrationPage)} />
+          <Route path="kebijakan-privasi" element={lazyPage(PrivacyPolicyPage)} />
+          <Route path="syarat-layanan" element={lazyPage(TermsOfServicePage)} />
         </Route>
 
         {/* Auth Routes */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/login" element={lazyPage(LoginPage)} />
+        <Route path="/forgot-password" element={lazyPage(ForgotPasswordPage)} />
 
         {/* Dashboard Routes */}
         <Route
           path="/dashboard"
           element={
             <PrivateRoute>
-              <DashboardLayout />
+              {lazyPage(DashboardLayout)}
             </PrivateRoute>
           }
         >
@@ -141,7 +165,7 @@ const App: React.FC = () => {
             path="admin"
             element={
               <PrivateRoute role="admin">
-                <AdminDashboard />
+                {lazyPage(AdminDashboard)}
               </PrivateRoute>
             }
           />
@@ -149,7 +173,7 @@ const App: React.FC = () => {
             path="admin/agents"
             element={
               <PrivateRoute role="admin">
-                <AdminAgentsPage />
+                {lazyPage(AdminAgentsPage)}
               </PrivateRoute>
             }
           />
@@ -157,7 +181,7 @@ const App: React.FC = () => {
             path="admin/catalog"
             element={
               <PrivateRoute role="admin">
-                <AdminCatalogPage />
+                {lazyPage(AdminCatalogPage)}
               </PrivateRoute>
             }
           />
@@ -165,7 +189,7 @@ const App: React.FC = () => {
             path="admin/catalog/new"
             element={
               <PrivateRoute role="admin">
-                <AdminProductFormPage />
+                {lazyPage(AdminProductFormPage)}
               </PrivateRoute>
             }
           />
@@ -173,7 +197,7 @@ const App: React.FC = () => {
             path="admin/catalog/edit/:id"
             element={
               <PrivateRoute role="admin">
-                <AdminProductFormPage />
+                {lazyPage(AdminProductFormPage)}
               </PrivateRoute>
             }
           />
@@ -181,7 +205,7 @@ const App: React.FC = () => {
             path="admin/promo"
             element={
               <PrivateRoute role="admin">
-                <AdminPromoPage />
+                {lazyPage(AdminPromoPage)}
               </PrivateRoute>
             }
           />
@@ -189,7 +213,7 @@ const App: React.FC = () => {
             path="admin/promo/new"
             element={
               <PrivateRoute role="admin">
-                <AdminPromoFormPage />
+                {lazyPage(AdminPromoFormPage)}
               </PrivateRoute>
             }
           />
@@ -197,7 +221,7 @@ const App: React.FC = () => {
             path="admin/promo/edit/:id"
             element={
               <PrivateRoute role="admin">
-                <AdminPromoFormPage />
+                {lazyPage(AdminPromoFormPage)}
               </PrivateRoute>
             }
           />
@@ -205,7 +229,7 @@ const App: React.FC = () => {
             path="admin/content/new"
             element={
               <PrivateRoute role="admin">
-                <AdminArticleFormPage />
+                {lazyPage(AdminArticleFormPage)}
               </PrivateRoute>
             }
           />
@@ -213,7 +237,7 @@ const App: React.FC = () => {
             path="admin/content/edit/:id"
             element={
               <PrivateRoute role="admin">
-                <AdminArticleFormPage />
+                {lazyPage(AdminArticleFormPage)}
               </PrivateRoute>
             }
           />
@@ -221,7 +245,7 @@ const App: React.FC = () => {
             path="admin/telemetry"
             element={
               <PrivateRoute role="admin">
-                <AdminTelemetryPage />
+                {lazyPage(AdminTelemetryPage)}
               </PrivateRoute>
             }
           />
@@ -229,7 +253,7 @@ const App: React.FC = () => {
             path="admin/users"
             element={
               <PrivateRoute role="admin">
-                <AdminUsersPage />
+                {lazyPage(AdminUsersPage)}
               </PrivateRoute>
             }
           />
@@ -237,7 +261,7 @@ const App: React.FC = () => {
             path="admin/users/new"
             element={
               <PrivateRoute role="admin">
-                <AdminFormPage />
+                {lazyPage(AdminFormPage)}
               </PrivateRoute>
             }
           />
@@ -245,7 +269,7 @@ const App: React.FC = () => {
             path="admin/users/edit/:id"
             element={
               <PrivateRoute role="admin">
-                <AdminFormPage />
+                {lazyPage(AdminFormPage)}
               </PrivateRoute>
             }
           />
@@ -253,7 +277,7 @@ const App: React.FC = () => {
             path="admin/agents/directory"
             element={
               <PrivateRoute role="admin">
-                <AdminAgentDirectoryPage />
+                {lazyPage(AdminAgentDirectoryPage)}
               </PrivateRoute>
             }
           />
@@ -261,7 +285,7 @@ const App: React.FC = () => {
             path="admin/finance"
             element={
               <PrivateRoute role="admin">
-                <AdminFinancePage />
+                {lazyPage(AdminFinancePage)}
               </PrivateRoute>
             }
           />
@@ -269,7 +293,7 @@ const App: React.FC = () => {
             path="admin/content"
             element={
               <PrivateRoute role="admin">
-                <AdminContentPage />
+                {lazyPage(AdminContentPage)}
               </PrivateRoute>
             }
           />
@@ -277,7 +301,7 @@ const App: React.FC = () => {
             path="admin/leaderboard"
             element={
               <PrivateRoute role="admin">
-                <AdminLeaderboardPage />
+                {lazyPage(AdminLeaderboardPage)}
               </PrivateRoute>
             }
           />
@@ -287,7 +311,7 @@ const App: React.FC = () => {
             path="agent"
             element={
               <PrivateRoute role="agent">
-                <AgentDashboard />
+                {lazyPage(AgentDashboard)}
               </PrivateRoute>
             }
           />
@@ -295,7 +319,7 @@ const App: React.FC = () => {
             path="agent/knowledge"
             element={
               <PrivateRoute role="agent">
-                <AgentKnowledgePage />
+                {lazyPage(AgentKnowledgePage)}
               </PrivateRoute>
             }
           />
@@ -303,7 +327,7 @@ const App: React.FC = () => {
             path="agent/leads"
             element={
               <PrivateRoute role="agent">
-                <AgentLeadsPage />
+                {lazyPage(AgentLeadsPage)}
               </PrivateRoute>
             }
           />
@@ -311,7 +335,7 @@ const App: React.FC = () => {
             path="agent/earnings"
             element={
               <PrivateRoute role="agent">
-                <AgentEarningsPage />
+                {lazyPage(AgentEarningsPage)}
               </PrivateRoute>
             }
           />
@@ -319,7 +343,7 @@ const App: React.FC = () => {
             path="agent/support"
             element={
               <PrivateRoute role="agent">
-                <AgentSupportPage />
+                {lazyPage(AgentSupportPage)}
               </PrivateRoute>
             }
           />
@@ -327,7 +351,7 @@ const App: React.FC = () => {
             path="agent/push"
             element={
               <PrivateRoute role="agent">
-                <AgentPushProspekPage />
+                {lazyPage(AgentPushProspekPage)}
               </PrivateRoute>
             }
           />
@@ -335,7 +359,7 @@ const App: React.FC = () => {
             path="agent/leaderboard"
             element={
               <PrivateRoute role="agent">
-                <AgentLeaderboardPage />
+                {lazyPage(AgentLeaderboardPage)}
               </PrivateRoute>
             }
           />

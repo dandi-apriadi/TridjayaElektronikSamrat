@@ -27,4 +27,10 @@ Backend Rust untuk Tridjaya Samrat, disiapkan mengikuti spesifikasi di `docs/bac
 cargo run
 ```
 
-Default server berjalan di `0.0.0.0:8080`.
+Default server berjalan di `0.0.0.0:8081`.
+
+Untuk CORS allowlist gunakan environment variable berikut:
+
+```bash
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```

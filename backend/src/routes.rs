@@ -1,9 +1,11 @@
 use crate::{
-    auth::{authorize, login_with_request, logout_with_headers, refresh_with_request, LoginRequest, RefreshRequest, Role},
+    auth::{authorize, hash_password, login_with_request, logout_with_headers, refresh_with_request, LoginRequest, RefreshRequest, Role},
     response::{json_ok, AppError},
     state::{AppState, UserPublic},
 };
-use axum::{extract::{Path, State}, http::HeaderMap, routing::{get, post, patch}, Json, Router};
+use axum::{extract::{Path, State}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{get, post, patch}, Json, Router};
+use chrono::{Duration, Utc};
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 pub fn router(state: AppState) -> Router {
@@ -29,9 +31,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/telemetry/whatsapp-click", post(whatsapp_click))
         .route("/api/telemetry/pixel-event", post(pixel_event))
         .route("/api/jobs", get(list_jobs).post(create_job))
-        .route("/api/jobs/{id}", patch(update_job))
+        .route("/api/jobs/{id}", patch(update_job).delete(delete_job))
         .route("/api/articles", get(list_articles).post(create_article))
-        .route("/api/articles/{id}", patch(update_article))
+        .route("/api/articles/{id}", patch(update_article).delete(delete_article))
         .route("/api/leads", get(list_leads).post(create_lead))
         .route("/api/leads/{id}/status", patch(update_lead_status))
         .route("/api/agent/stats", get(get_agent_stats))
@@ -48,19 +50,120 @@ async fn health() -> ResponseBody {
     json_ok("OK", json!({ "status": "healthy" }))
 }
 
+async fn enforce_login_rate_limit(state: &AppState, email: &str) -> Result<(), AppError> {
+    let key = email.trim().to_lowercase();
+    if key.is_empty() {
+        return Ok(());
+    }
+
+    let now = Utc::now();
+    let threshold = now - Duration::minutes(1);
+
+    let mut attempts = state.login_attempts.write().await;
+    let entry = attempts.entry(key).or_default();
+    entry.retain(|ts| *ts > threshold);
+
+    if entry.len() >= 5 {
+        return Err(AppError::Validation {
+            errors: vec!["Terlalu banyak percobaan login. Coba lagi dalam 1 menit".to_string()],
+        });
+    }
+
+    entry.push(now);
+    Ok(())
+}
+
+async fn clear_login_rate_limit(state: &AppState, email: &str) {
+    let key = email.trim().to_lowercase();
+    if key.is_empty() {
+        return;
+    }
+
+    state.login_attempts.write().await.remove(&key);
+}
+
+fn cookie_secure_enabled() -> bool {
+    std::env::var("COOKIE_SECURE")
+        .map(|value| value.eq_ignore_ascii_case("true") || value == "1")
+        .unwrap_or(false)
+}
+
+fn build_refresh_cookie(token: &str) -> String {
+    let secure = cookie_secure_enabled();
+    let same_site = if secure { "None" } else { "Lax" };
+    let secure_attr = if secure { "; Secure" } else { "" };
+    format!(
+        "refresh_token={}; HttpOnly; Path=/api/auth; Max-Age=604800; SameSite={}{}",
+        token, same_site, secure_attr
+    )
+}
+
+fn build_clear_refresh_cookie() -> String {
+    let secure = cookie_secure_enabled();
+    let same_site = if secure { "None" } else { "Lax" };
+    let secure_attr = if secure { "; Secure" } else { "" };
+    format!(
+        "refresh_token=; HttpOnly; Path=/api/auth; Max-Age=0; SameSite={}{}",
+        same_site, secure_attr
+    )
+}
+
+fn extract_cookie_token(headers: &HeaderMap, key: &str) -> Option<String> {
+    headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|header| header.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .map(|segment| segment.trim())
+                .find_map(|segment| {
+                    let (name, value) = segment.split_once('=')?;
+                    (name == key).then(|| value.to_string())
+                })
+        })
+}
+
+fn append_set_cookie(response: &mut ResponseBody, cookie_value: &str) {
+    match HeaderValue::from_str(cookie_value) {
+        Ok(value) => {
+            response.headers_mut().append(SET_COOKIE, value);
+        }
+        Err(error) => {
+            tracing::warn!("Failed to set cookie header: {}", error);
+        }
+    }
+}
+
 async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>) -> Result<ResponseBody, AppError> {
+    enforce_login_rate_limit(&state, &payload.email).await?;
+    let email = payload.email.clone();
     let auth = login_with_request(&state, payload).await?;
-    Ok(json_ok("Login successful", auth))
+    clear_login_rate_limit(&state, &email).await;
+    let refresh_token = auth.refresh_token.clone();
+    let mut response = json_ok("Login successful", auth);
+    append_set_cookie(&mut response, &build_refresh_cookie(&refresh_token));
+    Ok(response)
 }
 
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     logout_with_headers(&state, &headers).await?;
-    Ok(json_ok("Logout successful", json!({ "logged_out": true })))
+    let mut response = json_ok("Logout successful", json!({ "logged_out": true }));
+    append_set_cookie(&mut response, &build_clear_refresh_cookie());
+    Ok(response)
 }
 
-async fn refresh(State(state): State<AppState>, Json(payload): Json<RefreshRequest>) -> Result<ResponseBody, AppError> {
-    let auth = refresh_with_request(&state, payload).await?;
-    Ok(json_ok("Token refreshed", auth))
+async fn refresh(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<RefreshRequest>) -> Result<ResponseBody, AppError> {
+    let refresh_token = if payload.refresh_token.trim().is_empty() {
+        extract_cookie_token(&headers, "refresh_token").ok_or(AppError::Unauthorized)?
+    } else {
+        payload.refresh_token
+    };
+
+    let auth = refresh_with_request(&state, RefreshRequest { refresh_token }).await?;
+    let new_refresh_token = auth.refresh_token.clone();
+    let mut response = json_ok("Token refreshed", auth);
+    append_set_cookie(&mut response, &build_refresh_cookie(&new_refresh_token));
+    Ok(response)
 }
 
 async fn forgot_password() -> ResponseBody {
@@ -81,28 +184,665 @@ async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result
     Ok(json_ok(format!("Users fetched by {}", user.email), json!({ "items": users })))
 }
 
-async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UserCreateRequest {
+    id: Option<String>,
+    email: String,
+    name: String,
+    role: String,
+    password: String,
+    avatar: Option<String>,
+    is_active: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UserUpdateRequest {
+    email: Option<String>,
+    name: Option<String>,
+    role: Option<String>,
+    password: Option<String>,
+    avatar: Option<String>,
+    is_active: Option<bool>,
+}
+
+#[derive(sqlx::FromRow)]
+struct LeadRecord {
+    id: String,
+    agent_id: String,
+    customer_name: String,
+    phone_number: String,
+    interested_product: String,
+    status: String,
+    notes: Option<String>,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LeadCreateRequest {
+    agent_id: Option<String>,
+    customer_name: String,
+    phone_number: String,
+    interested_product: String,
+    status: Option<String>,
+    notes: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LeadStatusUpdateRequest {
+    status: String,
+    notes: Option<String>,
+}
+
+fn normalize_role(value: &str) -> Option<String> {
+    let role = value.trim().to_lowercase();
+    if matches!(role.as_str(), "admin" | "agent" | "editor" | "operator") {
+        Some(role)
+    } else {
+        None
+    }
+}
+
+fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.email.trim().is_empty() || !payload.email.contains('@') {
+        errors.push("email tidak valid".to_string());
+    }
+    if payload.name.trim().is_empty() {
+        errors.push("name wajib diisi".to_string());
+    }
+    if normalize_role(&payload.role).is_none() {
+        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
+    }
+    if payload.password.len() < 8 {
+        errors.push("password minimal 8 karakter".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.email.as_ref().is_some_and(|value| value.trim().is_empty() || !value.contains('@')) {
+        errors.push("email tidak valid".to_string());
+    }
+    if payload.name.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("name tidak boleh kosong".to_string());
+    }
+    if payload.role.as_ref().is_some_and(|value| normalize_role(value).is_none()) {
+        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
+    }
+    if payload.password.as_ref().is_some_and(|value| value.len() < 8) {
+        errors.push("password minimal 8 karakter".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn validate_lead_status(status: &str) -> bool {
+    matches!(status, "Follow Up" | "Negosiasi" | "Closed Won" | "Closed Lost")
+}
+
+fn validate_lead_create(payload: &LeadCreateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.customer_name.trim().is_empty() {
+        errors.push("customerName wajib diisi".to_string());
+    }
+    if payload.phone_number.trim().is_empty() {
+        errors.push("phoneNumber wajib diisi".to_string());
+    }
+    if payload.interested_product.trim().is_empty() {
+        errors.push("interestedProduct wajib diisi".to_string());
+    }
+    if payload
+        .status
+        .as_ref()
+        .is_some_and(|value| !validate_lead_status(value.trim()))
+    {
+        errors.push("status lead tidak valid".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn validate_lead_status_update(payload: &LeadStatusUpdateRequest) -> Result<(), AppError> {
+    if !validate_lead_status(payload.status.trim()) {
+        return Err(AppError::Validation {
+            errors: vec!["status lead tidak valid".to_string()],
+        });
+    }
+    Ok(())
+}
+
+fn lead_to_json(record: LeadRecord) -> Value {
+    json!({
+        "id": record.id,
+        "agentId": record.agent_id,
+        "customerName": record.customer_name,
+        "phoneNumber": record.phone_number,
+        "interestedProduct": record.interested_product,
+        "status": record.status,
+        "notes": record.notes,
+        "createdAt": record.created_at,
+        "updatedAt": record.updated_at,
+    })
+}
+
+async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
+    sqlx::query_as::<_, UserPublic>(
+        "SELECT id, email, name, role, avatar, is_active FROM users WHERE id = ? LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)
+}
+
+async fn find_lead_by_id(state: &AppState, id: &str) -> Result<LeadRecord, AppError> {
+    sqlx::query_as::<_, LeadRecord>(
+        "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at FROM leads WHERE id = ? LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)
+}
+
+async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<UserCreateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok(format!("User created by {}", user.email), json!({ "received": payload })))
+    validate_user_create(&payload)?;
+
+    let id = payload
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let role = normalize_role(&payload.role).ok_or(AppError::Validation {
+        errors: vec!["role tidak valid".to_string()],
+    })?;
+    let password_hash = hash_password(&payload.password);
+
+    sqlx::query(
+        "INSERT INTO users (id, email, name, role, password_hash, avatar, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(payload.email.trim())
+    .bind(payload.name.trim())
+    .bind(role)
+    .bind(password_hash)
+    .bind(payload.avatar.unwrap_or_else(|| "".to_string()))
+    .bind(payload.is_active.unwrap_or(true))
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let created = find_user_public_by_id(&state, &id).await?;
+    Ok(json_ok(
+        format!("User created by {}", user.email),
+        json!({ "item": created }),
+    ))
 }
 
 async fn get_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok(format!("User {} fetched by {}", id, user.email), json!({ "id": id })))
+    let item = find_user_public_by_id(&state, &id).await?;
+    Ok(json_ok(
+        format!("User {} fetched by {}", id, user.email),
+        json!({ "item": item }),
+    ))
 }
 
-async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<UserUpdateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok(format!("User {} updated by {}", id, user.email), json!({ "id": id, "received": payload })))
+    validate_user_update(&payload)?;
+
+    let current = sqlx::query_as::<_, (String, String, String, String, String, bool)>(
+        "SELECT email, name, role, password_hash, avatar, is_active FROM users WHERE id = ? LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    let next_email = payload.email.unwrap_or(current.0);
+    let next_name = payload.name.unwrap_or(current.1);
+    let next_role = payload
+        .role
+        .as_deref()
+        .and_then(normalize_role)
+        .unwrap_or(current.2);
+    let next_password_hash = payload
+        .password
+        .as_deref()
+        .map(hash_password)
+        .unwrap_or(current.3);
+    let next_avatar = payload.avatar.unwrap_or(current.4);
+    let next_is_active = payload.is_active.unwrap_or(current.5);
+
+    sqlx::query(
+        "UPDATE users SET email = ?, name = ?, role = ?, password_hash = ?, avatar = ?, is_active = ? WHERE id = ?",
+    )
+    .bind(next_email.trim())
+    .bind(next_name.trim())
+    .bind(next_role)
+    .bind(next_password_hash)
+    .bind(next_avatar)
+    .bind(next_is_active)
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let updated = find_user_public_by_id(&state, &id).await?;
+    Ok(json_ok(
+        format!("User {} updated by {}", id, user.email),
+        json!({ "item": updated }),
+    ))
 }
 
 async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let result = sqlx::query("DELETE FROM users WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
     Ok(json_ok(format!("User {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
 
+#[derive(sqlx::FromRow)]
+struct ProductRecord {
+    id: String,
+    slug: String,
+    name: String,
+    category: String,
+    subcategory: Option<String>,
+    price: f64,
+    price_installment: Option<f64>,
+    dp_min: Option<f64>,
+    image: String,
+    images: Option<String>,
+    badge: Option<String>,
+    badge_text: Option<String>,
+    rating: f64,
+    review_count: i64,
+    short_desc: Option<String>,
+    description: Option<String>,
+    specs: Option<String>,
+    stock: String,
+    colors: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogCreateRequest {
+    id: Option<String>,
+    slug: String,
+    name: String,
+    category: String,
+    subcategory: Option<String>,
+    price: f64,
+    price_installment: Option<f64>,
+    dp_min: Option<f64>,
+    image: String,
+    images: Option<Value>,
+    badge: Option<String>,
+    badge_text: Option<String>,
+    rating: Option<f64>,
+    review_count: Option<i64>,
+    short_desc: Option<String>,
+    description: Option<String>,
+    specs: Option<Value>,
+    stock: Option<String>,
+    colors: Option<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogUpdateRequest {
+    slug: Option<String>,
+    name: Option<String>,
+    category: Option<String>,
+    subcategory: Option<String>,
+    price: Option<f64>,
+    price_installment: Option<f64>,
+    dp_min: Option<f64>,
+    image: Option<String>,
+    images: Option<Value>,
+    badge: Option<String>,
+    badge_text: Option<String>,
+    rating: Option<f64>,
+    review_count: Option<i64>,
+    short_desc: Option<String>,
+    description: Option<String>,
+    specs: Option<Value>,
+    stock: Option<String>,
+    colors: Option<Value>,
+}
+
+fn parse_json_or_default(raw: Option<&str>, fallback: Value) -> Value {
+    raw.and_then(|value| serde_json::from_str::<Value>(value).ok())
+        .unwrap_or(fallback)
+}
+
+fn product_to_json(record: ProductRecord) -> Value {
+    json!({
+        "id": record.id,
+        "slug": record.slug,
+        "name": record.name,
+        "category": record.category,
+        "subcategory": record.subcategory,
+        "price": record.price,
+        "priceInstallment": record.price_installment,
+        "dpMin": record.dp_min,
+        "image": record.image,
+        "images": parse_json_or_default(record.images.as_deref(), json!([])),
+        "badge": record.badge,
+        "badgeText": record.badge_text,
+        "rating": record.rating,
+        "reviewCount": record.review_count,
+        "shortDesc": record.short_desc,
+        "description": record.description,
+        "specs": parse_json_or_default(record.specs.as_deref(), json!({})),
+        "stock": record.stock,
+        "colors": parse_json_or_default(record.colors.as_deref(), json!([])),
+    })
+}
+
+fn validate_stock(stock: &str) -> bool {
+    matches!(stock, "available" | "indent" | "hidden")
+}
+
+fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+
+    if payload.slug.trim().is_empty() {
+        errors.push("slug wajib diisi".to_string());
+    }
+    if payload.name.trim().is_empty() {
+        errors.push("name wajib diisi".to_string());
+    }
+    if payload.category.trim().is_empty() {
+        errors.push("category wajib diisi".to_string());
+    }
+    if payload.image.trim().is_empty() {
+        errors.push("image wajib diisi".to_string());
+    }
+    if payload.price < 0.0 {
+        errors.push("price tidak boleh negatif".to_string());
+    }
+    if payload.price_installment.is_some_and(|value| value < 0.0) {
+        errors.push("priceInstallment tidak boleh negatif".to_string());
+    }
+    if payload.dp_min.is_some_and(|value| value < 0.0) {
+        errors.push("dpMin tidak boleh negatif".to_string());
+    }
+    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+        errors.push("rating harus di antara 0 sampai 5".to_string());
+    }
+    if payload.review_count.is_some_and(|value| value < 0) {
+        errors.push("reviewCount tidak boleh negatif".to_string());
+    }
+    if let Some(stock) = &payload.stock {
+        if !validate_stock(stock) {
+            errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+
+    if payload.slug.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("slug tidak boleh kosong".to_string());
+    }
+    if payload.name.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("name tidak boleh kosong".to_string());
+    }
+    if payload.category.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("category tidak boleh kosong".to_string());
+    }
+    if payload.image.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("image tidak boleh kosong".to_string());
+    }
+    if payload.price.is_some_and(|value| value < 0.0) {
+        errors.push("price tidak boleh negatif".to_string());
+    }
+    if payload.price_installment.is_some_and(|value| value < 0.0) {
+        errors.push("priceInstallment tidak boleh negatif".to_string());
+    }
+    if payload.dp_min.is_some_and(|value| value < 0.0) {
+        errors.push("dpMin tidak boleh negatif".to_string());
+    }
+    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+        errors.push("rating harus di antara 0 sampai 5".to_string());
+    }
+    if payload.review_count.is_some_and(|value| value < 0) {
+        errors.push("reviewCount tidak boleh negatif".to_string());
+    }
+    if payload.stock.as_ref().is_some_and(|value| !validate_stock(value)) {
+        errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+async fn find_catalog_by_id_or_slug(state: &AppState, id_or_slug: &str) -> Result<ProductRecord, AppError> {
+    sqlx::query_as::<_, ProductRecord>(
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors FROM products WHERE id = ? OR slug = ? LIMIT 1"
+    )
+    .bind(id_or_slug)
+    .bind(id_or_slug)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)
+}
+
+fn map_conflict_if_needed(error: sqlx::Error) -> AppError {
+    let msg = error.to_string();
+    if msg.contains("UNIQUE constraint failed") {
+        AppError::Conflict
+    } else {
+        tracing::error!("DB error: {}", msg);
+        AppError::Internal
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct PromoRecord {
+    id: String,
+    title: String,
+    subtitle: Option<String>,
+    description: Option<String>,
+    discount: Option<i64>,
+    original_price: Option<f64>,
+    promo_price: Option<f64>,
+    image: String,
+    badge: Option<String>,
+    valid_until: Option<String>,
+    category: Option<String>,
+    variant: Option<String>,
+    product_ids: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PromotionCreateRequest {
+    id: Option<String>,
+    title: String,
+    subtitle: Option<String>,
+    description: Option<String>,
+    discount: Option<i64>,
+    original_price: Option<f64>,
+    promo_price: Option<f64>,
+    image: String,
+    badge: Option<String>,
+    valid_until: Option<String>,
+    category: Option<String>,
+    variant: Option<String>,
+    product_ids: Option<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PromotionUpdateRequest {
+    title: Option<String>,
+    subtitle: Option<String>,
+    description: Option<String>,
+    discount: Option<i64>,
+    original_price: Option<f64>,
+    promo_price: Option<f64>,
+    image: Option<String>,
+    badge: Option<String>,
+    valid_until: Option<String>,
+    category: Option<String>,
+    variant: Option<String>,
+    product_ids: Option<Value>,
+}
+
+fn promo_to_json(record: PromoRecord) -> Value {
+    json!({
+        "id": record.id,
+        "title": record.title,
+        "subtitle": record.subtitle,
+        "description": record.description,
+        "discount": record.discount,
+        "originalPrice": record.original_price,
+        "promoPrice": record.promo_price,
+        "image": record.image,
+        "badge": record.badge,
+        "validUntil": record.valid_until,
+        "category": record.category,
+        "variant": record.variant,
+        "productIds": parse_json_or_default(record.product_ids.as_deref(), json!([])),
+    })
+}
+
+fn validate_promotion_create(payload: &PromotionCreateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.title.trim().is_empty() {
+        errors.push("title wajib diisi".to_string());
+    }
+    if payload.image.trim().is_empty() {
+        errors.push("image wajib diisi".to_string());
+    }
+    if payload.discount.is_some_and(|value| !(0..=100).contains(&value)) {
+        errors.push("discount harus di antara 0 sampai 100".to_string());
+    }
+    if payload.original_price.is_some_and(|value| value < 0.0) {
+        errors.push("originalPrice tidak boleh negatif".to_string());
+    }
+    if payload.promo_price.is_some_and(|value| value < 0.0) {
+        errors.push("promoPrice tidak boleh negatif".to_string());
+    }
+    if let (Some(original), Some(promo)) = (payload.original_price, payload.promo_price) {
+        if promo > original {
+            errors.push("promoPrice tidak boleh lebih besar dari originalPrice".to_string());
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn validate_promotion_update(payload: &PromotionUpdateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.title.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("title tidak boleh kosong".to_string());
+    }
+    if payload.image.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("image tidak boleh kosong".to_string());
+    }
+    if payload.discount.is_some_and(|value| !(0..=100).contains(&value)) {
+        errors.push("discount harus di antara 0 sampai 100".to_string());
+    }
+    if payload.original_price.is_some_and(|value| value < 0.0) {
+        errors.push("originalPrice tidak boleh negatif".to_string());
+    }
+    if payload.promo_price.is_some_and(|value| value < 0.0) {
+        errors.push("promoPrice tidak boleh negatif".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+async fn find_promotion_by_id(state: &AppState, id: &str) -> Result<PromoRecord, AppError> {
+    sqlx::query_as::<_, PromoRecord>(
+        "SELECT id, title, subtitle, description, discount, original_price, promo_price, image, badge, valid_until, category, variant, product_ids FROM promos WHERE id = ? LIMIT 1"
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)
+}
+
 async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
-    let products: Vec<Value> = sqlx::query("SELECT * FROM products")
+    let products: Vec<Value> = sqlx::query_as::<_, ProductRecord>(
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors FROM products"
+    )
         .fetch_all(&state.pool)
         .await
         .map_err(|e| {
@@ -110,51 +850,132 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
             AppError::Internal
         })?
         .into_iter()
-        .map(|row| {
-            use sqlx::Row;
-            json!({
-                "id": row.get::<String, _>("id"),
-                "slug": row.get::<String, _>("slug"),
-                "name": row.get::<String, _>("name"),
-                "category": row.get::<String, _>("category"),
-                "subcategory": row.get::<Option<String>, _>("subcategory"),
-                "price": row.get::<f64, _>("price"),
-                "priceInstallment": row.get::<Option<f64>, _>("price_installment"),
-                "dpMin": row.get::<Option<f64>, _>("dp_min"),
-                "image": row.get::<String, _>("image"),
-                "images": serde_json::from_str::<Value>(&row.get::<String, _>("images")).unwrap_or(json!([])),
-                "badge": row.get::<Option<String>, _>("badge"),
-                "badgeText": row.get::<Option<String>, _>("badge_text"),
-                "rating": row.get::<f64, _>("rating"),
-                "reviewCount": row.get::<i64, _>("review_count"),
-                "shortDesc": row.get::<Option<String>, _>("short_desc"),
-                "description": row.get::<Option<String>, _>("description"),
-                "specs": serde_json::from_str::<Value>(&row.get::<String, _>("specs")).unwrap_or(json!({})),
-                "stock": row.get::<String, _>("stock"),
-                "colors": serde_json::from_str::<Value>(&row.get::<String, _>("colors")).unwrap_or(json!([])),
-            })
-        })
+        .map(product_to_json)
         .collect();
 
     Ok(json_ok("Catalogs fetched", json!({ "items": products })))
 }
 
-async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<CatalogCreateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
-    Ok(json_ok(format!("Catalog created by {}", user.email), json!({ "received": payload })))
+    validate_catalog_create(&payload)?;
+
+    let id = payload
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let images = serde_json::to_string(&payload.images.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+    let specs = serde_json::to_string(&payload.specs.unwrap_or_else(|| json!({}))).map_err(|_| AppError::Internal)?;
+    let colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+    let stock = payload.stock.unwrap_or_else(|| "available".to_string());
+
+    sqlx::query(
+        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(payload.slug.trim())
+    .bind(payload.name.trim())
+    .bind(payload.category.trim())
+    .bind(payload.subcategory)
+    .bind(payload.price)
+    .bind(payload.price_installment)
+    .bind(payload.dp_min)
+    .bind(payload.image.trim())
+    .bind(images)
+    .bind(payload.badge)
+    .bind(payload.badge_text)
+    .bind(payload.rating.unwrap_or(4.5))
+    .bind(payload.review_count.unwrap_or(0))
+    .bind(payload.short_desc)
+    .bind(payload.description)
+    .bind(specs)
+    .bind(stock)
+    .bind(colors)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let created = find_catalog_by_id_or_slug(&state, &id).await?;
+    Ok(json_ok(
+        format!("Catalog created by {}", user.email),
+        json!({ "item": product_to_json(created) }),
+    ))
 }
 
-async fn get_catalog() -> ResponseBody {
-    json_ok("Catalog fetched", json!({ "id": "demo" }))
+async fn get_catalog(State(state): State<AppState>, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+    let item = find_catalog_by_id_or_slug(&state, &id).await?;
+    Ok(json_ok("Catalog fetched", json!({ "item": product_to_json(item) })))
 }
 
-async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<CatalogUpdateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
-    Ok(json_ok(format!("Catalog {} updated by {}", id, user.email), json!({ "id": id, "received": payload })))
+    validate_catalog_update(&payload)?;
+
+    let current = find_catalog_by_id_or_slug(&state, &id).await?;
+    let next_slug = payload.slug.as_deref().unwrap_or(&current.slug).trim().to_string();
+    let next_name = payload.name.as_deref().unwrap_or(&current.name).trim().to_string();
+    let next_category = payload.category.as_deref().unwrap_or(&current.category).trim().to_string();
+    let next_image = payload.image.as_deref().unwrap_or(&current.image).trim().to_string();
+    let next_stock = payload.stock.unwrap_or(current.stock.clone());
+    let next_images = serde_json::to_string(&payload.images.unwrap_or_else(|| parse_json_or_default(current.images.as_deref(), json!([]))))
+        .map_err(|_| AppError::Internal)?;
+    let next_specs = serde_json::to_string(&payload.specs.unwrap_or_else(|| parse_json_or_default(current.specs.as_deref(), json!({}))))
+        .map_err(|_| AppError::Internal)?;
+    let next_colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| parse_json_or_default(current.colors.as_deref(), json!([]))))
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, rating = ?, review_count = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ? WHERE id = ?"
+    )
+    .bind(next_slug)
+    .bind(next_name)
+    .bind(next_category)
+    .bind(payload.subcategory.or(current.subcategory))
+    .bind(payload.price.unwrap_or(current.price))
+    .bind(payload.price_installment.or(current.price_installment))
+    .bind(payload.dp_min.or(current.dp_min))
+    .bind(next_image)
+    .bind(next_images)
+    .bind(payload.badge.or(current.badge))
+    .bind(payload.badge_text.or(current.badge_text))
+    .bind(payload.rating.unwrap_or(current.rating))
+    .bind(payload.review_count.unwrap_or(current.review_count))
+    .bind(payload.short_desc.or(current.short_desc))
+    .bind(payload.description.or(current.description))
+    .bind(next_specs)
+    .bind(next_stock)
+    .bind(next_colors)
+    .bind(&current.id)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let updated = find_catalog_by_id_or_slug(&state, &current.id).await?;
+    Ok(json_ok(
+        format!("Catalog {} updated by {}", current.id, user.email),
+        json!({ "item": product_to_json(updated) }),
+    ))
 }
 
 async fn delete_catalog(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let result = sqlx::query("DELETE FROM products WHERE id = ? OR slug = ?")
+        .bind(&id)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
     Ok(json_ok(format!("Catalog {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
 
@@ -189,42 +1010,444 @@ async fn list_promotions(State(state): State<AppState>) -> Result<ResponseBody, 
     Ok(json_ok("Promotions fetched", json!({ "items": promos })))
 }
 
-async fn create_promotion(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn create_promotion(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<PromotionCreateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
-    Ok(json_ok(format!("Promotion created by {}", user.email), json!({ "received": payload })))
+    validate_promotion_create(&payload)?;
+
+    let id = payload
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let product_ids = serde_json::to_string(&payload.product_ids.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO promos (id, title, subtitle, description, discount, original_price, promo_price, image, badge, valid_until, category, variant, product_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(payload.title.trim())
+    .bind(payload.subtitle)
+    .bind(payload.description)
+    .bind(payload.discount)
+    .bind(payload.original_price)
+    .bind(payload.promo_price)
+    .bind(payload.image.trim())
+    .bind(payload.badge)
+    .bind(payload.valid_until)
+    .bind(payload.category)
+    .bind(payload.variant)
+    .bind(product_ids)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let created = find_promotion_by_id(&state, &id).await?;
+    Ok(json_ok(
+        format!("Promotion created by {}", user.email),
+        json!({ "item": promo_to_json(created) }),
+    ))
 }
 
-async fn update_promotion(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn update_promotion(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<PromotionUpdateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
-    Ok(json_ok(format!("Promotion {} updated by {}", id, user.email), json!({ "id": id, "received": payload })))
+    validate_promotion_update(&payload)?;
+
+    let current = find_promotion_by_id(&state, &id).await?;
+    let next_title = payload.title.as_deref().unwrap_or(&current.title).trim().to_string();
+    let next_image = payload.image.as_deref().unwrap_or(&current.image).trim().to_string();
+    let next_original = payload.original_price.or(current.original_price);
+    let next_promo = payload.promo_price.or(current.promo_price);
+    if let (Some(original), Some(promo)) = (next_original, next_promo) {
+        if promo > original {
+            return Err(AppError::Validation {
+                errors: vec!["promoPrice tidak boleh lebih besar dari originalPrice".to_string()],
+            });
+        }
+    }
+    let next_product_ids = serde_json::to_string(
+        &payload
+            .product_ids
+            .unwrap_or_else(|| parse_json_or_default(current.product_ids.as_deref(), json!([]))),
+    )
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE promos SET title = ?, subtitle = ?, description = ?, discount = ?, original_price = ?, promo_price = ?, image = ?, badge = ?, valid_until = ?, category = ?, variant = ?, product_ids = ? WHERE id = ?"
+    )
+    .bind(next_title)
+    .bind(payload.subtitle.or(current.subtitle))
+    .bind(payload.description.or(current.description))
+    .bind(payload.discount.or(current.discount))
+    .bind(next_original)
+    .bind(next_promo)
+    .bind(next_image)
+    .bind(payload.badge.or(current.badge))
+    .bind(payload.valid_until.or(current.valid_until))
+    .bind(payload.category.or(current.category))
+    .bind(payload.variant.or(current.variant))
+    .bind(next_product_ids)
+    .bind(&current.id)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let updated = find_promotion_by_id(&state, &current.id).await?;
+    Ok(json_ok(
+        format!("Promotion {} updated by {}", current.id, user.email),
+        json!({ "item": promo_to_json(updated) }),
+    ))
 }
 
 async fn delete_promotion(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let result = sqlx::query("DELETE FROM promos WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
     Ok(json_ok(format!("Promotion {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
 
-async fn generate_referral(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+#[derive(sqlx::FromRow)]
+struct ReferralRecord {
+    id: String,
+    slug: String,
+    owner_user_id: String,
+    label: Option<String>,
+    target_path: String,
+    clicks: i64,
+    leads: i64,
+    is_active: bool,
+    created_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GenerateReferralRequest {
+    label: Option<String>,
+    target_path: Option<String>,
+    owner_user_id: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct JobRecord {
+    id: String,
+    title: String,
+    department: Option<String>,
+    location: Option<String>,
+    r#type: Option<String>,
+    level: Option<String>,
+    description: Option<String>,
+    requirements: Option<String>,
+    benefits: Option<String>,
+    posted_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JobCreateRequest {
+    id: Option<String>,
+    title: String,
+    department: Option<String>,
+    location: Option<String>,
+    r#type: Option<String>,
+    level: Option<String>,
+    description: Option<String>,
+    requirements: Option<Value>,
+    benefits: Option<Value>,
+    posted_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JobUpdateRequest {
+    title: Option<String>,
+    department: Option<String>,
+    location: Option<String>,
+    r#type: Option<String>,
+    level: Option<String>,
+    description: Option<String>,
+    requirements: Option<Value>,
+    benefits: Option<Value>,
+    posted_at: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ArticleRecord {
+    id: String,
+    slug: String,
+    title: String,
+    excerpt: Option<String>,
+    content: Option<String>,
+    author: Option<String>,
+    author_role: Option<String>,
+    author_image: Option<String>,
+    hero_image: Option<String>,
+    category: Option<String>,
+    tags: Option<String>,
+    published_at: Option<String>,
+    read_time: Option<i64>,
+    featured: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ArticleCreateRequest {
+    id: Option<String>,
+    slug: String,
+    title: String,
+    excerpt: Option<String>,
+    content: Option<String>,
+    author: Option<String>,
+    author_role: Option<String>,
+    author_image: Option<String>,
+    hero_image: Option<String>,
+    category: Option<String>,
+    tags: Option<Value>,
+    published_at: Option<String>,
+    read_time: Option<i64>,
+    featured: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ArticleUpdateRequest {
+    slug: Option<String>,
+    title: Option<String>,
+    excerpt: Option<String>,
+    content: Option<String>,
+    author: Option<String>,
+    author_role: Option<String>,
+    author_image: Option<String>,
+    hero_image: Option<String>,
+    category: Option<String>,
+    tags: Option<Value>,
+    published_at: Option<String>,
+    read_time: Option<i64>,
+    featured: Option<bool>,
+}
+
+fn referral_to_json(row: ReferralRecord) -> Value {
+    json!({
+        "id": row.id,
+        "slug": row.slug,
+        "ownerUserId": row.owner_user_id,
+        "label": row.label,
+        "targetPath": row.target_path,
+        "clicks": row.clicks,
+        "leads": row.leads,
+        "isActive": row.is_active,
+        "createdAt": row.created_at,
+    })
+}
+
+fn job_to_json(row: JobRecord) -> Value {
+    json!({
+        "id": row.id,
+        "title": row.title,
+        "department": row.department,
+        "location": row.location,
+        "type": row.r#type,
+        "level": row.level,
+        "description": row.description,
+        "requirements": parse_json_or_default(row.requirements.as_deref(), json!([])),
+        "benefits": parse_json_or_default(row.benefits.as_deref(), json!([])),
+        "postedAt": row.posted_at,
+    })
+}
+
+fn article_to_json(row: ArticleRecord) -> Value {
+    json!({
+        "id": row.id,
+        "slug": row.slug,
+        "title": row.title,
+        "excerpt": row.excerpt,
+        "content": row.content,
+        "author": row.author,
+        "authorRole": row.author_role,
+        "authorImage": row.author_image,
+        "heroImage": row.hero_image,
+        "category": row.category,
+        "tags": parse_json_or_default(row.tags.as_deref(), json!([])),
+        "publishedAt": row.published_at,
+        "readTime": row.read_time,
+        "featured": row.featured,
+    })
+}
+
+fn validate_job_create(payload: &JobCreateRequest) -> Result<(), AppError> {
+    if payload.title.trim().is_empty() {
+        return Err(AppError::Validation { errors: vec!["title wajib diisi".to_string()] });
+    }
+    Ok(())
+}
+
+fn validate_job_update(payload: &JobUpdateRequest) -> Result<(), AppError> {
+    if payload.title.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        return Err(AppError::Validation { errors: vec!["title tidak boleh kosong".to_string()] });
+    }
+    Ok(())
+}
+
+fn validate_article_create(payload: &ArticleCreateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.slug.trim().is_empty() {
+        errors.push("slug wajib diisi".to_string());
+    }
+    if payload.title.trim().is_empty() {
+        errors.push("title wajib diisi".to_string());
+    }
+    if payload.read_time.is_some_and(|value| value < 0) {
+        errors.push("readTime tidak boleh negatif".to_string());
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn validate_article_update(payload: &ArticleUpdateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.slug.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("slug tidak boleh kosong".to_string());
+    }
+    if payload.title.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("title tidak boleh kosong".to_string());
+    }
+    if payload.read_time.is_some_and(|value| value < 0) {
+        errors.push("readTime tidak boleh negatif".to_string());
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+async fn generate_referral(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<GenerateReferralRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let is_admin = user.role.eq_ignore_ascii_case("admin");
+    let owner_user_id = if is_admin {
+        payload.owner_user_id.unwrap_or_else(|| user.id.clone())
+    } else {
+        user.id.clone()
+    };
+    let slug = format!("ref-{}", uuid::Uuid::new_v4().simple());
+    let id = uuid::Uuid::new_v4().to_string();
+    let target_path = payload.target_path.unwrap_or_else(|| "/".to_string());
+
+    sqlx::query(
+        "INSERT INTO referrals (id, slug, owner_user_id, label, target_path) VALUES (?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(&slug)
+    .bind(&owner_user_id)
+    .bind(payload.label)
+    .bind(target_path)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let created = sqlx::query_as::<_, ReferralRecord>(
+        "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
+
     Ok(json_ok(
         format!("Referral generated by {}", user.email),
-        json!({ "slug": format!("ref-{}", uuid::Uuid::new_v4().simple()), "received": payload }),
+        json!({ "item": referral_to_json(created) }),
     ))
 }
 
 async fn list_referrals(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    Ok(json_ok(format!("Referrals fetched by {}", user.email), json!({ "items": [] })))
+    let is_admin = user.role.eq_ignore_ascii_case("admin");
+    let rows = if is_admin {
+        sqlx::query_as::<_, ReferralRecord>(
+            "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals ORDER BY created_at DESC"
+        )
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as::<_, ReferralRecord>(
+            "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE owner_user_id = ? ORDER BY created_at DESC"
+        )
+        .bind(&user.id)
+        .fetch_all(&state.pool)
+        .await
+    }
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        format!("Referrals fetched by {}", user.email),
+        json!({ "items": rows.into_iter().map(referral_to_json).collect::<Vec<_>>() }),
+    ))
 }
 
 async fn get_referral(State(state): State<AppState>, headers: HeaderMap, Path(slug): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    Ok(json_ok(format!("Referral {} fetched by {}", slug, user.email), json!({ "slug": slug })))
+    let row = sqlx::query_as::<_, ReferralRecord>(
+        "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE slug = ? LIMIT 1"
+    )
+    .bind(&slug)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    if !user.role.eq_ignore_ascii_case("admin") && row.owner_user_id != user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(json_ok(format!("Referral {} fetched by {}", slug, user.email), json!({ "item": referral_to_json(row) })))
 }
 
 async fn get_referral_stats(State(state): State<AppState>, headers: HeaderMap, Path(slug): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    Ok(json_ok(format!("Referral {} stats fetched by {}", slug, user.email), json!({ "slug": slug, "clicks": 0, "leads": 0 })))
+    let row = sqlx::query_as::<_, ReferralRecord>(
+        "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE slug = ? LIMIT 1"
+    )
+    .bind(&slug)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    if !user.role.eq_ignore_ascii_case("admin") && row.owner_user_id != user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(json_ok(
+        format!("Referral {} stats fetched by {}", slug, user.email),
+        json!({ "slug": slug, "clicks": row.clicks, "leads": row.leads }),
+    ))
 }
 
 async fn insert_telemetry(state: &AppState, event_type: &str, payload: &Value) {
@@ -268,7 +1491,9 @@ async fn pixel_event(State(state): State<AppState>, Json(payload): Json<Value>) 
 }
 
 async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
-    let jobs: Vec<Value> = sqlx::query("SELECT * FROM job_listings")
+    let jobs = sqlx::query_as::<_, JobRecord>(
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings ORDER BY created_at DESC"
+    )
         .fetch_all(&state.pool)
         .await
         .map_err(|e| {
@@ -276,37 +1501,134 @@ async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppErr
             AppError::Internal
         })?
         .into_iter()
-        .map(|row| {
-            use sqlx::Row;
-            json!({
-                "id": row.get::<String, _>("id"),
-                "title": row.get::<String, _>("title"),
-                "department": row.get::<Option<String>, _>("department"),
-                "location": row.get::<Option<String>, _>("location"),
-                "type": row.get::<Option<String>, _>("type"),
-                "level": row.get::<Option<String>, _>("level"),
-                "description": row.get::<Option<String>, _>("description"),
-                "requirements": serde_json::from_str::<Value>(&row.get::<String, _>("requirements")).unwrap_or(json!([])),
-                "benefits": serde_json::from_str::<Value>(&row.get::<String, _>("benefits")).unwrap_or(json!([])),
-                "postedAt": row.get::<Option<String>, _>("posted_at"),
-            })
-        })
-        .collect();
+        .map(job_to_json)
+        .collect::<Vec<_>>();
     Ok(json_ok("Jobs fetched", json!({ "items": jobs })))
 }
 
-async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<JobCreateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
-    Ok(json_ok(format!("Job created by {}", user.email), json!({ "received": payload })))
+    validate_job_create(&payload)?;
+
+    let id = payload
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let requirements = serde_json::to_string(&payload.requirements.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+    let benefits = serde_json::to_string(&payload.benefits.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO job_listings (id, title, department, location, type, level, description, requirements, benefits, posted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(payload.title.trim())
+    .bind(payload.department)
+    .bind(payload.location)
+    .bind(payload.r#type)
+    .bind(payload.level)
+    .bind(payload.description)
+    .bind(requirements)
+    .bind(benefits)
+    .bind(payload.posted_at)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let created = sqlx::query_as::<_, JobRecord>(
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings WHERE id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
+
+    Ok(json_ok(format!("Job created by {}", user.email), json!({ "item": job_to_json(created) })))
 }
 
-async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<JobUpdateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
-    Ok(json_ok(format!("Job {} updated by {}", id, user.email), json!({ "id": id, "received": payload })))
+    validate_job_update(&payload)?;
+
+    let current = sqlx::query_as::<_, JobRecord>(
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings WHERE id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    let next_requirements = serde_json::to_string(
+        &payload.requirements.unwrap_or_else(|| parse_json_or_default(current.requirements.as_deref(), json!([]))),
+    )
+    .map_err(|_| AppError::Internal)?;
+    let next_benefits = serde_json::to_string(
+        &payload.benefits.unwrap_or_else(|| parse_json_or_default(current.benefits.as_deref(), json!([]))),
+    )
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE job_listings SET title = ?, department = ?, location = ?, type = ?, level = ?, description = ?, requirements = ?, benefits = ?, posted_at = ? WHERE id = ?"
+    )
+    .bind(payload.title.unwrap_or(current.title))
+    .bind(payload.department.or(current.department))
+    .bind(payload.location.or(current.location))
+    .bind(payload.r#type.or(current.r#type))
+    .bind(payload.level.or(current.level))
+    .bind(payload.description.or(current.description))
+    .bind(next_requirements)
+    .bind(next_benefits)
+    .bind(payload.posted_at.or(current.posted_at))
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let updated = sqlx::query_as::<_, JobRecord>(
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings WHERE id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
+
+    Ok(json_ok(format!("Job {} updated by {}", id, user.email), json!({ "item": job_to_json(updated) })))
+}
+
+async fn delete_job(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+    let result = sqlx::query("DELETE FROM job_listings WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(json_ok(format!("Job {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
 
 async fn list_articles(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
-    let articles: Vec<Value> = sqlx::query("SELECT * FROM blog_posts")
+    let articles = sqlx::query_as::<_, ArticleRecord>(
+        "SELECT id, slug, title, excerpt, content, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured FROM blog_posts ORDER BY created_at DESC"
+    )
         .fetch_all(&state.pool)
         .await
         .map_err(|e| {
@@ -314,139 +1636,688 @@ async fn list_articles(State(state): State<AppState>) -> Result<ResponseBody, Ap
             AppError::Internal
         })?
         .into_iter()
-        .map(|row| {
-            use sqlx::Row;
-            json!({
-                "id": row.get::<String, _>("id"),
-                "slug": row.get::<String, _>("slug"),
-                "title": row.get::<String, _>("title"),
-                "excerpt": row.get::<Option<String>, _>("excerpt"),
-                "author": row.get::<Option<String>, _>("author"),
-                "authorRole": row.get::<Option<String>, _>("author_role"),
-                "authorImage": row.get::<Option<String>, _>("author_image"),
-                "heroImage": row.get::<Option<String>, _>("hero_image"),
-                "category": row.get::<Option<String>, _>("category"),
-                "tags": serde_json::from_str::<Value>(&row.get::<String, _>("tags")).unwrap_or(json!([])),
-                "publishedAt": row.get::<Option<String>, _>("published_at"),
-                "readTime": row.get::<Option<i64>, _>("read_time"),
-                "featured": row.get::<bool, _>("featured"),
-            })
-        })
-        .collect();
+        .map(article_to_json)
+        .collect::<Vec<_>>();
     Ok(json_ok("Articles fetched", json!({ "items": articles })))
 }
 
-async fn create_article(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn create_article(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<ArticleCreateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
-    Ok(json_ok(format!("Article created by {}", user.email), json!({ "received": payload })))
+    validate_article_create(&payload)?;
+
+    let id = payload
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let tags = serde_json::to_string(&payload.tags.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO blog_posts (id, slug, title, excerpt, content, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(payload.slug.trim())
+    .bind(payload.title.trim())
+    .bind(payload.excerpt)
+    .bind(payload.content)
+    .bind(payload.author)
+    .bind(payload.author_role)
+    .bind(payload.author_image)
+    .bind(payload.hero_image)
+    .bind(payload.category)
+    .bind(tags)
+    .bind(payload.published_at)
+    .bind(payload.read_time)
+    .bind(payload.featured.unwrap_or(false))
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let created = sqlx::query_as::<_, ArticleRecord>(
+        "SELECT id, slug, title, excerpt, content, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured FROM blog_posts WHERE id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
+
+    Ok(json_ok(format!("Article created by {}", user.email), json!({ "item": article_to_json(created) })))
 }
 
-async fn update_article(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn update_article(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<ArticleUpdateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
-    Ok(json_ok(format!("Article {} updated by {}", id, user.email), json!({ "id": id, "received": payload })))
+    validate_article_update(&payload)?;
+
+    let current = sqlx::query_as::<_, ArticleRecord>(
+        "SELECT id, slug, title, excerpt, content, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured FROM blog_posts WHERE id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    let next_tags = serde_json::to_string(
+        &payload.tags.unwrap_or_else(|| parse_json_or_default(current.tags.as_deref(), json!([]))),
+    )
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE blog_posts SET slug = ?, title = ?, excerpt = ?, content = ?, author = ?, author_role = ?, author_image = ?, hero_image = ?, category = ?, tags = ?, published_at = ?, read_time = ?, featured = ? WHERE id = ?"
+    )
+    .bind(payload.slug.unwrap_or(current.slug))
+    .bind(payload.title.unwrap_or(current.title))
+    .bind(payload.excerpt.or(current.excerpt))
+    .bind(payload.content.or(current.content))
+    .bind(payload.author.or(current.author))
+    .bind(payload.author_role.or(current.author_role))
+    .bind(payload.author_image.or(current.author_image))
+    .bind(payload.hero_image.or(current.hero_image))
+    .bind(payload.category.or(current.category))
+    .bind(next_tags)
+    .bind(payload.published_at.or(current.published_at))
+    .bind(payload.read_time.or(current.read_time))
+    .bind(payload.featured.unwrap_or(current.featured))
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let updated = sqlx::query_as::<_, ArticleRecord>(
+        "SELECT id, slug, title, excerpt, content, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured FROM blog_posts WHERE id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
+
+    Ok(json_ok(format!("Article {} updated by {}", id, user.email), json!({ "item": article_to_json(updated) })))
+}
+
+async fn delete_article(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
+    let result = sqlx::query("DELETE FROM blog_posts WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok(format!("Article {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
 
 type ResponseBody = axum::response::Response;
 
 async fn list_leads(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    let agent_filter = if _user.role == "Admin" { "" } else { " WHERE agent_id = ?" };
-    
-    // Fallback to fetch empty list for now just as mockup response representing SQL integration
-    Ok(json_ok("Leads fetched", json!({ "items": [] })))
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let is_admin = user.role.eq_ignore_ascii_case("admin");
+
+    let leads = if is_admin {
+        sqlx::query_as::<_, LeadRecord>(
+            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at FROM leads ORDER BY created_at DESC",
+        )
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as::<_, LeadRecord>(
+            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at FROM leads WHERE agent_id = ? ORDER BY created_at DESC",
+        )
+        .bind(&user.id)
+        .fetch_all(&state.pool)
+        .await
+    }
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let items: Vec<Value> = leads.into_iter().map(lead_to_json).collect();
+    Ok(json_ok("Leads fetched", json!({ "items": items })))
 }
 
-async fn create_lead(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    Ok(json_ok("Lead submitted successfully", json!({ "received": payload })))
+async fn create_lead(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<LeadCreateRequest>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    validate_lead_create(&payload)?;
+
+    let is_admin = user.role.eq_ignore_ascii_case("admin");
+    let agent_id = if is_admin {
+        payload
+            .agent_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+            .ok_or(AppError::Validation {
+                errors: vec!["agentId wajib diisi untuk admin".to_string()],
+            })?
+    } else {
+        user.id.clone()
+    };
+
+    let status = payload.status.unwrap_or_else(|| "Follow Up".to_string());
+    let id = uuid::Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO leads (id, agent_id, customer_name, phone_number, interested_product, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&agent_id)
+    .bind(payload.customer_name.trim())
+    .bind(payload.phone_number.trim())
+    .bind(payload.interested_product.trim())
+    .bind(status)
+    .bind(payload.notes)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let created = find_lead_by_id(&state, &id).await?;
+    Ok(json_ok("Lead submitted successfully", json!({ "item": lead_to_json(created) })))
 }
 
-async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok(format!("Lead {} status updated", id), json!({ "updated": true, "received": payload })))
+async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<LeadStatusUpdateRequest>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    validate_lead_status_update(&payload)?;
+
+    let lead = find_lead_by_id(&state, &id).await?;
+    let is_admin = user.role.eq_ignore_ascii_case("admin");
+    if !is_admin && lead.agent_id != user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    sqlx::query(
+        "UPDATE leads SET status = ?, notes = COALESCE(?, notes), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(payload.status)
+    .bind(payload.notes)
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let updated = find_lead_by_id(&state, &id).await?;
+    Ok(json_ok(format!("Lead {} status updated", id), json!({ "item": lead_to_json(updated) })))
+}
+
+#[derive(sqlx::FromRow)]
+struct AgentStatsRow {
+    points: i64,
+    sales_count: i64,
+    current_tier: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ClaimRow {
+    id: String,
+    agent_id: String,
+    tier_id: String,
+    reward_name: String,
+    status: String,
+    submitted_at: Option<String>,
+    processed_at: Option<String>,
+    agent_name: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct AgentRegistrationRow {
+    id: String,
+    full_name: String,
+    email: String,
+    whatsapp: String,
+    province: String,
+    city: String,
+    address: Option<String>,
+    preferred_products: Option<String>,
+    status: String,
+    submitted_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateClaimRequest {
+    tier_id: String,
+    reward_name: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentRegistrationStatusRequest {
+    status: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClaimStatusRequest {
+    status: String,
+}
+
+fn is_valid_registration_status(status: &str) -> bool {
+    matches!(status, "pending" | "reviewed" | "approved" | "rejected")
+}
+
+fn is_valid_claim_status(status: &str) -> bool {
+    matches!(status, "pending" | "processing" | "completed" | "cancelled")
+}
+
+fn claim_to_json(row: ClaimRow) -> Value {
+    json!({
+        "id": row.id,
+        "agentId": row.agent_id,
+        "agentName": row.agent_name,
+        "tierId": row.tier_id,
+        "rewardName": row.reward_name,
+        "status": row.status,
+        "submittedAt": row.submitted_at,
+        "processedAt": row.processed_at,
+    })
+}
+
+fn registration_to_json(row: AgentRegistrationRow) -> Value {
+    json!({
+        "id": row.id,
+        "fullName": row.full_name,
+        "email": row.email,
+        "whatsapp": row.whatsapp,
+        "province": row.province,
+        "city": row.city,
+        "address": row.address,
+        "preferredProducts": parse_json_or_default(row.preferred_products.as_deref(), json!([])),
+        "status": row.status,
+        "submittedAt": row.submitted_at,
+    })
 }
 
 async fn get_agent_stats(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Agent]).await?;
-    // Real implementation would SELECT points from agent_stats WHERE user_id = user.id
-    Ok(json_ok("Agent stats fetched", json!({
-        "points": 1450,
-        "sales_count": 12,
-        "current_tier": "Gold"
-    })))
+    let user = authorize(&state, &headers, &[Role::Agent]).await?;
+
+    let row = sqlx::query_as::<_, AgentStatsRow>(
+        "SELECT s.points, s.sales_count, t.name AS current_tier FROM agent_stats s LEFT JOIN reward_tiers t ON t.id = s.current_tier_id WHERE s.user_id = ? LIMIT 1"
+    )
+    .bind(&user.id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let data = if let Some(value) = row {
+        json!({
+            "points": value.points,
+            "salesCount": value.sales_count,
+            "currentTier": value.current_tier.unwrap_or_else(|| "Unranked".to_string()),
+        })
+    } else {
+        json!({
+            "points": 0,
+            "salesCount": 0,
+            "currentTier": "Unranked",
+        })
+    };
+
+    Ok(json_ok("Agent stats fetched", data))
 }
 
 async fn list_claims(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    Ok(json_ok("Claims fetched", json!({ "items": [] })))
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let is_admin = user.role.eq_ignore_ascii_case("admin");
+
+    let rows = if is_admin {
+        sqlx::query_as::<_, ClaimRow>(
+            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id ORDER BY c.submitted_at DESC"
+        )
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as::<_, ClaimRow>(
+            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id WHERE c.agent_id = ? ORDER BY c.submitted_at DESC"
+        )
+        .bind(&user.id)
+        .fetch_all(&state.pool)
+        .await
+    }
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Claims fetched", json!({ "items": rows.into_iter().map(claim_to_json).collect::<Vec<_>>() })))
 }
 
-async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Agent]).await?;
-    Ok(json_ok("Reward claimed successfully", json!({ "claim": payload })))
+async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<CreateClaimRequest>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Agent]).await?;
+
+    let mut errors = Vec::new();
+    if payload.tier_id.trim().is_empty() {
+        errors.push("tierId wajib diisi".to_string());
+    }
+    if payload.reward_name.trim().is_empty() {
+        errors.push("rewardName wajib diisi".to_string());
+    }
+    if !errors.is_empty() {
+        return Err(AppError::Validation { errors });
+    }
+
+    let tier_exists: Option<String> = sqlx::query_scalar("SELECT id FROM reward_tiers WHERE id = ? AND is_active = 1 LIMIT 1")
+        .bind(payload.tier_id.trim())
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if tier_exists.is_none() {
+        return Err(AppError::Validation {
+            errors: vec!["tierId tidak ditemukan atau tidak aktif".to_string()],
+        });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO reward_claims (id, agent_id, tier_id, reward_name, status) VALUES (?, ?, ?, ?, 'pending')"
+    )
+    .bind(&id)
+    .bind(&user.id)
+    .bind(payload.tier_id.trim())
+    .bind(payload.reward_name.trim())
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let created = sqlx::query_as::<_, ClaimRow>(
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id WHERE c.id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
+
+    Ok(json_ok("Reward claimed successfully", json!({ "item": claim_to_json(created) })))
 }
 
 async fn list_agent_registrations(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok("Agent registrations fetched", json!({ "items": [] })))
+
+    let rows = sqlx::query_as::<_, AgentRegistrationRow>(
+        "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, status, submitted_at FROM agent_registrations ORDER BY submitted_at DESC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Agent registrations fetched", json!({ "items": rows.into_iter().map(registration_to_json).collect::<Vec<_>>() })))
 }
 
-async fn update_agent_registration_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn update_agent_registration_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<AgentRegistrationStatusRequest>) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok(format!("Agent registration {} status updated", id), json!({ "updated": true, "received": payload })))
+    let status = payload.status.trim().to_lowercase();
+    if !is_valid_registration_status(&status) {
+        return Err(AppError::Validation {
+            errors: vec!["status registration tidak valid".to_string()],
+        });
+    }
+
+    let result = sqlx::query("UPDATE agent_registrations SET status = ? WHERE id = ?")
+        .bind(&status)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok(format!("Agent registration {} status updated", id), json!({ "updated": true, "status": status })))
 }
 
 async fn list_all_claims(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok("All Gamification Claims fetched", json!({ "items": [] })))
+    let rows = sqlx::query_as::<_, ClaimRow>(
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id ORDER BY c.submitted_at DESC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("All Gamification Claims fetched", json!({ "items": rows.into_iter().map(claim_to_json).collect::<Vec<_>>() })))
 }
 
-async fn update_claim_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn update_claim_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<ClaimStatusRequest>) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
-    Ok(json_ok(format!("Claim {} status updated", id), json!({ "updated": true, "received": payload })))
+    let status = payload.status.trim().to_lowercase();
+    if !is_valid_claim_status(&status) {
+        return Err(AppError::Validation {
+            errors: vec!["status claim tidak valid".to_string()],
+        });
+    }
+
+    let result = if matches!(status.as_str(), "completed" | "cancelled") {
+        sqlx::query("UPDATE reward_claims SET status = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?")
+            .bind(&status)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+    } else {
+        sqlx::query("UPDATE reward_claims SET status = ?, processed_at = NULL WHERE id = ?")
+            .bind(&status)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+    }
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok(format!("Claim {} status updated", id), json!({ "updated": true, "status": status })))
 }
 
 async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
-    // Very simplistic mock calculation to test telemetry connection.
-    // In a production scenario, these would map via SQL `GROUP BY strftime('%Y-%m', created_at)`.
-    
-    // We will query the real total count.
-    let total_page_views: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM telemetry_events WHERE event_type = 'page_view'")
-        .fetch_one(&state.pool)
-        .await
-        .unwrap_or((0,));
-        
-    let total_clicks: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM telemetry_events WHERE event_type = 'click'")
-        .fetch_one(&state.pool)
-        .await
-        .unwrap_or((0,));
+    let traffic_rows = sqlx::query(
+        "SELECT strftime('%Y-%m-%d', created_at) AS day,
+                SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END) AS clicks,
+                SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads,
+                SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS conversions
+         FROM telemetry_events
+         WHERE created_at >= datetime('now', '-6 days')
+         GROUP BY strftime('%Y-%m-%d', created_at)
+         ORDER BY day ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
 
-    let total_leads: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM telemetry_events WHERE event_type = 'whatsapp_click'")
-        .fetch_one(&state.pool)
-        .await
-        .unwrap_or((0,));
+    let monthly_rows = sqlx::query(
+        "SELECT strftime('%Y-%m', created_at) AS month,
+                SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END) AS views
+         FROM telemetry_events
+         WHERE created_at >= datetime('now', '-180 days')
+         GROUP BY strftime('%Y-%m', created_at)
+         ORDER BY month ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
 
-    // Dynamic mock struct bound with real counts
+    let source_rows = sqlx::query(
+        "SELECT COALESCE(source, 'unknown') AS source,
+                COUNT(*) AS clicks,
+                SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads
+         FROM telemetry_events
+         GROUP BY COALESCE(source, 'unknown')
+         ORDER BY clicks DESC
+         LIMIT 5"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let totals_row = sqlx::query(
+        "SELECT
+            COUNT(*) AS total_events,
+            SUM(CASE WHEN created_at >= datetime('now', '-24 hours') THEN 1 ELSE 0 END) AS events_24h,
+            COUNT(DISTINCT path) AS total_paths,
+            SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS total_conversions
+         FROM telemetry_events"
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let traffic_data: Vec<Value> = traffic_rows
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            json!({
+                "day": row.get::<String, _>("day"),
+                "clicks": row.get::<i64, _>("clicks"),
+                "leads": row.get::<i64, _>("leads"),
+                "conversions": row.get::<i64, _>("conversions"),
+            })
+        })
+        .collect();
+
+    let monthly_page_views: Vec<Value> = monthly_rows
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            json!({
+                "month": row.get::<String, _>("month"),
+                "views": row.get::<i64, _>("views"),
+            })
+        })
+        .collect();
+
+    let source_clicks_max = source_rows
+        .iter()
+        .map(|row| {
+            use sqlx::Row;
+            row.get::<i64, _>("clicks")
+        })
+        .max()
+        .unwrap_or(1);
+
+    let source_rows_json: Vec<Value> = source_rows
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            let clicks = row.get::<i64, _>("clicks");
+            let leads = row.get::<i64, _>("leads");
+            let conversion = if clicks > 0 {
+                format!("{:.1}%", (leads as f64 / clicks as f64) * 100.0)
+            } else {
+                "0.0%".to_string()
+            };
+            json!({
+                "source": row.get::<String, _>("source"),
+                "clicks": clicks,
+                "conversion": conversion,
+                "bar": (((clicks as f64 / source_clicks_max as f64) * 100.0).round() as i64),
+            })
+        })
+        .collect();
+
+    let system_metrics = {
+        use sqlx::Row;
+        let total_events = totals_row.get::<i64, _>("total_events");
+        let events_24h = totals_row.get::<i64, _>("events_24h");
+        let total_paths = totals_row.get::<i64, _>("total_paths");
+        let total_conversions = totals_row.get::<i64, _>("total_conversions");
+
+        vec![
+            json!({
+                "label": "Total Telemetry Events",
+                "value": total_events.to_string(),
+                "sub": "Semua event tersimpan",
+                "ok": true
+            }),
+            json!({
+                "label": "Events 24 Jam",
+                "value": events_24h.to_string(),
+                "sub": "Traffic 24 jam terakhir",
+                "ok": true
+            }),
+            json!({
+                "label": "Total Path Terpantau",
+                "value": total_paths.to_string(),
+                "sub": "Halaman/path unik",
+                "ok": true
+            }),
+            json!({
+                "label": "Total Konversi",
+                "value": total_conversions.to_string(),
+                "sub": "Berdasarkan pixel_event",
+                "ok": true
+            }),
+        ]
+    };
+
     let data = json!({
-        "trafficData": [
-            { "day": "H-2", "clicks": 0, "leads": 0, "conversions": 0 },
-            { "day": "H-1", "clicks": 0, "leads": 0, "conversions": 0 },
-            { "day": "Hari Ini", "clicks": total_clicks.0, "leads": total_leads.0, "conversions": 0 }
-        ],
-        "monthlyPageViews": [
-            { "month": "Mar", "views": 0 },
-            { "month": "Apr", "views": total_page_views.0 }
-        ],
-        "sourceRows": [
-            { "source": "Semua Akses", "clicks": total_clicks.0, "conversion": "0%", "bar": 100 }
-        ],
-        "systemMetrics": [
-            { "label": "Server Uptime", "value": "100%", "sub": "Stabil", "ok": true },
-            { "label": "DB Load", "value": "Normal", "sub": "SQLite Local", "ok": true },
-            { "label": "API Latency", "value": "<50ms", "sub": "Rust Axum", "ok": true }
-        ],
+        "trafficData": traffic_data,
+        "monthlyPageViews": monthly_page_views,
+        "sourceRows": source_rows_json,
+        "systemMetrics": system_metrics,
         "errorLogs": []
     });
 

@@ -44,7 +44,8 @@ interface AgentState {
   createClaim: (tierId: string, rewardName: string) => Promise<boolean>;
 }
 
-const API_BASE_URL = 'http://localhost:8081/api';
+const API_ROOT = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+const API_BASE_URL = `${API_ROOT}/api`;
 
 export const useAgentStore = create<AgentState>((set) => ({
   leads: [],

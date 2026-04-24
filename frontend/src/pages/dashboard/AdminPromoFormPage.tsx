@@ -5,6 +5,7 @@ import { ArrowLeft, Save, Megaphone, Upload } from 'lucide-react';
 import { usePromoStore } from '../../store/usePromoStore';
 import { toast } from '../../store/useNotificationStore';
 import type { PromoItem } from '../../types';
+import { adminPromoSchema, getFirstZodIssue } from '../../validators/adminSchemas';
 
 const AdminPromoFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -50,11 +51,19 @@ const AdminPromoFormPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const parsed = adminPromoSchema.safeParse(formData);
+    if (!parsed.success) {
+      toast.error('Validasi form gagal', getFirstZodIssue(parsed.error));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      const payload = parsed.data;
       if (isEditMode) {
-        const success = await updatePromo(id!, formData);
+        const success = await updatePromo(id!, payload);
         if (success) {
           toast.success('Promo berhasil diperbarui');
           navigate('/dashboard/admin/promo');
@@ -63,7 +72,7 @@ const AdminPromoFormPage: React.FC = () => {
         }
       } else {
         const newId = `PRM-${Math.floor(Math.random() * 1000)}`;
-        const success = await createPromo({ ...formData, id: newId });
+        const success = await createPromo({ ...payload, id: newId });
         if (success) {
           toast.success('Promo berhasil ditambahkan');
           navigate('/dashboard/admin/promo');

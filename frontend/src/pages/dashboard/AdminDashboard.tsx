@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
@@ -7,11 +7,9 @@ import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
-  AlertCircle,
   Wallet,
   UserCheck,
   Activity,
-  ShoppingBag,
   Clock,
   CheckCircle2,
   XCircle,
@@ -31,53 +29,26 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
+import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
+import { useProductStore } from '../../store/useProductStore';
 
-/* ─── Mock Data ─────────────────────────────────────── */
-const revenueData = [
-  { month: 'Jan', komisiBruto: 18500000, payout: 15200000 },
-  { month: 'Feb', komisiBruto: 23100000, payout: 19400000 },
-  { month: 'Mar', komisiBruto: 20800000, payout: 17300000 },
-  { month: 'Apr', komisiBruto: 27600000, payout: 22100000 },
-  { month: 'Mei', komisiBruto: 32400000, payout: 26800000 },
-  { month: 'Jun', komisiBruto: 38900000, payout: 31200000 },
-];
+const formatRelativeTime = (isoDate: string): string => {
+  const value = new Date(isoDate).getTime();
+  if (Number.isNaN(value)) return 'baru saja';
 
-const agentGrowthData = [
-  { month: 'Jan', active: 45, new: 8 },
-  { month: 'Feb', active: 52, new: 12 },
-  { month: 'Mar', active: 61, new: 15 },
-  { month: 'Apr', active: 75, new: 18 },
-  { month: 'Mei', active: 89, new: 21 },
-  { month: 'Jun', active: 102, new: 19 },
-];
+  const diffMin = Math.max(1, Math.floor((Date.now() - value) / 60000));
+  if (diffMin < 60) return `${diffMin} menit lalu`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} jam lalu`;
+  const diffDay = Math.floor(diffHour / 24);
+  return `${diffDay} hari lalu`;
+};
 
-const topAgents = [
-  { name: 'Agen Samrat Makassar', city: 'Makassar', sales: 48, earnings: 'Rp 14.4jt', rating: 4.9, delta: '+12%' },
-  { name: 'Dian Sales Partner', city: 'Gowa', sales: 35, earnings: 'Rp 10.5jt', rating: 4.7, delta: '+8%' },
-  { name: 'Krisna Network', city: 'Manado', sales: 29, earnings: 'Rp 8.7jt', rating: 4.5, delta: '+6%' },
-  { name: 'Ratna Mobile Palu', city: 'Palu', sales: 22, earnings: 'Rp 6.6jt', rating: 4.3, delta: '+2%' },
-];
-
-const recentActivities = [
-  { type: 'agent_register', label: 'Budi Santoso mendaftar sebagai agen baru', time: '2 menit lalu', icon: UserCheck, color: 'text-primary bg-primary/10' },
-  { type: 'payout_request', label: 'Dian Sales Partner mengajukan payout Rp 1.8jt', time: '18 menit lalu', icon: Wallet, color: 'text-tertiary bg-tertiary/10' },
-  { type: 'catalog_update', label: 'Stok Goda GD120 diperbarui: 24 unit tersisa', time: '1 jam lalu', icon: Package, color: 'text-secondary bg-secondary/10' },
-  { type: 'agent_sold', label: 'Krisna Network berhasil close deal Winfly W200', time: '2 jam lalu', icon: ShoppingBag, color: 'text-secondary bg-secondary/10' },
-  { type: 'payout_done', label: 'Payout AGT-003 Rp 1.2jt telah diproses', time: '3 jam lalu', icon: CheckCircle2, color: 'text-secondary bg-secondary/10' },
-  { type: 'sync_warn', label: 'Sinkronisasi data telemetri delayed 15 menit', time: '4 jam lalu', icon: AlertCircle, color: 'text-error bg-error/10' },
-];
-
-const topProducts = [
-  { label: 'Goda GD120', category: 'Sepeda Listrik', views: '2,482', conversion: '12%', stock: 24, slug: 'goda-gd120' },
-  { label: 'Winfly W200', category: 'Sepeda Listrik', views: '1,940', conversion: '10%', stock: 11, slug: 'winfly-w200' },
-  { label: 'Smart TV OLED 55"', category: 'Elektronik', views: '1,621', conversion: '9.2%', stock: 7, slug: 'smart-tv-65' },
-  { label: 'Sofa Premium L', category: 'Furnitur', views: '1,204', conversion: '8.5%', stock: 3, slug: 'sofa-premium-l' },
-];
-
-const pendingPayouts = [
-  { id: 'PO-4401', agent: 'Agen Samrat Makassar', amount: 'Rp 2.400.000', since: '2 jam lalu' },
-  { id: 'PO-4398', agent: 'Dian Sales Partner', amount: 'Rp 1.800.000', since: '5 jam lalu' },
-];
+const monthLabel = (dateIso: string): string => {
+  const d = new Date(dateIso);
+  if (Number.isNaN(d.getTime())) return 'N/A';
+  return d.toLocaleDateString('id-ID', { month: 'short' });
+};
 
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
@@ -97,46 +68,155 @@ const itemVariants = {
 const AdminDashboard: React.FC = () => {
   const [chartRange, setChartRange] = useState('6M');
 
+  const {
+    registrations,
+    claims,
+    telemetryStats,
+    fetchRegistrations,
+    fetchClaims,
+    fetchTelemetryStats,
+  } = useAdminNetworkStore();
+  const { products, fetchProducts } = useProductStore();
+
+  useEffect(() => {
+    fetchRegistrations();
+    fetchClaims();
+    fetchTelemetryStats();
+    fetchProducts();
+  }, [fetchRegistrations, fetchClaims, fetchTelemetryStats, fetchProducts]);
+
+  const trafficData = telemetryStats?.trafficData || [];
+  const totalClicks = trafficData.reduce((sum, row) => sum + row.clicks, 0);
+  const totalLeads = trafficData.reduce((sum, row) => sum + row.leads, 0);
+  const totalConversions = trafficData.reduce((sum, row) => sum + row.conversions, 0);
+  const conversionRate = totalClicks > 0 ? ((totalConversions / totalClicks) * 100).toFixed(2) : '0.00';
+
+  const pendingApprovals = registrations.filter(
+    (reg) => reg.status === 'pending' || reg.status === 'reviewed',
+  ).length;
+  const activeAgents = registrations.filter((reg) => reg.status === 'approved').length;
+
+  const pendingPayouts = claims.filter((claim) => claim.status === 'pending' || claim.status === 'processing');
+  const completedClaims = claims.filter((claim) => claim.status === 'completed').length;
+
+  const topAgents = useMemo(() => {
+    const summary = new Map<string, { name: string; city: string; sales: number; pending: number }>();
+
+    claims.forEach((claim) => {
+      const name = claim.agentName || claim.agentId;
+      const existing = summary.get(name) || { name, city: 'N/A', sales: 0, pending: 0 };
+      const isCompleted = claim.status === 'completed';
+      summary.set(name, {
+        ...existing,
+        sales: existing.sales + (isCompleted ? 1 : 0),
+        pending: existing.pending + (isCompleted ? 0 : 1),
+      });
+    });
+
+    return [...summary.values()]
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 4)
+      .map((agent, i) => ({
+        ...agent,
+        earnings: `${agent.sales} klaim selesai`,
+        rating: Math.max(4.0, 4.9 - i * 0.2),
+        delta: `+${Math.max(1, agent.sales * 3)}%`,
+      }));
+  }, [claims]);
+
+  const topProducts = useMemo(
+    () => products.slice(0, 4).map((product) => ({
+      label: product.name,
+      category: product.category,
+      stock: product.stock,
+      slug: product.slug,
+    })),
+    [products],
+  );
+
+  const recentActivities = useMemo(() => {
+    const registrationEvents = registrations.slice(0, 4).map((reg) => ({
+      key: `reg-${reg.id}`,
+      label: `${reg.fullName} mendaftar sebagai agen (${reg.city})`,
+      time: formatRelativeTime(reg.submittedAt),
+      icon: UserCheck,
+      color: 'text-primary bg-primary/10',
+      date: reg.submittedAt,
+    }));
+
+    const claimEvents = claims.slice(0, 4).map((claim) => ({
+      key: `claim-${claim.id}`,
+      label: `${claim.agentName || claim.agentId} mengajukan klaim ${claim.rewardName}`,
+      time: formatRelativeTime(claim.submittedAt),
+      icon: Wallet,
+      color: claim.status === 'completed' ? 'text-secondary bg-secondary/10' : 'text-tertiary bg-tertiary/10',
+      date: claim.submittedAt,
+    }));
+
+    return [...registrationEvents, ...claimEvents]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 6);
+  }, [registrations, claims]);
+
+  const agentGrowthData = useMemo(() => {
+    const monthMap = new Map<string, { month: string; active: number; new: number }>();
+
+    registrations.forEach((reg) => {
+      const key = monthLabel(reg.submittedAt);
+      const current = monthMap.get(key) || { month: key, active: 0, new: 0 };
+      current.new += 1;
+      if (reg.status === 'approved') current.active += 1;
+      monthMap.set(key, current);
+    });
+
+    return [...monthMap.values()].slice(-6);
+  }, [registrations]);
+
+  const chartData = useMemo(
+    () => trafficData.map((item) => ({ month: item.day, clicks: item.clicks, leads: item.leads })),
+    [trafficData],
+  );
+
   const kpis = [
     {
       label: 'Total Agen Aktif',
-      value: '1,284',
-      change: '+12%',
-      sub: '23 pending approval',
+      value: activeAgents.toLocaleString('id-ID'),
+      change: pendingApprovals > 0 ? `+${pendingApprovals}` : '+0',
+      sub: `${pendingApprovals} pending approval`,
       icon: Users,
       color: 'text-primary',
       bg: 'bg-primary/10',
       href: '/dashboard/admin/agents',
     },
     {
-      label: 'Komisi Bulan Ini',
-      value: 'Rp 38.9jt',
-      change: '+20.1%',
-      sub: 'vs Rp 32.4jt bulan lalu',
+      label: 'Total Konversi',
+      value: totalConversions.toLocaleString('id-ID'),
+      change: `${conversionRate}%`,
+      sub: `${totalLeads.toLocaleString('id-ID')} total lead 7 hari`,
       icon: Wallet,
       color: 'text-secondary',
       bg: 'bg-secondary/10',
-      href: '/dashboard/admin/finance',
+      href: '/dashboard/admin/telemetry',
     },
     {
       label: 'Item Katalog',
-      value: '452',
-      change: '+5%',
-      sub: '7 stok kritis',
+      value: products.length.toLocaleString('id-ID'),
+      change: products.length > 0 ? '+live' : '+0',
+      sub: `${products.filter((p) => p.stock !== 'available').length} perlu perhatian`,
       icon: Package,
       color: 'text-tertiary',
       bg: 'bg-tertiary/10',
       href: '/dashboard/admin/catalog',
     },
     {
-      label: 'Konversi Lead',
-      value: '4.2%',
-      change: '+0.8%',
-      sub: '603 total lead masuk',
+      label: 'Klaim Pending',
+      value: pendingPayouts.length.toLocaleString('id-ID'),
+      change: `done ${completedClaims}`,
+      sub: `${claims.length.toLocaleString('id-ID')} total klaim`,
       icon: TrendingUp,
       color: 'text-primary',
       bg: 'bg-primary/10',
-      href: '/dashboard/admin/telemetry',
+      href: '/dashboard/admin/finance',
     },
   ];
 
@@ -163,7 +243,12 @@ const AdminDashboard: React.FC = () => {
               Admin Dashboard
             </h2>
             <p className="text-body-sm text-on-surface-variant mt-1">
-              Rabu, 22 April 2026 · Semua sistem beroperasi normal
+              {new Date().toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+              })} · Monitoring data real-time
             </p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -172,14 +257,14 @@ const AdminDashboard: React.FC = () => {
               className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"
             >
               <UserCheck className="w-4 h-4" />
-              23 Approval Pending
+              {pendingApprovals} Approval Pending
             </Link>
             <Link
               to="/dashboard/admin/finance"
               className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors"
             >
               <Wallet className="w-4 h-4" />
-              2 Payout Pending
+              {pendingPayouts.length} Claim Pending
             </Link>
           </div>
         </div>
@@ -242,9 +327,9 @@ const AdminDashboard: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
               <h3 className="font-display text-title-md font-bold text-on-surface">
-                Tren Komisi & Payout
+                Tren Traffic & Lead
               </h3>
-              <p className="text-label-sm text-on-surface-variant mt-0.5">Bruto komisi vs realisasi payout (IDR)</p>
+              <p className="text-label-sm text-on-surface-variant mt-0.5">Data klik dan lead dari telemetry API</p>
             </div>
             <div className="flex items-center gap-2">
               {['3M', '6M', '1Y'].map((r) => (
@@ -266,16 +351,16 @@ const AdminDashboard: React.FC = () => {
           <div className="flex items-center gap-5 mb-4">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-primary" />
-              <span className="text-label-xs text-on-surface-variant">Komisi Bruto</span>
+              <span className="text-label-xs text-on-surface-variant">Klik</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-secondary" />
-              <span className="text-label-xs text-on-surface-variant">Realisasi Payout</span>
+              <span className="text-label-xs text-on-surface-variant">Lead</span>
             </div>
           </div>
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="gradBruto" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#8FF5FF" stopOpacity={0.3} />
@@ -293,14 +378,14 @@ const AdminDashboard: React.FC = () => {
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v: number) => `${(v / 1000000).toFixed(0)}M`}
+                  tickFormatter={(v: number) => `${v}`}
                 />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF', fontSize: '12px' }}
-                  formatter={(v: unknown) => [`Rp ${((v as number) / 1000000).toFixed(1)}jt`, '']}
+                  formatter={(v: unknown) => [`${v as number}`, '']}
                 />
-                <Area type="monotone" dataKey="komisiBruto" stroke="#8FF5FF" strokeWidth={2.5} fill="url(#gradBruto)" name="Komisi Bruto" />
-                <Area type="monotone" dataKey="payout" stroke="#A2F31F" strokeWidth={2.5} fill="url(#gradPayout)" name="Payout" />
+                <Area type="monotone" dataKey="clicks" stroke="#8FF5FF" strokeWidth={2.5} fill="url(#gradBruto)" name="Klik" />
+                <Area type="monotone" dataKey="leads" stroke="#A2F31F" strokeWidth={2.5} fill="url(#gradPayout)" name="Lead" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -338,9 +423,9 @@ const AdminDashboard: React.FC = () => {
             </ResponsiveContainer>
           </div>
           <div className="mt-4 p-3 rounded-lg bg-surface-high border border-outline-variant/10">
-            <div className="text-label-xs text-on-surface-variant">Agen aktif bulan ini</div>
-            <div className="font-display font-bold text-primary mt-0.5">102 Agen</div>
-            <div className="text-label-xs text-secondary">↑ 19 agen baru bergabung</div>
+            <div className="text-label-xs text-on-surface-variant">Registrasi agen bulan ini</div>
+            <div className="font-display font-bold text-primary mt-0.5">{agentGrowthData.at(-1)?.new ?? 0} Agen</div>
+            <div className="text-label-xs text-secondary">{agentGrowthData.at(-1)?.active ?? 0} di antaranya approved</div>
           </div>
         </motion.div>
       </div>
@@ -487,11 +572,11 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-on-surface text-body-sm truncate">{product.label}</div>
-                  <div className="text-label-xs text-on-surface-variant">{product.views} views · Stok {product.stock}</div>
+                  <div className="text-label-xs text-on-surface-variant">{product.category} · stok {product.stock}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="font-bold text-secondary text-body-sm">{product.conversion}</div>
-                  <div className="text-label-xs text-on-surface-variant">conv.</div>
+                  <div className="font-bold text-secondary text-body-sm">live</div>
+                  <div className="text-label-xs text-on-surface-variant">api</div>
                 </div>
               </div>
             ))}
@@ -511,14 +596,14 @@ const AdminDashboard: React.FC = () => {
             </span>
           </div>
           <div className="space-y-3 mb-4">
-            {pendingPayouts.map((p) => (
+            {pendingPayouts.slice(0, 4).map((p) => (
               <div key={p.id} className="p-3 rounded-lg border border-outline-variant/10 flex items-center justify-between gap-3 bg-surface-low/40">
                 <div>
-                  <div className="font-semibold text-on-surface text-body-sm">{p.agent}</div>
-                  <div className="text-label-xs text-on-surface-variant">{p.id} · {p.since}</div>
+                  <div className="font-semibold text-on-surface text-body-sm">{p.agentName || p.agentId}</div>
+                  <div className="text-label-xs text-on-surface-variant">{p.id} · {formatRelativeTime(p.submittedAt)}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="font-bold text-primary text-body-sm">{p.amount}</div>
+                  <div className="font-bold text-primary text-body-sm">{p.rewardName}</div>
                   <div className="flex gap-1 mt-1">
                     <button type="button" className="p-1 rounded bg-secondary/15 text-secondary hover:bg-secondary/25 transition-colors">
                       <CheckCircle2 className="w-3.5 h-3.5" />
@@ -549,8 +634,8 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
           <div className="space-y-3 overflow-y-auto max-h-[280px] custom-scrollbar pr-1">
-            {recentActivities.map((act, i) => (
-              <div key={i} className="flex items-start gap-3">
+            {recentActivities.map((act) => (
+              <div key={act.key} className="flex items-start gap-3">
                 <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${act.color}`}>
                   <act.icon className="w-3.5 h-3.5" />
                 </div>

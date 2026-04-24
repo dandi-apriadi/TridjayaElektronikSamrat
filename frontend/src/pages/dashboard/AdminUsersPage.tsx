@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -7,20 +7,12 @@ import {
   Users, Lock, Unlock, Eye, EyeOff,
   AlertTriangle, ArrowUpRight, Filter,
 } from 'lucide-react';
-
-/* ─── Mock Data ───────────────────────────────────── */
-const users = [
-  { id: 'USR-001', name: 'Budi Susanto', role: 'admin',    email: 'admin@tridjaya.co.id',          status: 'Active',    lastLogin: '5 menit lalu',  createdAt: '01 Jan 2024', actions: 122 },
-  { id: 'USR-002', name: 'Nia Hartati',  role: 'admin',    email: 'nia.h@tridjaya.co.id',           status: 'Active',    lastLogin: '2 jam lalu',    createdAt: '15 Feb 2024', actions: 88 },
-  { id: 'USR-043', name: 'Agen Samrat Makassar', role: 'agent', email: 'agent.mks@tridjaya.co.id', status: 'Active',    lastLogin: '1 jam lalu',    createdAt: '10 Mar 2024', actions: 45 },
-  { id: 'USR-057', name: 'Operator Catalog',    role: 'operator', email: 'op.catalog@tridjaya.co.id', status: 'Suspended', lastLogin: '3 hari lalu', createdAt: '20 Apr 2024', actions: 12 },
-  { id: 'USR-081', name: 'Dian Fitriani',  role: 'agent',  email: 'dian.f@tridjaya.co.id',          status: 'Active',    lastLogin: '30 mnt lalu',  createdAt: '05 Mei 2024', actions: 37 },
-  { id: 'USR-095', name: 'Reviewer Konten', role: 'operator', email: 'review.content@tridjaya.co.id',status: 'Pending',  lastLogin: 'Belum pernah', createdAt: '18 Jun 2024', actions: 0 },
-];
+import { useUserStore } from '../../store/useUserStore';
 
 const roleConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
   agent:    { cls: 'bg-secondary/15 text-secondary', label: 'Agent',  icon: <Users className="w-3 h-3" /> },
+  editor:   { cls: 'bg-primary/10 text-primary', label: 'Editor', icon: <Eye className="w-3 h-3" /> },
   operator: { cls: 'bg-tertiary/15 text-tertiary', label: 'Operator', icon: <UserCog className="w-3 h-3" /> },
 };
 
@@ -40,26 +32,41 @@ const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { stagge
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AdminUsersPage: React.FC = () => {
+  const { users, isLoading, error, fetchUsers, updateUserStatus } = useUserStore();
   const [search, setSearch]           = useState('');
   const [roleFilter, setRoleFilter]   = useState('Semua');
   const [statusFilter, setStatusFilter] = useState('Semua');
-  const [suspendedIds, setSuspendedIds]  = useState<string[]>([]);
   const [showPerms, setShowPerms]       = useState(false);
 
-  const toggleSuspend = (id: string) =>
-    setSuspendedIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const userStatus = (isActive: boolean) => (isActive ? 'Active' : 'Suspended');
+
+  const toggleSuspend = async (id: string, isActive: boolean) => {
+    await updateUserStatus(id, !isActive);
+  };
 
   const filtered = users.filter((u) => {
     const matchSearch = `${u.name} ${u.email} ${u.id}`.toLowerCase().includes(search.toLowerCase());
-    const matchRole   = roleFilter   === 'Semua' || u.role === roleFilter.toLowerCase();
-    const matchStatus = statusFilter === 'Semua' || u.status === statusFilter;
+    const matchRole   = roleFilter === 'Semua' || u.role.toLowerCase() === roleFilter.toLowerCase();
+    const matchStatus = statusFilter === 'Semua' || userStatus(u.is_active) === statusFilter;
     return matchSearch && matchRole && matchStatus;
   });
 
   const totalAdmin    = users.filter((u) => u.role === 'admin').length;
   const totalAgent    = users.filter((u) => u.role === 'agent').length;
-  const totalOperator = users.filter((u) => u.role === 'operator').length;
-  const totalSuspended = users.filter((u) => u.status === 'Suspended').length;
+  const totalOperator = users.filter((u) => u.role === 'operator' || u.role === 'editor').length;
+  const totalSuspended = users.filter((u) => !u.is_active).length;
+
+  if (isLoading) {
+    return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data users...</div>;
+  }
+
+  if (error) {
+    return <div className="text-center py-20 text-error">Galat memuat data users: {error}</div>;
+  }
 
   return (
     <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
@@ -160,14 +167,14 @@ const AdminUsersPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="w-4 h-4 text-on-surface-variant" />
-            {['Semua', 'Admin', 'Agent', 'Operator'].map((r) => (
+            {['Semua', 'Admin', 'Agent', 'Editor', 'Operator'].map((r) => (
               <button key={r} type="button" onClick={() => setRoleFilter(r)}
                 className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${roleFilter === r ? 'bg-primary/20 text-primary' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
                 {r}
               </button>
             ))}
             <div className="w-px h-5 bg-outline-variant/20" />
-            {['Semua', 'Active', 'Suspended', 'Pending'].map((s) => (
+            {['Semua', 'Active', 'Suspended'].map((s) => (
               <button key={s} type="button" onClick={() => setStatusFilter(s)}
                 className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${statusFilter === s ? 'bg-surface-highest text-on-surface' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
                 {s}
@@ -191,14 +198,11 @@ const AdminUsersPage: React.FC = () => {
             </thead>
             <tbody>
               {filtered.map((user) => {
-                const rc = roleConfig[user.role];
-                const isSuspended = suspendedIds.includes(user.id) || user.status === 'Suspended';
-                const effectiveStatus = suspendedIds.includes(user.id)
-                  ? (user.status === 'Suspended' ? 'Active' : 'Suspended')
-                  : user.status;
+                const rc = roleConfig[user.role.toLowerCase()] || roleConfig.operator;
+                const effectiveStatus = userStatus(user.is_active);
                 const sc = statusConfig[effectiveStatus] || statusConfig['Pending'];
                 return (
-                  <tr key={user.id} className={`border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group ${isSuspended && user.status !== 'Active' ? 'opacity-60' : ''}`}>
+                  <tr key={user.id} className={`border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group ${!user.is_active ? 'opacity-60' : ''}`}>
                     <td className="py-3.5 pr-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center font-bold text-on-primary text-sm flex-shrink-0">
@@ -221,25 +225,20 @@ const AdminUsersPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">
-                      <div className="flex items-center gap-1"><Clock className="w-3 h-3" />{user.lastLogin}</div>
+                      <div className="flex items-center gap-1"><Clock className="w-3 h-3" />-</div>
                     </td>
-                    <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{user.createdAt}</td>
+                    <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">-</td>
                     <td className="py-3.5">
                       <div className="flex items-center gap-2 transition-opacity">
                         <Link to={`/dashboard/admin/users/edit/${user.id}`}
                           className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Ubah Role">
                           <UserCog className="w-4 h-4" />
                         </Link>
-                        <button type="button" onClick={() => toggleSuspend(user.id)}
-                          className={`p-1.5 rounded-md transition-colors ${isSuspended && user.status !== 'Active' ? 'bg-secondary/15 text-secondary hover:bg-secondary/25' : 'bg-error/10 text-error hover:bg-error/20'}`}
-                          title={isSuspended ? 'Aktifkan' : 'Suspend'}>
-                          {isSuspended && user.status !== 'Active' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                        <button type="button" onClick={() => toggleSuspend(user.id, user.is_active)}
+                          className={`p-1.5 rounded-md transition-colors ${!user.is_active ? 'bg-secondary/15 text-secondary hover:bg-secondary/25' : 'bg-error/10 text-error hover:bg-error/20'}`}
+                          title={!user.is_active ? 'Aktifkan' : 'Suspend'}>
+                          {!user.is_active ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                         </button>
-                        {user.status === 'Pending' && (
-                          <button type="button" className="p-1.5 rounded-md bg-secondary/15 text-secondary hover:bg-secondary/25 transition-colors" title="Approve">
-                            <CheckCircle2 className="w-4 h-4" />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -263,11 +262,11 @@ const AdminUsersPage: React.FC = () => {
       </motion.div>
 
       {/* Security Warning if any suspended */}
-      {users.some((u) => u.status === 'Suspended') && (
+      {users.some((u) => !u.is_active) && (
         <motion.div variants={iv} className="flex items-center gap-3 p-4 rounded-xl bg-error/8 border border-error/20">
           <AlertTriangle className="w-5 h-5 text-error flex-shrink-0" />
           <p className="text-body-sm text-on-surface">
-            <strong className="text-error">{users.filter((u) => u.status === 'Suspended').length} akun</strong> sedang dalam status suspended. Pantau aktivitas login mereka secara berkala.
+            <strong className="text-error">{users.filter((u) => !u.is_active).length} akun</strong> sedang dalam status suspended. Pantau aktivitas login mereka secara berkala.
           </p>
           <button type="button" className="ml-auto flex-shrink-0 text-label-sm text-primary font-semibold hover:underline inline-flex items-center gap-1">
             Detail <XCircle className="w-3.5 h-3.5" />

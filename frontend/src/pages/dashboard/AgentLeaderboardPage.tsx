@@ -17,7 +17,6 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useAgentStore } from '../../store/useAgentStore';
 
-/* ─── Mock Data ─────────────────────────────────────── */
 const leaderboardData = [
   { rank: 1, name: 'Agen Samrat Makassar', city: 'Makassar', points: 12500, sales: 48, avatar: 'https://i.pravatar.cc/150?u=1' },
   { rank: 2, name: 'Dian Sales Partner', city: 'Gowa', points: 10800, sales: 35, avatar: 'https://i.pravatar.cc/150?u=2' },
@@ -211,14 +210,14 @@ const AgentLeaderboardPage: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-col items-center md:items-end gap-2 relative z-10">
-               <div className="text-title-md font-bold text-on-surface">{activeTab === 'leaderboard' ? '4,200 pts' : ''}</div>
+               <div className="text-title-md font-bold text-on-surface">{activeTab === 'leaderboard' ? `${currentPoints.toLocaleString('id-ID')} pts` : ''}</div>
                <div className="text-label-sm text-secondary font-bold flex items-center gap-1">
-                 <Target className="w-4 h-4" /> 800 pts lagi ke Tier Silver
+                 <Target className="w-4 h-4" /> {Math.max(0, 5000 - currentPoints).toLocaleString('id-ID')} pts lagi ke Tier Silver
                </div>
                <div className="w-48 h-2 bg-surface-highest rounded-full overflow-hidden mt-1">
                  <motion.div 
                    initial={{ width: 0 }}
-                   animate={{ width: '84%' }}
+                   animate={{ width: `${Math.min(100, (currentPoints / 5000) * 100)}%` }}
                    transition={{ duration: 1.5, ease: "easeOut" }}
                    className="h-full bg-primary" 
                  />

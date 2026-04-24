@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Save, FileText, Upload } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Upload, AlertCircle } from 'lucide-react';
 import { useBlogStore } from '../../store/useBlogStore';
 import { toast } from '../../store/useNotificationStore';
+import { adminArticleSchema, getFirstZodIssue } from '../../validators/adminSchemas';
 import type { BlogPost } from '../../types';
 
 const AdminArticleFormPage: React.FC = () => {
@@ -26,6 +27,7 @@ const AdminArticleFormPage: React.FC = () => {
 
   const [tagsInput, setTagsInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isEditMode) {
@@ -54,12 +56,39 @@ const AdminArticleFormPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError(null);
     setIsSubmitting(true);
 
+    const tagsArray = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+    
     const dataToSubmit = {
-      ...formData,
-      tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean)
+      title: formData.title,
+      slug: formData.slug,
+      excerpt: formData.excerpt,
+      content: formData.content,
+      author: formData.author || 'Admin',
+      publishedAt: formData.publishedAt,
+      readTime: formData.readTime || 5,
+      heroImage: formData.heroImage,
+      tags: tagsArray,
+      featured: formData.featured
     };
+
+    // Validate with Zod schema
+    const validation = adminArticleSchema.safeParse({
+      ...dataToSubmit,
+      readTime: typeof dataToSubmit.readTime === 'string' 
+        ? parseInt(dataToSubmit.readTime) 
+        : dataToSubmit.readTime
+    });
+
+    if (!validation.success) {
+      const errorMessage = getFirstZodIssue(validation.error);
+      setValidationError(errorMessage);
+      toast.error('Validasi Gagal', errorMessage);
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       if (isEditMode) {
@@ -102,6 +131,12 @@ const AdminArticleFormPage: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {validationError && (
+          <div className="lg:col-span-3 p-4 rounded-lg bg-error/15 border border-error/30 flex items-start gap-3 text-error text-body-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>{validationError}</div>
+          </div>
+        )}
         <div className="lg:col-span-2 space-y-6">
           <div className="glass-card rounded-xl p-6 space-y-4">
             <h3 className="font-display text-title-md font-semibold text-on-surface border-b border-outline-variant/20 pb-2">Konten Artikel</h3>

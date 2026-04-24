@@ -1,22 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { CheckCircle2, XCircle, Clock, Wallet, TrendingUp, ArrowDownToLine, Filter } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
+import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 
-const payoutRequests = [
-  { id: 'PO-4401', agent: 'Agen Samrat Makassar', agentId: 'AGT-001', amount: 'Rp 2.400.000', raw: 2400000, period: 'Apr 2026', submittedAt: '2 jam lalu', status: 'Pending' },
-  { id: 'PO-4398', agent: 'Dian Sales Partner', agentId: 'AGT-002', amount: 'Rp 1.800.000', raw: 1800000, period: 'Apr 2026', submittedAt: '5 jam lalu', status: 'Pending' },
-  { id: 'PO-4391', agent: 'Krisna Network', agentId: 'AGT-003', amount: 'Rp 1.200.000', raw: 1200000, period: 'Mar 2026', submittedAt: '1 hari lalu', status: 'Approved' },
-  { id: 'PO-4385', agent: 'Ratna Mobile Palu', agentId: 'AGT-004', amount: 'Rp 900.000', raw: 900000, period: 'Mar 2026', submittedAt: '2 hari lalu', status: 'Paid' },
-  { id: 'PO-4370', agent: 'Bagas Elektro Kendari', agentId: 'AGT-005', amount: 'Rp 650.000', raw: 650000, period: 'Feb 2026', submittedAt: '5 hari lalu', status: 'Rejected' },
-];
-
-const commissionByArea = [
-  { area: 'Makassar', total: 14400000 },
-  { area: 'Gowa', total: 10500000 },
-  { area: 'Manado', total: 8700000 },
-  { area: 'Palu', total: 6600000 },
-  { area: 'Kendari', total: 5400000 },
-];
+const CLAIM_VALUE_BY_TIER: Record<string, number> = {
+  silver: 650000,
+  gold: 1200000,
+  diamond: 2400000,
+};
 
 const statusStyle: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   Pending: { label: 'Menunggu', cls: 'bg-tertiary/15 text-tertiary', icon: <Clock className="w-3.5 h-3.5" /> },
@@ -28,6 +19,42 @@ const statusStyle: Record<string, { label: string; cls: string; icon: React.Reac
 const AdminFinancePage: React.FC = () => {
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState('Semua');
+  const { claims, registrations, fetchClaims, fetchRegistrations } = useAdminNetworkStore();
+
+  useEffect(() => {
+    fetchClaims();
+    fetchRegistrations();
+  }, [fetchClaims, fetchRegistrations]);
+
+  const payoutRequests = useMemo(() => {
+    return claims.map((claim, index) => {
+      const amount = CLAIM_VALUE_BY_TIER[claim.tierId] || 650000;
+      const currentStatus = statuses[claim.id] || claim.status;
+      return {
+        id: `PO-${String(4401 - index).padStart(4, '0')}`,
+        agent: claim.agentName || `Agent ${claim.agentId}`,
+        agentId: claim.agentId,
+        amount: `Rp ${amount.toLocaleString('id-ID')}`,
+        raw: amount,
+        period: new Date(claim.submittedAt).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
+        submittedAt: new Date(claim.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        status: currentStatus === 'pending' ? 'Pending' : currentStatus === 'processing' ? 'Pending' : currentStatus === 'completed' ? 'Paid' : currentStatus === 'cancelled' ? 'Rejected' : 'Approved',
+      };
+    });
+  }, [claims, statuses]);
+
+  const commissionByArea = useMemo(() => {
+    const areaTotals = registrations.reduce<Record<string, number>>((accumulator, registration) => {
+      const base = registration.status === 'approved' ? 1800000 : registration.status === 'pending' ? 900000 : 1200000;
+      accumulator[registration.city] = (accumulator[registration.city] || 0) + base;
+      return accumulator;
+    }, {});
+
+    return Object.entries(areaTotals)
+      .map(([area, total]) => ({ area, total }))
+      .sort((left, right) => right.total - left.total)
+      .slice(0, 5);
+  }, [registrations]);
 
   const handleAction = (id: string, action: string) => {
     setStatuses((prev) => ({ ...prev, [id]: action }));
@@ -40,6 +67,7 @@ const AdminFinancePage: React.FC = () => {
 
   const totalPending = payoutRequests.filter((r) => (statuses[r.id] || r.status) === 'Pending').reduce((s, r) => s + r.raw, 0);
   const totalPaid = payoutRequests.filter((r) => ['Approved', 'Paid'].includes(statuses[r.id] || r.status)).reduce((s, r) => s + r.raw, 0);
+  const totalMonthlyCommission = payoutRequests.reduce((sum, request) => sum + request.raw, 0);
 
   return (
     <div className="space-y-6">
@@ -56,7 +84,7 @@ const AdminFinancePage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="glass-card rounded-lg p-5">
           <div className="text-label-sm text-on-surface-variant">Total Komisi Bulan Ini</div>
-          <div className="font-display text-headline-sm text-on-surface font-bold mt-1">Rp 45.600.000</div>
+          <div className="font-display text-headline-sm text-on-surface font-bold mt-1">Rp {totalMonthlyCommission.toLocaleString('id-ID')}</div>
         </div>
         <div className="glass-card rounded-lg p-5">
           <div className="flex items-center gap-1 text-label-sm text-on-surface-variant"><Clock className="w-3.5 h-3.5" /> Pending Payout</div>
@@ -166,7 +194,7 @@ const AdminFinancePage: React.FC = () => {
           </div>
           <div className="mt-4 p-3 rounded-lg bg-surface-high border border-outline-variant/10">
             <div className="text-label-xs text-on-surface-variant mb-1">Total Komisi Tersalurkan</div>
-            <div className="font-bold text-primary">Rp 45.600.000</div>
+            <div className="font-bold text-primary">Rp {commissionByArea.reduce((sum, item) => sum + item.total, 0).toLocaleString('id-ID')}</div>
           </div>
         </div>
       </div>

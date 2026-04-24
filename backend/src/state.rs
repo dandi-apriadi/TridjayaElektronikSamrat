@@ -10,6 +10,7 @@ pub struct AppState {
     pub access_sessions: Arc<RwLock<HashMap<String, AccessSession>>>,
     pub refresh_sessions: Arc<RwLock<HashMap<String, RefreshSession>>>,
     pub audit_log: Arc<RwLock<Vec<AuditEntry>>>,
+    pub login_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
 }
 
 impl AppState {
@@ -19,6 +20,7 @@ impl AppState {
             access_sessions: Arc::new(RwLock::new(HashMap::new())),
             refresh_sessions: Arc::new(RwLock::new(HashMap::new())),
             audit_log: Arc::new(RwLock::new(Vec::new())),
+            login_attempts: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

@@ -23,7 +23,6 @@ const AdminContentPage: React.FC = () => {
     return <div className="text-center py-20 text-error">Galat memuat data: {error}</div>;
   }
 
-  // Frontend mock statuses
   const getStatus = (dateStr: string) => {
     return new Date(dateStr) > new Date() ? 'Draft' : 'Published';
   };

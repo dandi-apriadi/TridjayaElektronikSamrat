@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { usePromoStore } from '../../store/usePromoStore';
+import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 
 const statusConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   'Active': { cls: 'bg-secondary/15 text-secondary', label: 'Aktif', icon: <CheckCircle2 className="w-3 h-3" /> },
@@ -27,7 +28,12 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transit
 
 const AdminPromoPage: React.FC = () => {
   const { promos, isLoading, error } = usePromoStore();
+  const { telemetryStats, fetchTelemetryStats } = useAdminNetworkStore();
   const [filterStatus, setFilterStatus] = useState('Semua');
+
+  React.useEffect(() => {
+    fetchTelemetryStats();
+  }, [fetchTelemetryStats]);
 
   if (isLoading) {
     return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data campaign...</div>;
@@ -42,9 +48,8 @@ const AdminPromoPage: React.FC = () => {
 
   const filtered = promos.filter((p) => filterStatus === 'Semua' || getPromoStatus(p.validUntil) === filterStatus);
   const activeCount   = promos.filter((p) => getPromoStatus(p.validUntil) === 'Active').length;
-  // Fallbacks for missing dashboard metrics
-  const totalClicks   = promos.length * 1000;
-  const totalConvs    = promos.length * 50;
+  const totalClicks = telemetryStats?.sourceRows?.reduce((sum, row: any) => sum + (row.clicks ?? 0), 0) ?? 0;
+  const totalConvs = telemetryStats?.trafficData?.reduce((sum, row: any) => sum + (row.conversions ?? 0), 0) ?? 0;
   const avgConvRate   = totalClicks > 0 ? ((totalConvs / totalClicks) * 100).toFixed(1) : '0.0';
 
   return (
@@ -111,10 +116,6 @@ const AdminPromoPage: React.FC = () => {
           {filtered.map((promo) => {
             const status = getPromoStatus(promo.validUntil);
             const sc = statusConfig[status];
-            // Fake metrics for visual consistency with previous design
-            const fakeClicks = 1200;
-            const fakeConvs = 60;
-            const convRate = fakeClicks > 0 ? ((fakeConvs / fakeClicks) * 100).toFixed(1) : '0.0';
             return (
               <div key={promo.id} className="flex flex-col lg:flex-row lg:items-center gap-4 p-4 rounded-xl border border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
                 {/* Left */}
@@ -147,15 +148,15 @@ const AdminPromoPage: React.FC = () => {
                 {/* Stats */}
                 <div className="flex items-center gap-6 flex-shrink-0">
                   <div className="text-center">
-                    <div className="font-display font-bold text-on-surface">{fakeClicks.toLocaleString('id-ID')}</div>
+                    <div className="font-display font-bold text-on-surface">-</div>
                     <div className="text-label-xs text-on-surface-variant">Klik</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-display font-bold text-secondary">{fakeConvs}</div>
+                    <div className="font-display font-bold text-secondary">-</div>
                     <div className="text-label-xs text-on-surface-variant">Konversi</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-display font-bold text-primary">{convRate}%</div>
+                    <div className="font-display font-bold text-primary">-</div>
                     <div className="text-label-xs text-on-surface-variant">Conv. Rate</div>
                   </div>
                 </div>

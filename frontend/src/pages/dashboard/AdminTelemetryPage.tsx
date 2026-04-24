@@ -12,49 +12,12 @@ import {
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { TelemetryStats } from '../../store/useAdminNetworkStore';
 
-/* ─── Mock Data Fallbacks ──────────────────────────── */
-const trafficData = [
-  { day: 'Sen', clicks: 1280, leads: 74, conversions: 48 },
-  { day: 'Sel', clicks: 1460, leads: 82, conversions: 55 },
-  { day: 'Rab', clicks: 1650, leads: 90, conversions: 61 },
-  { day: 'Kam', clicks: 1720, leads: 96, conversions: 66 },
-  { day: 'Jum', clicks: 1810, leads: 101, conversions: 71 },
-  { day: 'Sab', clicks: 1540, leads: 87, conversions: 58 },
-  { day: 'Min', clicks: 1320, leads: 73, conversions: 44 },
-];
-
-const monthlyPageViews = [
-  { month: 'Nov', views: 24200 },
-  { month: 'Des', views: 28900 },
-  { month: 'Jan', views: 32100 },
-  { month: 'Feb', views: 38400 },
-  { month: 'Mar', views: 35600 },
-  { month: 'Apr', views: 44800 },
-];
-
 const sourceRows = [
   { source: 'Referral Link Agen', icon: Share2,          color: 'text-primary',   clicks: 3240, conversion: '8.1%', bar: 82 },
   { source: 'WhatsApp CTA',       icon: MessageCircle,   color: 'text-[#25D366]', clicks: 2910, conversion: '6.4%', bar: 72 },
   { source: 'Promo Landing Page', icon: Zap,             color: 'text-tertiary',  clicks: 1880, conversion: '5.2%', bar: 55 },
   { source: 'Blog & Artikel',     icon: Globe,           color: 'text-secondary', clicks: 1420, conversion: '4.8%', bar: 42 },
   { source: 'Instagram Profile',  icon: Share2,          color: 'text-pink-400',  clicks: 980,  conversion: '3.9%', bar: 30 },
-];
-
-const errorLogs = [
-  { id: 'ERR-044', message: 'Sinkronisasi data komisi tertunda 15 menit', level: 'warning', time: '10 menit lalu', resolved: false },
-  { id: 'ERR-043', message: 'Rate limit API WhatsApp Gateway melebihi batas', level: 'error', time: '1 jam lalu', resolved: false },
-  { id: 'ERR-042', message: 'Backup database berhasil diselesaikan', level: 'success', time: '3 jam lalu', resolved: true },
-  { id: 'ERR-041', message: 'Upload foto produk gagal (timeout >5s)', level: 'error', time: '5 jam lalu', resolved: true },
-  { id: 'ERR-040', message: 'Cache katalog expired, refresh otomatis berjalan', level: 'info', time: '8 jam lalu', resolved: true },
-];
-
-const systemMetrics = [
-  { label: 'Server Uptime',   value: '99.97%', sub: 'Last 30 hari',    ok: true },
-  { label: 'API Latency',     value: '45ms',   sub: 'P95 response',    ok: true },
-  { label: 'DB Load',         value: '12%',    sub: 'CPU utilization', ok: true },
-  { label: 'Cache Hit Rate',  value: '87%',    sub: 'Redis cache',     ok: true },
-  { label: 'Sync Status',     value: 'Delayed',sub: '15 mnt tertunda', ok: false },
-  { label: 'CDN Status',      value: 'Online', sub: 'Edge nodes aktif',ok: true },
 ];
 
 const levelConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
@@ -76,13 +39,13 @@ const AdminTelemetryPage: React.FC = () => {
 
   const [logFilter, setLogFilter] = useState('Semua');
 
-  // Map state or fallback to mock
+  // Always API-driven; show empty state while data has not arrived.
   const data: TelemetryStats = telemetryStats || {
-    trafficData,
-    monthlyPageViews,
-    sourceRows,
-    systemMetrics,
-    errorLogs
+    trafficData: [],
+    monthlyPageViews: [],
+    sourceRows: [],
+    systemMetrics: [],
+    errorLogs: []
   };
 
   const totalClicks = data.trafficData.reduce((s, d) => s + d.clicks, 0);

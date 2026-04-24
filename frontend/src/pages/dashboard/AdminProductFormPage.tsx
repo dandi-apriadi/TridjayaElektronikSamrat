@@ -5,6 +5,7 @@ import { ArrowLeft, Save, Package, Upload } from 'lucide-react';
 import { useProductStore } from '../../store/useProductStore';
 import { toast } from '../../store/useNotificationStore';
 import type { Product } from '../../types';
+import { adminProductSchema, getFirstZodIssue } from '../../validators/adminSchemas';
 
 const AdminProductFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -58,11 +59,19 @@ const AdminProductFormPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const parsed = adminProductSchema.safeParse(formData);
+    if (!parsed.success) {
+      toast.error('Validasi form gagal', getFirstZodIssue(parsed.error));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      const payload = parsed.data;
       if (isEditMode) {
-        const success = await updateProduct(id!, formData);
+        const success = await updateProduct(id!, payload);
         if (success) {
           toast.success('Produk berhasil diperbarui');
           navigate('/dashboard/admin/catalog');
@@ -70,9 +79,8 @@ const AdminProductFormPage: React.FC = () => {
           toast.error('Gagal memperbarui produk');
         }
       } else {
-        // Generate random ID for mock frontend, backend usually handles this
         const newId = `PRD-${Math.floor(Math.random() * 1000)}`;
-        const success = await createProduct({ ...formData, id: newId });
+        const success = await createProduct({ ...payload, id: newId });
         if (success) {
           toast.success('Produk berhasil ditambahkan');
           navigate('/dashboard/admin/catalog');

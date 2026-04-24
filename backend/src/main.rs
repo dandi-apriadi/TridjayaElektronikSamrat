@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use axum::http::{HeaderValue, Method};
+use tower_http::{cors::{AllowOrigin, CorsLayer}, trace::TraceLayer};
 use tracing_subscriber::EnvFilter;
 use sqlx::sqlite::SqlitePoolOptions;
 use dotenvy::dotenv;
@@ -34,9 +35,21 @@ async fn main() {
         tracing::error!("Failed to seed database: {}", e);
     }
 
+    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173".to_string());
+    let origins: Vec<HeaderValue> = allowed_origins
+        .split(',')
+        .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
+        .collect();
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE, Method::OPTIONS])
+        .allow_headers(tower_http::cors::Any)
+        .allow_credentials(true);
+
     let state = AppState::new(pool);
     let app = routes::router(state)
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .layer(TraceLayer::new_for_http());
 
     let addr: SocketAddr = "0.0.0.0:8081".parse().expect("valid listen address");

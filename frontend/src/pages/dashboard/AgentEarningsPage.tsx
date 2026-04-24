@@ -1,50 +1,111 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Wallet, TrendingUp, ArrowUpRight, ArrowDownRight, Clock,
   CheckCircle2, Download, Calendar, Filter,
-  DollarSign, Target, BarChart3,
+  DollarSign, BarChart3,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { useAgentStore } from '../../store/useAgentStore';
 
-const earningHistory = [
-  { month: 'Nov', komisi: 1800000, payout: 1500000 },
-  { month: 'Des', komisi: 2100000, payout: 1800000 },
-  { month: 'Jan', komisi: 2500000, payout: 2100000 },
-  { month: 'Feb', komisi: 3200000, payout: 2800000 },
-  { month: 'Mar', komisi: 2900000, payout: 2500000 },
-  { month: 'Apr', komisi: 3800000, payout: 3200000 },
-];
-
-const transactions = [
-  { id: 'TRX-0041', type: 'Komisi', description: 'Goda GD120 — Andi Wijaya', amount: 750000, date: '20 Apr 2026', status: 'Credited' },
-  { id: 'TRX-0040', type: 'Komisi', description: 'Smart TV OLED — Dewi Lestari', amount: 840000, date: '18 Apr 2026', status: 'Credited' },
-  { id: 'TRX-0039', type: 'Payout', description: 'Penarikan ke BRI 1234-xxxx', amount: -2500000, date: '15 Apr 2026', status: 'Paid' },
-  { id: 'TRX-0038', type: 'Komisi', description: 'Winfly W200 — Hendra S.', amount: 920000, date: '12 Apr 2026', status: 'Credited' },
-  { id: 'TRX-0037', type: 'Bonus', description: 'Bonus Ranking Top 3 Maret', amount: 500000, date: '01 Apr 2026', status: 'Credited' },
-  { id: 'TRX-0036', type: 'Payout', description: 'Penarikan ke BRI 1234-xxxx', amount: -1800000, date: '28 Mar 2026', status: 'Paid' },
-];
+const ESTIMATED_CLAIM_VALUE = 250000;
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AgentEarningsPage: React.FC = () => {
+  const { claims, fetchClaims, createClaim } = useAgentStore();
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filterType, setFilterType] = useState('Semua');
 
-  const filtered = transactions.filter((t) => filterType === 'Semua' || t.type === filterType);
-  const availableBalance = 1620000;
-  const pendingBalance   = 750000;
-  const totalEarnings    = earningHistory.reduce((s, e) => s + e.komisi, 0);
+  useEffect(() => {
+    fetchClaims();
+  }, [fetchClaims]);
 
-  const handleWithdraw = () => {
-    setSubmitted(true);
-    setTimeout(() => { setShowWithdrawModal(false); setSubmitted(false); setWithdrawAmount(''); }, 2000);
+  const completedClaims = claims.filter((claim) => claim.status === 'completed').length;
+  const pendingClaims = claims.filter((claim) => claim.status === 'pending' || claim.status === 'processing').length;
+
+  const availableBalance = completedClaims * ESTIMATED_CLAIM_VALUE;
+  const pendingBalance = pendingClaims * ESTIMATED_CLAIM_VALUE;
+
+  const earningHistory = useMemo(() => {
+    return Array.from({ length: 6 }).map((_, index) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - (5 - index));
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+
+      const monthlyClaims = claims.filter((claim) => {
+        const created = new Date(claim.submittedAt);
+        return `${created.getFullYear()}-${created.getMonth()}` === key;
+      });
+
+      const komisiCount = monthlyClaims.filter((claim) => claim.status === 'completed').length;
+      const payoutCount = monthlyClaims.filter((claim) => claim.status === 'pending' || claim.status === 'processing').length;
+
+      return {
+        month: date.toLocaleDateString('id-ID', { month: 'short' }),
+        komisi: komisiCount * ESTIMATED_CLAIM_VALUE,
+        payout: payoutCount * ESTIMATED_CLAIM_VALUE,
+      };
+    });
+  }, [claims]);
+
+  const transactions = useMemo(() => {
+    return claims.map((claim) => {
+      const isCompleted = claim.status === 'completed';
+      const isPending = claim.status === 'pending' || claim.status === 'processing';
+      return {
+        id: `CLM-${String(claim.id).padStart(4, '0')}`,
+        type: isCompleted ? 'Komisi' : 'Payout',
+        description: `${claim.rewardName} (${claim.status})`,
+        amount: isCompleted ? ESTIMATED_CLAIM_VALUE : -ESTIMATED_CLAIM_VALUE,
+        date: new Date(claim.submittedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+        status: isCompleted ? 'Credited' : isPending ? 'Pending' : 'Rejected',
+      };
+    });
+  }, [claims]);
+
+  const filtered = transactions.filter((t) => filterType === 'Semua' || t.type === filterType);
+  const totalEarnings = earningHistory.reduce((s, e) => s + e.komisi, 0);
+  const payoutTrend = earningHistory.reduce((s, e) => s + e.payout, 0);
+
+  const handleWithdraw = async () => {
+    const amount = Number(withdrawAmount);
+    if (!amount || amount <= 0) {
+      setErrorMessage('Jumlah penarikan harus lebih dari 0.');
+      return;
+    }
+
+    if (amount > availableBalance) {
+      setErrorMessage('Jumlah melebihi saldo dapat ditarik.');
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const success = await createClaim(`withdraw-${Date.now()}`, `Penarikan Dana Rp ${amount.toLocaleString('id-ID')}`);
+      if (!success) {
+        setErrorMessage('Gagal mengajukan penarikan.');
+        return;
+      }
+      await fetchClaims();
+      setSubmitted(true);
+      setTimeout(() => {
+        setShowWithdrawModal(false);
+        setSubmitted(false);
+        setWithdrawAmount('');
+      }, 2000);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -61,7 +122,7 @@ const AgentEarningsPage: React.FC = () => {
               <Wallet className="w-6 h-6 text-secondary" /> Komisi & Penarikan
             </h2>
             <p className="text-body-sm text-on-surface-variant mt-1">
-              Pantau komisi real-time, riwayat transaksi, dan ajukan penarikan dana ke rekening Anda.
+              Data komisi dan payout ditarik dari API claims. Nilai rupiah ditampilkan sebagai estimasi per claim.
             </p>
           </div>
           <button
@@ -83,7 +144,7 @@ const AgentEarningsPage: React.FC = () => {
           <div className="font-display text-headline-md font-bold text-secondary mb-1">
             Rp {availableBalance.toLocaleString('id-ID')}
           </div>
-          <div className="text-label-xs text-on-surface-variant">Per hari ini · Siap dicairkan</div>
+          <div className="text-label-xs text-on-surface-variant">{completedClaims} claim completed</div>
           <button
             type="button"
             onClick={() => setShowWithdrawModal(true)}
@@ -99,7 +160,7 @@ const AgentEarningsPage: React.FC = () => {
           <div className="font-display text-headline-md font-bold text-tertiary mb-1">
             Rp {pendingBalance.toLocaleString('id-ID')}
           </div>
-          <div className="text-label-xs text-on-surface-variant">Sedang diverifikasi admin</div>
+          <div className="text-label-xs text-on-surface-variant">{pendingClaims} claim menunggu proses admin</div>
         </motion.div>
 
         <motion.div variants={iv} className="glass-card rounded-xl p-6">
@@ -109,7 +170,7 @@ const AgentEarningsPage: React.FC = () => {
             Rp {(totalEarnings / 1000000).toFixed(1)}jt
           </div>
           <div className="text-label-xs text-secondary flex items-center gap-1">
-            <ArrowUpRight className="w-3 h-3" /> +20.1% vs periode lalu
+            <ArrowUpRight className="w-3 h-3" /> Payout 6 bulan: Rp {(payoutTrend / 1000000).toFixed(1)}jt
           </div>
         </motion.div>
       </div>
@@ -161,10 +222,10 @@ const AgentEarningsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
           <div>
             <h3 className="font-display text-title-md font-bold text-on-surface">Riwayat Transaksi</h3>
-            <p className="text-body-sm text-on-surface-variant mt-0.5">Komisi, bonus, dan penarikan</p>
+            <p className="text-body-sm text-on-surface-variant mt-0.5">Mutasi claim komisi dan payout</p>
           </div>
           <div className="flex items-center gap-2">
-            {['Semua', 'Komisi', 'Payout', 'Bonus'].map((t) => (
+            {['Semua', 'Komisi', 'Payout'].map((t) => (
               <button key={t} type="button" onClick={() => setFilterType(t)}
                 className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${filterType === t ? 'bg-secondary/20 text-secondary' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
                 {t}
@@ -179,7 +240,7 @@ const AgentEarningsPage: React.FC = () => {
               <div key={trx.id} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-surface-high/30 transition-colors">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isPositive ? 'bg-secondary/15' : 'bg-primary/10'}`}>
                   {isPositive
-                    ? (trx.type === 'Bonus' ? <Target className="w-4 h-4 text-tertiary" /> : <TrendingUp className="w-4 h-4 text-secondary" />)
+                    ? <TrendingUp className="w-4 h-4 text-secondary" />
                     : <ArrowDownRight className="w-4 h-4 text-primary" />
                   }
                 </div>
@@ -189,7 +250,7 @@ const AgentEarningsPage: React.FC = () => {
                     <span>{trx.id}</span>
                     <span>·</span>
                     <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" />{trx.date}</span>
-                    <span className={`px-1.5 py-0.5 rounded-md font-bold ${trx.status === 'Credited' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}`}>
+                    <span className={`px-1.5 py-0.5 rounded-md font-bold ${trx.status === 'Credited' ? 'bg-secondary/10 text-secondary' : trx.status === 'Pending' ? 'bg-primary/10 text-primary' : 'bg-error/10 text-error'}`}>
                       {trx.status}
                     </span>
                   </div>
@@ -200,6 +261,9 @@ const AgentEarningsPage: React.FC = () => {
               </div>
             );
           })}
+          {filtered.length === 0 && (
+            <div className="text-center py-8 text-body-sm text-on-surface-variant">Belum ada transaksi pada filter ini.</div>
+          )}
         </div>
         <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
           <span className="text-label-sm text-on-surface-variant">{filtered.length} transaksi</span>
@@ -236,14 +300,17 @@ const AgentEarningsPage: React.FC = () => {
                 <div className="mb-4 p-3 rounded-xl bg-surface-high text-label-sm text-on-surface-variant">
                   <Filter className="w-3.5 h-3.5 inline mr-1.5" /> Rekening: BRI 1234-5678-xxxx (Nama Agen)
                 </div>
+                {errorMessage && (
+                  <div className="mb-4 p-3 rounded-xl bg-error/10 text-error text-label-sm">{errorMessage}</div>
+                )}
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setShowWithdrawModal(false)}
                     className="flex-1 py-2.5 rounded-xl bg-surface-high text-on-surface-variant font-semibold hover:text-on-surface transition-colors">
                     Batal
                   </button>
-                  <button type="button" onClick={handleWithdraw}
+                  <button type="button" onClick={handleWithdraw} disabled={submitting}
                     className="flex-1 py-2.5 rounded-xl bg-secondary/20 text-secondary font-semibold hover:bg-secondary/30 transition-colors">
-                    Ajukan
+                    {submitting ? 'Mengajukan...' : 'Ajukan'}
                   </button>
                 </div>
               </>
