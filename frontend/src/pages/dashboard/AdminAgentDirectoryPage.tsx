@@ -1,7 +1,23 @@
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { 
+  Search, 
+  Filter, 
+  TrendingUp, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Eye 
+} from 'lucide-react';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale/id';
-const idLocale = id;
+
+const formatDate = (dateStr: string) => {
+  try {
+    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(new Date(dateStr));
+  } catch (e) {
+    return '—';
+  }
+};
 
 const statusColor: Record<string, string> = {
   Aktif: 'bg-secondary/15 text-secondary',
@@ -15,14 +31,14 @@ const AdminAgentDirectoryPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua');
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
 
   const mappedAgents = agents.map(a => ({
     ...a,
     status: a.isActive ? 'Aktif' : 'Inactive',
-    joinedLabel: a.joinedAt ? format(new Date(a.joinedAt), 'MMM yyyy', { locale: idLocale }) : '—',
+    joinedLabel: a.joinedAt ? formatDate(a.joinedAt) : '—',
     earningsLabel: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(a.totalSales * 300000) // Assumed 300k commission per sale for display
   }));
 

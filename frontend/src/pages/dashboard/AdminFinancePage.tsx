@@ -17,9 +17,8 @@ const statusStyle: Record<string, { label: string; cls: string; icon: React.Reac
 };
 
 const AdminFinancePage: React.FC = () => {
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const { claims, registrations, fetchClaims, fetchRegistrations, updateClaimStatus, isLoading, error } = useAdminNetworkStore();
   const [filter, setFilter] = useState('Semua');
-  const { claims, registrations, fetchClaims, fetchRegistrations } = useAdminNetworkStore();
 
   useEffect(() => {
     fetchClaims();
@@ -29,19 +28,20 @@ const AdminFinancePage: React.FC = () => {
   const payoutRequests = useMemo(() => {
     return claims.map((claim, index) => {
       const amount = CLAIM_VALUE_BY_TIER[claim.tierId] || 650000;
-      const currentStatus = statuses[claim.id] || claim.status;
+      const currentStatus = claim.status;
       return {
-        id: `PO-${String(4401 - index).padStart(4, '0')}`,
+        id: claim.id,
+        displayId: `PO-${String(4401 - index).padStart(4, '0')}`,
         agent: claim.agentName || `Agent ${claim.agentId}`,
         agentId: claim.agentId,
         amount: `Rp ${amount.toLocaleString('id-ID')}`,
         raw: amount,
         period: new Date(claim.submittedAt).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
         submittedAt: new Date(claim.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
-        status: currentStatus === 'pending' ? 'Pending' : currentStatus === 'processing' ? 'Pending' : currentStatus === 'completed' ? 'Paid' : currentStatus === 'cancelled' ? 'Rejected' : 'Approved',
+        status: currentStatus === 'pending' ? 'Pending' : currentStatus === 'processing' ? 'Approved' : currentStatus === 'completed' ? 'Paid' : 'Rejected',
       };
     });
-  }, [claims, statuses]);
+  }, [claims]);
 
   const commissionByArea = useMemo(() => {
     const areaTotals = registrations.reduce<Record<string, number>>((accumulator, registration) => {
@@ -56,18 +56,46 @@ const AdminFinancePage: React.FC = () => {
       .slice(0, 5);
   }, [registrations]);
 
-  const handleAction = (id: string, action: string) => {
-    setStatuses((prev) => ({ ...prev, [id]: action }));
+  const handleAction = async (id: string, action: 'processing' | 'completed' | 'cancelled') => {
+    await updateClaimStatus(id, action);
   };
 
   const displayed = payoutRequests.filter((r) => {
-    const currentStatus = statuses[r.id] || r.status;
-    return filter === 'Semua' || currentStatus === filter;
+    return filter === 'Semua' || r.status === filter;
   });
 
-  const totalPending = payoutRequests.filter((r) => (statuses[r.id] || r.status) === 'Pending').reduce((s, r) => s + r.raw, 0);
-  const totalPaid = payoutRequests.filter((r) => ['Approved', 'Paid'].includes(statuses[r.id] || r.status)).reduce((s, r) => s + r.raw, 0);
+  const totalPending = payoutRequests.filter((r) => r.status === 'Pending').reduce((s, r) => s + r.raw, 0);
+  const totalPaid = payoutRequests.filter((r) => ['Approved', 'Paid'].includes(r.status)).reduce((s, r) => s + r.raw, 0);
   const totalMonthlyCommission = payoutRequests.reduce((sum, request) => sum + request.raw, 0);
+
+  if (isLoading && claims.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <p className="text-on-surface-variant text-body-sm animate-pulse">Mengambil data keuangan...</p>
+      </div>
+    );
+  }
+
+  if (error && claims.length === 0) {
+    return (
+      <div className="glass-card rounded-xl p-8 flex flex-col items-center text-center gap-4 border-error/20">
+        <div className="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error">
+          <XCircle className="w-6 h-6" />
+        </div>
+        <div>
+          <h4 className="font-display text-title-md font-bold text-on-surface">Gagal Memuat Data</h4>
+          <p className="text-body-sm text-on-surface-variant mt-1">{error}</p>
+        </div>
+        <button 
+          onClick={() => { fetchClaims(); fetchRegistrations(); }}
+          className="px-6 py-2 bg-surface-high rounded-lg text-label-sm font-bold hover:bg-surface-highest transition-colors"
+        >
+          Coba Lagi
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -122,41 +150,40 @@ const AdminFinancePage: React.FC = () => {
           </div>
           <div className="space-y-3">
             {displayed.map((req) => {
-              const currentStatus = statuses[req.id] || req.status;
-              const style = statusStyle[currentStatus];
+              const style = statusStyle[req.status];
               return (
                 <div key={req.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 rounded-lg border border-outline-variant/10 hover:bg-surface-high/40 transition-colors">
                   <div>
                     <div className="font-semibold text-on-surface text-body-sm">{req.agent}</div>
-                    <div className="text-label-xs text-on-surface-variant">{req.id} · {req.agentId} · Periode {req.period}</div>
+                    <div className="text-label-xs text-on-surface-variant">{req.displayId} · {req.agentId} · Periode {req.period}</div>
                     <div className="text-label-xs text-on-surface-variant">{req.submittedAt}</div>
                   </div>
                   <div className="font-bold text-primary text-body-sm">{req.amount}</div>
                   <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-label-xs font-bold ${style.cls}`}>
                     {style.icon} {style.label}
                   </div>
-                  {currentStatus === 'Pending' && (
+                  {req.status === 'Pending' && (
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => handleAction(req.id, 'Approved')}
+                        onClick={() => handleAction(req.id, 'processing')}
                         className="px-3 py-1.5 rounded-md bg-secondary/20 text-secondary text-label-sm font-semibold inline-flex items-center gap-1 hover:bg-secondary/30 transition-colors"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleAction(req.id, 'Rejected')}
+                        onClick={() => handleAction(req.id, 'cancelled')}
                         className="px-3 py-1.5 rounded-md bg-error/10 text-error text-label-sm font-semibold inline-flex items-center gap-1 hover:bg-error/20 transition-colors"
                       >
                         <XCircle className="w-3.5 h-3.5" /> Tolak
                       </button>
                     </div>
                   )}
-                  {currentStatus === 'Approved' && (
+                  {req.status === 'Approved' && (
                     <button
                       type="button"
-                      onClick={() => handleAction(req.id, 'Paid')}
+                      onClick={() => handleAction(req.id, 'completed')}
                       className="px-3 py-1.5 rounded-md bg-primary/20 text-primary text-label-sm font-semibold inline-flex items-center gap-1 hover:bg-primary/30 transition-colors"
                     >
                       <Wallet className="w-3.5 h-3.5" /> Tandai Dibayar

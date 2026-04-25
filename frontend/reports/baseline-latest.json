@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T16:00:53.434Z",
+  "generatedAt": "2026-04-24T22:49:29.151Z",
   "thresholds": {
     "maxLargestJsKb": 900,
     "maxTotalJsKb": 2400,
@@ -26,7 +26,7 @@
   },
   "health": {
     "status": 200,
-    "latencyMs": 61,
+    "latencyMs": 112,
     "ok": true
   },
   "gate": {
@@ -50,7 +50,7 @@
       {
         "key": "health_latency",
         "label": "Health endpoint latency",
-        "value": 61,
+        "value": 112,
         "unit": "ms",
         "threshold": 300,
         "passed": true
