@@ -1,6 +1,7 @@
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { format } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
+import { id } from 'date-fns/locale/id';
+const idLocale = id;
 
 const statusColor: Record<string, string> = {
   Aktif: 'bg-secondary/15 text-secondary',
