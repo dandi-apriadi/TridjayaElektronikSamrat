@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Zap, Check, Shield, TrendingUp, Handshake, Users, 
-  ChevronRight, Phone, Send, Info, Award
+  ChevronRight, Phone, Send, Info, Award,
+  FileText, Camera, Upload
 } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
 import { Badge, SectionHeader } from '../components/ui';
@@ -12,19 +13,145 @@ const steps = [
   { id: 1, title: 'Data Diri', subtitle: 'Informasi personal' },
   { id: 2, title: 'Data Lokasi', subtitle: 'Wilayah pemasaran' },
   { id: 3, title: 'Preferensi', subtitle: 'Kategori produk' },
+  { id: 4, title: 'Dokumen', subtitle: 'Upload Foto & KTP' },
 ];
 
 const AgencyRegistrationPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
-
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 3));
-  const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    whatsapp: '',
+    province: 'Sulawesi Selatan',
+    city: '',
+    address: '',
+    preferredProducts: ['bike'] as string[],
+  });
+
+  const [files, setFiles] = useState<{
+    profilePhoto: File | null;
+    ktpPhoto: File | null;
+  }>({
+    profilePhoto: null,
+    ktpPhoto: null,
+  });
+
+  const [previews, setPreviews] = useState<{
+    profilePhoto: string | null;
+    ktpPhoto: string | null;
+  }>({
+    profilePhoto: null,
+    ktpPhoto: null,
+  });
+
+  const isStepValid = () => {
+    switch (currentStep) {
+      case 1:
+        return formData.fullName.trim() !== '' && 
+               formData.email.trim() !== '' && 
+               formData.whatsapp.trim() !== '';
+      case 2:
+        return formData.city.trim() !== '';
+      case 3:
+        return formData.preferredProducts.length > 0;
+      case 4:
+        return files.profilePhoto !== null && files.ktpPhoto !== null;
+      default:
+        return true;
+    }
+  };
+
+  const nextStep = () => {
+    if (isStepValid()) {
+      setCurrentStep(prev => Math.min(prev + 1, steps.length));
+    }
+  };
+  const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleCheckboxChange = (id: string) => {
+    setFormData(prev => {
+      const current = prev.preferredProducts;
+      if (current.includes(id)) {
+        return { ...prev, preferredProducts: current.filter(item => item !== id) };
+      } else {
+        return { ...prev, preferredProducts: [...current, id] };
+      }
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profilePhoto' | 'ktpPhoto') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('File Tidak Valid', 'Silakan pilih file gambar saja (JPG, PNG, WebP).');
+        return;
+      }
+      setFiles(prev => ({ ...prev, [type]: file }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviews(prev => ({ ...prev, [type]: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormSubmitted(true);
-    toast.success('Pendaftaran Berhasil Dikirim', 'Tim kami akan menghubungi Anda dalam waktu dekat melalui WhatsApp.');
+    
+    // Safety check: ensure we are on the last step
+    if (currentStep < steps.length) {
+      nextStep();
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const data = new FormData();
+      data.append('fullName', formData.fullName);
+      data.append('email', formData.email);
+      data.append('whatsapp', formData.whatsapp);
+      data.append('province', formData.province);
+      data.append('city', formData.city);
+      data.append('address', formData.address);
+      data.append('preferredProducts', JSON.stringify(formData.preferredProducts));
+      
+      if (files.profilePhoto) data.append('profilePhoto', files.profilePhoto);
+      if (files.ktpPhoto) data.append('ktpPhoto', files.ktpPhoto);
+
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/agent-registrations`, {
+        method: 'POST',
+        body: data,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Gagal mengirim pendaftaran');
+      }
+
+      setFormSubmitted(true);
+      toast.success('Pendaftaran Berhasil Dikirim', 'Tim kami akan menghubungi Anda dalam waktu dekat melalui WhatsApp.');
+    } catch (error: any) {
+      toast.error('Gagal Mengirim', error.message || 'Terjadi kesalahan sistem. Silakan coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Prevent form submission on Enter key if not on last step
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && currentStep < steps.length) {
+      e.preventDefault();
+      nextStep();
+    }
   };
 
   return (
@@ -111,23 +238,47 @@ const AgencyRegistrationPage: React.FC = () => {
                         ))}
                       </div>
 
-                      <form onSubmit={handleSubmit} className="space-y-5">
+                      <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-5">
                         {currentStep === 1 && (
                           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                             <div>
                               <label className="block font-body text-label-md text-on-surface-variant mb-2">Nama Lengkap</label>
-                              <input type="text" placeholder="Masukkan nama sesuai KTP" className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" required />
+                              <input 
+                                type="text" 
+                                name="fullName"
+                                value={formData.fullName}
+                                onChange={handleInputChange}
+                                placeholder="Masukkan nama sesuai KTP" 
+                                className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" 
+                                required 
+                              />
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <label className="block font-body text-label-md text-on-surface-variant mb-2">Email</label>
-                                <input type="email" placeholder="example@gmail.com" className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" required />
+                                <input 
+                                  type="email" 
+                                  name="email"
+                                  value={formData.email}
+                                  onChange={handleInputChange}
+                                  placeholder="example@gmail.com" 
+                                  className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" 
+                                  required 
+                                />
                               </div>
                               <div>
                                 <label className="block font-body text-label-md text-on-surface-variant mb-2">WhatsApp</label>
                                 <div className="relative">
                                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-body text-body-md">+62</span>
-                                  <input type="tel" placeholder="852xxxx" className="w-full bg-surface-highest border-0 rounded-xl pl-12 pr-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" required />
+                                  <input 
+                                    type="tel" 
+                                    name="whatsapp"
+                                    value={formData.whatsapp}
+                                    onChange={handleInputChange}
+                                    placeholder="852xxxx" 
+                                    className="w-full bg-surface-highest border-0 rounded-xl pl-12 pr-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" 
+                                    required 
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -138,7 +289,12 @@ const AgencyRegistrationPage: React.FC = () => {
                           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                             <div>
                               <label className="block font-body text-label-md text-on-surface-variant mb-2">Provinsi Domisili</label>
-                              <select className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white focus:outline-none focus:ring-1 focus:ring-primary/50">
+                              <select 
+                                name="province"
+                                value={formData.province}
+                                onChange={handleInputChange}
+                                className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white focus:outline-none focus:ring-1 focus:ring-primary/50"
+                              >
                                 <option>Sulawesi Selatan</option>
                                 <option>Sulawesi Tengah</option>
                                 <option>Sulawesi Tenggara</option>
@@ -149,11 +305,26 @@ const AgencyRegistrationPage: React.FC = () => {
                             </div>
                             <div>
                               <label className="block font-body text-label-md text-on-surface-variant mb-2">Kota / Kabupaten</label>
-                              <input type="text" placeholder="Contoh: Makassar" className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" required />
+                              <input 
+                                type="text" 
+                                name="city"
+                                value={formData.city}
+                                onChange={handleInputChange}
+                                placeholder="Contoh: Makassar" 
+                                className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" 
+                                required 
+                              />
                             </div>
                             <div>
                               <label className="block font-body text-label-md text-on-surface-variant mb-2">Alamat Lengkap (Opsional)</label>
-                              <textarea rows={2} placeholder="Sebutkan alamat calon lokasi galeri/toko jika ada" className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50"></textarea>
+                              <textarea 
+                                name="address"
+                                value={formData.address}
+                                onChange={handleInputChange}
+                                rows={2} 
+                                placeholder="Sebutkan alamat calon lokasi galeri/toko jika ada" 
+                                className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50"
+                              ></textarea>
                             </div>
                           </motion.div>
                         )}
@@ -169,7 +340,12 @@ const AgencyRegistrationPage: React.FC = () => {
                                   { id: 'furniture', label: 'Sofa & Furnitur', icon: Info },
                                 ].map((choice) => (
                                   <label key={choice.id} className="flex items-center gap-3 p-4 rounded-xl glass-dark border border-white/5 cursor-pointer hover:border-primary/30 transition-all">
-                                    <input type="checkbox" className="w-5 h-5 rounded border-white/10 bg-surface-highest text-primary focus:ring-primary" defaultChecked={choice.id === 'bike'} />
+                                    <input 
+                                      type="checkbox" 
+                                      checked={formData.preferredProducts.includes(choice.id)}
+                                      onChange={() => handleCheckboxChange(choice.id)}
+                                      className="w-5 h-5 rounded border-white/10 bg-surface-highest text-primary focus:ring-primary" 
+                                    />
                                     <div className="flex items-center gap-3">
                                       <choice.icon className="w-5 h-5 text-primary" />
                                       <span className="font-body text-body-md text-white">{choice.label}</span>
@@ -180,7 +356,68 @@ const AgencyRegistrationPage: React.FC = () => {
                             </div>
                             <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
                               <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
-                                <span className="text-primary font-bold">Catatan:</span> Setelah mengirim formulir, tim kami akan melakukan kurasi data dan menghubungi Anda dalam 1-3 hari kerja untuk proses interview melalui WhatsApp.
+                                <span className="text-primary font-bold">Catatan:</span> Langkah selanjutnya adalah mengunggah foto profil dan foto KTP untuk verifikasi identitas resmi agen.
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        {currentStep === 4 && (
+                          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                            <div>
+                              <label className="block font-body text-label-md text-on-surface-variant mb-4 flex items-center gap-2">
+                                <Camera className="w-4 h-4 text-primary" />
+                                Foto Profil & KTP
+                              </label>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Profile Photo */}
+                                <div className="space-y-2">
+                                  <div className="font-body text-label-sm text-on-surface-variant">Foto Profil (3x4/Pas Foto)</div>
+                                  <label className="relative flex flex-col items-center justify-center aspect-[3/4] rounded-2xl glass-dark border-2 border-dashed border-white/10 cursor-pointer overflow-hidden group hover:border-primary/50 transition-all">
+                                    {previews.profilePhoto ? (
+                                      <>
+                                        <img src={previews.profilePhoto} alt="Profile Preview" className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                          <Upload className="w-8 h-8 text-white" />
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="flex flex-col items-center gap-2 text-on-surface-variant group-hover:text-primary transition-colors">
+                                        <Upload className="w-8 h-8" />
+                                        <span className="text-label-sm">Upload Foto</span>
+                                      </div>
+                                    )}
+                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, 'profilePhoto')} />
+                                  </label>
+                                </div>
+
+                                {/* KTP Photo */}
+                                <div className="space-y-2">
+                                  <div className="font-body text-label-sm text-on-surface-variant">Foto KTP Asli</div>
+                                  <label className="relative flex flex-col items-center justify-center aspect-[3/2] rounded-2xl glass-dark border-2 border-dashed border-white/10 cursor-pointer overflow-hidden group hover:border-primary/50 transition-all">
+                                    {previews.ktpPhoto ? (
+                                      <>
+                                        <img src={previews.ktpPhoto} alt="KTP Preview" className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                          <Upload className="w-8 h-8 text-white" />
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="flex flex-col items-center gap-2 text-on-surface-variant group-hover:text-primary transition-colors">
+                                        <FileText className="w-8 h-8" />
+                                        <span className="text-label-sm">Upload KTP</span>
+                                      </div>
+                                    )}
+                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, 'ktpPhoto')} />
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
+                              <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
+                                <span className="text-primary font-bold">Privasi Data:</span> Dokumen Anda akan dijaga kerahasiaannya dan hanya digunakan untuk proses verifikasi kemitraan resmi.
                               </p>
                             </div>
                           </motion.div>
@@ -196,11 +433,12 @@ const AgencyRegistrationPage: React.FC = () => {
                               Kembali
                             </button>
                           )}
-                          {currentStep < 3 ? (
+                          {currentStep < steps.length ? (
                             <button
                               type="button"
                               onClick={nextStep}
-                              className="flex-1 flex items-center justify-center gap-2 py-3.5 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface shadow-neon-cyan-sm hover:shadow-neon-cyan transition-all"
+                              disabled={!isStepValid()}
+                              className={`flex-1 flex items-center justify-center gap-2 py-3.5 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface shadow-neon-cyan-sm hover:shadow-neon-cyan transition-all ${!isStepValid() ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                             >
                               Lanjut
                               <ChevronRight className="w-4 h-4" />
@@ -208,10 +446,11 @@ const AgencyRegistrationPage: React.FC = () => {
                           ) : (
                             <button
                               type="submit"
-                              className="flex-1 flex items-center justify-center gap-2 py-3.5 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface shadow-neon-cyan-sm hover:shadow-neon-cyan transition-all"
+                              disabled={isSubmitting || !isStepValid()}
+                              className={`flex-1 flex items-center justify-center gap-2 py-3.5 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface shadow-neon-cyan-sm hover:shadow-neon-cyan transition-all ${isSubmitting || !isStepValid() ? 'opacity-70 cursor-not-allowed grayscale' : ''}`}
                             >
-                              Kirim Pendaftaran
-                              <Send className="w-4 h-4" />
+                              {isSubmitting ? 'Mengirim...' : 'Kirim Pendaftaran'}
+                              {!isSubmitting && <Send className="w-4 h-4" />}
                             </button>
                           )}
                         </div>

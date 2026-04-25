@@ -29,10 +29,25 @@ import logoPng from '../../assets/images/logo.webp';
 
 const DashboardLayout: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Detect mobile view for logic branching
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close mobile menu when route changes
+  React.useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -85,16 +100,38 @@ const DashboardLayout: React.FC = () => {
          <div className="bg-blob bg-tertiary/20 -bottom-24 left-1/4 animate-[blob-float_20s_infinite_ease-in-out_alternate]" />
       </div>
 
+      {/* Mobile Backdrop */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: isSidebarOpen ? 280 : 80, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 220, damping: 28 }}
-        className="fixed left-0 top-0 bottom-0 z-40 bg-surface-low/95 border-r border-outline-variant/20 flex flex-col backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
+        animate={{ 
+          width: isMobile ? 280 : (isSidebarOpen ? 280 : 80),
+          x: isMobile ? (isMobileMenuOpen ? 0 : -280) : 0,
+          opacity: 1 
+        }}
+        transition={{ type: 'spring', stiffness: 240, damping: 30 }}
+        className="fixed lg:sticky left-0 top-0 bottom-0 z-[70] bg-surface-low/95 border-r border-outline-variant/20 flex flex-col backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
       >
         {/* Brand */}
         <div className="h-20 flex items-center px-6 gap-4 overflow-hidden border-b border-outline-variant/10">
           <img src={logoPng} alt="Tridjaya Samrat" className="h-12 w-auto max-w-full object-contain" />
+          {isMobile && (
+            <button onClick={() => setMobileMenuOpen(false)} className="ml-auto p-2 rounded-lg bg-surface-high hover:bg-surface-highest transition-colors">
+              <X className="w-6 h-6 text-on-surface-variant" />
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
@@ -114,11 +151,11 @@ const DashboardLayout: React.FC = () => {
                 }`}
               >
                 <Icon className={`w-5 h-5 flex-shrink-0 transition-transform ${isActive ? 'text-primary' : 'group-hover:scale-110'}`} />
-                {isSidebarOpen && (
+                {(isSidebarOpen || isMobile) && (
                   <span className="font-body text-body-md font-semibold truncate">{item.label}</span>
                 )}
                 {/* Tooltip for collapsed sidebar */}
-                {!isSidebarOpen && (
+                {!isSidebarOpen && !isMobile && (
                   <div className="absolute left-full ml-4 px-3 py-1 bg-surface-highest text-white text-label-md rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
                     {item.label}
                   </div>
@@ -130,43 +167,50 @@ const DashboardLayout: React.FC = () => {
 
         {/* Footer Sidebar */}
         <div className="p-4 border-t border-outline-variant/10 space-y-2">
-          <button
-            onClick={() => setSidebarOpen(!isSidebarOpen)}
-            className="w-full flex items-center gap-4 p-3 rounded-lg text-on-surface-variant hover:bg-surface-high hover:text-on-surface transition-all"
-          >
-            {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            {isSidebarOpen && <span className="font-body text-body-md font-semibold">Collapse Sidebar</span>}
-          </button>
+          {!isMobile && (
+            <button
+              onClick={() => setSidebarOpen(!isSidebarOpen)}
+              className="w-full items-center gap-4 p-3 rounded-lg text-on-surface-variant hover:bg-surface-high hover:text-on-surface transition-all hidden lg:flex"
+            >
+              {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {isSidebarOpen && <span className="font-body text-body-md font-semibold">Collapse Sidebar</span>}
+            </button>
+          )}
           
           <button 
             onClick={handleLogout}
             className="w-full flex items-center gap-4 p-3 rounded-lg text-error hover:bg-error/10 transition-all font-body text-body-md font-bold"
           >
             <LogOut className="w-5 h-5" />
-            {isSidebarOpen && <span>Logout</span>}
+            {(isSidebarOpen || isMobile) && <span>Logout</span>}
           </button>
         </div>
       </motion.aside>
 
       {/* Main Content */}
-      <main 
-        className="flex-1 transition-all duration-300 flex flex-col"
-        style={{ marginLeft: isSidebarOpen ? 280 : 80 }}
-      >
+      <main className="flex-1 transition-all duration-300 flex flex-col min-w-0">
         {/* Top Header */}
         <motion.header
           initial={{ y: -10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="h-20 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 px-8 flex items-center justify-between sticky top-0 z-30"
+          className="h-20 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30"
         >
-           <div>
-             <h2 className="font-display text-title-lg font-bold text-on-surface">
+           <div className="flex items-center gap-4">
+             {/* Mobile Menu Toggle */}
+             <button 
+               onClick={() => setMobileMenuOpen(true)}
+               className="lg:hidden p-2 rounded-lg bg-surface-high text-on-surface-variant hover:text-on-surface transition-all"
+             >
+               <Menu className="w-6 h-6" />
+             </button>
+             <h2 className="font-display text-title-md md:text-title-lg font-bold text-on-surface truncate">
                {activeItem?.label || 'Dashboard'}
              </h2>
            </div>
+
           {/* Quick Actions - Desktop View */}
-          <div className="hidden lg:flex items-center gap-3 bg-surface-low/40 px-4 py-2 rounded-2xl border border-outline-variant/10">
+          <div className="hidden xl:flex items-center gap-3 bg-surface-low/40 px-4 py-2 rounded-2xl border border-outline-variant/10">
             <span className="font-body text-label-sm font-bold text-on-surface-variant uppercase tracking-widest mr-2">Quick Access:</span>
             {quickActions.map((action) => {
               const Icon = action.icon;
@@ -187,16 +231,16 @@ const DashboardLayout: React.FC = () => {
             })}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <Link 
               to="/"
-              className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl glass-card border border-outline-variant/10 hover:border-primary/40 hover:text-primary transition-all duration-300"
+              className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl glass-card border border-outline-variant/10 hover:border-primary/40 hover:text-primary transition-all duration-300"
             >
               <ExternalLink className="w-4 h-4" />
-              <span className="font-body text-body-sm font-bold">Landing Page</span>
+              <span className="font-body text-body-sm font-bold whitespace-nowrap">Landing Page</span>
             </Link>
             
-            <div className="h-6 w-px bg-outline-variant/20 mx-1 hidden md:block" />
+            <div className="h-6 w-px bg-outline-variant/20 mx-1 hidden lg:block" />
 
             {/* Theme Toggle */}
             <button 
@@ -208,21 +252,21 @@ const DashboardLayout: React.FC = () => {
             
             <Link
               to={notificationsPath}
-              className="w-10 h-10 rounded-lg glass-card flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors relative"
+              className="hidden sm:flex w-10 h-10 rounded-lg glass-card items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors relative"
               aria-label="Buka notifikasi"
             >
               <Bell className="w-5 h-5" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-surface" />
             </Link>
             
-            <div className="h-10 w-px bg-outline-variant/20 mx-2" />
+            <div className="h-10 w-px bg-outline-variant/20 mx-2 hidden sm:block" />
             
             <div className="flex items-center gap-3 pl-2">
-              <div className="text-right hidden sm:block">
-                <div className="font-body text-body-sm font-bold text-on-surface">{user?.name}</div>
+              <div className="text-right hidden md:block">
+                <div className="font-body text-body-sm font-bold text-on-surface truncate max-w-[120px]">{user?.name}</div>
                 <div className="font-body text-label-sm text-primary uppercase tracking-widest">{user?.role}</div>
               </div>
-              <div className="w-10 h-10 rounded-lg overflow-hidden border border-outline-variant/30">
+              <div className="w-10 h-10 rounded-lg overflow-hidden border border-outline-variant/30 flex-shrink-0">
                 <img src={user?.avatar} alt={user?.name} className="w-full h-full object-cover" />
               </div>
             </div>
@@ -230,7 +274,7 @@ const DashboardLayout: React.FC = () => {
         </motion.header>
 
         {/* Content Outlet */}
-        <div className="p-8 flex-1 relative z-10">
+        <div className="p-4 md:p-8 flex-1 relative z-10 overflow-x-hidden">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 10 }}

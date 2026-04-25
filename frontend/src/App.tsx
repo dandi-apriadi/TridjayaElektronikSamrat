@@ -63,6 +63,8 @@ const RouteLoading: React.FC = () => (
   </div>
 );
 
+const lazyPage = (Component: React.ComponentType) => <Component />;
+
 // Protected Route Component
 const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { isAuthenticated, isInitializing } = useAuthStore();

@@ -3,7 +3,7 @@ use crate::{
     response::{json_ok, AppError},
     state::{AppState, UserPublic},
 };
-use axum::{extract::{Path, State}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{get, post, patch}, Json, Router};
+use axum::{extract::{Path, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{get, post, patch}, Json, Router};
 use chrono::{Duration, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -38,11 +38,13 @@ pub fn router(state: AppState) -> Router {
         .route("/api/leads/{id}/status", patch(update_lead_status))
         .route("/api/agent/stats", get(get_agent_stats))
         .route("/api/agent/claims", get(list_claims).post(create_claim))
+        .route("/api/agent-registrations", post(submit_agent_registration))
         .route("/api/admin/agent-registrations", get(list_agent_registrations))
         .route("/api/admin/agent-registrations/{id}/status", patch(update_agent_registration_status))
         .route("/api/admin/claims", get(list_all_claims))
         .route("/api/admin/claims/{id}/status", patch(update_claim_status))
         .route("/api/admin/telemetry-stats", get(get_telemetry_stats))
+        .route("/api/admin/agents", get(list_agents))
         .with_state(state)
 }
 
@@ -2013,8 +2015,61 @@ struct AgentRegistrationRow {
     city: String,
     address: Option<String>,
     preferred_products: Option<String>,
+    profile_photo: Option<String>,
+    ktp_photo: Option<String>,
     status: String,
     submitted_at: Option<String>,
+}
+
+#[derive(sqlx::FromRow, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentDirectoryRow {
+    id: String,
+    name: String,
+    email: String,
+    whatsapp: Option<String>,
+    city: Option<String>,
+    province: Option<String>,
+    total_sales: i64,
+    points: i64,
+    tier_name: Option<String>,
+    is_active: bool,
+    joined_at: Option<String>,
+}
+
+async fn list_agents(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    let rows = sqlx::query_as::<_, AgentDirectoryRow>(
+        r#"
+        SELECT 
+            u.id, 
+            u.name, 
+            u.email, 
+            r.whatsapp, 
+            r.city, 
+            r.province,
+            COALESCE(s.sales_count, 0) as total_sales,
+            COALESCE(s.points, 0) as points,
+            t.name as tier_name,
+            u.is_active,
+            u.created_at as joined_at
+        FROM users u
+        LEFT JOIN agent_stats s ON s.user_id = u.id
+        LEFT JOIN reward_tiers t ON t.id = s.current_tier_id
+        LEFT JOIN agent_registrations r ON r.email = u.email
+        WHERE u.role = 'agent'
+        ORDER BY u.created_at DESC
+        "#
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error listing agents: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Agents fetched successfully", json!({ "items": rows })))
 }
 
 #[derive(Deserialize)]
@@ -2067,6 +2122,8 @@ fn registration_to_json(row: AgentRegistrationRow) -> Value {
         "city": row.city,
         "address": row.address,
         "preferredProducts": parse_json_or_default(row.preferred_products.as_deref(), json!([])),
+        "profilePhoto": row.profile_photo,
+        "ktpPhoto": row.ktp_photo,
         "status": row.status,
         "submittedAt": row.submitted_at,
     })
@@ -2188,11 +2245,113 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
     Ok(json_ok("Reward claimed successfully", json!({ "item": claim_to_json(created) })))
 }
 
+async fn submit_agent_registration(State(state): State<AppState>, mut multipart: Multipart) -> Result<ResponseBody, AppError> {
+    let mut full_name = String::new();
+    let mut email = String::new();
+    let mut whatsapp = String::new();
+    let mut province = String::new();
+    let mut city = String::new();
+    let mut address = String::new();
+    let mut preferred_products = String::new();
+    let mut profile_photo_url: Option<String> = None;
+    let mut ktp_photo_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::Internal)? {
+        let name = field.name().unwrap_or_default().to_string();
+        
+        match name.as_str() {
+            "fullName" => full_name = field.text().await.unwrap_or_default(),
+            "email" => email = field.text().await.unwrap_or_default(),
+            "whatsapp" => whatsapp = field.text().await.unwrap_or_default(),
+            "province" => province = field.text().await.unwrap_or_default(),
+            "city" => city = field.text().await.unwrap_or_default(),
+            "address" => address = field.text().await.unwrap_or_default(),
+            "preferredProducts" => preferred_products = field.text().await.unwrap_or_default(),
+            "profilePhoto" => {
+                let data = field.bytes().await.map_err(|_| AppError::Internal)?;
+                if !data.is_empty() {
+                    let img = image::load_from_memory(&data).map_err(|e| {
+                        tracing::error!("Failed to load profile photo: {}", e);
+                        AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
+                    })?;
+                    
+                    let file_id = uuid::Uuid::new_v4().to_string();
+                    let file_name = format!("{}_profile.webp", file_id);
+                    let file_path = format!("uploads/{}", file_name);
+                    
+                    img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
+                        tracing::error!("Failed to save profile photo as webp: {}", e);
+                        AppError::Internal
+                    })?;
+                    
+                    profile_photo_url = Some(format!("/uploads/{}", file_name));
+                }
+            },
+            "ktpPhoto" => {
+                let data = field.bytes().await.map_err(|_| AppError::Internal)?;
+                if !data.is_empty() {
+                    let img = image::load_from_memory(&data).map_err(|e| {
+                        tracing::error!("Failed to load KTP photo: {}", e);
+                        AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
+                    })?;
+                    
+                    let file_id = uuid::Uuid::new_v4().to_string();
+                    let file_name = format!("{}_ktp.webp", file_id);
+                    let file_path = format!("uploads/{}", file_name);
+                    
+                    img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
+                        tracing::error!("Failed to save KTP photo as webp: {}", e);
+                        AppError::Internal
+                    })?;
+                    
+                    ktp_photo_url = Some(format!("/uploads/{}", file_name));
+                }
+            },
+            _ => {}
+        }
+    }
+
+    // Basic validation
+    let mut errors = Vec::new();
+    if full_name.trim().is_empty() { errors.push("Nama lengkap wajib diisi".to_string()); }
+    if email.trim().is_empty() || !email.contains('@') { errors.push("Email tidak valid".to_string()); }
+    if whatsapp.trim().is_empty() { errors.push("Nomor WhatsApp wajib diisi".to_string()); }
+    if province.trim().is_empty() { errors.push("Provinsi wajib diisi".to_string()); }
+    if city.trim().is_empty() { errors.push("Kota wajib diisi".to_string()); }
+    
+    if !errors.is_empty() {
+        return Err(AppError::Validation { errors });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO agent_registrations (id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(full_name.trim())
+    .bind(email.trim())
+    .bind(whatsapp.trim())
+    .bind(province.trim())
+    .bind(city.trim())
+    .bind(address.trim())
+    .bind(preferred_products.trim())
+    .bind(profile_photo_url)
+    .bind(ktp_photo_url)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Pendaftaran agen berhasil dikirim", json!({ "id": id, "status": "pending" })))
+}
+
 async fn list_agent_registrations(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let rows = sqlx::query_as::<_, AgentRegistrationRow>(
-        "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, status, submitted_at FROM agent_registrations ORDER BY submitted_at DESC"
+        "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, submitted_at FROM agent_registrations ORDER BY submitted_at DESC"
     )
     .fetch_all(&state.pool)
     .await
@@ -2201,7 +2360,9 @@ async fn list_agent_registrations(State(state): State<AppState>, headers: Header
         AppError::Internal
     })?;
 
-    Ok(json_ok("Agent registrations fetched", json!({ "items": rows.into_iter().map(registration_to_json).collect::<Vec<_>>() })))
+    tracing::info!("Fetched {} agent registrations", rows.len());
+    let items: Vec<Value> = rows.into_iter().map(registration_to_json).collect();
+    Ok(json_ok("Agent registrations fetched", json!({ "items": items })))
 }
 
 async fn update_agent_registration_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<AgentRegistrationStatusRequest>) -> Result<ResponseBody, AppError> {

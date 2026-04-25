@@ -10,6 +10,8 @@ export interface AgentRegistration {
   city: string;
   address?: string;
   preferredProducts: string[];
+  profilePhoto?: string;
+  ktpPhoto?: string;
   status: 'pending' | 'reviewed' | 'approved' | 'rejected';
   submittedAt: string;
 }
@@ -32,9 +34,24 @@ export interface TelemetryStats {
   errorLogs: any[];
 }
 
+export interface Agent {
+  id: string;
+  name: string;
+  email: string;
+  whatsapp?: string;
+  city?: string;
+  province?: string;
+  totalSales: number;
+  points: number;
+  tierName?: string;
+  isActive: boolean;
+  joinedAt: string;
+}
+
 interface AdminNetworkState {
   registrations: AgentRegistration[];
   claims: AdminClaim[];
+  agents: Agent[];
   isLoading: boolean;
   error: string | null;
 
@@ -43,6 +60,8 @@ interface AdminNetworkState {
 
   fetchClaims: () => Promise<void>;
   updateClaimStatus: (id: string, status: AdminClaim['status']) => Promise<boolean>;
+
+  fetchAgents: () => Promise<void>;
 
   telemetryStats: TelemetryStats | null;
   fetchTelemetryStats: () => Promise<void>;
@@ -54,6 +73,7 @@ const API_BASE_URL = `${API_ROOT}/api/admin`;
 export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   registrations: [],
   claims: [],
+  agents: [],
   telemetryStats: null,
   isLoading: false,
   error: null,
@@ -67,6 +87,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
       });
       if (!res.ok) throw new Error('Failed to fetch agent registrations');
       const data = await res.json();
+      console.log('DEBUG: fetchRegistrations response:', data);
       set({ registrations: data.data.items, isLoading: false });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
@@ -123,8 +144,22 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
       await useAdminNetworkStore.getState().fetchClaims();
       return true;
     } catch (error: any) {
-      set({ error: error.message });
-      return false;
+      set({ error: error.message, isLoading: false });
+    }
+  },
+
+  fetchAgents: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const res = await fetch(`${API_ROOT}/api/admin/agents`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch agents');
+      const data = await res.json();
+      set({ agents: data.data.items, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
     }
   },
 
