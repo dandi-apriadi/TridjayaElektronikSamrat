@@ -92,11 +92,20 @@ Setelah Phase 9 selesai, berikut tugas-tugas opsional untuk meningkatkan quality
 - Build verified green ✅
 - Release gate: build + smoke + baseline all passing ✅
 
-### ⏳ Optional Task #4: Advanced Rate Limiting & DDoS Protection
-**Plan**: 
-- Enhance rate limiting di auth endpoints
-- Implement sliding window algorithm
-- Add IP-based blocking untuk suspicious patterns
+### ✅ Optional Task #4: Advanced Rate Limiting & DDoS Protection
+**Status**: ✅ SELESAI (25 April 2026)
+- Backend login limiter ditingkatkan dengan sliding-window berbasis dua horizon:
+  - Email: maksimal 5 percobaan / 1 menit
+  - IP: maksimal 20 percobaan / 1 menit dan 100 percobaan / 10 menit
+- Implementasi temporary blocklist 15 menit untuk subject mencurigakan:
+  - Subject `email:<alamat>`
+  - Subject `ip:<alamat-ip>`
+- Ekstraksi IP client via header `x-forwarded-for` fallback `x-real-ip`
+- State backend dipisah untuk observabilitas dan kontrol:
+  - `login_email_attempts`
+  - `login_ip_attempts`
+  - `blocked_login_subjects`
+- Compile verification backend lulus via `cargo check` ✅
 
 ---
 

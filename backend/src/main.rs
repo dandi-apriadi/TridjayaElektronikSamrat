@@ -36,7 +36,7 @@ async fn main() {
     }
 
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5176,http://127.0.0.1:5176".to_string());
+        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5176,http://127.0.0.1:5176,http://localhost:5177,http://127.0.0.1:5177,http://localhost:5178,http://127.0.0.1:5178".to_string());
     let origins: Vec<HeaderValue> = allowed_origins
         .split(',')
         .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
@@ -44,7 +44,7 @@ async fn main() {
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE, Method::OPTIONS])
-        .allow_headers(tower_http::cors::Any)
+        .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE])
         .allow_credentials(true);
 
     let state = AppState::new(pool);

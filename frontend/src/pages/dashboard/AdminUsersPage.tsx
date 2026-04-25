@@ -55,9 +55,9 @@ const AdminUsersPage: React.FC = () => {
     return matchSearch && matchRole && matchStatus;
   });
 
-  const totalAdmin    = users.filter((u) => u.role === 'admin').length;
-  const totalAgent    = users.filter((u) => u.role === 'agent').length;
-  const totalOperator = users.filter((u) => u.role === 'operator' || u.role === 'editor').length;
+  const totalAdmin    = users.filter((u) => u.role.toLowerCase() === 'admin').length;
+  const totalAgent    = users.filter((u) => u.role.toLowerCase() === 'agent').length;
+  const totalOperator = users.filter((u) => u.role.toLowerCase() === 'operator' || u.role.toLowerCase() === 'editor').length;
   const totalSuspended = users.filter((u) => !u.is_active).length;
 
   if (isLoading) {

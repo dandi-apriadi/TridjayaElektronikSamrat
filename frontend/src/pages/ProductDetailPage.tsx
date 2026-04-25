@@ -7,6 +7,8 @@ import {
 import { toast } from '../store/useNotificationStore';
 import { formatPrice } from '../data';
 import { useProductStore } from '../store/useProductStore';
+import CreditSimulator from '../components/CreditSimulator';
+import { formatRupiah, tenorLabel, type CustomerType } from '../utils/creditCalculator';
 import { Badge, ProductCard, SectionHeader } from '../components/ui';
 
 const ProductDetailPage: React.FC = () => {
@@ -16,6 +18,11 @@ const ProductDetailPage: React.FC = () => {
   const product = getProductBySlug(slug || '');
   const [selectedColor, setSelectedColor] = useState(0);
   const [showCreditForm, setShowCreditForm] = useState(false);
+  const [selectedCreditPlan, setSelectedCreditPlan] = useState<{
+    customerType: CustomerType;
+    tenor: '6x' | '9x' | '12x' | '15x';
+    monthlyInstallment: number;
+  } | null>(null);
 
   if (isLoading) {
     return (
@@ -44,8 +51,11 @@ const ProductDetailPage: React.FC = () => {
 
   const productCatalogPath = `/produk/${product.category === 'bike' ? 'bike' : 'home'}`;
   const agentMessage = encodeURIComponent(`Halo Tridjaya, saya tertarik dengan produk ${product.name}. Mohon info stok dan simulasi kredit terbaru.`);
+  const selectedTenorLabel = selectedCreditPlan ? tenorLabel(selectedCreditPlan.tenor) : 'belum dipilih';
+  const selectedInstallmentLabel = selectedCreditPlan ? formatRupiah(selectedCreditPlan.monthlyInstallment) : 'akan saya pilih di simulator';
+  const selectedCustomerTypeLabel = selectedCreditPlan?.customerType === 'RO' ? 'RO' : 'Baru';
   const creditMessage = encodeURIComponent(
-    `Halo tim Tridjaya, saya ingin mengajukan kredit untuk ${product.name} warna ${product.colors?.[selectedColor] || 'default'} dengan tenor pilihan saya.`
+    `Halo Tridjaya, saya ingin kredit ${product.name} warna ${product.colors?.[selectedColor] || 'default'} dengan Tenor ${selectedTenorLabel} angsuran ${selectedInstallmentLabel} (Nasabah ${selectedCustomerTypeLabel}).`
   );
 
   const handleShareProduct = async () => {
@@ -202,26 +212,21 @@ const ProductDetailPage: React.FC = () => {
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="glass-card rounded-2xl p-5 mb-6"
+                  className="mb-6"
                 >
-                  <h3 className="font-display text-title-md font-bold text-white mb-4">Formulir Ajukan Kredit</h3>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <input type="text" placeholder="Nama Lengkap" className="bg-surface-highest rounded-xl px-4 py-2.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    <input type="tel" placeholder="No. Telepon" className="bg-surface-highest rounded-xl px-4 py-2.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                  </div>
-                  <select className="w-full bg-surface-highest rounded-xl px-4 py-2.5 font-body text-body-md text-white mb-3 focus:outline-none focus:ring-1 focus:ring-primary/50">
-                    <option>Tenor 12 Bulan</option>
-                    <option>Tenor 18 Bulan</option>
-                    <option>Tenor 24 Bulan</option>
-                    <option>Tenor 36 Bulan</option>
-                  </select>
+                  <CreditSimulator
+                    productPrice={product.price}
+                    productCategory={product.category}
+                    productSubcategory={product.subcategory}
+                    onSelectPlan={setSelectedCreditPlan}
+                  />
                   <a
                     href={`https://wa.me/628529999999?text=${creditMessage}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full inline-flex justify-center py-3 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface"
                   >
-                    Kirim Pengajuan
+                    Kirim Pengajuan via WhatsApp
                   </a>
                 </motion.div>
               )}

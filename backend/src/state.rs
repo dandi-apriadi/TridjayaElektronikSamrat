@@ -10,7 +10,9 @@ pub struct AppState {
     pub access_sessions: Arc<RwLock<HashMap<String, AccessSession>>>,
     pub refresh_sessions: Arc<RwLock<HashMap<String, RefreshSession>>>,
     pub audit_log: Arc<RwLock<Vec<AuditEntry>>>,
-    pub login_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    pub login_email_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    pub login_ip_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    pub blocked_login_subjects: Arc<RwLock<HashMap<String, DateTime<Utc>>>>,
 }
 
 impl AppState {
@@ -20,7 +22,9 @@ impl AppState {
             access_sessions: Arc::new(RwLock::new(HashMap::new())),
             refresh_sessions: Arc::new(RwLock::new(HashMap::new())),
             audit_log: Arc::new(RwLock::new(Vec::new())),
-            login_attempts: Arc::new(RwLock::new(HashMap::new())),
+            login_email_attempts: Arc::new(RwLock::new(HashMap::new())),
+            login_ip_attempts: Arc::new(RwLock::new(HashMap::new())),
+            blocked_login_subjects: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

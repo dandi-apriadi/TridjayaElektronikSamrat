@@ -50,36 +50,139 @@ async fn health() -> ResponseBody {
     json_ok("OK", json!({ "status": "healthy" }))
 }
 
-async fn enforce_login_rate_limit(state: &AppState, email: &str) -> Result<(), AppError> {
+const LOGIN_EMAIL_MAX_PER_MINUTE: usize = 5;
+const LOGIN_IP_MAX_PER_MINUTE: usize = 20;
+const LOGIN_IP_MAX_PER_10_MINUTES: usize = 100;
+const LOGIN_BLOCK_MINUTES: i64 = 15;
+
+fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    let forwarded = headers
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|raw| raw.split(',').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+
+    if forwarded.is_some() {
+        return forwarded;
+    }
+
+    headers
+        .get("x-real-ip")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+async fn enforce_login_rate_limit(state: &AppState, email: &str, client_ip: Option<&str>) -> Result<(), AppError> {
     let key = email.trim().to_lowercase();
     if key.is_empty() {
         return Ok(());
     }
 
     let now = Utc::now();
-    let threshold = now - Duration::minutes(1);
+    let threshold_1m = now - Duration::minutes(1);
+    let threshold_10m = now - Duration::minutes(10);
+    let blocked_until = now + Duration::minutes(LOGIN_BLOCK_MINUTES);
 
-    let mut attempts = state.login_attempts.write().await;
-    let entry = attempts.entry(key).or_default();
-    entry.retain(|ts| *ts > threshold);
+    let email_subject_key = format!("email:{}", key);
+    let ip_subject_key = client_ip
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| format!("ip:{}", value));
 
-    if entry.len() >= 5 {
-        return Err(AppError::Validation {
-            errors: vec!["Terlalu banyak percobaan login. Coba lagi dalam 1 menit".to_string()],
-        });
+    {
+        let mut blocked = state.blocked_login_subjects.write().await;
+        blocked.retain(|_, until| *until > now);
+
+        if let Some(until) = blocked.get(&email_subject_key) {
+            let wait_minutes = (*until - now).num_minutes().max(1);
+            return Err(AppError::Validation {
+                errors: vec![format!(
+                    "Akun diblokir sementara karena terlalu banyak percobaan login. Coba lagi dalam {} menit",
+                    wait_minutes
+                )],
+            });
+        }
+
+        if let Some(ip_key) = ip_subject_key.as_ref() {
+            if let Some(until) = blocked.get(ip_key) {
+                let wait_minutes = (*until - now).num_minutes().max(1);
+                return Err(AppError::Validation {
+                    errors: vec![format!(
+                        "IP diblokir sementara karena aktivitas login mencurigakan. Coba lagi dalam {} menit",
+                        wait_minutes
+                    )],
+                });
+            }
+        }
     }
 
-    entry.push(now);
+    {
+        let mut attempts = state.login_email_attempts.write().await;
+        let entry = attempts.entry(key.clone()).or_default();
+        entry.retain(|ts| *ts > threshold_10m);
+
+        let recent_attempts = entry.iter().filter(|ts| **ts > threshold_1m).count();
+        if recent_attempts >= LOGIN_EMAIL_MAX_PER_MINUTE {
+            state
+                .blocked_login_subjects
+                .write()
+                .await
+                .insert(email_subject_key, blocked_until);
+            return Err(AppError::Validation {
+                errors: vec![format!(
+                    "Terlalu banyak percobaan login pada akun ini. Akun diblokir selama {} menit",
+                    LOGIN_BLOCK_MINUTES
+                )],
+            });
+        }
+
+        entry.push(now);
+    }
+
+    if let Some(ip_key) = ip_subject_key {
+        let mut attempts = state.login_ip_attempts.write().await;
+        let entry = attempts.entry(ip_key.clone()).or_default();
+        entry.retain(|ts| *ts > threshold_10m);
+
+        let attempts_1m = entry.iter().filter(|ts| **ts > threshold_1m).count();
+        let attempts_10m = entry.len();
+
+        if attempts_1m >= LOGIN_IP_MAX_PER_MINUTE || attempts_10m >= LOGIN_IP_MAX_PER_10_MINUTES {
+            state
+                .blocked_login_subjects
+                .write()
+                .await
+                .insert(ip_key, blocked_until);
+            return Err(AppError::Validation {
+                errors: vec![format!(
+                    "Aktivitas login dari IP ini melebihi batas. IP diblokir selama {} menit",
+                    LOGIN_BLOCK_MINUTES
+                )],
+            });
+        }
+
+        entry.push(now);
+    }
+
     Ok(())
 }
 
-async fn clear_login_rate_limit(state: &AppState, email: &str) {
+async fn clear_login_rate_limit(state: &AppState, email: &str, _client_ip: Option<&str>) {
     let key = email.trim().to_lowercase();
     if key.is_empty() {
         return;
     }
 
-    state.login_attempts.write().await.remove(&key);
+    state.login_email_attempts.write().await.remove(&key);
+    state
+        .blocked_login_subjects
+        .write()
+        .await
+        .remove(&format!("email:{}", key));
 }
 
 fn cookie_secure_enabled() -> bool {
@@ -134,11 +237,12 @@ fn append_set_cookie(response: &mut ResponseBody, cookie_value: &str) {
     }
 }
 
-async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>) -> Result<ResponseBody, AppError> {
-    enforce_login_rate_limit(&state, &payload.email).await?;
+async fn login(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<LoginRequest>) -> Result<ResponseBody, AppError> {
+    let client_ip = extract_client_ip(&headers);
+    enforce_login_rate_limit(&state, &payload.email, client_ip.as_deref()).await?;
     let email = payload.email.clone();
     let auth = login_with_request(&state, payload).await?;
-    clear_login_rate_limit(&state, &email).await;
+    clear_login_rate_limit(&state, &email, client_ip.as_deref()).await;
     let refresh_token = auth.refresh_token.clone();
     let mut response = json_ok("Login successful", auth);
     append_set_cookie(&mut response, &build_refresh_cookie(&refresh_token));
