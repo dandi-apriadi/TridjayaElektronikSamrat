@@ -63,12 +63,7 @@ const RouteLoading: React.FC = () => (
   </div>
 );
 
-const lazyPage = (Page: React.LazyExoticComponent<React.ComponentType>) => (
-  <Suspense fallback={<RouteLoading />}>
-    <Page />
-  </Suspense>
-);
-
+// Protected Route Component
 const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { isAuthenticated, isInitializing } = useAuthStore();
   const location = useLocation();
@@ -98,8 +93,7 @@ const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent
 // Dashboard Root (Redirects based on role)
 const DashboardRoot = () => {
   const { user } = useAuthStore();
-  if (user?.role === 'admin') return <Navigate to="/dashboard/admin" replace />;
-  return <Navigate to="/dashboard/agent" replace />;
+  return <Navigate to={user?.role === 'admin' ? '/dashboard/admin' : '/dashboard/agent'} replace />;
 };
 
 // Scroll to top and track telemetry on route change
@@ -140,26 +134,27 @@ const App: React.FC = () => {
     <Router>
       <RouteListener />
       <NotificationContainer />
-      <Routes>
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="produk/bike" element={lazyPage(BikesCatalogPage)} />
-          <Route path="produk/home" element={lazyPage(HomeCatalogPage)} />
-          <Route path="produk/:slug" element={lazyPage(ProductDetailPage)} />
-          <Route path="promo" element={lazyPage(PromoPage)} />
-          <Route path="promo/:id" element={lazyPage(PromoDetailPage)} />
-          <Route path="blog" element={lazyPage(BlogPage)} />
-          <Route path="blog/:slug" element={lazyPage(ArticleDetailPage)} />
-          <Route path="karier" element={lazyPage(CareerPage)} />
-          <Route path="tentang" element={lazyPage(TentangPage)} />
-          <Route path="daftar-agen" element={lazyPage(AgencyRegistrationPage)} />
-          <Route path="kebijakan-privasi" element={lazyPage(PrivacyPolicyPage)} />
-          <Route path="syarat-layanan" element={lazyPage(TermsOfServicePage)} />
+          <Route path="produk/bike" element={<BikesCatalogPage />} />
+          <Route path="produk/home" element={<HomeCatalogPage />} />
+          <Route path="produk/:slug" element={<ProductDetailPage />} />
+          <Route path="promo" element={<PromoPage />} />
+          <Route path="promo/:id" element={<PromoDetailPage />} />
+          <Route path="blog" element={<BlogPage />} />
+          <Route path="blog/:slug" element={<ArticleDetailPage />} />
+          <Route path="karier" element={<CareerPage />} />
+          <Route path="tentang" element={<TentangPage />} />
+          <Route path="daftar-agen" element={<AgencyRegistrationPage />} />
+          <Route path="kebijakan-privasi" element={<PrivacyPolicyPage />} />
+          <Route path="syarat-layanan" element={<TermsOfServicePage />} />
         </Route>
 
         {/* Auth Routes */}
-        <Route path="/login" element={lazyPage(LoginPage)} />
-        <Route path="/forgot-password" element={lazyPage(ForgotPasswordPage)} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
         {/* Dashboard Routes */}
         <Route
@@ -390,7 +385,8 @@ const App: React.FC = () => {
             </RoleGuard>
           }
         />
-      </Routes>
+        </Routes>
+      </Suspense>
     </Router>
   );
 };
