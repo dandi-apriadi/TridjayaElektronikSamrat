@@ -14,19 +14,23 @@ interface UserStoreState {
   users: AdminUser[];
   isLoading: boolean;
   error: string | null;
-  fetchUsers: () => Promise<void>;
+  fetchUsers: (force?: boolean) => Promise<void>;
   updateUserStatus: (id: string, isActive: boolean) => Promise<boolean>;
 }
 
 const API_ROOT = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
 const API_BASE_URL = `${API_ROOT}/api`;
 
-export const useUserStore = create<UserStoreState>((set) => ({
+export const useUserStore = create<UserStoreState>((set, get) => ({
   users: [],
   isLoading: false,
   error: null,
 
-  fetchUsers: async () => {
+  fetchUsers: async (force = false) => {
+    // Prevent double fetch if already loading or if data exists and not forced
+    if (get().isLoading) return;
+    if (!force && get().users.length > 0) return;
+ 
     set({ isLoading: true, error: null });
     try {
       const token = useAuthStore.getState().accessToken;

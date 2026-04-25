@@ -27,6 +27,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   accessToken: string | null;
+  isInitializing: boolean;
   login: (credentials: LoginCredentials) => Promise<User>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
@@ -49,6 +50,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       accessToken: null,
+      isInitializing: true,
       login: async ({ email, password }) => {
         try {
           const response = await fetch(`${API_URL}/auth/login`, {
@@ -135,6 +137,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       restoreSession: async () => {
+        set({ isInitializing: true });
         try {
           const response = await fetch(`${API_URL}/auth/refresh`, {
             method: 'POST',
@@ -159,6 +162,8 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch {
           // Silent fail on restore attempt
+        } finally {
+          set({ isInitializing: false });
         }
       },
     }),

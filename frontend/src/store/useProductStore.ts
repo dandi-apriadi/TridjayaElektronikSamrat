@@ -9,7 +9,7 @@ interface ProductState {
   products: Product[];
   isLoading: boolean;
   error: string | null;
-  fetchProducts: () => Promise<void>;
+  fetchProducts: (force?: boolean) => Promise<void>;
   getProductsByCategory: (category: Product['category']) => Product[];
   getProductBySlug: (slug: string) => Product | undefined;
   createProduct: (data: Partial<Product>) => Promise<boolean>;
@@ -21,7 +21,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   isLoading: false,
   error: null,
-  fetchProducts: async () => {
+  fetchProducts: async (force = false) => {
+    // Prevent redundant fetching
+    if (get().isLoading) return;
+    if (!force && get().products.length > 0) return;
+ 
     set({ isLoading: true, error: null });
     try {
       const response = await fetch(`${API_URL}/catalogs`);

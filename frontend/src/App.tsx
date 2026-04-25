@@ -69,19 +69,29 @@ const lazyPage = (Page: React.LazyExoticComponent<React.ComponentType>) => (
   </Suspense>
 );
 
-// Protected Route Component
-const PrivateRoute: React.FC<{ children: React.ReactElement; role?: 'admin' | 'agent' }> = ({ children, role }) => {
-  const { isAuthenticated, user } = useAuthStore();
+const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { isAuthenticated, isInitializing } = useAuthStore();
   const location = useLocation();
-
+ 
+  if (isInitializing) return <RouteLoading />;
+ 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-
-  if (role && user?.role !== role) {
+ 
+  return children;
+};
+ 
+// Role-based Guard for individual subroutes
+const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent' }> = ({ children, role }) => {
+  const { user, isInitializing } = useAuthStore();
+  
+  if (isInitializing) return <RouteLoading />;
+ 
+  if (user?.role !== role) {
     return <Navigate to="/dashboard" replace />;
   }
-
+ 
   return children;
 };
 
@@ -164,145 +174,145 @@ const App: React.FC = () => {
           <Route
             path="admin"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminDashboard)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/agents"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminAgentsPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/catalog"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminCatalogPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/catalog/new"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminProductFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/catalog/edit/:id"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminProductFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/promo"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminPromoPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/promo/new"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminPromoFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/promo/edit/:id"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminPromoFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/content/new"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminArticleFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/content/edit/:id"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminArticleFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/telemetry"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminTelemetryPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/users"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminUsersPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/users/new"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/users/edit/:id"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminFormPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/agents/directory"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminAgentDirectoryPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/finance"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminFinancePage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/content"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminContentPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="admin/leaderboard"
             element={
-              <PrivateRoute role="admin">
+              <RoleGuard role="admin">
                 {lazyPage(AdminLeaderboardPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
 
@@ -310,57 +320,57 @@ const App: React.FC = () => {
           <Route
             path="agent"
             element={
-              <PrivateRoute role="agent">
+              <RoleGuard role="agent">
                 {lazyPage(AgentDashboard)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="agent/knowledge"
             element={
-              <PrivateRoute role="agent">
+              <RoleGuard role="agent">
                 {lazyPage(AgentKnowledgePage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="agent/leads"
             element={
-              <PrivateRoute role="agent">
+              <RoleGuard role="agent">
                 {lazyPage(AgentLeadsPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="agent/earnings"
             element={
-              <PrivateRoute role="agent">
+              <RoleGuard role="agent">
                 {lazyPage(AgentEarningsPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="agent/support"
             element={
-              <PrivateRoute role="agent">
+              <RoleGuard role="agent">
                 {lazyPage(AgentSupportPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="agent/push"
             element={
-              <PrivateRoute role="agent">
+              <RoleGuard role="agent">
                 {lazyPage(AgentPushProspekPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
           <Route
             path="agent/leaderboard"
             element={
-              <PrivateRoute role="agent">
+              <RoleGuard role="agent">
                 {lazyPage(AgentLeaderboardPage)}
-              </PrivateRoute>
+              </RoleGuard>
             }
           />
 
@@ -375,9 +385,9 @@ const App: React.FC = () => {
         <Route
           path="/admin/users"
           element={
-            <PrivateRoute role="admin">
+            <RoleGuard role="admin">
               <Navigate to="/dashboard/admin/users" replace />
-            </PrivateRoute>
+            </RoleGuard>
           }
         />
       </Routes>

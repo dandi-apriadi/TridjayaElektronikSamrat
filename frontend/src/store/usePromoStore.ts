@@ -9,7 +9,7 @@ interface PromoState {
   promos: PromoItem[];
   isLoading: boolean;
   error: string | null;
-  fetchPromos: () => Promise<void>;
+  fetchPromos: (force?: boolean) => Promise<void>;
   getPromoById: (id: string) => PromoItem | undefined;
   createPromo: (data: Partial<PromoItem>) => Promise<boolean>;
   updatePromo: (id: string, data: Partial<PromoItem>) => Promise<boolean>;
@@ -20,7 +20,10 @@ export const usePromoStore = create<PromoState>((set, get) => ({
   promos: [],
   isLoading: false,
   error: null,
-  fetchPromos: async () => {
+  fetchPromos: async (force = false) => {
+    if (get().isLoading) return;
+    if (!force && get().promos.length > 0) return;
+ 
     set({ isLoading: true, error: null });
     try {
       const response = await fetch(`${API_URL}/promotions`);

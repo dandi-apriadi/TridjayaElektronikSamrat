@@ -9,7 +9,7 @@ interface BlogState {
   posts: BlogPost[];
   isLoading: boolean;
   error: string | null;
-  fetchPosts: () => Promise<void>;
+  fetchPosts: (force?: boolean) => Promise<void>;
   getPostBySlug: (slug: string) => BlogPost | undefined;
   createPost: (data: Partial<BlogPost>) => Promise<boolean>;
   updatePost: (id: string, data: Partial<BlogPost>) => Promise<boolean>;
@@ -20,7 +20,10 @@ export const useBlogStore = create<BlogState>((set, get) => ({
   posts: [],
   isLoading: false,
   error: null,
-  fetchPosts: async () => {
+  fetchPosts: async (force = false) => {
+    if (get().isLoading) return;
+    if (!force && get().posts.length > 0) return;
+ 
     set({ isLoading: true, error: null });
     try {
       const response = await fetch(`${API_URL}/articles`);
