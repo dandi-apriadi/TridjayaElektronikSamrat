@@ -1,0 +1,128 @@
+[
+  {
+    "url": "http://localhost:8081/api/auth/login",
+    "method": "POST",
+    "status_code": 200,
+    "response": "Login successful",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/health",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"OK\",\"data\":{\"status\":\"healthy\"},\"meta\":null}",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/users",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Users fetched by admin@tridjaya.com\",\"data\":{\"items\":[{\"avatar\":\"https://api.dicebear.com/7.x/avataaars/svg?seed=Admin\",\"bank_account\":\"\",\"created_at\":\"2026-04-23 10:23:23\",",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/reward-tiers",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Reward tiers fetched\",\"data\":{\"items\":[{\"id\":\"silver\",\"isActive\":true,\"name\":\"Silver Tier\",\"rewardValue\":650000,\"thresholdPoints\":5000},{\"id\":\"gold\",\"isActive\":true,\"name\":\"",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/catalogs",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Catalogs fetched\",\"data\":{\"items\":[{\"badge\":\"popular\",\"badgeText\":\"Terlaris\",\"category\":\"electronics\",\"colors\":[\"Obsidian Black\",\"Midnight Navy\",\"Carbon Gray\"],\"conversionRa",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/promotions",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Promotions fetched\",\"data\":{\"items\":[{\"badge\":\"Paket Ultimate\",\"category\":\"bike\",\"description\":\"Beli Paket Paket Sepeda Listrik + Smart TV 55\\\" dan dapatkan diskon langsung ",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/referrals",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Referrals fetched by admin@tridjaya.com\",\"data\":{\"items\":[]},\"meta\":null}",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/jobs",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Jobs fetched\",\"data\":{\"items\":[{\"benefits\":[\"Gaji pokok + komisi\"],\"department\":\"Sales\",\"description\":\"Bergabunglah sebagai Sales Executive.\",\"id\":\"job-1\",\"level\":\"mid\",\"loc",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/articles",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Articles fetched\",\"data\":{\"items\":[{\"author\":\"Ahmad Fauzi\",\"authorImage\":null,\"authorRole\":null,\"category\":\"Review\",\"content\":null,\"excerpt\":\"Perbandingan lengkap dua flagsh",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/leads",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Leads fetched\",\"data\":{\"items\":[]},\"meta\":null}",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/leaderboard",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Leaderboard fetched successfully\",\"data\":{\"items\":[]},\"meta\":null}",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/admin/agent-registrations",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Agent registrations fetched\",\"data\":{\"items\":[{\"address\":\"Jalan Dago Baru No 456\",\"city\":\"BANDUNG\",\"email\":\"dandigeming85@gmail.com\",\"fullName\":\"dandi\",\"id\":\"c93f853e-86a0-4",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/admin/claims",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"All Gamification Claims fetched\",\"data\":{\"items\":[{\"agentId\":\"age-001\",\"agentName\":\"Agen Samrat Makassar\",\"id\":\"2749a714-8bb5-44fb-82b5-3aab31b9d1e2\",\"processedAt\":null,\"rew",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/admin/support-tickets",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Admin support tickets fetched\",\"data\":{\"items\":[]},\"meta\":null}",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/admin/telemetry-stats",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Telemetry stats fetched\",\"data\":{\"errorLogs\":[],\"monthlyPageViews\":[{\"month\":\"2026-04\",\"views\":535}],\"sourceRows\":[{\"bar\":100,\"clicks\":236,\"conversion\":\"0.0%\",\"source\":\"dire",
+    "success": true
+  },
+  {
+    "url": "http://localhost:8081/api/admin/agents",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Agents fetched successfully\",\"data\":{\"items\":[]},\"meta\":null}",
+    "success": true
+  },
+  {
+    "url": "/api/users/adm-001",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"User adm-001 fetched by admin@tridjaya.com\",\"data\":{\"item\":{\"avatar\":\"https://api.dicebear.com/7.x/avataaars/svg?seed=Admin\",\"bank_account\":\"\",\"created_at\":\"2026-04-23 10:23",
+    "success": true
+  },
+  {
+    "url": "/api/catalogs/goda-gd120",
+    "method": "GET",
+    "status_code": 200,
+    "response": "{\"success\":true,\"message\":\"Catalog fetched\",\"data\":{\"item\":{\"badge\":\"popular\",\"badgeText\":\"Terlaris\",\"category\":\"electronics\",\"colors\":[\"Obsidian Black\",\"Midnight Navy\",\"Carbon Gray\"],\"conversionRate\"",
+    "success": true
+  }
+]

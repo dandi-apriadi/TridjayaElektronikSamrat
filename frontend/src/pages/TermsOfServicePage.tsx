@@ -59,7 +59,7 @@ const TermsOfServicePage: React.FC = () => {
               <h2 className="font-display text-title-md font-bold text-on-surface mb-2">Kontak Resmi</h2>
               <p>
                 Untuk pertanyaan legal dan syarat layanan, hubungi
-                <a href="mailto:legal@tridjaya.com" className="text-primary font-semibold hover:underline"> legal@tridjaya.com</a>.
+                <a href="mailto:dandimamonto.tridjaya03@gmail.com" className="text-primary font-semibold hover:underline"> dandimamonto.tridjaya03@gmail.com</a>.
               </p>
             </div>
           </div>

@@ -218,7 +218,7 @@ const ProductDetailPage: React.FC = () => {
                   Ajukan Kredit
                 </button>
                 <a
-                  href={`https://wa.me/628529999999?text=${agentMessage}`}
+                  href={`https://wa.me/6285161542103?text=${agentMessage}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => {
@@ -253,7 +253,7 @@ const ProductDetailPage: React.FC = () => {
                     onSelectPlan={setSelectedCreditPlan}
                   />
                   <a
-                    href={`https://wa.me/628529999999?text=${creditMessage}`}
+                    href={`https://wa.me/6285161542103?text=${creditMessage}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => {

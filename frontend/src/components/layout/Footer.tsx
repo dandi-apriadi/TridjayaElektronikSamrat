@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, ArrowRight } from 'lucide-react';
-import logoPng from '../../assets/images/logo.webp';
+import logoHorizontal from '../../assets/images/logo-horizontal.webp';
 
 const Footer: React.FC = () => {
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -18,7 +18,7 @@ const Footer: React.FC = () => {
       `Halo tim Tridjaya Samrat,\n\nSaya ingin berlangganan update promo terbaru.\nEmail: ${newsletterEmail}\n\nTerima kasih.`
     );
 
-    window.location.href = `mailto:info@tridjaya.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:dandimamonto.tridjaya03@gmail.com?subject=${subject}&body=${body}`;
     setNewsletterEmail('');
   };
 
@@ -60,7 +60,7 @@ const Footer: React.FC = () => {
           {/* Brand */}
           <div className="lg:col-span-1">
             <Link to="/" className="flex items-center gap-3 mb-4">
-              <img src={logoPng} alt="Tridjaya Logo" className="h-16 w-auto object-contain" />
+              <img src={logoHorizontal} alt="Tridjaya Logo" className="h-16 w-auto object-contain" />
             </Link>
             <p className="font-body text-body-md text-on-surface-variant leading-relaxed mb-5">
               Distributor sepeda listrik, elektronik, dan furnitur premium di Sulawesi. Terpercaya sejak 2010.
@@ -150,24 +150,24 @@ const Footer: React.FC = () => {
             <ul className="space-y-3">
               <li>
                 <a
-                  href="tel:+6285299999999"
+                  href="https://wa.me/6285161542103"
                   className="flex items-center gap-3 font-body text-body-md text-on-surface-variant hover:text-primary transition-colors duration-150"
                 >
                   <div className="w-8 h-8 rounded-lg bg-surface-high flex items-center justify-center flex-shrink-0">
                     <Phone className="w-3.5 h-3.5 text-primary" />
                   </div>
-                  +62 852-9999-9999
+                  +62 851-6154-2103
                 </a>
               </li>
               <li>
                 <a
-                  href="mailto:info@tridjaya.com"
+                  href="mailto:dandimamonto.tridjaya03@gmail.com"
                   className="flex items-center gap-3 font-body text-body-md text-on-surface-variant hover:text-primary transition-colors duration-150"
                 >
                   <div className="w-8 h-8 rounded-lg bg-surface-high flex items-center justify-center flex-shrink-0">
                     <Mail className="w-3.5 h-3.5 text-primary" />
                   </div>
-                  info@tridjaya.com
+                  dandimamonto.tridjaya03@gmail.com
                 </a>
               </li>
               <li>
@@ -175,9 +175,16 @@ const Footer: React.FC = () => {
                   <div className="w-8 h-8 rounded-lg bg-surface-highest flex items-center justify-center flex-shrink-0 mt-0.5">
                     <MapPin className="w-3.5 h-3.5 text-primary" />
                   </div>
-                  <span className="font-body text-body-md text-on-surface-variant">
-                    Jl. Pettarani No. 123,<br />Makassar, Sulawesi Selatan 90234
-                  </span>
+                  <div className="flex flex-col gap-2">
+                    <span className="font-body text-body-md text-on-surface-variant">
+                      <strong>Cabang Samrat:</strong><br />
+                      Jl. Sam Ratulangi No. 7, Wenang Utara,<br />Manado, Sulawesi Utara
+                    </span>
+                    <span className="font-body text-body-md text-on-surface-variant">
+                      <strong>Cabang Bahu:</strong><br />
+                      Jl. Wolter Monginsidi (Bahu), Malalayang,<br />Manado, Sulawesi Utara
+                    </span>
+                  </div>
                 </div>
               </li>
             </ul>

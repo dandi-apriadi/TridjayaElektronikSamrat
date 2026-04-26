@@ -22,24 +22,8 @@ import {
 } from '../../utils/creditCalculator';
 
 /* ─── Marketing Mappings ─────────────────────────────── */
-// We map extra marketing data for products that don't have it natively.
-const marketingData: Record<string, { highlights: string[], sellingPoints: string[], objections: string[] }> = {
-  'goda-gd120': {
-    highlights: ['Baterai 72V 32Ah — radius 120km', 'Motor 750W Mid-Drive', 'Frame alloy ringan 28kg', 'Desain ergonomis & sporty'],
-    sellingPoints: ['Jangkauan paling jauh di kelasnya', 'Garansi motor panjang (3 tahun)', 'Cocok untuk jalan menanjak'],
-    objections: ['"Cukup berat?" → Berat terpusat di tengah (mid-drive) jadi stabil', '"Harga tinggi" → sebanding dengan kapasitas baterai 120km'],
-  },
-  'winfly-w200': {
-    highlights: ['Baterai 60V 30Ah — radius 100km', 'Motor 500W BLDC', 'Lampu LED full-set futuristik', 'Sistem pedal-assist responsif'],
-    sellingPoints: ['Desain elegan & modern', 'Cicilan ringan mulai 500rb/bln', 'Nyaman untuk perkotaan'],
-    objections: ['"Kurang cepat?" → Fokus pada torsi dan efisiensi baterai', '"Terlalu polos" → Desain minimalis yang timeless'],
-  },
-  'nuv-city': {
-    highlights: ['Berat hanya 19kg', 'Baterai 48V 24Ah — radius 80km', 'Sangat lincah bermanuver', 'Aman untuk lingkungan perumahan'],
-    sellingPoints: ['Super ringan, mudah diangkat', 'Warna pastel menarik', 'Sangat ramah pengguna pemula'],
-    objections: ['"Kecil?" → Dirancang khusus untuk kelincahan urban', '"Top speed pelan" → Aman untuk anak sekolahan / ibu-ibu'],
-  },
-};
+// Marketing data is now stored in the database and attached to each product.
+// No hard‑coded fallback data is kept here.
 
 const getMarketingInfo = (product: Product) => {
   // Prioritize data from the product entity (set by Admin)

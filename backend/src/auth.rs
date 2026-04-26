@@ -121,6 +121,10 @@ pub async fn login_with_request(
         return Err(AppError::Unauthorized);
     }
 
+    if !user.is_verified {
+        return Err(AppError::EmailUnverified);
+    }
+
     sqlx::query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?")
         .bind(&user.id)
         .execute(&state.pool)

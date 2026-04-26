@@ -65,6 +65,8 @@ pub enum AppError {
     Conflict,
     #[error("internal server error")]
     Internal,
+    #[error("email not verified")]
+    EmailUnverified,
 }
 
 impl AppError {
@@ -76,6 +78,7 @@ impl AppError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict => StatusCode::CONFLICT,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::EmailUnverified => StatusCode::FORBIDDEN,
         }
     }
 
@@ -87,6 +90,7 @@ impl AppError {
             Self::NotFound => "Resource not found".to_string(),
             Self::Conflict => "Conflict detected".to_string(),
             Self::Internal => "Unexpected internal error".to_string(),
+            Self::EmailUnverified => "Email belum terverifikasi. Silakan cek inbox Anda atau hubungi admin.".to_string(),
         }
     }
 }

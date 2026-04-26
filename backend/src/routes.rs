@@ -13,8 +13,12 @@ use serde_json::{json, Value};
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/api/partners", get(list_partners))
+        .route("/api/admin/partners", get(list_admin_partners).post(create_partner))
+        .route("/api/admin/partners/{id}", patch(update_partner).delete(delete_partner))
         .route("/api/auth/login", post(login))
         .route("/api/auth/logout", post(logout))
+        .route("/api/auth/verify-email", post(verify_email))
         .route("/api/auth/refresh", post(refresh))
         .route("/api/auth/forgot-password", post(forgot_password))
         .route("/api/auth/reset-password", post(reset_password))
@@ -312,6 +316,11 @@ struct ResetUserPasswordRequest {
     password: String,
 }
 
+#[derive(Deserialize)]
+struct VerifyEmailRequest {
+    email: String,
+}
+
 async fn update_auth_profile(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -390,12 +399,30 @@ async fn change_auth_password(
 
 async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active FROM users")
+    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified FROM users")
         .fetch_all(&state.pool)
         .await
         .map_err(|_| AppError::Internal)?;
         
     Ok(json_ok(format!("Users fetched by {}", user.email), json!({ "items": users })))
+}
+
+async fn verify_email(State(state): State<AppState>, Json(payload): Json<VerifyEmailRequest>) -> Result<ResponseBody, AppError> {
+    let email = payload.email.trim().to_lowercase();
+    let result = sqlx::query("UPDATE users SET is_verified = 1 WHERE email = ?")
+        .bind(&email)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error verifying email: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Email berhasil diverifikasi", json!({ "verified": true })))
 }
 
 #[derive(Deserialize)]
@@ -645,7 +672,7 @@ fn admin_support_ticket_to_json(row: AdminSupportTicketRow) -> Value {
 
 async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
     sqlx::query_as::<_, UserPublic>(
-        "SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -786,6 +813,16 @@ async fn reset_user_password(
         });
     }
 
+    let target_user = sqlx::query_as::<_, crate::state::UserRecord>("SELECT * FROM users WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching user for password reset: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::NotFound)?;
+
     let password_hash = hash_password(payload.password.trim());
     let result = sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
         .bind(password_hash)
@@ -799,6 +836,11 @@ async fn reset_user_password(
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
+    }
+
+    // Send password reset email
+    if let Err(e) = state.mailer.send_password_reset_email(&target_user.email, &target_user.name, payload.password.trim()).await {
+        tracing::error!("Failed to send password reset email to {}: {}", target_user.email, e);
     }
 
     Ok(json_ok(
@@ -1203,6 +1245,39 @@ struct PromotionUpdateRequest {
     product_ids: Option<Value>,
 }
 
+#[derive(sqlx::FromRow)]
+struct PartnerRecord {
+    id: String,
+    name: String,
+    logo_url: String,
+    website_url: Option<String>,
+    sort_order: i64,
+    is_active: bool,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PartnerCreateRequest {
+    id: Option<String>,
+    name: String,
+    logo_url: String,
+    website_url: Option<String>,
+    sort_order: Option<i64>,
+    is_active: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PartnerUpdateRequest {
+    name: Option<String>,
+    logo_url: Option<String>,
+    website_url: Option<String>,
+    sort_order: Option<i64>,
+    is_active: Option<bool>,
+}
+
 fn promo_to_json(record: PromoRecord) -> Value {
     json!({
         "id": record.id,
@@ -1218,6 +1293,19 @@ fn promo_to_json(record: PromoRecord) -> Value {
         "category": record.category,
         "variant": record.variant,
         "productIds": parse_json_or_default(record.product_ids.as_deref(), json!([])),
+    })
+}
+
+fn partner_to_json(record: PartnerRecord) -> Value {
+    json!({
+        "id": record.id,
+        "name": record.name,
+        "logoUrl": record.logo_url,
+        "websiteUrl": record.website_url,
+        "sortOrder": record.sort_order,
+        "isActive": record.is_active,
+        "createdAt": record.created_at,
+        "updatedAt": record.updated_at,
     })
 }
 
@@ -1276,9 +1364,61 @@ fn validate_promotion_update(payload: &PromotionUpdateRequest) -> Result<(), App
     }
 }
 
+fn validate_partner_create(payload: &PartnerCreateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.name.trim().is_empty() {
+        errors.push("name wajib diisi".to_string());
+    }
+    if payload.logo_url.trim().is_empty() {
+        errors.push("logoUrl wajib diisi".to_string());
+    }
+    if payload.sort_order.is_some_and(|value| value < 0) {
+        errors.push("sortOrder tidak boleh negatif".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn validate_partner_update(payload: &PartnerUpdateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.name.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("name tidak boleh kosong".to_string());
+    }
+    if payload.logo_url.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        errors.push("logoUrl tidak boleh kosong".to_string());
+    }
+    if payload.sort_order.is_some_and(|value| value < 0) {
+        errors.push("sortOrder tidak boleh negatif".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
 async fn find_promotion_by_id(state: &AppState, id: &str) -> Result<PromoRecord, AppError> {
     sqlx::query_as::<_, PromoRecord>(
         "SELECT id, title, subtitle, description, discount, original_price, promo_price, image, badge, valid_until, category, variant, product_ids FROM promos WHERE id = ? LIMIT 1"
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)
+}
+
+async fn find_partner_by_id(state: &AppState, id: &str) -> Result<PartnerRecord, AppError> {
+    sqlx::query_as::<_, PartnerRecord>(
+        "SELECT id, name, logo_url, website_url, sort_order, is_active, created_at, updated_at FROM partners WHERE id = ? LIMIT 1"
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -1607,6 +1747,125 @@ async fn delete_promotion(State(state): State<AppState>, headers: HeaderMap, Pat
     }
 
     Ok(json_ok(format!("Promotion {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
+}
+
+async fn list_partners(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+    let partners = sqlx::query_as::<_, PartnerRecord>(
+        "SELECT id, name, logo_url, website_url, sort_order, is_active, created_at, updated_at FROM partners WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let items: Vec<Value> = partners.into_iter().map(partner_to_json).collect();
+    Ok(json_ok("Partners fetched", json!({ "items": items })))
+}
+
+async fn list_admin_partners(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+
+    let partners = sqlx::query_as::<_, PartnerRecord>(
+        "SELECT id, name, logo_url, website_url, sort_order, is_active, created_at, updated_at FROM partners ORDER BY sort_order ASC, created_at ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let items: Vec<Value> = partners.into_iter().map(partner_to_json).collect();
+    Ok(json_ok("Admin partners fetched", json!({ "items": items })))
+}
+
+async fn create_partner(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<PartnerCreateRequest>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    validate_partner_create(&payload)?;
+
+    let id = payload
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    sqlx::query(
+        "INSERT INTO partners (id, name, logo_url, website_url, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(payload.name.trim())
+    .bind(payload.logo_url.trim())
+    .bind(payload.website_url)
+    .bind(payload.sort_order.unwrap_or(0))
+    .bind(payload.is_active.unwrap_or(true))
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let created = find_partner_by_id(&state, &id).await?;
+    Ok(json_ok(
+        format!("Partner created by {}", user.email),
+        json!({ "item": partner_to_json(created) }),
+    ))
+}
+
+async fn update_partner(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<PartnerUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    validate_partner_update(&payload)?;
+
+    let current = find_partner_by_id(&state, &id).await?;
+    let next_name = payload.name.as_deref().unwrap_or(&current.name).trim().to_string();
+    let next_logo = payload.logo_url.as_deref().unwrap_or(&current.logo_url).trim().to_string();
+
+    sqlx::query(
+        "UPDATE partners SET name = ?, logo_url = ?, website_url = ?, sort_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    )
+    .bind(next_name)
+    .bind(next_logo)
+    .bind(payload.website_url.or(current.website_url))
+    .bind(payload.sort_order.unwrap_or(current.sort_order))
+    .bind(payload.is_active.unwrap_or(current.is_active))
+    .bind(&current.id)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    let updated = find_partner_by_id(&state, &current.id).await?;
+    Ok(json_ok(
+        format!("Partner {} updated by {}", current.id, user.email),
+        json!({ "item": partner_to_json(updated) }),
+    ))
+}
+
+async fn delete_partner(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    let result = sqlx::query("DELETE FROM partners WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok(
+        format!("Partner {} deleted by {}", id, user.email),
+        json!({ "id": id, "deleted": true }),
+    ))
 }
 
 #[derive(sqlx::FromRow)]
@@ -2940,6 +3199,62 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
         return Err(AppError::Validation {
             errors: vec!["status registration tidak valid".to_string()],
         });
+    }
+
+    if status == "approved" {
+        let registration = sqlx::query_as::<_, AgentRegistrationRow>(
+            "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, submitted_at FROM agent_registrations WHERE id = ? LIMIT 1"
+        )
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching registration for approval: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::NotFound)?;
+
+        if registration.status != "approved" {
+            let user_exists = sqlx::query("SELECT 1 FROM users WHERE email = ?")
+                .bind(&registration.email)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("DB error checking user existence: {}", e);
+                    AppError::Internal
+                })?;
+
+            if user_exists.is_none() {
+                let user_id = uuid::Uuid::new_v4().to_string();
+                let temp_password = uuid::Uuid::new_v4().to_string();
+                let password_hash = hash_password(&temp_password);
+
+                sqlx::query(
+                    "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 0)"
+                )
+                .bind(&user_id)
+                .bind(&registration.email)
+                .bind(&registration.full_name)
+                .bind(password_hash)
+                .bind(registration.profile_photo.unwrap_or_default())
+                .execute(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("DB error creating user from approved registration: {}", e);
+                    AppError::Internal
+                })?;
+                
+                tracing::info!("Created user {} for approved agent {}", user_id, registration.email);
+
+                // Send verification email
+                let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5174".to_string());
+                let verification_link = format!("{}/verify-email?email={}", frontend_url, urlencoding::encode(&registration.email));
+                
+                if let Err(e) = state.mailer.send_verification_email(&registration.email, &registration.full_name, &verification_link).await {
+                    tracing::error!("Failed to send verification email to {}: {}", registration.email, e);
+                }
+            }
+        }
     }
 
     let result = sqlx::query("UPDATE agent_registrations SET status = ? WHERE id = ?")

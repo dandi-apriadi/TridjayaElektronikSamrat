@@ -11,7 +11,7 @@
     {
       "id": "age-001",
       "email": "agent@tridjaya.com",
-      "name": "Agen Samrat Makassar",
+      "name": "Agen Samrat Manado",
       "role": "Agent",
       "password": "Agent123!",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Agen001"
@@ -246,7 +246,7 @@
       "rating": 4.7,
       "reviewCount": 89,
       "shortDesc": "Sepeda listrik elegan dengan desain futuristik dan jangkauan 100 km.",
-      "description": "Winfly W200 hadir dengan desain yang simpel namun memukau.",
+      "description": "Winfly W200 hadir with desain yang simpel namun memukau.",
       "specs": {
         "Motor": "500W BLDC",
         "Baterai": "60V 30Ah Lithium",
@@ -277,7 +277,7 @@
       "rating": 4.6,
       "reviewCount": 67,
       "shortDesc": "Pilihan urban terbaik, ringan, lincah, dan ramah lingkungan.",
-      "description": "Nuv City dirancang khusus untuk mobilitas perkotaan yang cerdas.",
+      "description": "Nuv City dirancang khusus for mobilitas perkotaan yang cerdas.",
       "specs": {
         "Motor": "350W Hub Motor",
         "Baterai": "48V 24Ah Lithium",
@@ -333,7 +333,7 @@
       "badgeText": "Baru",
       "rating": 4.6,
       "reviewCount": 112,
-      "shortDesc": "Generasi terbaru dengan dek kaki lebih luas dan baterai lebih awet.",
+      "shortDesc": "Generasi terbaru with dek kaki lebih luas dan baterai lebih awet.",
       "description": "Penyempurnaan dari seri sebelumnya, D8D menawarkan kenyamanan ekstra.",
       "specs": {
         "Motor": "500W Power Motor",
@@ -359,7 +359,7 @@
       "badgeText": "Populer",
       "rating": 4.4,
       "reviewCount": 312,
-      "shortDesc": "Si gesit yang lincah dengan daya tahan baterai terukur.",
+      "shortDesc": "Si gesit yang lincah with daya tahan baterai terukur.",
       "description": "Selis Walet adalah ikon sepeda listrik di Indonesia.",
       "specs": {
         "Motor": "350W Hub Motor",
@@ -385,8 +385,8 @@
       "badgeText": "Terlaris",
       "rating": 4.5,
       "reviewCount": 189,
-      "shortDesc": "Desain modern dengan rangka yang lebih kuat.",
-      "description": "Selis Mandalika hadir dengan visual yang lebih bold dan rangka yang dirancang untuk beban lebih berat.",
+      "shortDesc": "Desain modern with rangka yang lebih kuat.",
+      "description": "Selis Mandalika hadir with visual yang lebih bold dan rangka yang dirancang for beban lebih berat.",
       "specs": {
         "Motor": "350W Power Motor",
         "Baterai": "48V 12Ah Lead-Acid",
@@ -411,7 +411,7 @@
       "badgeText": "Promo",
       "rating": 4.3,
       "reviewCount": 56,
-      "shortDesc": "Moped listrik termurah dengan kualitas bersaing.",
+      "shortDesc": "Moped listrik termurah with kualitas bersaing.",
       "description": "Voxa Liberty menawarkan nilai terbaik di kelasnya.",
       "specs": {
         "Motor": "350W Power Motor",
@@ -463,7 +463,7 @@
       "badgeText": "Baru",
       "rating": 4.7,
       "reviewCount": 94,
-      "shortDesc": "Desain kontemporer dengan performa mumpuni.",
+      "shortDesc": "Desain kontemporer with performa mumpuni.",
       "description": "Genio X2 adalah kasta tertinggi dari seri Genio.",
       "specs": {
         "Motor": "750W Peak Power",
@@ -541,7 +541,7 @@
       "badgeText": "Baru",
       "rating": 4.9,
       "reviewCount": 45,
-      "shortDesc": "Layar OLED 65 inci 4K dengan audio Dolby Atmos.",
+      "shortDesc": "Layar OLED 65 inci 4K with audio Dolby Atmos.",
       "description": "Smart TV OLED 65 inci with resolusi 4K Ultra HD.",
       "specs": {
         "Layar": "65\" OLED 4K UHD",
@@ -567,7 +567,7 @@
       "badgeText": "Premium",
       "rating": 5,
       "reviewCount": 12,
-      "shortDesc": "Puncak teknologi visual dengan resolusi 8K.",
+      "shortDesc": "Puncak teknologi visual with resolusi 8K.",
       "description": "Samsung Neo QLED 75 inci memberikan detail yang sangat tajam.",
       "specs": {
         "Layar": "75\" Neo QLED 8K",
@@ -593,7 +593,7 @@
       "rating": 4.7,
       "reviewCount": 38,
       "shortDesc": "Kulkas French Door 520L with teknologi inverter.",
-      "description": "Kulkas French Door modern dengan kapasitas 520 liter.",
+      "description": "Kulkas French Door modern with kapasitas 520 liter.",
       "specs": {
         "Kapasitas": "520 Liter",
         "Jenis": "French Door",
@@ -790,7 +790,7 @@
       "id": "job-1",
       "title": "Sales Executive",
       "department": "Sales",
-      "location": "Makassar",
+      "location": "Manado",
       "type": "fulltime",
       "level": "mid",
       "description": "Bergabunglah sebagai Sales Executive.",
@@ -817,6 +817,50 @@
         "Gaji kompetitif"
       ],
       "postedAt": "2025-04-05"
+    }
+  ],
+  "partners": [
+    {
+      "id": "partner-aqua",
+      "name": "Aqua",
+      "logo_url": "/uploads/Aqua.jpg",
+      "sort_order": 10
+    },
+    {
+      "id": "partner-tem",
+      "name": "TEM",
+      "logo_url": "/uploads/TEM.png",
+      "sort_order": 20
+    },
+    {
+      "id": "partner-goda",
+      "name": "Goda",
+      "logo_url": "/uploads/goda.png",
+      "sort_order": 30
+    },
+    {
+      "id": "partner-polytron",
+      "name": "Polytron",
+      "logo_url": "/uploads/polytron.jpg",
+      "sort_order": 40
+    },
+    {
+      "id": "partner-saige",
+      "name": "Saige",
+      "logo_url": "/uploads/saige.png",
+      "sort_order": 50
+    },
+    {
+      "id": "partner-sharp",
+      "name": "Sharp",
+      "logo_url": "/uploads/sharp.png",
+      "sort_order": 60
+    },
+    {
+      "id": "partner-uwinfly",
+      "name": "U Winfly",
+      "logo_url": "/uploads/u winfly.jpg",
+      "sort_order": 70
     }
   ]
 }

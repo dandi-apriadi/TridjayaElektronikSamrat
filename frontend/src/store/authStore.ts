@@ -120,6 +120,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
+            set({ user: null, isAuthenticated: false, accessToken: null });
             return false;
           }
 
@@ -127,6 +128,7 @@ export const useAuthStore = create<AuthState>()(
           const authData = payload.data;
 
           if (!authData?.access_token || !authData?.user) {
+            set({ user: null, isAuthenticated: false, accessToken: null });
             return false;
           }
 
@@ -139,6 +141,7 @@ export const useAuthStore = create<AuthState>()(
           return true;
         } catch (error) {
           console.error('Refresh session error:', error);
+          set({ user: null, isAuthenticated: false, accessToken: null });
           return false;
         }
       },
@@ -154,20 +157,26 @@ export const useAuthStore = create<AuthState>()(
             body: JSON.stringify({ refresh_token: '' }),
           });
 
-          if (response.ok) {
-            const payload = (await response.json()) as { data?: LoginResponse };
-            const authData = payload.data;
+          if (!response.ok) {
+            set({ user: null, isAuthenticated: false, accessToken: null });
+            return;
+          }
 
-            if (authData?.access_token && authData?.user) {
-              set({
-                user: authData.user,
-                isAuthenticated: true,
-                accessToken: authData.access_token,
-              });
-            }
+          const payload = (await response.json()) as { data?: LoginResponse };
+          const authData = payload.data;
+
+          if (authData?.access_token && authData?.user) {
+            set({
+              user: authData.user,
+              isAuthenticated: true,
+              accessToken: authData.access_token,
+            });
+          } else {
+            set({ user: null, isAuthenticated: false, accessToken: null });
           }
         } catch (error) {
           console.error('Restore session error:', error);
+          set({ user: null, isAuthenticated: false, accessToken: null });
         } finally {
           set({ isInitializing: false });
         }

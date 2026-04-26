@@ -64,7 +64,7 @@ const TentangPage: React.FC = () => {
               />
               <div className="space-y-4 font-body text-body-lg text-on-surface-variant leading-relaxed">
                 <p>
-                  Didirikan pada tahun 2010 di Makassar, Tridjaya Samrat bermula sebagai toko elektronik sederhana dengan visi untuk menyediakan akses mudah bagi masyarakat lokal terhadap teknologi berkualitas.
+                  Didirikan pada tahun 2010 di Manado, Tridjaya Samrat bermula sebagai toko elektronik sederhana dengan visi untuk menyediakan akses mudah bagi masyarakat lokal terhadap teknologi berkualitas.
                 </p>
                 <p>
                   Selama lebih dari satu dekade, kami telah berevolusi menjadi salah satu distributor multi-brand terbesar di Sulawesi, tidak hanya menyediakan elektronik dan furnitur, tetapi juga memimpin transisi menuju mobilitas hijau melalui kemitraan strategis dengan brand sepeda listrik ternama seperti Goda, Winfly, dan Nuv.
@@ -210,9 +210,9 @@ const TentangPage: React.FC = () => {
                     <MapPin className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="font-display text-title-sm font-bold text-on-surface mb-1">Kantor Pusat Makassar</h4>
+                    <h4 className="font-display text-title-sm font-bold text-on-surface mb-1">Kantor Pusat Samrat (Manado)</h4>
                     <p className="font-body text-body-md text-on-surface-variant leading-relaxed">
-                      Jl. Pettarani No. 123, Kel. Masale, Kec. Panakkukang,<br />Makassar, Sulawesi Selatan 90234
+                      Jl. Sam Ratulangi No. 7, Wenang Utara, Kec. Wenang,<br />Kota Manado, Sulawesi Utara 95111
                     </p>
                   </div>
                 </div>
@@ -221,9 +221,9 @@ const TentangPage: React.FC = () => {
                     <Users className="w-5 h-5 text-secondary" />
                   </div>
                   <div>
-                    <h4 className="font-display text-title-sm font-bold text-on-surface mb-1">Jaringan Cabang</h4>
+                    <h4 className="font-display text-title-sm font-bold text-on-surface mb-1">Cabang Bahu & Jaringan Sulawesi</h4>
                     <p className="font-body text-body-md text-on-surface-variant leading-relaxed">
-                      Memiliki 12 kantor cabang pembantu dan lebih dari 50 titik distribusi di seluruh Provinsi Sulawesi Selatan, Sulawesi Tengah, dan Sulawesi Tenggara.
+                      Selain di Bahu (Jl. Wolter Monginsidi), kami memiliki jaringan distribusi luas di seluruh Sulawesi Utara, Gorontalo, hingga Sulawesi Tengah.
                     </p>
                   </div>
                 </div>

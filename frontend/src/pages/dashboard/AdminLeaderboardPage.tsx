@@ -81,13 +81,7 @@ const AdminLeaderboardPage: React.FC = () => {
       });
    }, [claims, registrations]);
 
-   const effectiveRewardTiers = rewardTiers.length > 0
-      ? rewardTiers
-      : [
-         { id: 'silver', name: 'Silver Tier', thresholdPoints: 5000, rewardValue: 650000, isActive: true },
-         { id: 'gold', name: 'Gold Tier', thresholdPoints: 15000, rewardValue: 1200000, isActive: true },
-         { id: 'diamond', name: 'Diamond Tier', thresholdPoints: 50000, rewardValue: 2400000, isActive: true },
-      ];
+   const effectiveRewardTiers = rewardTiers.length > 0 ? rewardTiers : fallbackRewardTiers;
 
    const resolveTierId = (points: number) => {
       const sorted = [...effectiveRewardTiers].sort((left, right) => left.thresholdPoints - right.thresholdPoints);

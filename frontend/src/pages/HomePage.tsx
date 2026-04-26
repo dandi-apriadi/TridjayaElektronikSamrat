@@ -4,8 +4,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import {
   ArrowRight, Play, Zap, Battery, Shield, Wrench, TrendingUp,
 } from 'lucide-react';
-import { products, promos, formatPrice } from '../data';
-import { ProductCard, SectionHeader, StatsRow, PartnerLogos } from '../components/ui';
+import { SectionHeader, StatsRow, PartnerLogos } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
 import sofaImg from '../assets/images/sofa.webp';
 import tvImg from '../assets/images/tv.webp';
@@ -53,7 +52,7 @@ const HeroSection: React.FC = () => {
           <div className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-surface-highest/90 border border-primary/20 mb-10 shadow-xl">
             <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.8)] animate-pulse" />
             <span className="font-body text-label-sm font-black text-on-surface uppercase tracking-[0.3em]">
-              Distributor Resmi Sulawesi
+              Tridjaya Elektronik Manado (Samrat & Bahu)
             </span>
           </div>
 
@@ -260,140 +259,7 @@ const CategoryBentoGrid: React.FC = () => (
   </section>
 );
 
-/* ========================
-   FEATURED PRODUCTS
-======================== */
-const FeaturedProducts: React.FC = () => {
-  const bikes = products.filter((p) => p.category === 'bike');
 
-  return (
-    <section className="section-padding bg-surface-low/95">
-      <div className="container-custom">
-        <div className="flex items-end justify-between mb-12">
-          <SectionHeader
-            eyebrow="Sepeda Listrik"
-            title="Pilihan Sepeda Listrik Terbaik"
-            subtitle="Teknologi E-Bike terkini dengan garansi resmi dan servis terpercaya."
-            align="left"
-            className="mb-0"
-          />
-          <Link
-            to="/produk/bike"
-            className="hidden md:flex items-center gap-2 font-body text-body-md font-semibold text-primary hover:gap-3 transition-all duration-200"
-          >
-            Lihat Semua <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {bikes.map((product, i) => (
-            <ProductCard key={product.id} product={product} index={i} />
-          ))}
-        </div>
-
-        <div className="mt-6 flex justify-center md:hidden">
-          <Link to="/produk/bike" className="flex items-center gap-2 px-6 py-3 glass-card rounded-xl font-body text-body-md font-semibold text-primary">
-            Lihat Semua Sepeda <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-/* ========================
-   PROMO HIGHLIGHT
-======================== */
-const PromoHighlight: React.FC = () => {
-  const heroPromo = promos[0];
-
-  return (
-    <section className="section-padding">
-      <div className="container-custom">
-        <SectionHeader
-          eyebrow="Promo Spesial"
-          title="Penawaran yang Tidak Boleh Dilewatkan"
-        />
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* Hero promo */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="lg:col-span-7"
-          >
-            <Link to="/promo" className="group block">
-              <div className="relative overflow-hidden rounded-2xl aspect-[16/9]">
-                <img
-                  src={heroPromo.image}
-                  alt={heroPromo.title}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/10 dark:via-surface/50 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-6">
-                  <div className="px-2.5 py-1 glass-premium border border-primary/30 rounded-lg w-fit mb-3">
-                    <span className="font-body text-label-md font-bold text-primary uppercase tracking-wider">🔥 Hot Deal</span>
-                  </div>
-                  <h3 className="font-display text-headline-md font-bold text-on-surface mb-1">{heroPromo.title}</h3>
-                  <p className="font-body text-body-md text-on-surface-variant mb-3">{heroPromo.subtitle}</p>
-                  <div className="flex items-center gap-3">
-                    <span className="font-display text-headline-sm font-bold gradient-text-primary">
-                      {formatPrice(heroPromo.promoPrice)}
-                    </span>
-                    <span className="font-body text-body-md text-on-surface-variant line-through">
-                      {formatPrice(heroPromo.originalPrice)}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md bg-secondary/20 text-secondary text-label-md font-bold">
-                      -{heroPromo.discount}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </motion.div>
-
-          {/* Other promos */}
-          <div className="lg:col-span-5 flex flex-col gap-4">
-            {promos.slice(1).map((promo, i) => (
-              <motion.div
-                key={promo.id}
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Link to="/promo" className="group block">
-                  <div className="glass-card rounded-2xl p-4 flex items-center gap-4 hover:shadow-neon-cyan transition-all duration-300">
-                    <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                      <img src={promo.image} alt={promo.title} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="font-body text-label-sm text-primary uppercase tracking-wider font-bold">{promo.badge}</span>
-                      <h4 className="font-display text-title-md font-bold text-on-surface mt-0.5 mb-1 truncate">{promo.title}</h4>
-                      <div className="flex items-center gap-2">
-                        <span className="font-body text-body-md font-bold text-on-surface">{formatPrice(promo.promoPrice)}</span>
-                        <span className="px-1.5 py-0.5 rounded bg-secondary/20 text-secondary text-label-sm font-bold">-{promo.discount}%</span>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all duration-200 flex-shrink-0" />
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-
-            <Link
-              to="/promo"
-              className="flex items-center justify-center gap-2 py-3 glass-card rounded-xl font-body text-body-md font-semibold text-primary border border-primary/20 hover:border-primary/50 hover:shadow-neon-cyan-sm transition-all duration-300"
-            >
-              Lihat Semua Promo <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
 
 /* ========================
    WHY TRIDJAYA
@@ -527,8 +393,6 @@ const HomePage: React.FC = () => {
     <>
       <HeroSection />
       <CategoryBentoGrid />
-      <FeaturedProducts />
-      <PromoHighlight />
       <WhyUs />
       
       {/* Brand Partners */}

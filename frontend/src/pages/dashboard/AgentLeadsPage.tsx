@@ -180,8 +180,9 @@ const AgentLeadsPage: React.FC = () => {
                 </div>
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <a href={`tel:${lead.phoneNumber}`}
-                    className="p-2 rounded-lg bg-surface-high text-on-surface-variant hover:text-primary transition-colors" title="Telepon">
+                  <a href={`https://wa.me/62${lead.phoneNumber.replace(/^0/, '').replace(/\D/g, '')}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="p-2 rounded-lg bg-surface-high text-on-surface-variant hover:text-primary transition-colors" title="WhatsApp">
                     <Phone className="w-4 h-4" />
                   </a>
                   <a href={`https://wa.me/62${lead.phoneNumber.replace(/^0/, '').replace(/\D/g, '')}?text=${waText}`}

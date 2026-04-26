@@ -16,7 +16,12 @@ import {
   Search,
   AlertCircle,
   Star,
+  MessageSquare,
+  ShieldCheck,
+  Key,
 } from 'lucide-react';
+
+import { useUserStore } from '../../store/useUserStore';
 
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { AgentRegistration } from '../../store/useAdminNetworkStore';
@@ -45,9 +50,14 @@ const AdminAgentsPage: React.FC = () => {
   const [searchQuery, setSearchQuery]   = useState('');
   const [selectedAgent, setSelectedAgent] = useState<AgentRegistration | null>(null);
 
+  const { users, fetchUsers, resetUserPassword } = useUserStore();
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+
   React.useEffect(() => {
     fetchRegistrations();
-  }, [fetchRegistrations]);
+    fetchUsers();
+  }, [fetchRegistrations, fetchUsers]);
 
   const handleApprove = (id: string) => {
     setApprovedIds((p) => (p.includes(id) ? p : [...p, id]));
@@ -63,6 +73,40 @@ const AdminAgentsPage: React.FC = () => {
 
   const handleReview = (id: string) => {
     updateRegistrationStatus(id, 'reviewed');
+  };
+
+  const findUserByEmail = (email: string) => {
+    return users.find(u => u.email === email);
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!newPassword) return;
+    const ok = await resetUserPassword(userId, newPassword);
+    if (ok) {
+      alert('Password berhasil diupdate');
+      setResettingId(null);
+      setNewPassword('');
+    } else {
+      alert('Gagal update password');
+    }
+  };
+
+  const handleVerifyEmailManual = async (email: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      if (response.ok) {
+        alert('Email berhasil diverifikasi');
+        fetchUsers(true);
+      } else {
+        alert('Gagal verifikasi email');
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan');
+    }
   };
 
   const filteredAgents = Array.isArray(registrations) ? registrations.filter((a) =>
@@ -201,6 +245,14 @@ const AdminAgentsPage: React.FC = () => {
                           <div className="flex flex-col gap-0.5 text-label-xs text-on-surface-variant">
                             <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {item.whatsapp}</span>
                             <span className="inline-flex items-center gap-1"><Mail className="w-3 h-3" /> {item.email}</span>
+                            <a 
+                              href={`https://wa.me/${item.whatsapp.replace(/\D/g,'')}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="mt-1 inline-flex items-center gap-1 text-primary hover:underline font-semibold"
+                            >
+                              <MessageSquare className="w-3 h-3" /> WhatsApp
+                            </a>
                           </div>
                         </td>
                         <td className="py-3.5 pr-4">
@@ -275,6 +327,25 @@ const AdminAgentsPage: React.FC = () => {
                                   Lihat Detail
                                 </button>
                               </>
+                            )}
+                            {item.status === 'approved' && findUserByEmail(item.email) && (
+                              <div className="flex items-center gap-2">
+                                {!findUserByEmail(item.email)?.is_verified && (
+                                  <button
+                                    onClick={() => handleVerifyEmailManual(item.email)}
+                                    className="px-3 py-1.5 rounded-md bg-warning/10 text-warning text-label-sm font-bold inline-flex items-center gap-1.5 hover:bg-warning/20 transition-all"
+                                    title="Verifikasi Email Manual"
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5" /> Verify
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setResettingId(findUserByEmail(item.email)!.id)}
+                                  className="px-3 py-1.5 rounded-md bg-surface-highest text-on-surface text-label-sm font-bold inline-flex items-center gap-1.5 hover:bg-white/10 transition-all"
+                                >
+                                  <Key className="w-3.5 h-3.5" /> Password
+                                </button>
+                              </div>
                             )}
                           </div>
                         </td>
@@ -617,6 +688,44 @@ const AdminAgentsPage: React.FC = () => {
                   Setujui Sekarang
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ── Password Reset Modal ───────────────────────── */}
+      {resettingId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResettingId(null)} />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-md bg-surface border border-white/10 rounded-2xl p-6 shadow-2xl"
+          >
+            <h3 className="text-title-md font-bold text-on-surface mb-4">Setel Ulang Kata Sandi</h3>
+            <p className="text-body-sm text-on-surface-variant mb-6">
+              Masukkan kata sandi baru untuk agen ini.
+            </p>
+            <input 
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Kata sandi baru"
+              className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl mb-6 outline-none focus:ring-2 focus:ring-primary"
+            />
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setResettingId(null)}
+                className="px-4 py-2 text-label-sm font-bold text-on-surface-variant hover:text-on-surface"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={() => handleResetPassword(resettingId)}
+                className="px-6 py-2 bg-primary text-on-primary rounded-xl font-bold text-label-sm shadow-lg"
+              >
+                Simpan
+              </button>
             </div>
           </motion.div>
         </div>

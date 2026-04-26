@@ -13,6 +13,7 @@ pub struct AppState {
     pub login_email_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     pub login_ip_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     pub blocked_login_subjects: Arc<RwLock<HashMap<String, DateTime<Utc>>>>,
+    pub mailer: Arc<crate::mail::Mailer>,
 }
 
 impl AppState {
@@ -25,6 +26,7 @@ impl AppState {
             login_email_attempts: Arc::new(RwLock::new(HashMap::new())),
             login_ip_attempts: Arc::new(RwLock::new(HashMap::new())),
             blocked_login_subjects: Arc::new(RwLock::new(HashMap::new())),
+            mailer: Arc::new(crate::mail::Mailer::new()),
         }
     }
 
@@ -49,6 +51,7 @@ pub struct UserPublic {
     pub created_at: Option<String>,
     pub last_login: Option<String>,
     pub is_active: bool,
+    pub is_verified: bool,
 }
 
 #[derive(Clone, sqlx::FromRow)]
@@ -63,6 +66,7 @@ pub struct UserRecord {
     pub created_at: Option<String>,
     pub last_login: Option<String>,
     pub is_active: bool,
+    pub is_verified: bool,
 }
 
 impl UserRecord {
@@ -77,6 +81,7 @@ impl UserRecord {
             created_at: self.created_at.clone(),
             last_login: self.last_login.clone(),
             is_active: self.is_active,
+            is_verified: self.is_verified,
         }
     }
 }

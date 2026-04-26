@@ -22,7 +22,8 @@ import {
   Send,
   FileText,
   ExternalLink,
-  TrendingUp
+  TrendingUp,
+  Handshake
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -64,6 +65,7 @@ const DashboardLayout: React.FC = () => {
         { label: 'Katalog Produk', icon: Package, path: '/dashboard/admin/catalog' },
         { label: 'Promo & Campaign', icon: Ticket, path: '/dashboard/admin/promo' },
         { label: 'Konten & Blog', icon: FileText, path: '/dashboard/admin/content' },
+        { label: 'Partner Brand', icon: Handshake, path: '/dashboard/admin/partners' },
         { label: 'Telemetri', icon: BarChart3, path: '/dashboard/admin/telemetry' },
         { label: 'Support Ticket', icon: Headphones, path: '/dashboard/admin/support' },
         { label: 'Leaderboard', icon: Trophy, path: '/dashboard/admin/leaderboard' },

@@ -14,6 +14,7 @@ export interface AdminUser {
   created_at?: string;
   last_login?: string;
   is_active: boolean;
+  is_verified: boolean;
 }
 
 interface UserStoreState {

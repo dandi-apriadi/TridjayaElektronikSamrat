@@ -172,10 +172,10 @@ const CareerPage: React.FC = () => {
                             <div className="glass-card rounded-2xl p-6 bg-surface-highest/50">
                               <h4 className="font-display text-title-sm font-bold text-white mb-2">Tertarik Bergabung?</h4>
                               <p className="font-body text-body-sm text-on-surface-variant mb-4">
-                                Kirim CV dan Portfolio Anda ke <span className="text-primary font-semibold">hrd@tridjaya.com</span> dengan subjek: [Hiring] - [Posisi Anda]
+                                Kirim CV dan Portfolio Anda ke <span className="text-primary font-semibold">dandimamonto.tridjaya03@gmail.com</span> dengan subjek: [Hiring] - [Posisi Anda]
                               </p>
                               <a
-                                href="mailto:hrd@tridjaya.com"
+                                href="mailto:dandimamonto.tridjaya03@gmail.com"
                                 className="flex items-center justify-center gap-2 w-full py-3 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface shadow-neon-cyan-sm hover:shadow-neon-cyan transition-all"
                               >
                                 Lamar Sekarang
@@ -197,7 +197,7 @@ const CareerPage: React.FC = () => {
               <Search className="w-12 h-12 text-on-surface-variant mx-auto mb-4" />
               <p className="font-display text-headline-sm text-white mb-2">Belum ada posisi yang sesuai</p>
               <p className="font-body text-body-md text-on-surface-variant">
-                Silakan cek kembali di lain waktu atau kirimkan CV umum Anda ke hrd@tridjaya.com
+                Silakan cek kembali di lain waktu atau kirimkan CV umum Anda ke dandimamonto.tridjaya03@gmail.com
               </p>
             </div>
           )}
@@ -216,7 +216,7 @@ const CareerPage: React.FC = () => {
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
-                  href="mailto:hrd@tridjaya.com?subject=%5BHiring%5D%20CV%20Umum%20-%20Tridjaya%20Samrat"
+                  href="mailto:dandimamonto.tridjaya03@gmail.com?subject=%5BHiring%5D%20CV%20Umum%20-%20Tridjaya%20Samrat"
                   className="px-8 py-3.5 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface shadow-neon-cyan-sm hover:shadow-neon-cyan transition-all"
                 >
                   Kirim CV Umum

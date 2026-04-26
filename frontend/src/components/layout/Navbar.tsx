@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Menu, X, ChevronDown, ShoppingBag, LogIn, LayoutDashboard } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
-import logoPng from '../../assets/images/logo.webp';
+import logoHorizontal from '../../assets/images/logo-horizontal.webp';
+import logoTEM from '../../assets/images/logo-tem.webp';
 
 const navItems = [
   { label: 'Beranda', href: '/' },
@@ -53,18 +54,21 @@ const Navbar: React.FC = () => {
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
           scrolled
-            ? 'glass-premium'
-            : 'bg-transparent'
+            ? 'glass-premium py-2'
+            : 'bg-gradient-to-b from-black/50 via-black/20 to-transparent py-4'
         }`}
-        style={{ height: '72px' }}
+        style={{ height: scrolled ? '72px' : '90px' }}
       >
         <div className="container-custom flex items-center justify-between h-full">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
             <div className="relative">
-              <img src={logoPng} alt="Tridjaya Samrat Logo" className="h-14 w-auto object-contain" />
+              {/* Desktop Logo */}
+              <img src={logoHorizontal} alt="Tridjaya Samrat Logo" className="hidden lg:block h-14 w-auto object-contain" />
+              {/* Mobile Logo */}
+              <img src={logoTEM} alt="TEM Logo" className="block lg:hidden h-12 w-auto object-contain" />
             </div>
           </Link>
 
@@ -88,11 +92,13 @@ const Navbar: React.FC = () => {
                       }
                       aria-expanded={activeDropdown === item.label}
                       aria-haspopup="menu"
-                      className={`flex items-center gap-1 px-4 py-2 rounded-lg font-body text-body-md font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-1 px-4 py-2 rounded-lg font-body text-body-md font-semibold transition-all duration-300 ${
                         location.pathname.startsWith('/produk')
                           ? 'text-primary'
-                          : 'text-on-surface-variant hover:text-on-surface'
-                      } hover:bg-surface-high`}
+                          : scrolled 
+                            ? 'text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
+                            : 'text-white keep-white hover:text-primary drop-shadow-sm'
+                      }`}
                     >
                       {item.label}
                       <ChevronDown
@@ -127,10 +133,14 @@ const Navbar: React.FC = () => {
                 ) : (
                   <Link
                     to={item.href}
-                    className={`px-4 py-2 rounded-lg font-body text-body-md font-medium transition-all duration-200 ${
+                    className={`px-4 py-2 rounded-lg font-body text-body-md font-semibold transition-all duration-300 ${
                       location.pathname === item.href
-                        ? 'text-primary bg-surface-high'
-                        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
+                        ? scrolled 
+                          ? 'text-primary bg-surface-high'
+                          : 'text-white keep-white bg-white/20 backdrop-blur-md shadow-sm'
+                        : scrolled
+                          ? 'text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
+                          : 'text-white/90 keep-white hover:text-white drop-shadow-sm'
                     }`}
                   >
                     {item.label}
@@ -146,7 +156,9 @@ const Navbar: React.FC = () => {
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={toggleTheme}
-              className="w-10 h-10 rounded-lg glass-card flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors duration-200"
+              className={`w-10 h-10 rounded-lg glass-card flex items-center justify-center transition-all duration-300 ${
+                scrolled ? 'text-on-surface-variant' : 'text-white keep-white'
+              } hover:text-primary`}
               aria-label="Toggle tema"
             >
               <AnimatePresence mode="wait">
@@ -174,7 +186,9 @@ const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className="hidden lg:flex items-center gap-2 px-4 py-2.5 glass-card rounded-lg font-body text-body-md font-semibold text-on-surface-variant hover:text-primary transition-all duration-300"
+                className={`hidden lg:flex items-center gap-2 px-4 py-2.5 glass-card rounded-lg font-body text-body-md font-semibold transition-all duration-300 ${
+                  scrolled ? 'text-on-surface-variant' : 'text-white keep-white'
+                } hover:text-primary`}
               >
                 <LogIn className="w-4 h-4" />
                 Login

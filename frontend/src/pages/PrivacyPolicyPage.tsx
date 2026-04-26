@@ -51,7 +51,7 @@ const PrivacyPolicyPage: React.FC = () => {
               <h2 className="font-display text-title-md font-bold text-on-surface mb-2">Hak Pengguna</h2>
               <p>
                 Anda berhak meminta akses, koreksi, atau penghapusan data pribadi Anda. Permintaan dapat dikirim melalui email ke
-                <a href="mailto:privacy@tridjaya.com" className="text-primary font-semibold hover:underline"> privacy@tridjaya.com</a>.
+                <a href="mailto:dandimamonto.tridjaya03@gmail.com" className="text-primary font-semibold hover:underline"> dandimamonto.tridjaya03@gmail.com</a>.
               </p>
             </div>
           </div>

@@ -152,7 +152,7 @@ const ForgotPasswordPage: React.FC = () => {
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     autoComplete="email"
-                    placeholder="nama@tridjaya.com"
+                    placeholder="user@gmail.com"
                     className="w-full px-4 py-3.5 rounded-xl glass-dark border border-outline-variant/30 hover:border-outline-variant/50 focus:border-primary/50 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-surface transition-all duration-200"
                     required
                   />

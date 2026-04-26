@@ -91,7 +91,7 @@ const PromoDetailPage: React.FC = () => {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href={`https://wa.me/628529999999?text=${encodeURIComponent(`Halo Tridjaya Samrat, saya tertarik dengan promo ${promo.title}. Bagaimana cara klaimnya?`)}`}
+                  href={`https://wa.me/6285161542103?text=${encodeURIComponent(`Halo Tridjaya Samrat, saya tertarik dengan promo ${promo.title}. Bagaimana cara klaimnya?`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-3 px-8 py-5 gradient-primary rounded-2xl font-display text-title-sm font-bold text-surface shadow-neon-cyan hover:scale-[1.02] transition-all"

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
-import { API_BASE_URL } from '../utils/apiClient';
+import { API_BASE_URL, apiFetch } from '../utils/apiClient';
 
 export interface AgentRegistration {
   id: string;
@@ -139,12 +139,18 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   },
 
   fetchRegistrations: async () => {
+    const token = useAuthStore.getState().accessToken;
+    if (!token) {
+      set({ registrations: [], isLoading: false, error: 'Sesi login tidak valid. Silakan login ulang.' });
+      return;
+    }
+
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/agent-registrations`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await apiFetch('/api/admin/agent-registrations', {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error('Failed to fetch agent registrations');
       const data = await res.json();
       set({ registrations: data.data.items, isLoading: false });
@@ -174,12 +180,18 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   },
 
   fetchClaims: async () => {
+    const token = useAuthStore.getState().accessToken;
+    if (!token) {
+      set({ claims: [], isLoading: false, error: 'Sesi login tidak valid. Silakan login ulang.' });
+      return;
+    }
+
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/claims`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await apiFetch('/api/admin/claims', {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error('Failed to fetch claims');
       const data = await res.json();
       set({ claims: data.data.items, isLoading: false });

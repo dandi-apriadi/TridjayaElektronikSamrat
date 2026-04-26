@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Save, Package, Upload, Plus, Trash2, List, Image as ImageIcon, Palette, Zap, Shield, HelpCircle, Star, Calculator } from 'lucide-react';
@@ -19,7 +19,7 @@ import { getImageUrl, apiFetch } from '../../utils/apiClient';
 const AdminProductFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { createProduct, updateProduct, products } = useProductStore();
+  const { createProduct, updateProduct, products, fetchProducts, isLoading: isProductLoading } = useProductStore();
   const [customerType, setCustomerType] = useState<CustomerType>('NEW');
   const [creditData, setCreditData] = useState<CreditData | null>(null);
 
@@ -57,11 +57,22 @@ const AdminProductFormPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
+  const [isDragOverGallery, setIsDragOverGallery] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
 
-
+  useEffect(() => {
+    if (isEditMode && products.length === 0) {
+      fetchProducts(true);
+    }
+  }, [fetchProducts, isEditMode, products.length]);
 
   useEffect(() => {
     if (isEditMode) {
+      if (products.length === 0) {
+        return;
+      }
+
       const product = products.find(p => p.id === id || p.slug === id);
       if (product) {
         setFormData({
@@ -78,7 +89,7 @@ const AdminProductFormPage: React.FC = () => {
         navigate('/dashboard/admin/catalog');
       }
     }
-  }, [id, isEditMode, navigate, products]);
+  }, [id, isEditMode, isProductLoading, navigate, products]);
 
   // Automatic Slug Generation
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,7 +151,10 @@ const AdminProductFormPage: React.FC = () => {
   // Generic List Handlers
   const addListItem = (field: keyof Product, value: string, setter: (v: string) => void) => {
     const trimmed = value.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      toast.warning('Isi data terlebih dulu sebelum menambahkan item.');
+      return;
+    }
     setFormData(prev => ({
       ...prev,
       [field]: [...((prev[field] as string[]) || []), trimmed]
@@ -148,45 +162,49 @@ const AdminProductFormPage: React.FC = () => {
     setter('');
   };
 
-  const handleGalleryUpload = async (files: FileList) => {
-    const fileArray = Array.from(files);
+  const handleGalleryUpload = async (fileArray: File[]) => {
     if (fileArray.length === 0) return;
 
     setIsUploadingGallery(true);
+    const validFiles = fileArray.filter((file) => file.type.startsWith('image/'));
+    const ignoredCount = fileArray.length - validFiles.length;
+
     const uploadedUrls: string[] = [];
-    let errorCount = 0;
+    let errorCount = ignoredCount;
 
-    // Use sequential upload to avoid overloading dev server / connection
-    for (const file of fileArray) {
-      if (!file.type.startsWith('image/')) {
-        errorCount++;
-        continue;
-      }
+    // Upload concurrently for faster batch processing and better UX.
+    const uploadResults = await Promise.allSettled(
+      validFiles.map(async (file) => {
+        const formDataPayload = new FormData();
+        formDataPayload.append('file', file);
 
-      const formDataPayload = new FormData();
-      formDataPayload.append('file', file);
-
-      try {
         const response = await apiFetch('/api/admin/uploads/image', {
           method: 'POST',
           body: formDataPayload,
         });
 
-        if (!response.ok) throw new Error('Upload failed');
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${file.name}`);
+        }
 
         const payload = await response.json();
-        const url = payload.data?.url;
-        if (url) {
-          uploadedUrls.push(url);
-        } else {
-          errorCount++;
+        const url = payload.data?.url as string | undefined;
+        if (!url) {
+          throw new Error(`Invalid upload response: ${file.name}`);
         }
-      } catch (e) {
-        errorCount++;
-        console.error(`Gallery upload error for ${file.name}:`, e);
-        toast.error(`Gagal mengunggah ${file.name}`);
+
+        return { fileName: file.name, url };
+      })
+    );
+
+    uploadResults.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        uploadedUrls.push(result.value.url);
+      } else {
+        errorCount += 1;
+        console.error('Gallery upload error:', result.reason);
       }
-    }
+    });
 
     if (uploadedUrls.length > 0) {
       setFormData(prev => ({
@@ -201,6 +219,35 @@ const AdminProductFormPage: React.FC = () => {
     }
 
     setIsUploadingGallery(false);
+  };
+
+  const openGalleryPicker = () => {
+    if (isUploadingGallery) return;
+    galleryInputRef.current?.click();
+  };
+
+  const openThumbnailPicker = () => {
+    if (isUploadingThumbnail) return;
+    thumbnailInputRef.current?.click();
+  };
+
+  const onGalleryInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      void handleGalleryUpload(Array.from(files));
+    }
+    e.target.value = '';
+  };
+
+  const onGalleryDrop: React.DragEventHandler<HTMLDivElement> = (e) => {
+    e.preventDefault();
+    setIsDragOverGallery(false);
+    if (isUploadingGallery) return;
+
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length > 0) {
+      void handleGalleryUpload(files);
+    }
   };
 
   const handleThumbnailUpload = async (file: File) => {
@@ -518,24 +565,37 @@ const AdminProductFormPage: React.FC = () => {
           </div>
 
           {/* Galeri Gambar */}
-          <div className="glass-card rounded-xl p-6 space-y-4 shadow-sm border border-outline-variant/10">
+           <div className="glass-card rounded-xl p-6 space-y-4 shadow-sm border border-outline-variant/10">
             <h3 className="font-display text-title-md font-semibold text-on-surface border-b border-outline-variant/20 pb-2 flex items-center gap-2">
                <ImageIcon className="w-5 h-5 text-tertiary" /> Galeri Media
             </h3>
             
             <div className="space-y-4">
-               <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-outline-variant/30 rounded-xl bg-surface-high/30 hover:bg-surface-high/50 hover:border-primary/50 transition-all cursor-pointer relative group">
-                  <input 
-                    type="file" 
-                    multiple 
-                    accept=".jpg,.jpeg,.png,.webp" 
-                    disabled={isUploadingGallery}
-                    onChange={(e) => {
-                      if (e.target.files) handleGalleryUpload(e.target.files);
-                      e.target.value = '';
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
-                  />
+               <input
+                 ref={galleryInputRef}
+                 type="file"
+                 multiple
+                 accept=".jpg,.jpeg,.png,.webp"
+                 className="hidden"
+                 onChange={onGalleryInputChange}
+               />
+
+               <div
+                 onClick={openGalleryPicker}
+                 onDragOver={(e) => {
+                   e.preventDefault();
+                   if (!isUploadingGallery) {
+                     setIsDragOverGallery(true);
+                   }
+                 }}
+                 onDragLeave={() => setIsDragOverGallery(false)}
+                 onDrop={onGalleryDrop}
+                 className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-all cursor-pointer relative group ${
+                   isDragOverGallery
+                     ? 'border-primary/70 bg-primary/5'
+                     : 'border-outline-variant/30 bg-surface-high/30 hover:bg-surface-high/50 hover:border-primary/50'
+                 } ${isUploadingGallery ? 'opacity-70 cursor-not-allowed' : ''}`}
+               >
                   <div className="flex flex-col items-center text-center">
                     <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                       {isUploadingGallery ? (
@@ -544,8 +604,19 @@ const AdminProductFormPage: React.FC = () => {
                         <Upload className="w-6 h-6 text-primary" />
                       )}
                     </div>
-                    <p className="text-body-sm font-bold text-on-surface">Klik atau seret gambar untuk upload</p>
+                    <p className="text-body-sm font-bold text-on-surface">Klik area ini untuk pilih file gallery</p>
                     <p className="text-[10px] text-on-surface-variant mt-1">Mendukung banyak file sekaligus (JPG, PNG, WebP)</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openGalleryPicker();
+                      }}
+                      disabled={isUploadingGallery}
+                      className="mt-3 px-3 py-1.5 rounded-lg bg-primary/15 text-primary text-label-sm font-semibold hover:bg-primary/25 disabled:opacity-60"
+                    >
+                      Pilih File
+                    </button>
                   </div>
                </div>
 
@@ -659,18 +730,24 @@ const AdminProductFormPage: React.FC = () => {
           <div className="glass-card rounded-xl p-6 space-y-4 shadow-sm border border-outline-variant/10">
             <h3 className="font-display text-title-md font-semibold text-on-surface border-b border-outline-variant/20 pb-2">Thumbnail</h3>
             <div className="space-y-3">
-              <div className="relative aspect-video w-full rounded-xl bg-surface-high border-2 border-dashed border-outline-variant/40 flex flex-col items-center justify-center text-center p-2 overflow-hidden group hover:border-primary/50 transition-all cursor-pointer">
-                <input 
-                  type="file" 
-                  accept=".jpg,.jpeg,.png,.webp" 
-                  disabled={isUploadingThumbnail}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleThumbnailUpload(file);
-                    e.target.value = '';
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer z-10" 
-                />
+              <input
+                ref={thumbnailInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    void handleThumbnailUpload(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+
+              <div
+                onClick={openThumbnailPicker}
+                className="relative aspect-video w-full rounded-xl bg-surface-high border-2 border-dashed border-outline-variant/40 flex flex-col items-center justify-center text-center p-2 overflow-hidden group hover:border-primary/50 transition-all cursor-pointer"
+              >
                 
                 {formData.image ? (
                   <>
@@ -703,6 +780,17 @@ const AdminProductFormPage: React.FC = () => {
                     </div>
                     <p className="text-body-sm font-bold text-on-surface">Upload Thumbnail</p>
                     <p className="text-[10px] text-on-surface-variant mt-1">Disarankan 16:9 (E.g. 1280x720)</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openThumbnailPicker();
+                      }}
+                      disabled={isUploadingThumbnail}
+                      className="mt-3 px-3 py-1.5 rounded-lg bg-primary/15 text-primary text-label-sm font-semibold hover:bg-primary/25 disabled:opacity-60"
+                    >
+                      Pilih Thumbnail
+                    </button>
                   </div>
                 )}
               </div>

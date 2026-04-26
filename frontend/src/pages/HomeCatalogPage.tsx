@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Wind, Sofa, Tv, Refrigerator } from 'lucide-react';
 import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
@@ -79,42 +78,7 @@ const HomeCatalogPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Featured bento row */}
-          {activeCategory === 'all' && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-8"
-            >
-              {[
-                { img: tvImg, label: 'Smart TV OLED', cat: 'Televisi', href: '/produk/smart-tv-65', badge: 'Baru Rilis' },
-                { img: sofaImg, label: 'Sofa Sectional Premium', cat: 'Furnitur', href: '/produk/sofa-premium-l', badge: 'Terlaris' },
-              ].map((item, i) => (
-                <motion.div
-                  key={item.href}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                >
-                  <Link to={item.href} className="group block">
-                    <div className="relative overflow-hidden rounded-2xl aspect-[16/9]">
-                      <img src={item.img} alt={item.label} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/10 to-transparent" />
-                      <div className="absolute top-4 left-4">
-                        <span className="px-2.5 py-1 glass-premium border border-primary/20 rounded-lg font-body text-label-md text-primary font-bold uppercase tracking-wider">
-                          {item.badge}
-                        </span>
-                      </div>
-                      <div className="absolute bottom-4 left-4">
-                        <div className="font-body text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">{item.cat}</div>
-                        <h3 className="font-display text-headline-sm font-bold text-on-surface">{item.label}</h3>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
+
 
           {/* Product grid */}
           {isLoading ? (

@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Clock, Wallet, TrendingUp, ArrowDownToLine, Filt
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { getClaimRewardValue } from '../../utils/claimRewards';
+import { useAuthStore } from '../../store/authStore';
 
 const statusStyle: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   Pending: { label: 'Menunggu', cls: 'bg-tertiary/15 text-tertiary', icon: <Clock className="w-3.5 h-3.5" /> },
@@ -13,12 +14,27 @@ const statusStyle: Record<string, { label: string; cls: string; icon: React.Reac
 
 const AdminFinancePage: React.FC = () => {
   const { claims, registrations, fetchClaims, fetchRegistrations, updateClaimStatus, isLoading, error } = useAdminNetworkStore();
+  const { isAuthenticated, accessToken, isInitializing } = useAuthStore();
   const [filter, setFilter] = useState('Semua');
+  const [chartReady, setChartReady] = useState(false);
 
   useEffect(() => {
+    const rafId = window.requestAnimationFrame(() => setChartReady(true));
+    return () => window.cancelAnimationFrame(rafId);
+  }, []);
+
+  useEffect(() => {
+    if (isInitializing) {
+      return;
+    }
+
+    if (!isAuthenticated || !accessToken) {
+      return;
+    }
+
     fetchClaims();
     fetchRegistrations();
-  }, [fetchClaims, fetchRegistrations]);
+  }, [accessToken, fetchClaims, fetchRegistrations, isAuthenticated, isInitializing]);
 
   const payoutRequests = useMemo(() => {
     if (!Array.isArray(claims)) return [];
@@ -65,6 +81,27 @@ const AdminFinancePage: React.FC = () => {
   const totalPending = payoutRequests.filter((r) => r.status === 'Pending').reduce((s, r) => s + r.raw, 0);
   const totalPaid = payoutRequests.filter((r) => ['Approved', 'Paid'].includes(r.status)).reduce((s, r) => s + r.raw, 0);
   const totalMonthlyCommission = payoutRequests.reduce((sum, request) => sum + request.raw, 0);
+
+  if (isInitializing) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
+        <div className="w-9 h-9 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <p className="text-on-surface-variant text-body-sm">Memvalidasi sesi login...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !accessToken) {
+    return (
+      <div className="glass-card rounded-xl p-8 flex flex-col items-center text-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-tertiary/15 flex items-center justify-center text-tertiary">
+          <Clock className="w-6 h-6" />
+        </div>
+        <h4 className="font-display text-title-md font-bold text-on-surface">Sesi Login Berakhir</h4>
+        <p className="text-body-sm text-on-surface-variant">Silakan login ulang untuk mengakses data keuangan admin.</p>
+      </div>
+    );
+  }
 
   if (isLoading && claims.length === 0) {
     return (
@@ -199,23 +236,29 @@ const AdminFinancePage: React.FC = () => {
             <TrendingUp className="w-4 h-4 text-primary" />
             <h4 className="font-display text-title-sm font-bold text-on-surface">Komisi per Area</h4>
           </div>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={commissionByArea} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#484847" horizontal={false} />
-                <XAxis type="number" stroke="#ADAAAA" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
-                <YAxis dataKey="area" type="category" stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} width={60} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '8px', color: '#FFF', fontSize: '12px' }}
-                  formatter={(v: unknown) => [`Rp ${(v as number).toLocaleString('id-ID')}`, 'Total Komisi']}
-                />
-                <Bar dataKey="total" radius={[0, 4, 4, 0]}>
-                  {commissionByArea.map((_entry, i) => (
-                    <Cell key={`cell-${i}`} fill={i === 0 ? '#A2F31F' : '#8FF5FF'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-56 min-h-[224px] min-w-0">
+            {chartReady && commissionByArea.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={commissionByArea} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#484847" horizontal={false} />
+                  <XAxis type="number" stroke="#ADAAAA" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
+                  <YAxis dataKey="area" type="category" stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} width={60} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '8px', color: '#FFF', fontSize: '12px' }}
+                    formatter={(v: unknown) => [`Rp ${(v as number).toLocaleString('id-ID')}`, 'Total Komisi']}
+                  />
+                  <Bar dataKey="total" radius={[0, 4, 4, 0]}>
+                    {commissionByArea.map((_entry, i) => (
+                      <Cell key={`cell-${i}`} fill={i === 0 ? '#A2F31F' : '#8FF5FF'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full rounded-lg bg-surface-high/50 border border-outline-variant/10 flex items-center justify-center text-on-surface-variant text-body-sm">
+                Belum ada data area komisi.
+              </div>
+            )}
           </div>
           <div className="mt-4 p-3 rounded-lg bg-surface-high border border-outline-variant/10">
             <div className="text-label-xs text-on-surface-variant mb-1">Total Komisi Tersalurkan</div>

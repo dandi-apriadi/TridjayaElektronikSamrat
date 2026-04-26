@@ -17,16 +17,10 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useAgentStore } from '../../store/useAgentStore';
 
-const fallbackLeaderboardData = [
-  { id: 'fallback-1', rank: 1, name: 'Agen Samrat Makassar', city: 'Makassar', points: 12500, totalSales: 48, avatar: 'https://i.pravatar.cc/150?u=1' },
-  { id: 'fallback-2', rank: 2, name: 'Dian Sales Partner', city: 'Gowa', points: 10800, totalSales: 35, avatar: 'https://i.pravatar.cc/150?u=2' },
-  { id: 'fallback-3', rank: 3, name: 'Krisna Network', city: 'Manado', points: 9200, totalSales: 29, avatar: 'https://i.pravatar.cc/150?u=3' },
-  { id: 'fallback-4', rank: 4, name: 'Ratna Mobile Palu', city: 'Palu', points: 8100, totalSales: 22, avatar: 'https://i.pravatar.cc/150?u=4' },
-  { id: 'fallback-5', rank: 5, name: 'Bagas Elektro Kendari', city: 'Kendari', points: 7500, totalSales: 18, avatar: 'https://i.pravatar.cc/150?u=5' },
-  { id: 'fallback-6', rank: 6, name: 'Rudy Jaya Partner', city: 'Makassar', points: 6800, totalSales: 15, avatar: 'https://i.pravatar.cc/150?u=6' },
-  { id: 'fallback-7', rank: 7, name: 'Sinta Electric', city: 'Maros', points: 5900, totalSales: 12, avatar: 'https://i.pravatar.cc/150?u=7' },
-  { id: 'fallback-8', rank: 8, name: 'Budi Santoso', city: 'Takalar', points: 4200, totalSales: 9, avatar: 'https://i.pravatar.cc/150?u=8' },
-];
+// Data will be fetched from the backend via useAgentStore. No static fallback data.
+// Fallback data removed; we will rely on fetched leaderboard data.
+const fallbackLeaderboardData: any[] = [];
+
 
 const rewardTierMeta: Record<string, { icon: typeof Medal; color: string; bgColor: string; benefits: string[] }> = {
   silver: {
@@ -49,11 +43,8 @@ const rewardTierMeta: Record<string, { icon: typeof Medal; color: string; bgColo
   },
 };
 
-const fallbackRewardTiers = [
-  { id: 'silver', name: 'Silver Tier', thresholdPoints: 5000, rewardValue: 650000, isActive: true },
-  { id: 'gold', name: 'Gold Tier', thresholdPoints: 15000, rewardValue: 1200000, isActive: true },
-  { id: 'diamond', name: 'Diamond Tier', thresholdPoints: 50000, rewardValue: 2400000, isActive: true },
-];
+// No static fallback reward tiers; data will be fetched from the backend.
+const fallbackRewardTiers: any[] = [];
 
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
@@ -68,7 +59,7 @@ const itemVariants = {
 /* ─── Component ─────────────────────────────────────── */
 const AgentLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
-  const { stats, fetchStats, leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers } = useAgentStore();
+  const { stats, fetchStats, leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers, isLoading } = useAgentStore();
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'rewards'>('leaderboard');
   const [search, setSearch] = useState('');
 
@@ -84,12 +75,20 @@ const AgentLeaderboardPage: React.FC = () => {
         rank: index + 1,
         avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(entry.name)}`,
       }))
-    : fallbackLeaderboardData;
+    : [];
 
   const filteredLeaderboard = effectiveLeaderboard.filter(a => 
     a.name.toLowerCase().includes(search.toLowerCase()) || a.city.toLowerCase().includes(search.toLowerCase())
   );
 
+  // If no data is available, render a friendly placeholder.
+  if (!isLoading && filteredLeaderboard.length === 0) {
+    return (
+      <div className="p-8 text-center text-on-surface-variant">
+        Belum ada data peringkat agen. Data akan muncul setelah ada aktivitas.
+      </div>
+    );
+  }
   const currentPoints = stats?.points || 0;
   const currentUserEntry = effectiveLeaderboard.find((entry) => entry.id === user?.id);
   const currentRank = currentUserEntry ? effectiveLeaderboard.findIndex((entry) => entry.id === user?.id) + 1 : null;

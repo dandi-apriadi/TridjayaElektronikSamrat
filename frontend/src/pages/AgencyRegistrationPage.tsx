@@ -27,7 +27,7 @@ const AgencyRegistrationPage: React.FC = () => {
     fullName: '',
     email: '',
     whatsapp: '',
-    province: 'Sulawesi Selatan',
+    province: 'Sulawesi Utara',
     city: '',
     address: '',
     preferredProducts: ['bike'] as string[],
@@ -312,7 +312,7 @@ const AgencyRegistrationPage: React.FC = () => {
                                 name="city"
                                 value={formData.city}
                                 onChange={handleInputChange}
-                                placeholder="Contoh: Makassar" 
+                                placeholder="Contoh: Manado" 
                                 className="w-full bg-surface-highest border-0 rounded-xl px-4 py-3.5 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary/50" 
                                 required 
                               />
@@ -514,7 +514,7 @@ const AgencyRegistrationPage: React.FC = () => {
           <div className="mt-12 text-center">
             <p className="font-body text-body-md text-on-surface-variant mb-4">Masih punya pertanyaan?</p>
             <a
-              href="https://wa.me/628529999999"
+              href="https://wa.me/6285161542103"
               className="inline-flex items-center gap-2 font-display text-title-sm font-bold text-secondary hover:underline"
             >
               <Phone className="w-4 h-4" /> Hubungi Business Development Kami

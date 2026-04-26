@@ -81,4 +81,15 @@ export interface NavItem {
   children?: NavItem[];
 }
 
+export interface PartnerItem {
+  id: string;
+  name: string;
+  logoUrl: string;
+  websiteUrl?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type Theme = 'dark' | 'light';

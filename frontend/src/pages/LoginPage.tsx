@@ -5,7 +5,7 @@ import { ArrowRight, Building2, Lock, Mail, ShieldCheck, Sparkles, Zap, Loader2,
 import Navbar from '../components/layout/Navbar';
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/useNotificationStore';
-import logoPng from '../assets/images/logo.webp';
+import logoHorizontal from '../assets/images/logo-horizontal.webp';
 
 const benefits = [
   {
@@ -153,7 +153,7 @@ const LoginPage: React.FC = () => {
 
               <div className="flex items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <img src={logoPng} alt="Tridjaya Samrat" className="h-14 w-auto object-contain" />
+                  <img src={logoHorizontal} alt="Tridjaya Samrat" className="h-14 w-auto object-contain" />
                 </div>
                 <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl glass-card border border-outline-variant/10">
                   <ShieldCheck className="w-4 h-4 text-primary" />
@@ -187,7 +187,7 @@ const LoginPage: React.FC = () => {
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     autoComplete="email"
-                    placeholder="nama@tridjaya.com"
+                    placeholder="user@gmail.com"
                     className="w-full px-4 py-3.5 rounded-xl glass-dark border border-outline-variant/30 hover:border-outline-variant/50 focus:border-primary/50 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-surface transition-all duration-200"
                     required
                   />

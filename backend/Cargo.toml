@@ -22,3 +22,5 @@ dotenvy = "0.15"
 futures = "0.3"
 rand_core = { version = "0.6", features = ["getrandom"] }
 image = { version = "0.25.10", features = ["webp"] }
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "serde", "builder", "smtp-transport"] }
+urlencoding = "2.1"

@@ -16,6 +16,7 @@ import { useAuthStore } from './store/authStore';
 import { useProductStore } from './store/useProductStore';
 import { usePromoStore } from './store/usePromoStore';
 import { useBlogStore } from './store/useBlogStore';
+import { usePartnerStore } from './store/usePartnerStore';
 
 const BikesCatalogPage = lazy(() => import('./pages/BikesCatalogPage'));
 const HomeCatalogPage = lazy(() => import('./pages/HomeCatalogPage'));
@@ -57,6 +58,7 @@ const AgentLeaderboardPage = lazy(() => import('./pages/dashboard/AgentLeaderboa
 const AgentSettingsPage = lazy(() => import('./pages/dashboard/AgentSettingsPage'));
 const AdminSupportTicketsPage = lazy(() => import('./pages/dashboard/AdminSupportTicketsPage'));
 const AdminLeadsPage = lazy(() => import('./pages/dashboard/AdminLeadsPage'));
+const AdminPartnersPage = lazy(() => import('./pages/dashboard/AdminPartnersPage'));
 
 const RouteLoading: React.FC = () => (
   <div className="min-h-[40vh] w-full grid place-items-center px-4">
@@ -133,6 +135,7 @@ const App: React.FC = () => {
     useProductStore.getState().fetchProducts();
     usePromoStore.getState().fetchPromos();
     useBlogStore.getState().fetchPosts();
+    usePartnerStore.getState().fetchPartners();
   }, [setTheme]);
 
   return (
@@ -304,6 +307,14 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="admin">
                 {lazyPage(AdminContentPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/partners"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminPartnersPage)}
               </RoleGuard>
             }
           />

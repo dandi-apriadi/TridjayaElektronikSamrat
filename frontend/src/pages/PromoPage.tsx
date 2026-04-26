@@ -225,7 +225,7 @@ const PromoPage: React.FC = () => {
               </div>
               <div className="flex flex-col gap-4 min-w-[240px]">
                 <a
-                  href="https://wa.me/628529999999"
+                  href="https://wa.me/6285161542103"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-3 px-8 py-4 bg-on-surface text-surface rounded-2xl font-display text-title-sm font-bold hover:bg-primary transition-all duration-300 shadow-xl"

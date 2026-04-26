@@ -558,7 +558,7 @@ const AdminFormPage: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="email@tridjaya.co.id"
+                  placeholder="user@gmail.com"
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
                 />
               </div>
