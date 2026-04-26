@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
+import { API_BASE_URL } from '../utils/apiClient';
 
 export interface AgentRegistration {
   id: string;
@@ -22,6 +23,7 @@ export interface AdminClaim {
   agentName?: string;
   tierId: string;
   rewardName: string;
+  rewardValue?: number;
   status: 'pending' | 'processing' | 'completed' | 'cancelled';
   submittedAt: string;
 }
@@ -48,10 +50,25 @@ export interface Agent {
   joinedAt: string;
 }
 
+export interface AdminSupportTicket {
+  id: string;
+  agentId: string;
+  agentName?: string;
+  agentEmail?: string;
+  subject: string;
+  message?: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'open' | 'in_progress' | 'resolved';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface AdminNetworkState {
   registrations: AgentRegistration[];
   claims: AdminClaim[];
   agents: Agent[];
+  supportTickets: AdminSupportTicket[];
+  leads: any[];
   isLoading: boolean;
   error: string | null;
 
@@ -63,31 +80,73 @@ interface AdminNetworkState {
 
   fetchAgents: () => Promise<void>;
 
+  fetchLeads: () => Promise<void>;
+  updateLeadStatus: (id: string, status: string) => Promise<boolean>;
+
+  fetchSupportTickets: () => Promise<void>;
+  updateSupportTicketStatus: (id: string, status: AdminSupportTicket['status']) => Promise<boolean>;
+
   telemetryStats: TelemetryStats | null;
   fetchTelemetryStats: () => Promise<void>;
 }
 
-const API_ROOT = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
-const API_BASE_URL = `${API_ROOT}/api/admin`;
+const API_ROOT = API_BASE_URL.replace(/\/$/, '');
+const API_ADMIN_URL = `${API_ROOT}/api/admin`;
 
 export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   registrations: [],
   claims: [],
   agents: [],
+  supportTickets: [],
+  leads: [],
   telemetryStats: null,
   isLoading: false,
   error: null,
+
+  fetchLeads: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const res = await fetch(`${API_ADMIN_URL}/leads`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch admin leads');
+      const data = await res.json();
+      set({ leads: data.data.items || [], isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+
+  updateLeadStatus: async (id, status) => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const res = await fetch(`${API_ADMIN_URL}/leads/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error('Failed to update lead status');
+      await useAdminNetworkStore.getState().fetchLeads();
+      return true;
+    } catch (error: any) {
+      set({ error: error.message });
+      return false;
+    }
+  },
 
   fetchRegistrations: async () => {
     set({ isLoading: true, error: null });
     try {
       const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_BASE_URL}/agent-registrations`, {
+      const res = await fetch(`${API_ADMIN_URL}/agent-registrations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch agent registrations');
       const data = await res.json();
-      console.log('DEBUG: fetchRegistrations response:', data);
       set({ registrations: data.data.items, isLoading: false });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
@@ -97,7 +156,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   updateRegistrationStatus: async (id, status) => {
     try {
       const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_BASE_URL}/agent-registrations/${id}/status`, {
+      const res = await fetch(`${API_ADMIN_URL}/agent-registrations/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -118,7 +177,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_BASE_URL}/claims`, {
+      const res = await fetch(`${API_ADMIN_URL}/claims`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch claims');
@@ -132,7 +191,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   updateClaimStatus: async (id, status) => {
     try {
       const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_BASE_URL}/claims/${id}/status`, {
+      const res = await fetch(`${API_ADMIN_URL}/claims/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -145,6 +204,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
       return true;
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
+      return false;
     }
   },
 
@@ -163,11 +223,46 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
     }
   },
 
+  fetchSupportTickets: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const res = await fetch(`${API_ADMIN_URL}/support-tickets`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch support tickets');
+      const payload = await res.json();
+      set({ supportTickets: payload.data.items ?? [], isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+
+  updateSupportTicketStatus: async (id, status) => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const res = await fetch(`${API_ADMIN_URL}/support-tickets/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error('Failed to update support ticket status');
+      await useAdminNetworkStore.getState().fetchSupportTickets();
+      return true;
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      return false;
+    }
+  },
+
   fetchTelemetryStats: async () => {
     set({ isLoading: true, error: null });
     try {
       const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_BASE_URL}/telemetry-stats`, {
+      const res = await fetch(`${API_ADMIN_URL}/telemetry-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch telemetry stats');

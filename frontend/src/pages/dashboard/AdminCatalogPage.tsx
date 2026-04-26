@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Package, Plus, Search, Filter, TrendingUp, AlertTriangle,
-  Eye, Edit3, ArrowUpRight, Tag, Star, ChevronDown,
+  Eye, Edit3, ArrowUpRight, Tag, Star, ChevronDown, Trash2
 } from 'lucide-react';
 
 import { useProductStore } from '../../store/useProductStore';
+import { toast } from '../../store/useNotificationStore';
 
 const categories = ['Semua', 'bike', 'electronics', 'furniture'];
 const statuses   = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
@@ -21,11 +22,26 @@ const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, trans
 const itemVariants = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AdminCatalogPage: React.FC = () => {
-  const { products, isLoading, error } = useProductStore();
+  const { products, isLoading, error, deleteProduct, fetchProducts } = useProductStore();
   const [search, setSearch]     = useState('');
   const [category, setCategory] = useState('Semua');
   const [status, setStatus]     = useState('Semua');
   const [sortBy, setSortBy]     = useState('views');
+
+  React.useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (window.confirm(`Apakah Anda yakin ingin menghapus produk "${name}"?`)) {
+      const success = await deleteProduct(id);
+      if (success) {
+        toast.success('Produk Berhasil Dihapus', `Produk ${name} telah dihapus dari katalog.`);
+      } else {
+        toast.error('Gagal Menghapus', 'Terjadi kesalahan saat menghapus produk.');
+      }
+    }
+  };
 
   if (isLoading) {
     return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data produk...</div>;
@@ -48,8 +64,11 @@ const AdminCatalogPage: React.FC = () => {
       return matchSearch && matchCategory && matchStatus;
     })
     .sort((a, b) => {
-      if (sortBy === 'views')      return (b.reviewCount || 0) - (a.reviewCount || 0);
-      if (sortBy === 'rating')     return (b.rating || 0) - (a.rating || 0);
+      if (sortBy === 'views') return (b.views || 0) - (a.views || 0);
+      if (sortBy === 'leads') return (b.leads || 0) - (a.leads || 0);
+      if (sortBy === 'conversionRate') return (b.conversionRate || 0) - (a.conversionRate || 0);
+      if (sortBy === 'reviews')      return (b.reviewCount || 0) - (a.reviewCount || 0);
+      if (sortBy === 'rating')       return (b.rating || 0) - (a.rating || 0);
       return 0;
     });
 
@@ -64,7 +83,9 @@ const AdminCatalogPage: React.FC = () => {
   const totalActive   = products.filter((p) => getStatus(p.stock) === 'Active').length;
   const totalLow      = products.filter((p) => getStatus(p.stock) === 'Low Stock').length;
   const totalOut      = products.filter((p) => getStatus(p.stock) === 'Out of Stock').length;
-  const totalViews    = products.reduce((s, p) => s + (p.reviewCount || 0), 0);
+  const totalViews    = products.reduce((s, p) => s + (p.views || 0), 0);
+  const totalLeads    = products.reduce((s, p) => s + (p.leads || 0), 0);
+  const totalConversions = products.reduce((s, p) => s + (p.conversions || 0), 0);
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -106,7 +127,7 @@ const AdminCatalogPage: React.FC = () => {
           { label: 'Total Produk Aktif', value: totalActive,  sub: 'di semua kategori',   color: 'text-secondary', bg: 'bg-secondary/10', icon: Package },
           { label: 'Stok Kritis',         value: totalLow,    sub: '< 5 unit tersisa',     color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: AlertTriangle },
           { label: 'Habis Stok',          value: totalOut,    sub: 'perlu restock segera', color: 'text-error',     bg: 'bg-error/10',     icon: AlertTriangle },
-          { label: 'Total Views Katalog', value: totalViews.toLocaleString('id-ID'), sub: 'semua produk',   color: 'text-primary',   bg: 'bg-primary/10',   icon: TrendingUp },
+          { label: 'Total Lead Katalog', value: totalLeads.toLocaleString('id-ID'), sub: `${totalViews.toLocaleString('id-ID')} views • ${totalConversions.toLocaleString('id-ID')} conversions`, color: 'text-primary', bg: 'bg-primary/10', icon: TrendingUp },
         ].map((k) => (
           <motion.div key={k.label} variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
@@ -129,7 +150,7 @@ const AdminCatalogPage: React.FC = () => {
             <strong className="text-tertiary">{totalLow} produk stok kritis</strong> — segera koordinasi dengan tim inventory.
           </p>
           <button
-            onClick={() => alert('Restock alert sent to inventory team!')}
+            onClick={() => toast.warning('Restock alert terkirim', 'Peringatan stok kritis sudah dicatat di sistem internal.')}
             className="ml-auto flex-shrink-0 text-label-sm text-primary font-semibold hover:underline"
           >
             Kirim Alert →
@@ -175,8 +196,10 @@ const AdminCatalogPage: React.FC = () => {
             <div className="relative">
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
                 className="appearance-none pl-3 pr-8 py-1.5 bg-surface-high border border-outline-variant/20 rounded-lg text-label-sm text-on-surface outline-none">
+                <option value="reviews">Sort: Reviews</option>
                 <option value="views">Sort: Views</option>
-                <option value="stock">Sort: Stok</option>
+                <option value="leads">Sort: Leads</option>
+                <option value="conversionRate">Sort: Conversion</option>
                 <option value="rating">Sort: Rating</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-on-surface-variant pointer-events-none" />
@@ -193,8 +216,8 @@ const AdminCatalogPage: React.FC = () => {
                 <th className="py-3 pr-4">Kategori</th>
                 <th className="py-3 pr-4">Harga</th>
                 <th className="py-3 pr-4">Stok</th>
-                <th className="py-3 pr-4">Views</th>
-                <th className="py-3 pr-4">Konversi</th>
+                <th className="py-3 pr-4">Reviews</th>
+                <th className="py-3 pr-4">Popularitas</th>
                 <th className="py-3 pr-4">Rating</th>
                 <th className="py-3 pr-4">Status</th>
                 <th className="py-3">Aksi</th>
@@ -221,7 +244,12 @@ const AdminCatalogPage: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{p.reviewCount?.toLocaleString('id-ID') || 0}</td>
-                  <td className="py-3.5 pr-4 font-bold text-secondary text-body-sm">-</td>
+                  <td className="py-3.5 pr-4">
+                    <div className="font-bold text-secondary text-body-sm">{Math.round(p.conversionRate || 0)}%</div>
+                    <div className="text-label-xs text-on-surface-variant mt-0.5">
+                      {p.leads || 0} lead / {p.views || 0} views
+                    </div>
+                  </td>
                   <td className="py-3.5 pr-4">
                     <div className="inline-flex items-center gap-1 font-bold text-on-surface text-body-sm">
                       <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />{p.rating || 0}
@@ -238,6 +266,13 @@ const AdminCatalogPage: React.FC = () => {
                       <Link to={`/dashboard/admin/catalog/edit/${p.id}`} className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Edit">
                         <Edit3 className="w-4 h-4" />
                       </Link>
+                      <button 
+                        onClick={() => handleDelete(p.id, p.name)}
+                        className="p-1.5 rounded-md bg-error/10 text-error hover:bg-error/20 transition-colors" 
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>

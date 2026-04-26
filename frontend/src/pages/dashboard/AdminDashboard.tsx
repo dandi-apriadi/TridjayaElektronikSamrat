@@ -67,6 +67,7 @@ const itemVariants = {
 /* ─── Component ─────────────────────────────────────── */
 const AdminDashboard: React.FC = () => {
   const [chartRange, setChartRange] = useState('6M');
+  const [pendingClaimActionId, setPendingClaimActionId] = useState<string | null>(null);
 
   const {
     registrations,
@@ -75,6 +76,7 @@ const AdminDashboard: React.FC = () => {
     fetchRegistrations,
     fetchClaims,
     fetchTelemetryStats,
+    updateClaimStatus,
   } = useAdminNetworkStore();
   const { products, fetchProducts } = useProductStore();
 
@@ -86,6 +88,7 @@ const AdminDashboard: React.FC = () => {
   }, [fetchRegistrations, fetchClaims, fetchTelemetryStats, fetchProducts]);
 
   const trafficData = telemetryStats?.trafficData || [];
+  const systemMetrics = telemetryStats?.systemMetrics || [];
   const totalClicks = trafficData.reduce((sum, row) => sum + row.clicks, 0);
   const totalLeads = trafficData.reduce((sum, row) => sum + row.leads, 0);
   const totalConversions = trafficData.reduce((sum, row) => sum + row.conversions, 0);
@@ -219,6 +222,15 @@ const AdminDashboard: React.FC = () => {
       href: '/dashboard/admin/finance',
     },
   ];
+
+  const handlePayoutAction = async (claimId: string, nextStatus: 'processing' | 'cancelled') => {
+    setPendingClaimActionId(claimId);
+    try {
+      await updateClaimStatus(claimId, nextStatus);
+    } finally {
+      setPendingClaimActionId(null);
+    }
+  };
 
   return (
     <motion.div
@@ -358,8 +370,8 @@ const AdminDashboard: React.FC = () => {
               <span className="text-label-xs text-on-surface-variant">Lead</span>
             </div>
           </div>
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[260px] w-full min-h-[260px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="gradBruto" x1="0" y1="0" x2="0" y2="1">
@@ -392,7 +404,7 @@ const AdminDashboard: React.FC = () => {
         </motion.div>
 
         {/* Agent Growth Bar Chart */}
-        <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden flex flex-col">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
           <div className="mb-4">
             <h3 className="font-display text-title-md font-bold text-on-surface">Pertumbuhan Agen</h3>
@@ -408,8 +420,8 @@ const AdminDashboard: React.FC = () => {
               <span className="text-label-xs text-on-surface-variant">Baru</span>
             </div>
           </div>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[220px] w-full min-h-[220px] flex-1">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={agentGrowthData} barSize={8} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="month" stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
@@ -504,24 +516,26 @@ const AdminDashboard: React.FC = () => {
               <span className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
               <h4 className="font-display text-title-sm font-bold text-on-surface">System Health</h4>
             </div>
-            <div className="space-y-3">
-              {[
-                { label: 'Server Status', status: 'Online', ok: true },
-                { label: 'API Latency', status: '45ms', ok: true },
-                { label: 'Database Load', status: '12%', ok: true },
-                { label: 'Sync Status', status: 'Delayed', ok: false },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <span className="font-body text-body-sm text-on-surface-variant">{item.label}</span>
-                  <div className="flex items-center gap-1.5">
-                    {!item.ok && <span className="w-1.5 h-1.5 bg-error rounded-full animate-ping" />}
-                    <span className={`font-bold text-body-sm ${item.ok ? 'text-secondary' : 'text-error'}`}>
-                      {item.status}
-                    </span>
+            {systemMetrics.length > 0 ? (
+              <div className="space-y-3">
+                {systemMetrics.map((item: any) => (
+                  <div key={item.label} className="flex items-center justify-between">
+                    <div>
+                      <span className="font-body text-body-sm text-on-surface-variant">{item.label}</span>
+                      {item.sub && <div className="text-label-xs text-on-surface-variant mt-0.5">{item.sub}</div>}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {!item.ok && <span className="w-1.5 h-1.5 bg-error rounded-full animate-ping" />}
+                      <span className={`font-bold text-body-sm ${item.ok ? 'text-secondary' : 'text-error'}`}>
+                        {item.value}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-body-sm text-on-surface-variant">Belum ada telemetry sistem yang tersedia.</div>
+            )}
           </div>
 
           {/* Quick Actions */}
@@ -605,10 +619,20 @@ const AdminDashboard: React.FC = () => {
                 <div className="text-right flex-shrink-0">
                   <div className="font-bold text-primary text-body-sm">{p.rewardName}</div>
                   <div className="flex gap-1 mt-1">
-                    <button type="button" className="p-1 rounded bg-secondary/15 text-secondary hover:bg-secondary/25 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => handlePayoutAction(p.id, 'processing')}
+                      disabled={pendingClaimActionId === p.id}
+                      className="p-1 rounded bg-secondary/15 text-secondary hover:bg-secondary/25 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     </button>
-                    <button type="button" className="p-1 rounded bg-error/10 text-error hover:bg-error/20 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => handlePayoutAction(p.id, 'cancelled')}
+                      disabled={pendingClaimActionId === p.id}
+                      className="p-1 rounded bg-error/10 text-error hover:bg-error/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
                       <XCircle className="w-3.5 h-3.5" />
                     </button>
                   </div>

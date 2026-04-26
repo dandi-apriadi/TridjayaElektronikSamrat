@@ -94,7 +94,7 @@ const PromoPage: React.FC = () => {
                 </div>
 
                 {/* Content Side */}
-                <div className="lg:w-1/2 p-10 lg:p-16 flex flex-col justify-center relative bg-surface-low/30 backdrop-blur-sm">
+                <div className="lg:w-1/2 p-10 lg:p-16 flex flex-col justify-center relative bg-surface-low/30">
                   <div className="inline-flex items-center gap-2 mb-6 px-3 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 w-fit">
                     <Zap className="w-4 h-4 animate-pulse" />
                     <span className="text-label-sm font-bold uppercase tracking-widest tracking-widest">Penawaran Unggulan</span>
@@ -143,7 +143,7 @@ const PromoPage: React.FC = () => {
       </section>
 
       {/* 2. PROMO GRID - Modern Bento Style */}
-      <section className="pb-32 relative bg-surface-low/95 backdrop-blur-sm">
+      <section className="pb-32 relative bg-surface-low/95">
         <div className="container-custom">
           <SectionHeader
             title="Penawaran Lainnya"

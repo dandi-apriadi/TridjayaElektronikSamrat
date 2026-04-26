@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,6 +10,16 @@ import { formatPrice } from '../../data';
 import type { Product } from '../../types';
 import { useNotificationStore } from '../../store/useNotificationStore';
 import { useProductStore } from '../../store/useProductStore';
+import { 
+  loadCreditData, 
+  calculateInstallments, 
+  mapProductToCreditCategory, 
+  formatRupiah, 
+  tenorLabel, 
+  tenorPromoNote,
+  type CreditData,
+  type CustomerType
+} from '../../utils/creditCalculator';
 
 /* ─── Marketing Mappings ─────────────────────────────── */
 // We map extra marketing data for products that don't have it natively.
@@ -31,8 +41,18 @@ const marketingData: Record<string, { highlights: string[], sellingPoints: strin
   },
 };
 
-const getMarketingInfo = (id: string) => {
-  return marketingData[id] || {
+const getMarketingInfo = (product: Product) => {
+  // Prioritize data from the product entity (set by Admin)
+  if (product.highlights?.length || product.sellingPoints?.length || product.objections?.length) {
+    return {
+      highlights: product.highlights || [],
+      sellingPoints: product.sellingPoints || [],
+      objections: product.objections || [],
+    };
+  }
+
+  // Fallback to legacy hardcoded data
+  return marketingData[product.id] || {
     highlights: ['Produk Kualitas Premium', 'Garansi Resmi Tridjaya', 'Lolos Quality Control'],
     sellingPoints: ['Harga sangat bersaing', 'Bisa dicicil via Tridjaya', 'Layanan after-sales terbaik'],
     objections: ['"Bisa kurang?" → Sudah harga pas dengan bonus melimpah', '"Garansi?" → Resmi 1-3 tahun tergantung sparepart'],
@@ -57,8 +77,16 @@ const AgentKnowledgePage: React.FC = () => {
   const [category, setCategory]   = useState('Semua');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeTabs, setActiveTabs] = useState<Record<string, 'sales' | 'specs' | 'gallery' | 'installments'>>({});
-  const addNotification = useNotificationStore((state) => state.addNotification);
-  const { products, isLoading } = useProductStore();
+  const [customerType, setCustomerType] = useState<CustomerType>('NEW');
+  const [creditData, setCreditData] = useState<CreditData | null>(null);
+
+  const { products, isLoading, fetchProducts } = useProductStore();
+  const { addNotification } = useNotificationStore();
+
+  useEffect(() => {
+    fetchProducts();
+    loadCreditData().then(setCreditData);
+  }, [fetchProducts]);
 
   const filtered = products.filter((k) => {
     const mappedCat = mapCategory(k.category);
@@ -68,7 +96,7 @@ const AgentKnowledgePage: React.FC = () => {
   });
 
   const handleCopyMaterial = (p: Product) => {
-    const mkt = getMarketingInfo(p.id);
+    const mkt = getMarketingInfo(p);
     const text = `*PROMO TRIDJAYA SAMRAT* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${p.dpMin ? `💵 DP Mulai: ${formatPrice(p.dpMin)}\n💳 Cicilan: ${formatPrice(p.priceInstallment || 0)}/bln\n` : ''}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\nhttps://tridjayaelektronik.com/produk/${p.slug}\n\n_Segera hubungi saya untuk pemesanan!_`;
     
     navigator.clipboard.writeText(text);
@@ -188,9 +216,9 @@ const AgentKnowledgePage: React.FC = () => {
         ) : (
           filtered.map((item) => {
             const isExpanded = expandedId === item.id;
-          const currentTab = getTab(item.id);
-          const mappedCat = mapCategory(item.category);
-          const mkt = getMarketingInfo(item.id);
+            const currentTab = getTab(item.id);
+            const mappedCat = mapCategory(item.category);
+            const mkt = getMarketingInfo(item);
 
           return (
             <motion.div key={item.id} variants={iv} className="glass-card rounded-xl overflow-hidden relative">
@@ -327,7 +355,7 @@ const AgentKnowledgePage: React.FC = () => {
                                      </div>
                                   </div>
                                 )}
-                              </div>
+                               </div>
                             ) : (
                               <div className="text-center py-8 text-on-surface-variant text-body-sm">Spesifikasi detail tidak tersedia untuk produk ini.</div>
                             )}
@@ -337,53 +365,72 @@ const AgentKnowledgePage: React.FC = () => {
                         {/* TAB: INSTALLMENTS (SIMULASI CICILAN) */}
                         {currentTab === 'installments' && (
                           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <div className="flex flex-col lg:flex-row gap-6 items-start">
-                              <div className="w-full lg:w-1/3 glass-dark p-5 rounded-xl border border-primary/20">
-                                 <h4 className="font-display font-bold text-on-surface mb-4 pb-2 border-b border-outline-variant/10">Base Pricing</h4>
-                                 <div className="space-y-4">
-                                    <div className="flex justify-between items-center">
-                                       <span className="text-label-sm text-on-surface-variant">Harga OTR</span>
-                                       <span className="text-title-sm font-bold text-primary">{formatPrice(item.price)}</span>
-                                    </div>
-                                    {item.dpMin && (
-                                      <div className="flex justify-between items-center">
-                                         <span className="text-label-sm text-on-surface-variant">Min. DP (Asumsi)</span>
-                                         <span className="text-title-sm font-bold text-on-surface">{formatPrice(item.dpMin)}</span>
-                                      </div>
-                                    )}
-                                    <div className="flex justify-between items-center pt-2 border-t border-outline-variant/10">
-                                       <span className="text-label-sm text-on-surface-variant">Pokok Hutang Area</span>
-                                       <span className="text-label-md font-bold text-on-surface-variant line-through">{formatPrice(item.price - (item.dpMin || 0))}</span>
-                                    </div>
-                                    <p className="text-[10px] text-on-surface-variant italic mt-2 text-center">
-                                      *Simulasi bersifat estimasi. Persetujuan dan rate final ditentukan oleh pihak leasing (Adira/Spektra dll).
-                                    </p>
-                                 </div>
+                            <div className="flex flex-col gap-6">
+                              <div className="flex flex-wrap items-center justify-between gap-4 p-4 glass-dark rounded-xl border border-primary/20">
+                                <div className="flex flex-col gap-1">
+                                   <h4 className="font-display font-bold text-on-surface">Pilih Tipe Nasabah</h4>
+                                   <p className="text-[10px] text-on-surface-variant font-medium">Data cicilan mengikuti Pricelist 2025 (Excel)</p>
+                                </div>
+                                <div className="flex gap-2 p-1 bg-surface-high/50 rounded-xl border border-outline-variant/10">
+                                  <button 
+                                    onClick={() => setCustomerType('NEW')}
+                                    className={`px-4 py-1.5 rounded-lg text-label-sm font-bold transition-all ${customerType === 'NEW' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface'}`}
+                                  >
+                                    Nasabah Baru
+                                  </button>
+                                  <button 
+                                    onClick={() => setCustomerType('RO')}
+                                    className={`px-4 py-1.5 rounded-lg text-label-sm font-bold transition-all ${customerType === 'RO' ? 'bg-secondary text-on-primary shadow-lg shadow-secondary/20' : 'text-on-surface-variant hover:text-on-surface'}`}
+                                  >
+                                    Repeat Order (RO)
+                                  </button>
+                                </div>
                               </div>
-                              <div className="w-full lg:w-2/3">
-                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                    {[12, 18, 24, 36].map((tenor) => {
-                                       const principal = item.price - (item.dpMin || item.price * 0.15);
-                                       const monthlyRate = 0.021;
-                                       const totalLease = principal + (principal * monthlyRate * tenor);
-                                       const installment = Math.ceil(totalLease / tenor / 1000) * 1000;
 
-                                       return (
-                                         <div key={tenor} className="p-4 rounded-xl border border-outline-variant/20 bg-surface-high/20 flex flex-col items-center justify-center text-center hover:border-primary/40 transition-colors">
-                                            <div className="text-body-sm font-bold text-on-surface-variant mb-1">{tenor} Bulan</div>
-                                            <div className="text-body-lg font-display font-bold gradient-text-primary">{formatPrice(installment)}</div>
-                                            <div className="text-[10px] text-on-surface-variant uppercase font-bold mt-1 tracking-wider">Per Bulan</div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {creditData ? (() => {
+                                  try {
+                                    const categoryKey = mapProductToCreditCategory(item.category);
+                                    const result = calculateInstallments(
+                                      creditData, 
+                                      item.price, 
+                                      customerType, 
+                                      categoryKey
+                                    );
+                                    
+                                    return Object.entries(result.installments).map(([tenor, amount]) => (
+                                      <div key={tenor} className="p-4 rounded-xl border border-outline-variant/20 bg-surface-high/20 flex flex-col items-center justify-center text-center hover:border-primary/40 transition-all group">
+                                         <div className="text-body-sm font-bold text-on-surface-variant mb-1 group-hover:text-on-surface transition-colors">
+                                           {tenorLabel(tenor as any)}
                                          </div>
-                                       )
-                                    })}
-                                 </div>
-                                 <div className="mt-4 p-3 bg-secondary/10 border border-secondary/20 rounded-lg flex items-start gap-3">
-                                    <Shield className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
-                                    <div>
-                                      <p className="text-label-sm font-bold text-on-surface">Promo Bebas 1x Cicilan</p>
-                                      <p className="text-label-xs text-on-surface-variant mt-0.5">Tersedia untuk tenor 24 & 36 bulan jika pembayaran selalu tepat waktu via Autodebet.</p>
-                                    </div>
-                                 </div>
+                                         <div className="text-body-lg font-display font-bold text-primary">
+                                           {formatRupiah(amount as number)}
+                                         </div>
+                                         <div className="text-[10px] text-primary/80 font-bold italic mt-1">
+                                           {tenorPromoNote(tenor as any)}
+                                         </div>
+                                      </div>
+                                    ));
+                                  } catch (e) {
+                                    return <div className="col-span-full p-8 text-center text-label-sm text-error bg-error/5 rounded-xl border border-error/10">Data simulasi tidak tersedia untuk rentang harga ini.</div>;
+                                  }
+                                })() : (
+                                  <div className="col-span-full p-8 text-center text-label-sm text-on-surface-variant animate-pulse">Memuat data pricelist...</div>
+                                )}
+                              </div>
+
+                              <div className="p-4 rounded-xl bg-surface-low border border-outline-variant/10">
+                                <div className="flex items-start gap-3">
+                                  <Info className="w-5 h-5 text-on-surface-variant flex-shrink-0 mt-0.5" />
+                                  <div className="space-y-1">
+                                    <p className="text-label-sm font-bold text-on-surface">Informasi Penting</p>
+                                    <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                                      Simulasi di atas sudah termasuk biaya admin <strong>Rp 700.000</strong>. 
+                                      Pembulatan harga barang dilakukan ke kelipatan <strong>Rp 25.000</strong> terdekat sesuai aturan baku pricelist Tridjaya Samrat 2025. 
+                                      Persetujuan final ditentukan oleh leasing partner.
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </motion.div>

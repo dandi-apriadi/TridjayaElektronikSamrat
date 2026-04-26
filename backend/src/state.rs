@@ -45,6 +45,9 @@ pub struct UserPublic {
     pub name: String,
     pub role: String, // String for DB compatibility, convert to Role in logic if needed
     pub avatar: String,
+    pub bank_account: String,
+    pub created_at: Option<String>,
+    pub last_login: Option<String>,
     pub is_active: bool,
 }
 
@@ -56,6 +59,9 @@ pub struct UserRecord {
     pub role: String,
     pub password_hash: String,
     pub avatar: String,
+    pub bank_account: String,
+    pub created_at: Option<String>,
+    pub last_login: Option<String>,
     pub is_active: bool,
 }
 
@@ -67,6 +73,9 @@ impl UserRecord {
             name: self.name.clone(),
             role: self.role.to_lowercase(),
             avatar: self.avatar.clone(),
+            bank_account: self.bank_account.clone(),
+            created_at: self.created_at.clone(),
+            last_login: self.last_login.clone(),
             is_active: self.is_active,
         }
     }

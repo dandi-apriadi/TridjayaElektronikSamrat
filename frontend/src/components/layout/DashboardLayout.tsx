@@ -21,7 +21,8 @@ import {
   UserCheck,
   Send,
   FileText,
-  ExternalLink
+  ExternalLink,
+  TrendingUp
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -59,10 +60,12 @@ const DashboardLayout: React.FC = () => {
         { label: 'Overview', icon: LayoutDashboard, path: '/dashboard/admin' },
         { label: 'Registrasi Agen', icon: UserCheck, path: '/dashboard/admin/agents' },
         { label: 'Direktori Agen', icon: Users, path: '/dashboard/admin/agents/directory' },
+        { label: 'Manajemen Prospek', icon: TrendingUp, path: '/dashboard/admin/leads' },
         { label: 'Katalog Produk', icon: Package, path: '/dashboard/admin/catalog' },
         { label: 'Promo & Campaign', icon: Ticket, path: '/dashboard/admin/promo' },
         { label: 'Konten & Blog', icon: FileText, path: '/dashboard/admin/content' },
         { label: 'Telemetri', icon: BarChart3, path: '/dashboard/admin/telemetry' },
+        { label: 'Support Ticket', icon: Headphones, path: '/dashboard/admin/support' },
         { label: 'Leaderboard', icon: Trophy, path: '/dashboard/admin/leaderboard' },
         { label: 'Keuangan', icon: Wallet, path: '/dashboard/admin/finance' },
         { label: 'User & Akses', icon: Shield, path: '/dashboard/admin/users' },
@@ -75,6 +78,7 @@ const DashboardLayout: React.FC = () => {
         { label: 'Leaderboard', icon: Trophy, path: '/dashboard/agent/leaderboard' },
         { label: 'Komisi & Penarikan', icon: Wallet, path: '/dashboard/agent/earnings' },
         { label: 'Support', icon: Headphones, path: '/dashboard/agent/support' },
+        { label: 'Pengaturan', icon: Shield, path: '/dashboard/agent/settings' },
       ];
 
   const quickActions = user?.role === 'admin'

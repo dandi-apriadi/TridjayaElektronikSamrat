@@ -70,6 +70,7 @@
       "id": "silver",
       "name": "Silver Tier",
       "threshold_points": 5000,
+      "reward_value": 650000,
       "icon": "Medal",
       "color": "text-slate-400",
       "benefits": [
@@ -82,6 +83,7 @@
       "id": "gold",
       "name": "Gold Tier",
       "threshold_points": 15000,
+      "reward_value": 1200000,
       "icon": "Trophy",
       "color": "text-amber-400",
       "benefits": [
@@ -94,6 +96,7 @@
       "id": "diamond",
       "name": "Diamond Tier",
       "threshold_points": 50000,
+      "reward_value": 2400000,
       "icon": "Crown",
       "color": "text-cyan-400",
       "benefits": [

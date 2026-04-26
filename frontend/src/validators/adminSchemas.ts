@@ -4,15 +4,21 @@ export const adminProductSchema = z.object({
   name: z.string().trim().min(3, 'Nama produk minimal 3 karakter'),
   slug: z.string().trim().min(3, 'Slug minimal 3 karakter').regex(/^[a-z0-9-]+$/, 'Slug hanya boleh huruf kecil, angka, dan tanda minus'),
   category: z.enum(['bike', 'electronics', 'furniture']),
-  subcategory: z.string().trim().min(2, 'Sub kategori minimal 2 karakter').default('Umum'),
+  subcategory: z.string().trim().optional(),
   price: z.number().nonnegative('Harga retail tidak boleh negatif'),
   priceInstallment: z.number().nonnegative('Harga cicilan tidak boleh negatif').optional(),
   dpMin: z.number().nonnegative('DP minimum tidak boleh negatif').optional(),
   stock: z.enum(['available', 'indent', 'hidden']),
-  image: z.string().trim().url('URL gambar utama tidak valid'),
+  image: z.string().trim().min(1, 'Gambar utama wajib diisi'), // Relaxed from .url()
+  images: z.array(z.string().trim().min(1)).optional(), // Relaxed from .url()
   description: z.string().trim().min(20, 'Deskripsi lengkap minimal 20 karakter'),
   shortDesc: z.string().trim().min(10, 'Deskripsi singkat minimal 10 karakter'),
-  badge: z.enum(['eco', 'new', 'sale', 'popular', 'limited']).optional(),
+  badge: z.enum(['eco', 'new', 'sale', 'popular', 'limited', '']).optional().transform(v => v === '' ? undefined : v),
+  specs: z.record(z.string(), z.string()).optional().default({}),
+  colors: z.array(z.string()).optional().default([]),
+  highlights: z.array(z.string()).optional().default([]),
+  sellingPoints: z.array(z.string()).optional().default([]),
+  objections: z.array(z.string()).optional().default([]),
 });
 
 export const adminPromoSchema = z.object({

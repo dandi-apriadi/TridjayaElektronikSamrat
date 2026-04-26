@@ -32,7 +32,7 @@ const TentangPage: React.FC = () => {
       </section>
 
       {/* Story */}
-      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
+      <section className="pb-20 bg-surface/90">
         <div className="container-custom">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div
@@ -41,11 +41,11 @@ const TentangPage: React.FC = () => {
               viewport={{ once: true }}
               className="relative"
             >
-              <div className="rounded-2xl overflow-hidden glass-card aspect-[4/3] relative">
+              <div className="rounded-2xl overflow-hidden glass-card aspect-[4/3] relative !backdrop-blur-none">
                 <img src={sofaImg} alt="Visi Kami" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-surface/60 to-transparent" />
               </div>
-              <div className="absolute -bottom-6 -right-6 w-48 h-48 rounded-2xl glass-premium p-6 hidden md:block">
+              <div className="absolute -bottom-6 -right-6 w-48 h-48 rounded-2xl bg-surface/80 border border-primary/20 shadow-ambient p-6 hidden md:block">
                 <div className="font-display text-display-sm font-bold text-primary mb-1">15+</div>
                 <div className="font-body text-body-sm text-on-surface-variant leading-tight">Tahun melayani pelanggan di Sulawesi</div>
               </div>
@@ -79,7 +79,7 @@ const TentangPage: React.FC = () => {
       </section>
 
       {/* Vision Mission */}
-      <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
+      <section className="section-padding bg-surface-low/95">
         <div className="container-custom">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.div
@@ -169,7 +169,7 @@ const TentangPage: React.FC = () => {
       </section>
 
       {/* Stats */}
-      <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
+      <section className="section-padding bg-surface-low/95">
         <div className="container-custom">
           <StatsRow />
         </div>

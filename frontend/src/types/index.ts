@@ -15,11 +15,18 @@ export interface Product {
   badgeText?: string;
   rating: number;
   reviewCount: number;
+  views?: number;
+  leads?: number;
+  conversions?: number;
+  conversionRate?: number;
   specs: Record<string, string>;
   description: string;
   shortDesc: string;
   stock: 'available' | 'indent' | 'hidden';
   colors?: string[];
+  highlights?: string[];
+  sellingPoints?: string[];
+  objections?: string[];
 }
 
 export interface PromoItem {

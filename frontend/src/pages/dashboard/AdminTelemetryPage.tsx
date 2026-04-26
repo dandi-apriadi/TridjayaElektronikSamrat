@@ -130,8 +130,8 @@ const AdminTelemetryPage: React.FC = () => {
               </div>
             ))}
           </div>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[240px] w-full min-h-[240px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={data.trafficData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
@@ -146,14 +146,14 @@ const AdminTelemetryPage: React.FC = () => {
         </motion.div>
 
         {/* Monthly Page Views Area Chart */}
-        <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden flex flex-col">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
           <div className="mb-4">
             <h3 className="font-display text-title-md font-bold text-on-surface">Page Views Bulanan</h3>
             <p className="text-label-sm text-on-surface-variant mt-0.5">Tren 6 bulan terakhir</p>
           </div>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[200px] w-full min-h-[200px] flex-1">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <AreaChart data={data.monthlyPageViews}>
                 <defs>
                   <linearGradient id="pvGrad" x1="0" y1="0" x2="0" y2="1">

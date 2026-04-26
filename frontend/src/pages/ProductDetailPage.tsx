@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -10,6 +10,10 @@ import { useProductStore } from '../store/useProductStore';
 import CreditSimulator from '../components/CreditSimulator';
 import { formatRupiah, tenorLabel, type CustomerType } from '../utils/creditCalculator';
 import { Badge, ProductCard, SectionHeader } from '../components/ui';
+import { recordTelemetry } from '../utils/telemetry';
+import { getImageUrl } from '../utils/apiClient';
+
+import { useMinInstallment } from '../hooks/useMinInstallment';
 
 const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -18,11 +22,28 @@ const ProductDetailPage: React.FC = () => {
   const product = getProductBySlug(slug || '');
   const [selectedColor, setSelectedColor] = useState(0);
   const [showCreditForm, setShowCreditForm] = useState(false);
+  const minInstallment = useMinInstallment(product || null);
   const [selectedCreditPlan, setSelectedCreditPlan] = useState<{
     customerType: CustomerType;
     tenor: '6x' | '9x' | '12x' | '15x';
     monthlyInstallment: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+
+    recordTelemetry('page_view', {
+      path: `/produk/${product.slug}`,
+      source: 'direct',
+      metadata: {
+        productSlug: product.slug,
+        productId: product.id,
+        category: product.category,
+      },
+    });
+  }, [product?.id, product?.slug, product?.category]);
 
   if (isLoading) {
     return (
@@ -99,7 +120,7 @@ const ProductDetailPage: React.FC = () => {
             >
               <div className="relative overflow-hidden rounded-2xl bg-surface-container aspect-[4/3] mb-4">
                 <img
-                  src={product.image}
+                  src={getImageUrl(product.image)}
                   alt={product.name}
                   className="w-full h-full object-cover"
                 />
@@ -167,10 +188,10 @@ const ProductDetailPage: React.FC = () => {
                 <div className="font-display text-display-sm font-bold gradient-text-primary mb-1">
                   {formatPrice(product.price)}
                 </div>
-                {product.priceInstallment && (
+                {(minInstallment || product.priceInstallment) && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-body text-body-md text-on-surface-variant">
-                      Cicil dari <span className="text-white font-semibold">{formatPrice(product.priceInstallment)}</span>/bulan
+                      Cicil dari <span className="text-white font-semibold">{formatPrice(minInstallment || product.priceInstallment || 0)}</span>/bulan
                     </span>
                     {product.dpMin && (
                       <span className="font-body text-label-sm text-on-surface-variant">
@@ -200,6 +221,17 @@ const ProductDetailPage: React.FC = () => {
                   href={`https://wa.me/628529999999?text=${agentMessage}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => {
+                    recordTelemetry('whatsapp_click', {
+                      path: `/produk/${product.slug}`,
+                      source: 'direct',
+                      metadata: {
+                        productSlug: product.slug,
+                        productId: product.id,
+                        action: 'general_inquiry',
+                      },
+                    });
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 glass-card border border-primary/20 rounded-xl font-display text-title-sm font-semibold text-white hover:border-primary/50 transition-all duration-300"
                 >
                   <Phone className="w-4 h-4 text-primary" />
@@ -224,6 +256,18 @@ const ProductDetailPage: React.FC = () => {
                     href={`https://wa.me/628529999999?text=${creditMessage}`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => {
+                      recordTelemetry('whatsapp_click', {
+                        path: `/produk/${product.slug}`,
+                        source: 'direct',
+                        metadata: {
+                          productSlug: product.slug,
+                          productId: product.id,
+                          action: 'credit_inquiry',
+                          selectedTenor: selectedCreditPlan?.tenor ?? null,
+                        },
+                      });
+                    }}
                     className="w-full inline-flex justify-center py-3 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface"
                   >
                     Kirim Pengajuan via WhatsApp

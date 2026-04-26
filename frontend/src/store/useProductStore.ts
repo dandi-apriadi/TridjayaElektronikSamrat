@@ -1,9 +1,6 @@
 import { create } from 'zustand';
 import type { Product } from '../types';
-import { useAuthStore } from './authStore';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
-const API_URL = `${API_BASE_URL}/api`;
+import { apiFetch } from '../utils/apiClient';
 
 interface ProductState {
   products: Product[];
@@ -22,13 +19,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
   isLoading: false,
   error: null,
   fetchProducts: async (force = false) => {
-    // Prevent redundant fetching
-    if (get().isLoading) return;
+    // Prevent redundant fetching, but allow if forced
+    if (get().isLoading && !force) return;
     if (!force && get().products.length > 0) return;
  
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/catalogs`);
+      const response = await apiFetch('/api/catalogs');
       
       if (!response.ok) {
         throw new Error('Gagal mengambil data produk dari server');
@@ -55,17 +52,18 @@ export const useProductStore = create<ProductState>((set, get) => ({
   createProduct: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/catalogs`, {
+      const response = await apiFetch('/api/catalogs', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Failed to create product');
-      await get().fetchProducts();
+      
+      // Reset loading before fetching or pass force=true
+      set({ isLoading: false }); 
+      await get().fetchProducts(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error', isLoading: false });
@@ -75,17 +73,18 @@ export const useProductStore = create<ProductState>((set, get) => ({
   updateProduct: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/catalogs/${id}`, {
+      const response = await apiFetch(`/api/catalogs/${id}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Failed to update product');
-      await get().fetchProducts();
+      
+      // Reset loading before fetching or pass force=true
+      set({ isLoading: false });
+      await get().fetchProducts(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error', isLoading: false });
@@ -94,12 +93,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
   },
   deleteProduct: async (id) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/catalogs/${id}`, {
+      const response = await apiFetch(`/api/catalogs/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (!response.ok) throw new Error('Failed to delete product');
       set((state) => ({ products: state.products.filter(p => p.id !== id) }));

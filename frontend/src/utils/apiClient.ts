@@ -5,7 +5,7 @@
 
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
 
 export interface FetchOptions extends RequestInit {
   skipAuth?: boolean;
@@ -13,6 +13,8 @@ export interface FetchOptions extends RequestInit {
 
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
+let lastRefreshTime = 0;
+const REFRESH_GRACE_PERIOD = 2000; // 2 seconds
 
 /**
  * Enhanced fetch with automatic token refresh on 401
@@ -33,10 +35,17 @@ export async function apiFetch(
     credentials: 'include', // Allow cookies
     ...fetchOptions,
     headers: {
-      'Content-Type': 'application/json',
       ...fetchOptions.headers,
     },
   };
+
+  // Only set application/json if body is not FormData and headers don't already have Content-Type
+  if (!(fetchOptions.body instanceof FormData)) {
+    finalOptions.headers = {
+      'Content-Type': 'application/json',
+      ...finalOptions.headers,
+    };
+  }
 
   // Add bearer token if available and not skipped
   if (!skipAuth) {
@@ -53,44 +62,64 @@ export async function apiFetch(
 
   // Handle 401 - attempt token refresh
   if (response.status === 401 && !skipAuth) {
-    // If already refreshing, wait for it
+    const now = Date.now();
+    
+    // 1. If the token was refreshed very recently, just retry once with the current store token
+    if (now - lastRefreshTime < REFRESH_GRACE_PERIOD) {
+      const currentToken = useAuthStore.getState().accessToken;
+      if (currentToken) {
+        finalOptions.headers = {
+          ...finalOptions.headers,
+          Authorization: `Bearer ${currentToken}`,
+        };
+        return fetch(url, finalOptions);
+      }
+    }
+
+    // 2. If already refreshing, wait for it
     if (isRefreshing && refreshPromise) {
       const refreshed = await refreshPromise;
       if (refreshed) {
-        // Retry with new token
         const newToken = useAuthStore.getState().accessToken;
         if (newToken) {
           finalOptions.headers = {
             ...finalOptions.headers,
             Authorization: `Bearer ${newToken}`,
           };
-          response = await fetch(url, finalOptions);
+          return fetch(url, finalOptions);
         }
       }
       return response;
     }
 
-    // Start refresh
+    // 3. Start refresh
     isRefreshing = true;
     refreshPromise = useAuthStore.getState().refreshSession();
 
-    const refreshed = await refreshPromise;
-    isRefreshing = false;
-    refreshPromise = null;
-
-    if (refreshed) {
-      // Retry with new token
-      const newToken = useAuthStore.getState().accessToken;
-      if (newToken) {
-        finalOptions.headers = {
-          ...finalOptions.headers,
-          Authorization: `Bearer ${newToken}`,
-        };
-        response = await fetch(url, finalOptions);
+    try {
+      const refreshed = await refreshPromise;
+      lastRefreshTime = Date.now();
+      
+      if (refreshed) {
+        const newToken = useAuthStore.getState().accessToken;
+        if (newToken) {
+          finalOptions.headers = {
+            ...finalOptions.headers,
+            Authorization: `Bearer ${newToken}`,
+          };
+          return fetch(url, finalOptions);
+        }
+      } else {
+        // Only logout if refresh really failed (e.g. 401 on refresh endpoint)
+        // Check if we are still on a 401 state before logging out
+        const stillUnauthorized = useAuthStore.getState().accessToken === null;
+        if (stillUnauthorized) {
+          await useAuthStore.getState().logout();
+        }
       }
-    } else {
-      // Refresh failed - logout
-      await useAuthStore.getState().logout();
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
     }
   }
 
@@ -110,4 +139,22 @@ export async function apiJson<T = any>(
     data,
     status: response.status,
   };
+}
+
+/**
+ * Helper for image URLs from backend
+ */
+export function getImageUrl(path: string | undefined | null): string {
+  if (!path) return 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop';
+  if (path.startsWith('http')) return path;
+  if (path.startsWith('data:')) return path;
+  
+  // Handle local Vite assets in development
+  if (path.startsWith('/src') || path.startsWith('/assets') || path.startsWith('/@fs')) {
+    return path;
+  }
+  
+  // Ensure path starts with /
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
 }

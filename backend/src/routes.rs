@@ -1,11 +1,13 @@
 use crate::{
-    auth::{authorize, hash_password, login_with_request, logout_with_headers, refresh_with_request, LoginRequest, RefreshRequest, Role},
+    auth::{authorize, hash_password, login_with_request, logout_with_headers, refresh_with_request, verify_password, LoginRequest, RefreshRequest, Role},
     response::{json_ok, AppError},
     state::{AppState, UserPublic},
 };
 use axum::{extract::{Path, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{get, post, patch}, Json, Router};
 use chrono::{Duration, Utc};
-use serde::Deserialize;
+use std::collections::HashMap;
+use std::fs;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 pub fn router(state: AppState) -> Router {
@@ -16,8 +18,13 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/refresh", post(refresh))
         .route("/api/auth/forgot-password", post(forgot_password))
         .route("/api/auth/reset-password", post(reset_password))
+        .route("/api/auth/profile", patch(update_auth_profile))
+        .route("/api/auth/change-password", post(change_auth_password))
         .route("/api/users", get(list_users).post(create_user))
         .route("/api/users/{id}", get(get_user).patch(update_user).delete(delete_user))
+        .route("/api/users/{id}/reset-password", post(reset_user_password))
+        .route("/api/reward-tiers", get(list_reward_tiers))
+        .route("/api/admin/uploads/image", post(upload_admin_image))
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
         .route("/api/catalogs/{id}", get(get_catalog).patch(update_catalog).delete(delete_catalog))
         .route("/api/promotions", get(list_promotions).post(create_promotion))
@@ -38,11 +45,15 @@ pub fn router(state: AppState) -> Router {
         .route("/api/leads/{id}/status", patch(update_lead_status))
         .route("/api/agent/stats", get(get_agent_stats))
         .route("/api/agent/claims", get(list_claims).post(create_claim))
+        .route("/api/agent/support-tickets", get(list_support_tickets).post(create_support_ticket))
+        .route("/api/leaderboard", get(list_leaderboard))
         .route("/api/agent-registrations", post(submit_agent_registration))
         .route("/api/admin/agent-registrations", get(list_agent_registrations))
         .route("/api/admin/agent-registrations/{id}/status", patch(update_agent_registration_status))
         .route("/api/admin/claims", get(list_all_claims))
         .route("/api/admin/claims/{id}/status", patch(update_claim_status))
+        .route("/api/admin/support-tickets", get(list_admin_support_tickets))
+        .route("/api/admin/support-tickets/{id}/status", patch(update_admin_support_ticket_status))
         .route("/api/admin/telemetry-stats", get(get_telemetry_stats))
         .route("/api/admin/agents", get(list_agents))
         .with_state(state)
@@ -280,9 +291,106 @@ async fn reset_password() -> ResponseBody {
     json_ok("Password reset completed", json!({ "reset": true }))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthProfileUpdateRequest {
+    name: Option<String>,
+    bank_account: Option<String>,
+    avatar: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ChangePasswordRequest {
+    #[serde(alias = "oldPassword")]
+    old_password: String,
+    #[serde(alias = "newPassword")]
+    new_password: String,
+}
+
+#[derive(Deserialize)]
+struct ResetUserPasswordRequest {
+    password: String,
+}
+
+async fn update_auth_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<AuthProfileUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Editor, Role::Operator]).await?;
+
+    if payload.name.is_none() && payload.bank_account.is_none() && payload.avatar.is_none() {
+        return Err(AppError::Validation {
+            errors: vec!["Tidak ada perubahan profil yang dikirim".to_string()],
+        });
+    }
+
+    let next_name = payload.name.unwrap_or(user.name);
+    let next_bank_account = payload.bank_account.unwrap_or(user.bank_account);
+    let next_avatar = payload.avatar.unwrap_or(user.avatar);
+
+    if next_name.trim().is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Nama tidak boleh kosong".to_string()],
+        });
+    }
+
+    sqlx::query("UPDATE users SET name = ?, bank_account = ?, avatar = ? WHERE id = ?")
+        .bind(next_name.trim())
+        .bind(next_bank_account.trim())
+        .bind(next_avatar.trim())
+        .bind(&user.id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error updating profile: {}", e);
+            AppError::Internal
+        })?;
+
+    let updated = find_user_public_by_id(&state, &user.id).await?;
+    Ok(json_ok("Profil berhasil diperbarui", serde_json::to_value(updated).unwrap_or(json!({}))))
+}
+
+async fn change_auth_password(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Editor, Role::Operator]).await?;
+
+    if payload.old_password.trim().is_empty() || payload.new_password.trim().is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Password lama dan baru wajib diisi".to_string()],
+        });
+    }
+    if payload.new_password.len() < 8 {
+        return Err(AppError::Validation {
+            errors: vec!["Password baru minimal 8 karakter".to_string()],
+        });
+    }
+    if !verify_password(&payload.old_password, &user.password_hash) {
+        return Err(AppError::Validation {
+            errors: vec!["Password lama tidak sesuai".to_string()],
+        });
+    }
+
+    let password_hash = hash_password(&payload.new_password);
+    sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+        .bind(password_hash)
+        .bind(&user.id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error updating password: {}", e);
+            AppError::Internal
+        })?;
+
+    Ok(json_ok("Password berhasil diperbarui", json!({ "updated": true })))
+}
+
 async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, is_active FROM users")
+    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active FROM users")
         .fetch_all(&state.pool)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -299,6 +407,7 @@ struct UserCreateRequest {
     role: String,
     password: String,
     avatar: Option<String>,
+    bank_account: Option<String>,
     is_active: Option<bool>,
 }
 
@@ -310,6 +419,7 @@ struct UserUpdateRequest {
     role: Option<String>,
     password: Option<String>,
     avatar: Option<String>,
+    bank_account: Option<String>,
     is_active: Option<bool>,
 }
 
@@ -342,6 +452,20 @@ struct LeadCreateRequest {
 struct LeadStatusUpdateRequest {
     status: String,
     notes: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateSupportTicketRequest {
+    subject: String,
+    message: Option<String>,
+    priority: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateSupportTicketStatusRequest {
+    status: String,
 }
 
 fn normalize_role(value: &str) -> Option<String> {
@@ -450,9 +574,78 @@ fn lead_to_json(record: LeadRecord) -> Value {
     })
 }
 
+#[derive(sqlx::FromRow)]
+struct SupportTicketRecord {
+    id: String,
+    agent_id: String,
+    subject: String,
+    message: Option<String>,
+    priority: String,
+    status: String,
+    created_at: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct AdminSupportTicketRow {
+    id: String,
+    agent_id: String,
+    subject: String,
+    message: Option<String>,
+    priority: String,
+    status: String,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+    agent_name: Option<String>,
+    agent_email: Option<String>,
+}
+
+fn support_ticket_to_json(record: SupportTicketRecord) -> Value {
+    json!({
+        "id": record.id,
+        "agentId": record.agent_id,
+        "subject": record.subject,
+        "message": record.message,
+        "priority": record.priority,
+        "status": record.status,
+        "createdAt": record.created_at,
+    })
+}
+
+fn normalize_ticket_priority(priority: Option<&str>) -> String {
+    match priority.unwrap_or("medium").trim().to_lowercase().as_str() {
+        "high" => "high".to_string(),
+        "low" => "low".to_string(),
+        _ => "medium".to_string(),
+    }
+}
+
+fn normalize_ticket_status(status: &str) -> Option<String> {
+    match status.trim().to_lowercase().as_str() {
+        "open" => Some("open".to_string()),
+        "in_progress" | "in-progress" | "processing" => Some("in_progress".to_string()),
+        "resolved" | "closed" | "done" => Some("resolved".to_string()),
+        _ => None,
+    }
+}
+
+fn admin_support_ticket_to_json(row: AdminSupportTicketRow) -> Value {
+    json!({
+        "id": row.id,
+        "agentId": row.agent_id,
+        "agentName": row.agent_name,
+        "agentEmail": row.agent_email,
+        "subject": row.subject,
+        "message": row.message,
+        "priority": row.priority,
+        "status": row.status,
+        "createdAt": row.created_at,
+        "updatedAt": row.updated_at,
+    })
+}
+
 async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
     sqlx::query_as::<_, UserPublic>(
-        "SELECT id, email, name, role, avatar, is_active FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active FROM users WHERE id = ? LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -495,7 +688,7 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
     let password_hash = hash_password(&payload.password);
 
     sqlx::query(
-        "INSERT INTO users (id, email, name, role, password_hash, avatar, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(payload.email.trim())
@@ -503,6 +696,7 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
     .bind(role)
     .bind(password_hash)
     .bind(payload.avatar.unwrap_or_else(|| "".to_string()))
+    .bind(payload.bank_account.unwrap_or_else(|| "".to_string()))
     .bind(payload.is_active.unwrap_or(true))
     .execute(&state.pool)
     .await
@@ -528,8 +722,8 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     validate_user_update(&payload)?;
 
-    let current = sqlx::query_as::<_, (String, String, String, String, String, bool)>(
-        "SELECT email, name, role, password_hash, avatar, is_active FROM users WHERE id = ? LIMIT 1",
+    let current = sqlx::query_as::<_, (String, String, String, String, String, String, bool)>(
+        "SELECT email, name, role, password_hash, avatar, bank_account, is_active FROM users WHERE id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -553,16 +747,18 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         .map(hash_password)
         .unwrap_or(current.3);
     let next_avatar = payload.avatar.unwrap_or(current.4);
-    let next_is_active = payload.is_active.unwrap_or(current.5);
+    let next_bank_account = payload.bank_account.unwrap_or(current.5);
+    let next_is_active = payload.is_active.unwrap_or(current.6);
 
     sqlx::query(
-        "UPDATE users SET email = ?, name = ?, role = ?, password_hash = ?, avatar = ?, is_active = ? WHERE id = ?",
+        "UPDATE users SET email = ?, name = ?, role = ?, password_hash = ?, avatar = ?, bank_account = ?, is_active = ? WHERE id = ?",
     )
     .bind(next_email.trim())
     .bind(next_name.trim())
     .bind(next_role)
     .bind(next_password_hash)
     .bind(next_avatar)
+    .bind(next_bank_account)
     .bind(next_is_active)
     .bind(&id)
     .execute(&state.pool)
@@ -574,6 +770,137 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         format!("User {} updated by {}", id, user.email),
         json!({ "item": updated }),
     ))
+}
+
+async fn reset_user_password(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<ResetUserPasswordRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    if payload.password.trim().len() < 8 {
+        return Err(AppError::Validation {
+            errors: vec!["Password baru minimal 8 karakter".to_string()],
+        });
+    }
+
+    let password_hash = hash_password(payload.password.trim());
+    let result = sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+        .bind(password_hash)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error resetting user password: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok(
+        format!("Password user {} direset oleh {}", id, user.email),
+        json!({ "updated": true }),
+    ))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RewardTierPublic {
+    id: String,
+    name: String,
+    threshold_points: i64,
+    reward_value: i64,
+    is_active: bool,
+}
+
+async fn list_reward_tiers(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+
+    let tiers = sqlx::query_as::<_, (String, String, i64, i64, bool)>(
+        "SELECT id, name, threshold_points, reward_value, is_active FROM reward_tiers ORDER BY threshold_points ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?
+    .into_iter()
+    .map(|row| RewardTierPublic {
+        id: row.0,
+        name: row.1,
+        threshold_points: row.2,
+        reward_value: row.3,
+        is_active: row.4,
+    })
+    .collect::<Vec<_>>();
+
+    Ok(json_ok("Reward tiers fetched", json!({ "items": tiers })))
+}
+
+async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, mut multipart: Multipart) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+
+    let mut uploaded_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Multipart error: {}", e);
+        AppError::Internal
+    })? {
+        if field.name().unwrap_or_default() != "file" {
+            continue;
+        }
+
+        let file_name_orig = field.file_name().unwrap_or("unknown").to_string();
+        tracing::info!("Receiving upload for file: {}", file_name_orig);
+
+        let data = field.bytes().await.map_err(|e| {
+            tracing::error!("Failed to get bytes for {}: {}", file_name_orig, e);
+            AppError::Internal
+        })?;
+        
+        tracing::info!("Received {} bytes for {}", data.len(), file_name_orig);
+
+        if data.is_empty() {
+            tracing::warn!("Received empty data for {}", file_name_orig);
+            continue;
+        }
+
+        tracing::info!("Loading image from memory...");
+        let image = image::load_from_memory(&data).map_err(|e| {
+            tracing::error!("Failed to load upload image {}: {}", file_name_orig, e);
+            AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
+        })?;
+
+        if let Err(error) = fs::create_dir_all("uploads") {
+            tracing::error!("Failed to create uploads directory: {}", error);
+            return Err(AppError::Internal);
+        }
+
+        let file_id = uuid::Uuid::new_v4().to_string();
+        let file_name = format!("{}_article.webp", file_id);
+        let file_path = format!("uploads/{}", file_name);
+        
+        tracing::info!("Saving image as WebP to {}...", file_path);
+        image.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
+            tracing::error!("Failed to save article upload {}: {}", file_name_orig, e);
+            AppError::Internal
+        })?;
+
+        tracing::info!("Successfully saved image to {}", file_path);
+        uploaded_url = Some(format!("/uploads/{}", file_name));
+        break;
+    }
+
+    let url = uploaded_url.ok_or(AppError::Validation {
+        errors: vec!["File gambar wajib diunggah".to_string()],
+    })?;
+
+    Ok(json_ok("Image uploaded", json!({ "url": url })))
 }
 
 async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
@@ -615,6 +942,13 @@ struct ProductRecord {
     specs: Option<String>,
     stock: String,
     colors: Option<String>,
+}
+
+#[derive(Default, Clone)]
+struct ProductAnalyticsSummary {
+    views: i64,
+    leads: i64,
+    conversions: i64,
 }
 
 #[derive(Deserialize)]
@@ -669,7 +1003,14 @@ fn parse_json_or_default(raw: Option<&str>, fallback: Value) -> Value {
         .unwrap_or(fallback)
 }
 
-fn product_to_json(record: ProductRecord) -> Value {
+fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSummary>) -> Value {
+    let analytics = analytics.cloned().unwrap_or_default();
+    let conversion_rate = if analytics.views > 0 {
+        (analytics.leads as f64 / analytics.views as f64) * 100.0
+    } else {
+        0.0
+    };
+
     json!({
         "id": record.id,
         "slug": record.slug,
@@ -690,6 +1031,10 @@ fn product_to_json(record: ProductRecord) -> Value {
         "specs": parse_json_or_default(record.specs.as_deref(), json!({})),
         "stock": record.stock,
         "colors": parse_json_or_default(record.colors.as_deref(), json!([])),
+        "views": analytics.views,
+        "leads": analytics.leads,
+        "conversions": analytics.conversions,
+        "conversionRate": conversion_rate,
     })
 }
 
@@ -946,7 +1291,7 @@ async fn find_promotion_by_id(state: &AppState, id: &str) -> Result<PromoRecord,
 }
 
 async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
-    let products: Vec<Value> = sqlx::query_as::<_, ProductRecord>(
+    let products = sqlx::query_as::<_, ProductRecord>(
         "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors FROM products"
     )
         .fetch_all(&state.pool)
@@ -954,12 +1299,52 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
         .map_err(|e| {
             tracing::error!("DB error: {}", e);
             AppError::Internal
-        })?
+        })?;
+
+    let analytics_rows = sqlx::query(
+        "SELECT
+            COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
+            COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views,
+            COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
+            COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
+         FROM telemetry_events
+         WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
+           AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''
+         GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let analytics_map: HashMap<String, ProductAnalyticsSummary> = analytics_rows
         .into_iter()
-        .map(product_to_json)
+        .filter_map(|row| {
+            use sqlx::Row;
+
+            let product_slug = row.try_get::<Option<String>, _>("product_slug").ok().flatten()?;
+            Some((
+                product_slug,
+                ProductAnalyticsSummary {
+                    views: row.get::<i64, _>("views"),
+                    leads: row.get::<i64, _>("leads"),
+                    conversions: row.get::<i64, _>("conversions"),
+                },
+            ))
+        })
         .collect();
 
-    Ok(json_ok("Catalogs fetched", json!({ "items": products })))
+    let items: Vec<Value> = products
+        .into_iter()
+        .map(|product| {
+            let analytics = analytics_map.get(&product.slug);
+            product_to_json(product, analytics)
+        })
+        .collect();
+
+    Ok(json_ok("Catalogs fetched", json!({ "items": items })))
 }
 
 async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<CatalogCreateRequest>) -> Result<ResponseBody, AppError> {
@@ -1007,13 +1392,13 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     let created = find_catalog_by_id_or_slug(&state, &id).await?;
     Ok(json_ok(
         format!("Catalog created by {}", user.email),
-        json!({ "item": product_to_json(created) }),
+        json!({ "item": product_to_json(created, None) }),
     ))
 }
 
 async fn get_catalog(State(state): State<AppState>, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
     let item = find_catalog_by_id_or_slug(&state, &id).await?;
-    Ok(json_ok("Catalog fetched", json!({ "item": product_to_json(item) })))
+    Ok(json_ok("Catalog fetched", json!({ "item": product_to_json(item, None) })))
 }
 
 async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<CatalogUpdateRequest>) -> Result<ResponseBody, AppError> {
@@ -1062,7 +1447,7 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
     let updated = find_catalog_by_id_or_slug(&state, &current.id).await?;
     Ok(json_ok(
         format!("Catalog {} updated by {}", current.id, user.email),
-        json!({ "item": product_to_json(updated) }),
+        json!({ "item": product_to_json(updated, None) }),
     ))
 }
 
@@ -1986,6 +2371,139 @@ async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, P
     Ok(json_ok(format!("Lead {} status updated", id), json!({ "item": lead_to_json(updated) })))
 }
 
+async fn list_support_tickets(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Agent]).await?;
+
+    let rows = sqlx::query_as::<_, SupportTicketRecord>(
+        "SELECT id, agent_id, subject, message, priority, status, created_at FROM support_tickets WHERE agent_id = ? ORDER BY created_at DESC",
+    )
+    .bind(&user.id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error listing support tickets: {}", e);
+        AppError::Internal
+    })?;
+
+    let items = rows.into_iter().map(support_ticket_to_json).collect::<Vec<_>>();
+    Ok(json_ok("Support tickets fetched", json!({ "items": items })))
+}
+
+async fn create_support_ticket(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateSupportTicketRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Agent]).await?;
+
+    if payload.subject.trim().is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Judul ticket wajib diisi".to_string()],
+        });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let priority = normalize_ticket_priority(payload.priority.as_deref());
+
+    sqlx::query(
+        "INSERT INTO support_tickets (id, agent_id, subject, message, priority, status) VALUES (?, ?, ?, ?, ?, 'open')",
+    )
+    .bind(&id)
+    .bind(&user.id)
+    .bind(payload.subject.trim())
+    .bind(payload.message.unwrap_or_default())
+    .bind(priority)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error creating support ticket: {}", e);
+        AppError::Internal
+    })?;
+
+    let created = sqlx::query_as::<_, SupportTicketRecord>(
+        "SELECT id, agent_id, subject, message, priority, status, created_at FROM support_tickets WHERE id = ? LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching created support ticket: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
+
+    Ok(json_ok("Support ticket created", json!({ "item": support_ticket_to_json(created) })))
+}
+
+async fn list_admin_support_tickets(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    let rows = sqlx::query_as::<_, AdminSupportTicketRow>(
+        r#"
+        SELECT
+            t.id,
+            t.agent_id,
+            t.subject,
+            t.message,
+            t.priority,
+            t.status,
+            t.created_at,
+            t.updated_at,
+            u.name AS agent_name,
+            u.email AS agent_email
+        FROM support_tickets t
+        LEFT JOIN users u ON u.id = t.agent_id
+        ORDER BY
+            CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
+            t.created_at DESC
+        "#,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error listing admin support tickets: {}", e);
+        AppError::Internal
+    })?;
+
+    let items = rows
+        .into_iter()
+        .map(admin_support_ticket_to_json)
+        .collect::<Vec<_>>();
+
+    Ok(json_ok("Admin support tickets fetched", json!({ "items": items })))
+}
+
+async fn update_admin_support_ticket_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateSupportTicketStatusRequest>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    let status = normalize_ticket_status(&payload.status).ok_or(AppError::Validation {
+        errors: vec!["Status ticket tidak valid. Gunakan: open, in_progress, resolved".to_string()],
+    })?;
+
+    let result = sqlx::query(
+        "UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(status)
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error updating support ticket status: {}", e);
+        AppError::Internal
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Support ticket status updated", json!({ "id": id, "updated": true })))
+}
+
 #[derive(sqlx::FromRow)]
 struct AgentStatsRow {
     points: i64,
@@ -1999,6 +2517,7 @@ struct ClaimRow {
     agent_id: String,
     tier_id: String,
     reward_name: String,
+    reward_value: Option<i64>,
     status: String,
     submitted_at: Option<String>,
     processed_at: Option<String>,
@@ -2072,6 +2591,41 @@ async fn list_agents(State(state): State<AppState>, headers: HeaderMap) -> Resul
     Ok(json_ok("Agents fetched successfully", json!({ "items": rows })))
 }
 
+async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+
+    let rows = sqlx::query_as::<_, AgentDirectoryRow>(
+        r#"
+        SELECT 
+            u.id, 
+            u.name, 
+            u.email, 
+            r.whatsapp, 
+            r.city, 
+            r.province,
+            COALESCE(s.sales_count, 0) as total_sales,
+            COALESCE(s.points, 0) as points,
+            t.name as tier_name,
+            u.is_active,
+            u.created_at as joined_at
+        FROM users u
+        LEFT JOIN agent_stats s ON s.user_id = u.id
+        LEFT JOIN reward_tiers t ON t.id = s.current_tier_id
+        LEFT JOIN agent_registrations r ON r.email = u.email
+        WHERE u.role = 'agent'
+        ORDER BY points DESC, total_sales DESC, u.created_at ASC
+        "#
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error listing leaderboard: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Leaderboard fetched successfully", json!({ "items": rows })))
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CreateClaimRequest {
@@ -2099,13 +2653,27 @@ fn is_valid_claim_status(status: &str) -> bool {
     matches!(status, "pending" | "processing" | "completed" | "cancelled")
 }
 
+fn default_reward_value_for_tier(tier_id: &str) -> i64 {
+    match tier_id {
+        "diamond" => 2_400_000,
+        "gold" => 1_200_000,
+        "silver" => 650_000,
+        _ => 250_000,
+    }
+}
+
 fn claim_to_json(row: ClaimRow) -> Value {
+    let reward_value = row
+        .reward_value
+        .unwrap_or_else(|| default_reward_value_for_tier(&row.tier_id));
+
     json!({
         "id": row.id,
         "agentId": row.agent_id,
         "agentName": row.agent_name,
         "tierId": row.tier_id,
         "rewardName": row.reward_name,
+        "rewardValue": reward_value,
         "status": row.status,
         "submittedAt": row.submitted_at,
         "processedAt": row.processed_at,
@@ -2166,13 +2734,13 @@ async fn list_claims(State(state): State<AppState>, headers: HeaderMap) -> Resul
 
     let rows = if is_admin {
         sqlx::query_as::<_, ClaimRow>(
-            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id ORDER BY c.submitted_at DESC"
+            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id ORDER BY c.submitted_at DESC"
         )
         .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, ClaimRow>(
-            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id WHERE c.agent_id = ? ORDER BY c.submitted_at DESC"
+            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.agent_id = ? ORDER BY c.submitted_at DESC"
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -2231,7 +2799,7 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
     })?;
 
     let created = sqlx::query_as::<_, ClaimRow>(
-        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id WHERE c.id = ? LIMIT 1"
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.id = ? LIMIT 1"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -2394,7 +2962,7 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
 async fn list_all_claims(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
     let rows = sqlx::query_as::<_, ClaimRow>(
-        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id ORDER BY c.submitted_at DESC"
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id ORDER BY c.submitted_at DESC"
     )
     .fetch_all(&state.pool)
     .await

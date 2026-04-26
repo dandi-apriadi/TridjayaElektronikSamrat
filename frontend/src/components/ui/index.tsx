@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Star, Zap, Shield, Award, Clock } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../data';
+import { getImageUrl } from '../../utils/apiClient';
+import { useMinInstallment } from '../../hooks/useMinInstallment';
 
 interface ProductCardProps {
   product: Product;
@@ -20,6 +22,8 @@ const badgeConfig = {
 };
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
+  const minInstallment = useMinInstallment(product);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -32,7 +36,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) 
         {/* Image */}
         <div className="relative overflow-hidden bg-surface-high aspect-[4/3]">
           <img
-            src={product.image}
+            src={getImageUrl(product.image)}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
@@ -87,9 +91,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) 
               <div className="font-display text-headline-sm font-bold gradient-text-primary">
                 {formatPrice(product.price)}
               </div>
-              {product.priceInstallment && (
+              {(minInstallment || product.priceInstallment) && (
                 <div className="font-body text-body-sm text-on-surface-variant">
-                  Cicil dari {formatPrice(product.priceInstallment)}/bln
+                  Cicil dari {formatPrice(minInstallment || product.priceInstallment || 0)}/bln
                 </div>
               )}
             </div>

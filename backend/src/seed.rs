@@ -29,9 +29,10 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             let password = u["password"].as_str().unwrap();
             let password_hash = hash_password(password);
             let avatar = u["avatar"].as_str().unwrap();
+            let bank_account = u["bank_account"].as_str().unwrap_or("");
 
             sqlx::query(
-                "INSERT INTO users (id, email, name, role, password_hash, avatar) VALUES (?, ?, ?, ?, ?, ?)"
+                "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account) VALUES (?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(id)
             .bind(email)
@@ -39,6 +40,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(role)
             .bind(password_hash)
             .bind(avatar)
+            .bind(bank_account)
             .execute(pool)
             .await?;
         }
@@ -48,13 +50,22 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     if let Some(tiers) = seeds["reward_tiers"].as_array() {
         for t in tiers {
             let benefits_json = serde_json::to_string(&t["benefits"]).unwrap_or_else(|_| "[]".to_string());
-            sqlx::query("INSERT INTO reward_tiers (id, name, threshold_points, icon, color, benefits) VALUES (?, ?, ?, ?, ?, ?)")
+            let default_reward = match t["id"].as_str().unwrap_or_default() {
+                "diamond" => 2_400_000,
+                "gold" => 1_200_000,
+                "silver" => 650_000,
+                _ => 250_000,
+            };
+            let reward_value = t["reward_value"].as_i64().unwrap_or(default_reward);
+
+            sqlx::query("INSERT INTO reward_tiers (id, name, threshold_points, icon, color, benefits, reward_value) VALUES (?, ?, ?, ?, ?, ?, ?)")
                 .bind(t["id"].as_str())
                 .bind(t["name"].as_str())
                 .bind(t["threshold_points"].as_i64())
                 .bind(t["icon"].as_str())
                 .bind(t["color"].as_str())
                 .bind(benefits_json)
+                .bind(reward_value)
                 .execute(pool)
                 .await?;
         }

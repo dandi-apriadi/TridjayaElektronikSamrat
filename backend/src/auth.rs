@@ -86,7 +86,7 @@ pub fn hash_password(password: &str) -> String {
         .to_string()
 }
 
-fn verify_password(password: &str, hash: &str) -> bool {
+pub fn verify_password(password: &str, hash: &str) -> bool {
     let parsed = match PasswordHash::new(hash) {
         Ok(parsed) => parsed,
         Err(_) => return false,
@@ -120,6 +120,15 @@ pub async fn login_with_request(
     if !user.is_active || !verify_password(&request.password, &user.password_hash) {
         return Err(AppError::Unauthorized);
     }
+
+    sqlx::query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(&user.id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update last_login: {}", e);
+            AppError::Internal
+        })?;
 
     let access_token = Uuid::new_v4().to_string();
     let refresh_token = Uuid::new_v4().to_string();

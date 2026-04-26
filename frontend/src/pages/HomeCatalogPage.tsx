@@ -59,7 +59,7 @@ const HomeCatalogPage: React.FC = () => {
       </section>
 
       {/* Catalog */}
-      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
+      <section className="pb-20 bg-surface/90">
         <div className="container-custom">
           {/* Category tabs */}
           <div className="flex items-center gap-3 flex-wrap mb-8">

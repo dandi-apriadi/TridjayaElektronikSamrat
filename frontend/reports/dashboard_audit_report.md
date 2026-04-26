@@ -3,10 +3,32 @@
 Laporan ini merinci status implementasi fitur dan konektivitas backend untuk seluruh halaman Dashboard Admin dan Agen.
 
 ## 📊 Ringkasan Status
-- **Halaman Total**: 21
-- **Telah Terhubung ke Backend**: 12
-- **Masih Menggunakan Mock Data/Calculations**: 9
-- **Prioritas Utama**: Sinkronisasi nilai komisi asli dan fitur penarikan dana (Payout).
+- **Halaman Total**: 22
+- **Telah Terhubung ke Backend**: 18
+- **Masih Menggunakan Mock Data/Calculations**: 4
+- **Prioritas Utama**: Menyelesaikan area tools/operasional (ekspor PDF native, metrik konversi katalog nyata).
+
+## 🔎 Re-audit 25 April 2026
+- `ForgotPasswordPage.tsx` sempat terlewat dan masih memakai endpoint hardcoded `localhost:8080`; sekarang sudah diarahkan ke `VITE_API_BASE_URL`.
+- `AgencyRegistrationPage.tsx`, `AdminAgentsPage.tsx`, dan `AdminArticleFormPage.tsx` sudah dinormalisasi agar memakai fallback base URL backend yang sama.
+- `AdminLeaderboardPage.tsx` dan `AgentLeaderboardPage.tsx` sekarang memakai endpoint leaderboard backend sehingga ranking dan reward tier tidak lagi sepenuhnya statis.
+- Tidak ada page lain yang ditemukan masih mengarah ke endpoint localhost lama setelah sweep ulang di `frontend/src/pages`.
+
+## 🔧 Recovery AG 26 April 2026
+- Perbaikan regresi TypeScript dari perubahan AG (`useAdminNetworkStore`, `useAgentStore`, dan `AgentSettingsPage`) sehingga `npm run build` kembali hijau.
+- Ditambahkan endpoint backend baru untuk fitur pengaturan akun: `PATCH /api/auth/profile`, `POST /api/auth/change-password`, dan `POST /api/users/{id}/reset-password`.
+- Ditambahkan domain Support Ticket end-to-end: migration `support_tickets`, endpoint `GET/POST /api/agent/support-tickets`, store `useAgentStore`, dan wiring ke `AgentSupportPage.tsx`.
+- Validasi kata sandi frontend disinkronkan ke minimum 8 karakter agar sesuai aturan backend.
+
+## 🔁 Lanjutan 26 April 2026 (Support Admin)
+- Ditambahkan endpoint admin support: `GET /api/admin/support-tickets` dan `PATCH /api/admin/support-tickets/{id}/status`.
+- Ditambahkan halaman dashboard baru `AdminSupportTicketsPage.tsx` untuk triase ticket (`open`, `in_progress`, `resolved`).
+- Navigasi admin kini memiliki menu **Support Ticket** dan sudah terhubung ke store `useAdminNetworkStore`.
+
+## 🔁 Lanjutan 26 April 2026 (Catalog Conversion)
+- `ProductDetailPage.tsx` sekarang mengirim telemetry `page_view` dan `whatsapp_click` per produk dengan metadata `productSlug`.
+- Backend `GET /api/catalogs` sekarang menambahkan metrik nyata per produk: `views`, `leads`, `conversions`, dan `conversionRate` dari telemetry event.
+- `AdminCatalogPage.tsx` sudah memakai `conversionRate` aktual untuk kolom **Popularitas** dan sorting berbasis telemetry.
 
 ---
 
@@ -14,30 +36,33 @@ Laporan ini merinci status implementasi fitur dan konektivitas backend untuk sel
 
 ### 1. Admin Dashboard (`AdminDashboard.tsx`)
 - **Status**: ✅ Terhubung ke Backend (Claims, Registrations, Products, Telemetry).
-- **Masih Mock/Belum Berfungsi**:
-    - **Pending Payout List**: Tombol aksi "Setujui" dan "Tolak" (baris 608-613) tidak memiliki handler fungsi. Klik tombol tidak mengubah status di backend.
-    - **System Health**: Data status server, latency, dan DB load (baris 509-512) masih bersifat statis.
-- **Action Item**: Sambungkan tombol aksi Payout ke `updateClaimStatus`.
+- **Update**:
+    - Aksi "Setujui" dan "Tolak" payout sudah memanggil `updateClaimStatus`.
+    - Panel System Health sudah mengambil data `telemetryStats.systemMetrics` dari backend.
+- **Action Item**: Tambahkan retry UX saat update status payout gagal (toast + rollback visual).
 
 ### 2. Admin Users (`AdminUsersPage.tsx`)
 - **Status**: ✅ Terhubung ke Backend (Users, Update Status).
-- **Masih Mock/Belum Berfungsi**:
-    - **Export CSV**: Tombol (baris 259) tidak memiliki fungsi ekspor.
-    - **Data Login**: Kolom "Last Login" dan "Dibuat" (baris 228-230) hanya menampilkan tanda strip `-`.
-- **Action Item**: Implementasi library ekspor CSV dan tarik data `last_login` dari backend.
+- **Update**: Kolom "Last Login" dan "Dibuat" sudah menampilkan data backend menggunakan `formatDateTime`.
+- **Update**:
+    - Fitur reset password user oleh admin sudah terhubung ke backend (`POST /api/users/{id}/reset-password`).
+    - Export CSV sudah berjalan di sisi klien.
+- **Action Item**: Tambahkan audit trail admin untuk aksi reset password.
 
 ### 3. Admin Catalog (`AdminCatalogPage.tsx`)
-- **Status**: ✅ Terhubung ke Backend (Products).
-- **Masih Mock/Belum Berfungsi**:
-    - **Kirim Alert**: Tombol (baris 132) menggunakan `alert()` browser.
-    - **Data Konversi**: Kolom "Konversi" (baris 224) masih kosong.
-- **Action Item**: Integrasi sistem notifikasi internal untuk alert stok.
+- **Status**: ✅ Terhubung ke Backend (Products + telemetry conversion stats).
+- **Update**: Kolom "Popularitas" sekarang memakai `conversionRate` aktual berbasis telemetry produk, bukan review share.
+- **Action Item**: Tambahkan breakdown conversion per kategori atau campaign jika dibutuhkan untuk analisis lanjutan.
 
 ### 4. Admin Content/Articles (`AdminArticleFormPage.tsx`)
 - **Status**: ✅ Terhubung ke Backend (Blog Store).
-- **Masih Mock/Belum Berfungsi**:
-    - **Upload Gambar**: Masih menggunakan URL teks, bukan sistem upload file asli.
-- **Action Item**: Integrasi dengan API Cloudinary atau sistem penyimpanan backend untuk upload file.
+- **Update**: Upload gambar artikel sudah terhubung ke endpoint backend `/api/admin/uploads/image`.
+- **Action Item**: Tambahkan validasi ukuran file dan kompresi berbasis kebijakan produksi.
+
+### 5. Admin Support Ticket (`AdminSupportTicketsPage.tsx`)
+- **Status**: ✅ Terhubung ke Backend (List & Update Status Ticket).
+- **Update**: Admin dapat memfilter ticket dan mengubah status ke `open`, `in_progress`, atau `resolved`.
+- **Action Item**: Tambahkan assignment petugas support + SLA timer per ticket.
 
 ---
 
@@ -45,41 +70,52 @@ Laporan ini merinci status implementasi fitur dan konektivitas backend untuk sel
 
 ### 1. Agent Dashboard (`AgentDashboard.tsx`)
 - **Status**: ✅ Terhubung ke Backend (Leads, Claims, Stats).
-- **Masih Mock/Belum Berfungsi**:
-    - **Ranking Progress**: Perhitungan progress ke tier selanjutnya (baris 365) menggunakan pembagi statis `500`.
-- **Action Item**: Ambil target poin per tier dari konfigurasi sistem.
+- **Update**: Ranking progress sudah dinamis berdasarkan `rewardTiers` backend.
+- **Action Item**: Tambahkan fallback copy ketika data tier kosong akibat token expired.
 
 ### 2. Agent Earnings (`AgentEarningsPage.tsx`)
-- **Status**: ⚠️ Terhubung Sebagian (API Claims).
-- **Kritikal (Mock Calculations)**:
-    - **Nilai Komisi**: Menggunakan konstanta `ESTIMATED_CLAIM_VALUE = 250000` (baris 14). Nilai rupiah di seluruh halaman ini (Saldo, Riwayat, Grafik) hanyalah estimasi, bukan nilai asli dari backend.
-- **Masih Mock/Belum Berfungsi**:
-    - **Export PDF**: Tombol (baris 271) belum berfungsi.
-    - **Info Rekening**: Data bank di modal penarikan (baris 301) masih hardcoded `BRI 1234-5678-xxxx`.
-- **Action Item**: Ubah kalkulasi agar mengambil nilai `reward_value` asli dari backend sesuai tier produk yang diklaim.
+- **Status**: ✅ Terhubung ke Backend (API Claims & Reward Tiers).
+- **Update**: Kalkulasi komisi dan saldo sudah dinamis menggunakan `getClaimRewardValue` dari tier masing-masing.
+- **Update**:
+    - Info rekening pada modal penarikan sudah mengambil `user.bank_account`.
+    - Tombol export sudah memakai PDF native berbasis `jsPDF`.
+- **Action Item**: Tambahkan header/footer dan penomoran halaman bila ingin format laporan yang lebih formal.
 
 ### 3. Agent Push Prospek (`AgentPushProspekPage.tsx`)
 - **Status**: ✅ Terhubung ke Backend (Create Lead).
-- **Masih Mock/Belum Berfungsi**:
-    - **KPI Target**: "Target Bulanan" (30 Prospek) dan "Konversi" (baris 82-86) masih angka statis.
-- **Action Item**: Hitung target secara dinamis berdasarkan data performa bulan lalu.
+- **Update**: KPI target bulanan dan konversi sudah dihitung dari data lead/statistik backend.
+- **Action Item**: Kalibrasi formula target dengan kebijakan bisnis cabang.
+
+### 4. Agent Support (`AgentSupportPage.tsx`)
+- **Status**: ✅ Terhubung ke Backend (Support Tickets API).
+- **Update**: Riwayat tiket dan pembuatan tiket baru sudah memakai endpoint backend, tidak lagi simulasi lokal.
+- **Action Item**: Tambahkan lampiran file/bukti pada ticket dari sisi agen.
+
+### 5. Agent Settings (`AgentSettingsPage.tsx`)
+- **Status**: ✅ Terhubung ke Backend (Profile & Password).
+- **Update**: Form profil dan ubah password kini memakai endpoint backend autentikasi.
+- **Action Item**: Tambahkan verifikasi password kedua (2FA/OTP) untuk perubahan kredensial sensitif.
 
 ---
 
 ## 🚀 Daftar Tugas Untuk Agent VS (Next Steps)
 
 ### Prioritas 1: Finansial & Payout (Paling Penting)
-- [ ] Ubah `ESTIMATED_CLAIM_VALUE` di `AgentEarningsPage.tsx` menjadi data dinamis dari backend.
-- [ ] Implementasi fungsi tombol "Setujui" & "Tolak" pada widget Payout di `AdminDashboard.tsx`.
-- [ ] Tambahkan field "Nomor Rekening" pada profil User agar tidak hardcoded di halaman penarikan.
+- [x] Ubah `ESTIMATED_CLAIM_VALUE` di `AgentEarningsPage.tsx` menjadi data dinamis dari backend.
+- [x] Implementasi fungsi tombol "Setujui" & "Tolak" pada widget Payout di `AdminDashboard.tsx`.
+- [x] Tambahkan field "Nomor Rekening" pada profil User agar tidak hardcoded di halaman penarikan.
 
 ### Prioritas 2: Data Integrity
-- [ ] Tambahkan kolom `created_at` dan `last_login` pada tabel User di Admin.
-- [ ] Tambahkan kalkulasi konversi lead asli pada tabel Katalog Admin.
+- [x] Tambahkan kolom `created_at` dan `last_login` pada tabel User di Admin.
+- [x] Integrasikan reset password admin-user lewat backend endpoint.
+- [x] Tambahkan kalkulasi konversi lead asli pada tabel Katalog Admin.
 
 ### Prioritas 3: Ekspor & Tools
-- [ ] Tambahkan fitur "Export CSV" untuk data User dan "Export PDF" untuk riwayat komisi agen.
-- [ ] Ganti semua `alert()` dengan komponen `toast` atau modal notifikasi yang lebih premium.
+- [x] Tambahkan fitur "Export CSV" untuk data User.
+- [x] Tambahkan fitur export PDF native untuk riwayat komisi agen.
+- [x] Ganti alert stok katalog ke notifikasi toast.
+- [x] Integrasikan Agent Support ke backend (ticket create/list).
+- [x] Integrasikan Admin Support ke backend (ticket triage/status update).
 
 ---
-*Laporan ini dibuat secara otomatis oleh Antigravity AI pada 25 April 2026.*
+*Laporan ini diperbarui otomatis pada 26 April 2026.*

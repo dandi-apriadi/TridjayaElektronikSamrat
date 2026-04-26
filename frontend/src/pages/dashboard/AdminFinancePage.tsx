@@ -2,12 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { CheckCircle2, XCircle, Clock, Wallet, TrendingUp, ArrowDownToLine, Filter } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
-
-const CLAIM_VALUE_BY_TIER: Record<string, number> = {
-  silver: 650000,
-  gold: 1200000,
-  diamond: 2400000,
-};
+import { getClaimRewardValue } from '../../utils/claimRewards';
 
 const statusStyle: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   Pending: { label: 'Menunggu', cls: 'bg-tertiary/15 text-tertiary', icon: <Clock className="w-3.5 h-3.5" /> },
@@ -26,9 +21,10 @@ const AdminFinancePage: React.FC = () => {
   }, [fetchClaims, fetchRegistrations]);
 
   const payoutRequests = useMemo(() => {
+    if (!Array.isArray(claims)) return [];
     return claims.map((claim, index) => {
-      const amount = CLAIM_VALUE_BY_TIER[claim.tierId] || 650000;
-      const currentStatus = claim.status;
+      const amount = getClaimRewardValue(claim.tierId, claim.rewardValue);
+      const currentStatus = claim.status || 'pending';
       return {
         id: claim.id,
         displayId: `PO-${String(4401 - index).padStart(4, '0')}`,
@@ -36,15 +32,17 @@ const AdminFinancePage: React.FC = () => {
         agentId: claim.agentId,
         amount: `Rp ${amount.toLocaleString('id-ID')}`,
         raw: amount,
-        period: new Date(claim.submittedAt).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
-        submittedAt: new Date(claim.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        period: claim.submittedAt ? new Date(claim.submittedAt).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) : 'N/A',
+        submittedAt: claim.submittedAt ? new Date(claim.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'N/A',
         status: currentStatus === 'pending' ? 'Pending' : currentStatus === 'processing' ? 'Approved' : currentStatus === 'completed' ? 'Paid' : 'Rejected',
       };
     });
   }, [claims]);
 
   const commissionByArea = useMemo(() => {
+    if (!Array.isArray(registrations)) return [];
     const areaTotals = registrations.reduce<Record<string, number>>((accumulator, registration) => {
+      if (!registration || !registration.city) return accumulator;
       const base = registration.status === 'approved' ? 1800000 : registration.status === 'pending' ? 900000 : 1200000;
       accumulator[registration.city] = (accumulator[registration.city] || 0) + base;
       return accumulator;
@@ -150,7 +148,7 @@ const AdminFinancePage: React.FC = () => {
           </div>
           <div className="space-y-3">
             {displayed.map((req) => {
-              const style = statusStyle[req.status];
+              const style = statusStyle[req.status] || { label: req.status, cls: 'bg-surface-high text-on-surface-variant', icon: <Clock className="w-3.5 h-3.5" /> };
               return (
                 <div key={req.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 rounded-lg border border-outline-variant/10 hover:bg-surface-high/40 transition-colors">
                   <div>

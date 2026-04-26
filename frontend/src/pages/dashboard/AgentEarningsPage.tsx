@@ -5,19 +5,21 @@ import {
   CheckCircle2, Download, Calendar, Filter,
   DollarSign, BarChart3,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useAgentStore } from '../../store/useAgentStore';
-
-const ESTIMATED_CLAIM_VALUE = 250000;
+import { useAuthStore } from '../../store/authStore';
+import { getClaimRewardValue } from '../../utils/claimRewards';
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AgentEarningsPage: React.FC = () => {
   const { claims, fetchClaims, createClaim } = useAgentStore();
+  const user = useAuthStore((state) => state.user);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -32,8 +34,12 @@ const AgentEarningsPage: React.FC = () => {
   const completedClaims = claims.filter((claim) => claim.status === 'completed').length;
   const pendingClaims = claims.filter((claim) => claim.status === 'pending' || claim.status === 'processing').length;
 
-  const availableBalance = completedClaims * ESTIMATED_CLAIM_VALUE;
-  const pendingBalance = pendingClaims * ESTIMATED_CLAIM_VALUE;
+  const availableBalance = claims
+    .filter((claim) => claim.status === 'completed')
+    .reduce((sum, claim) => sum + getClaimRewardValue(claim.tierId, claim.rewardValue), 0);
+  const pendingBalance = claims
+    .filter((claim) => claim.status === 'pending' || claim.status === 'processing')
+    .reduce((sum, claim) => sum + getClaimRewardValue(claim.tierId, claim.rewardValue), 0);
 
   const earningHistory = useMemo(() => {
     return Array.from({ length: 6 }).map((_, index) => {
@@ -46,13 +52,17 @@ const AgentEarningsPage: React.FC = () => {
         return `${created.getFullYear()}-${created.getMonth()}` === key;
       });
 
-      const komisiCount = monthlyClaims.filter((claim) => claim.status === 'completed').length;
-      const payoutCount = monthlyClaims.filter((claim) => claim.status === 'pending' || claim.status === 'processing').length;
+      const komisi = monthlyClaims
+        .filter((claim) => claim.status === 'completed')
+        .reduce((sum, claim) => sum + getClaimRewardValue(claim.tierId, claim.rewardValue), 0);
+      const payout = monthlyClaims
+        .filter((claim) => claim.status === 'pending' || claim.status === 'processing')
+        .reduce((sum, claim) => sum + getClaimRewardValue(claim.tierId, claim.rewardValue), 0);
 
       return {
         month: date.toLocaleDateString('id-ID', { month: 'short' }),
-        komisi: komisiCount * ESTIMATED_CLAIM_VALUE,
-        payout: payoutCount * ESTIMATED_CLAIM_VALUE,
+        komisi,
+        payout,
       };
     });
   }, [claims]);
@@ -61,11 +71,13 @@ const AgentEarningsPage: React.FC = () => {
     return claims.map((claim) => {
       const isCompleted = claim.status === 'completed';
       const isPending = claim.status === 'pending' || claim.status === 'processing';
+      const amount = getClaimRewardValue(claim.tierId, claim.rewardValue);
+
       return {
         id: `CLM-${String(claim.id).padStart(4, '0')}`,
         type: isCompleted ? 'Komisi' : 'Payout',
         description: `${claim.rewardName} (${claim.status})`,
-        amount: isCompleted ? ESTIMATED_CLAIM_VALUE : -ESTIMATED_CLAIM_VALUE,
+        amount: isCompleted ? amount : -amount,
         date: new Date(claim.submittedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
         status: isCompleted ? 'Credited' : isPending ? 'Pending' : 'Rejected',
       };
@@ -75,6 +87,117 @@ const AgentEarningsPage: React.FC = () => {
   const filtered = transactions.filter((t) => filterType === 'Semua' || t.type === filterType);
   const totalEarnings = earningHistory.reduce((s, e) => s + e.komisi, 0);
   const payoutTrend = earningHistory.reduce((s, e) => s + e.payout, 0);
+
+  const handleExportPdf = () => {
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const exportDate = new Date().toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const formatCurrency = (value: number) => `Rp ${Math.abs(value).toLocaleString('id-ID')}`;
+    const exportedTransactions = filtered;
+
+    let y = 48;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Laporan Komisi & Penarikan Agen', 40, y);
+
+    y += 20;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Nama Agen: ${user?.name ?? '-'}`, 40, y);
+
+    y += 14;
+    doc.text(`Waktu Export: ${exportDate}`, 40, y);
+
+    y += 22;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(40, y, pageWidth - 40, y);
+
+    y += 20;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Ringkasan', 40, y);
+
+    y += 16;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Saldo Dapat Ditarik: ${formatCurrency(availableBalance)}`, 40, y);
+    y += 14;
+    doc.text(`Komisi Pending: ${formatCurrency(pendingBalance)}`, 40, y);
+    y += 14;
+    doc.text(`Total Komisi 6 Bulan: ${formatCurrency(totalEarnings)}`, 40, y);
+    y += 14;
+    doc.text(`Total Payout Pending 6 Bulan: ${formatCurrency(payoutTrend)}`, 40, y);
+
+    y += 22;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Riwayat Transaksi', 40, y);
+
+    y += 16;
+    doc.setFillColor(245, 245, 245);
+    doc.rect(40, y - 11, pageWidth - 80, 18, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Tanggal', 44, y);
+    doc.text('ID', 132, y);
+    doc.text('Tipe', 220, y);
+    doc.text('Status', 286, y);
+    doc.text('Nilai', pageWidth - 44, y, { align: 'right' });
+
+    y += 16;
+    doc.setFont('helvetica', 'normal');
+
+    if (exportedTransactions.length === 0) {
+      doc.text('Tidak ada transaksi pada filter ini.', 44, y);
+    } else {
+      exportedTransactions.forEach((trx, index) => {
+        if (y > pageHeight - 44) {
+          doc.addPage();
+          y = 48;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.text('Lanjutan Riwayat Transaksi', 40, y);
+          y += 18;
+          doc.setFillColor(245, 245, 245);
+          doc.rect(40, y - 11, pageWidth - 80, 18, 'F');
+          doc.setFontSize(9);
+          doc.text('Tanggal', 44, y);
+          doc.text('ID', 132, y);
+          doc.text('Tipe', 220, y);
+          doc.text('Status', 286, y);
+          doc.text('Nilai', pageWidth - 44, y, { align: 'right' });
+          y += 16;
+          doc.setFont('helvetica', 'normal');
+        }
+
+        const amountLabel = `${trx.amount > 0 ? '+' : '-'}${formatCurrency(trx.amount)}`;
+        doc.setFontSize(9);
+        doc.text(trx.date, 44, y);
+        doc.text(trx.id, 132, y);
+        doc.text(trx.type, 220, y);
+        doc.text(trx.status, 286, y);
+        doc.text(amountLabel, pageWidth - 44, y, { align: 'right' });
+
+        y += 14;
+        if (index < exportedTransactions.length - 1) {
+          doc.setDrawColor(235, 235, 235);
+          doc.line(40, y, pageWidth - 40, y);
+          y += 6;
+        }
+      });
+    }
+
+    doc.save(`tridjaya-earnings-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
 
   const handleWithdraw = async () => {
     const amount = Number(withdrawAmount);
@@ -122,7 +245,7 @@ const AgentEarningsPage: React.FC = () => {
               <Wallet className="w-6 h-6 text-secondary" /> Komisi & Penarikan
             </h2>
             <p className="text-body-sm text-on-surface-variant mt-1">
-              Data komisi dan payout ditarik dari API claims. Nilai rupiah ditampilkan sebagai estimasi per claim.
+              Data komisi dan payout ditarik langsung dari nilai claim API berdasarkan tier reward.
             </p>
           </div>
           <button
@@ -267,7 +390,11 @@ const AgentEarningsPage: React.FC = () => {
         </div>
         <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
           <span className="text-label-sm text-on-surface-variant">{filtered.length} transaksi</span>
-          <button type="button" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
+          <button 
+            type="button" 
+            onClick={handleExportPdf}
+            className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all"
+          >
             <Download className="w-3.5 h-3.5" /> Export PDF
           </button>
         </div>
@@ -298,7 +425,7 @@ const AgentEarningsPage: React.FC = () => {
                   />
                 </div>
                 <div className="mb-4 p-3 rounded-xl bg-surface-high text-label-sm text-on-surface-variant">
-                  <Filter className="w-3.5 h-3.5 inline mr-1.5" /> Rekening: BRI 1234-5678-xxxx (Nama Agen)
+                  <Filter className="w-3.5 h-3.5 inline mr-1.5" /> Rekening: {user?.bank_account?.trim() ? user.bank_account : 'belum diatur'} ({user?.name ?? 'Agen'})
                 </div>
                 {errorMessage && (
                   <div className="mb-4 p-3 rounded-xl bg-error/10 text-error text-label-sm">{errorMessage}</div>

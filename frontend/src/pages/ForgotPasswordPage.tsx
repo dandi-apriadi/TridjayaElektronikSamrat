@@ -5,6 +5,8 @@ import { ArrowRight, Mail, Sparkles, ShieldCheck, RefreshCcw, CheckCircle2, Load
 import Navbar from '../components/layout/Navbar';
 import logoPng from '../assets/images/logo.webp';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +19,7 @@ const ForgotPasswordPage: React.FC = () => {
     setErrorMessage('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/auth/forgot-password', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

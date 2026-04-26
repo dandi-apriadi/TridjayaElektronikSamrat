@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { API_BASE_URL } from '../utils/apiClient';
 
 export type UserRole = 'admin' | 'agent' | 'editor' | 'operator';
 
@@ -9,6 +10,9 @@ interface User {
   name: string;
   role: UserRole;
   avatar?: string;
+  bank_account?: string;
+  created_at?: string;
+  last_login?: string;
   isActive?: boolean;
 }
 
@@ -32,9 +36,10 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
   restoreSession: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<boolean>;
+  updatePassword: (old: string, newP: string) => Promise<boolean>;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
 const API_URL = `${API_BASE_URL}/api`;
 
 /**
@@ -121,7 +126,7 @@ export const useAuthStore = create<AuthState>()(
           const payload = (await response.json()) as { data?: LoginResponse };
           const authData = payload.data;
 
-          if (!authData?.user) {
+          if (!authData?.access_token || !authData?.user) {
             return false;
           }
 
@@ -132,7 +137,8 @@ export const useAuthStore = create<AuthState>()(
           });
 
           return true;
-        } catch {
+        } catch (error) {
+          console.error('Refresh session error:', error);
           return false;
         }
       },
@@ -152,7 +158,7 @@ export const useAuthStore = create<AuthState>()(
             const payload = (await response.json()) as { data?: LoginResponse };
             const authData = payload.data;
 
-            if (authData?.user) {
+            if (authData?.access_token && authData?.user) {
               set({
                 user: authData.user,
                 isAuthenticated: true,
@@ -160,12 +166,50 @@ export const useAuthStore = create<AuthState>()(
               });
             }
           }
-        } catch {
-          // Silent fail on restore attempt
+        } catch (error) {
+          console.error('Restore session error:', error);
         } finally {
           set({ isInitializing: false });
         }
       },
+      updateProfile: async (data) => {
+        try {
+          const token = useAuthStore.getState().accessToken;
+          const res = await fetch(`${API_URL}/auth/profile`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+          });
+          if (!res.ok) throw new Error('Gagal update profil');
+          const payload = await res.json();
+          set({ user: payload.data });
+          return true;
+        } catch (error) {
+          console.error(error);
+          return false;
+        }
+      },
+      updatePassword: async (old, newP) => {
+        try {
+          const token = useAuthStore.getState().accessToken;
+          const res = await fetch(`${API_URL}/auth/change-password`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ old_password: old, new_password: newP })
+          });
+          if (!res.ok) throw new Error('Gagal ubah password');
+          return true;
+        } catch (error) {
+          console.error(error);
+          return false;
+        }
+      }
     }),
     {
       name: 'tridjaya-auth',

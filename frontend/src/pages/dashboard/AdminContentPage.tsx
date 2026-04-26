@@ -29,7 +29,7 @@ const AdminContentPage: React.FC = () => {
 
   const filtered = posts.filter((a) => filterStatus === 'Semua' || getStatus(a.publishedAt) === filterStatus);
   const publishedCount = posts.filter((a) => getStatus(a.publishedAt) === 'Published').length;
-  const totalViews = posts.length * 1500;
+  const categories = Array.from(new Set(posts.map(p => p.category))).length;
 
   return (
     <div className="space-y-6">
@@ -57,8 +57,8 @@ const AdminContentPage: React.FC = () => {
           <div className="font-display text-headline-sm text-secondary font-bold mt-1">{publishedCount}</div>
         </div>
         <div className="glass-card rounded-lg p-5">
-          <div className="text-label-sm text-on-surface-variant">Total Views (All)</div>
-          <div className="font-display text-headline-sm text-primary font-bold mt-1">{totalViews.toLocaleString('id-ID')}</div>
+          <div className="text-label-sm text-on-surface-variant">Kategori Konten</div>
+          <div className="font-display text-headline-sm text-primary font-bold mt-1">{categories}</div>
         </div>
         <div className="glass-card rounded-lg p-5">
           <div className="text-label-sm text-on-surface-variant">Draft Menunggu Review</div>
@@ -86,7 +86,6 @@ const AdminContentPage: React.FC = () => {
         {filtered.map((article) => {
           const status = getStatus(article.publishedAt);
           const sc = statusConfig[status];
-          const fakeViews = 1500;
           return (
             <div key={article.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 rounded-lg border border-outline-variant/10 hover:bg-surface-high/40 transition-colors group">
               <div className="flex-1 min-w-0">
@@ -101,7 +100,6 @@ const AdminContentPage: React.FC = () => {
                 <div className="font-semibold text-on-surface text-body-sm group-hover:text-primary transition-colors truncate">{article.title}</div>
                 <div className="text-label-xs text-on-surface-variant mt-1">
                   {article.id} · {status === 'Draft' ? 'Belum dipublish' : `Publish: ${article.publishedAt}`}
-                  {` · ${fakeViews.toLocaleString('id-ID')} Views`}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">

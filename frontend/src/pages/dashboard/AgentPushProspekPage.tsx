@@ -9,7 +9,7 @@ const products = ['Goda GD120', 'Winfly W200', 'Smart TV OLED 55"', 'Sofa Premiu
 const sources = ['WhatsApp', 'Instagram', 'Facebook', 'Referral Teman', 'Walk-in', 'Blog/Website', 'Lainnya'];
 
 const AgentPushProspekPage: React.FC = () => {
-  const { leads, createLead, fetchLeads } = useAgentStore();
+  const { leads, stats, createLead, fetchLeads, fetchStats } = useAgentStore();
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -22,7 +22,13 @@ const AgentPushProspekPage: React.FC = () => {
 
   React.useEffect(() => {
     fetchLeads();
-  }, [fetchLeads]);
+    fetchStats();
+  }, [fetchLeads, fetchStats]);
+
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const monthlyLeads = leads.filter((lead) => lead.createdAt.slice(0, 7) === currentMonthKey);
+  const monthlyClosedWon = monthlyLeads.filter((lead) => lead.status === 'Closed Won').length;
+  const monthlyTarget = Math.max(30, Math.round((stats?.salesCount ?? 0) * 1.25));
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -79,11 +85,11 @@ const AgentPushProspekPage: React.FC = () => {
         </div>
         <div className="glass-card rounded-lg p-5">
           <div className="text-label-sm text-on-surface-variant">Target Bulanan</div>
-          <div className="font-display text-headline-sm text-on-surface font-bold mt-1">30 Prospek</div>
+          <div className="font-display text-headline-sm text-on-surface font-bold mt-1">{monthlyTarget} Prospek</div>
         </div>
         <div className="glass-card rounded-lg p-5">
           <div className="flex items-center gap-1 text-label-sm text-on-surface-variant"><TrendingUp className="w-3.5 h-3.5" /> Konversi Bulan Ini</div>
-          <div className="font-display text-headline-sm text-secondary font-bold mt-1">12 / 28</div>
+          <div className="font-display text-headline-sm text-secondary font-bold mt-1">{monthlyClosedWon} / {monthlyLeads.length || 0}</div>
         </div>
       </div>
 

@@ -37,13 +37,14 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transit
 
 /* ─── Component ───────────────────────────────────────── */
 const AgentDashboard: React.FC = () => {
-  const { leads, claims, stats, fetchLeads, fetchClaims, fetchStats } = useAgentStore();
+  const { leads, claims, stats, rewardTiers, fetchLeads, fetchClaims, fetchStats, fetchRewardTiers } = useAgentStore();
 
   useEffect(() => {
     fetchLeads();
     fetchClaims();
     fetchStats();
-  }, [fetchLeads, fetchClaims, fetchStats]);
+    fetchRewardTiers();
+  }, [fetchLeads, fetchClaims, fetchStats, fetchRewardTiers]);
 
   const closedWon = leads.filter((lead) => lead.status === 'Closed Won').length;
   const activeLeads = leads.filter((lead) => lead.status === 'Follow Up' || lead.status === 'Negosiasi').length;
@@ -80,6 +81,32 @@ const AgentDashboard: React.FC = () => {
     });
     return items;
   }, [leads]);
+
+  const rankingProgress = useMemo(() => {
+    const points = stats?.points ?? 0;
+    const activeTiers = [...rewardTiers].filter((tier) => tier.isActive).sort((a, b) => a.thresholdPoints - b.thresholdPoints);
+    if (activeTiers.length === 0) {
+      return { percent: Math.min(100, (points / 1000) * 100), remaining: Math.max(0, 1000 - points), nextTier: 'Target Awal' };
+    }
+
+    const currentTierIndex = activeTiers.findIndex((tier) => tier.name === stats?.currentTier);
+    if (currentTierIndex >= activeTiers.length - 1 && currentTierIndex !== -1) {
+      return { percent: 100, remaining: 0, nextTier: null as string | null };
+    }
+
+    const nextTier = currentTierIndex >= 0 ? activeTiers[currentTierIndex + 1] : activeTiers[0];
+    const currentThreshold = currentTierIndex >= 0 ? activeTiers[currentTierIndex].thresholdPoints : 0;
+    const nextThreshold = nextTier?.thresholdPoints ?? Math.max(points, currentThreshold + 1);
+    const progressBase = Math.max(1, nextThreshold - currentThreshold);
+    const percent = Math.max(0, Math.min(100, ((points - currentThreshold) / progressBase) * 100));
+    const remaining = nextTier ? Math.max(0, nextThreshold - points) : 0;
+
+    return {
+      percent,
+      remaining,
+      nextTier: nextTier?.name ?? null,
+    };
+  }, [rewardTiers, stats?.currentTier, stats?.points]);
 
   const hotLeads = leads.slice(0, 4);
   const recentActivity = useMemo(() => {
@@ -362,9 +389,11 @@ const AgentDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3 w-full h-2 rounded-full bg-surface-high overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-secondary to-primary" style={{ width: `${Math.min(100, (stats?.points ?? 0) / 500)}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-secondary to-primary" style={{ width: `${rankingProgress.percent}%` }} />
             </div>
-            <p className="text-label-xs text-on-surface-variant mt-1.5">{stats?.points ?? 0} poin terkumpul</p>
+            <p className="text-label-xs text-on-surface-variant mt-1.5">
+              {stats?.points ?? 0} poin terkumpul{rankingProgress.nextTier ? ` · ${rankingProgress.remaining} poin lagi ke ${rankingProgress.nextTier}` : ''}
+            </p>
           </motion.div>
         </div>
       </div>

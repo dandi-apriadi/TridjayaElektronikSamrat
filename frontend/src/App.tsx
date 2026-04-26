@@ -54,6 +54,9 @@ const AdminArticleFormPage = lazy(() => import('./pages/dashboard/AdminArticleFo
 const AgentPushProspekPage = lazy(() => import('./pages/dashboard/AgentPushProspekPage'));
 const AdminLeaderboardPage = lazy(() => import('./pages/dashboard/AdminLeaderboardPage'));
 const AgentLeaderboardPage = lazy(() => import('./pages/dashboard/AgentLeaderboardPage'));
+const AgentSettingsPage = lazy(() => import('./pages/dashboard/AgentSettingsPage'));
+const AdminSupportTicketsPage = lazy(() => import('./pages/dashboard/AdminSupportTicketsPage'));
+const AdminLeadsPage = lazy(() => import('./pages/dashboard/AdminLeadsPage'));
 
 const RouteLoading: React.FC = () => (
   <div className="min-h-[40vh] w-full grid place-items-center px-4">
@@ -312,6 +315,22 @@ const App: React.FC = () => {
               </RoleGuard>
             }
           />
+          <Route
+            path="admin/support"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminSupportTicketsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/leads"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminLeadsPage)}
+              </RoleGuard>
+            }
+          />
 
 
           <Route
@@ -367,6 +386,14 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="agent">
                 {lazyPage(AgentLeaderboardPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="agent/settings"
+            element={
+              <RoleGuard role="agent">
+                {lazyPage(AgentSettingsPage)}
               </RoleGuard>
             }
           />

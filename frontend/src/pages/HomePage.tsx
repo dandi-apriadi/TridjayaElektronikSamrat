@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import {
-  ArrowRight, Play, ChevronDown, Zap, Battery, Shield, Wrench, TrendingUp,
+  ArrowRight, Play, Zap, Battery, Shield, Wrench, TrendingUp,
 } from 'lucide-react';
 import { products, promos, formatPrice } from '../data';
 import { ProductCard, SectionHeader, StatsRow, PartnerLogos } from '../components/ui';
@@ -15,140 +15,109 @@ import tvImg from '../assets/images/tv.webp';
 ======================== */
 const HeroSection: React.FC = () => {
   const { scrollYProgress } = useScroll();
-  const y = useTransform(scrollYProgress, [0, 0.3], [0, 80]);
-  const opacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
+  const y = useTransform(scrollYProgress, [0, 0.5], [0, 100]);
+  const scale = useTransform(scrollYProgress, [0, 0.5], [1.1, 1.2]);
+  const opacity = useTransform(scrollYProgress, [0, 0.4], [1, 0]);
 
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden mesh-bg">
-      {/* Background image */}
-      <motion.div className="absolute inset-0" style={{ y }}>
-        <img
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface">
+      {/* Background with stronger overlays for readability */}
+      <motion.div className="absolute inset-0 z-0" style={{ y }}>
+        <motion.img
           src={heroBike}
-          alt="Tridjaya Samrat Electric Bike"
-          className="w-full h-full object-cover object-center scale-110"
+          alt="Tridjaya Samrat"
+          className="w-full h-full object-cover object-center"
+          style={{ scale }}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/60 dark:via-surface/80 to-surface/40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/10 dark:via-transparent to-transparent" />
+        {/* Layered Overlays - Darkened for high contrast */}
+        <div className="absolute inset-0 bg-gradient-to-b from-surface/30 via-surface/75 to-surface" />
+        <div className="absolute inset-0 bg-black/10" />
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-surface via-surface/80 to-transparent" />
       </motion.div>
 
-      {/* Animated particles */}
-      {[...Array(6)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-1 h-1 rounded-full bg-primary"
-          style={{
-            left: `${15 + i * 13}%`,
-            top: `${30 + (i % 3) * 15}%`,
-          }}
-          animate={{
-            y: [-20, 20, -20],
-            opacity: [0.3, 0.8, 0.3],
-          }}
-          transition={{
-            duration: 3 + i * 0.5,
-            repeat: Infinity,
-            ease: 'easeInOut',
-            delay: i * 0.3,
-          }}
-        />
-      ))}
+      {/* Modern Glowing Accents - Reduced opacity for clarity */}
+      <div className="absolute top-1/4 -left-24 w-96 h-96 bg-primary/5 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+      <div className="absolute bottom-1/4 -right-24 w-80 h-80 bg-secondary/5 rounded-full blur-[100px] pointer-events-none" />
 
       <motion.div
         style={{ opacity }}
-        className="relative z-10 container-custom pt-28 pb-16"
+        className="relative z-10 container-custom text-center pt-20"
       >
-        {/* Eyebrow */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="flex items-center gap-2 mb-6"
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-col items-center"
         >
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-dark border border-primary/20">
-            <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-            <span className="font-body text-label-md font-bold text-secondary uppercase tracking-widest">
+          {/* Refined Eyebrow */}
+          <div className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-surface-highest/90 border border-primary/20 mb-10 shadow-xl">
+            <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.8)] animate-pulse" />
+            <span className="font-body text-label-sm font-black text-on-surface uppercase tracking-[0.3em]">
               Distributor Resmi Sulawesi
             </span>
           </div>
-        </motion.div>
 
-        {/* Main Headline */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.1 }}
-          className="max-w-3xl mb-6"
-        >
-          <h1 className="font-display font-bold text-on-surface leading-[1.05] tracking-tight">
-            <span className="text-display-lg block">Masa Depan</span>
-            <span className="text-display-lg gradient-text-neon block">Sepeda Listrik</span>
-            <span className="text-display-md block text-on-surface">Ada di Sini.</span>
+          {/* Impactful Headline with Shadow for contrast */}
+          <h1 className="font-display font-bold text-on-surface leading-[0.9] tracking-tighter mb-8 max-w-5xl drop-shadow-md">
+            <span className="text-display-md md:text-display-lg block mb-4">Masa Depan</span>
+            <span className="text-display-lg md:text-display-xl gradient-text-neon block mb-4 drop-shadow-sm">Gaya Hidup</span>
+            <span className="text-display-md md:text-display-lg block">Dimulai Sekarang.</span>
           </h1>
-        </motion.div>
 
-        {/* Subtitle */}
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="font-body text-body-lg text-on-surface-variant max-w-xl leading-relaxed mb-10 font-medium"
-        >
-          Temukan sepeda listrik Goda, Winfly & Nuv, elektronik premium, dan furnitur modern pilihan terbaik untuk gaya hidup Anda di Sulawesi.
-        </motion.p>
+          {/* Refined Subtitle - High contrast */}
+          <p className="font-body text-body-lg text-on-surface max-w-2xl leading-relaxed mb-12 font-bold drop-shadow-sm opacity-95">
+            Temukan koleksi eksklusif sepeda listrik, elektronik premium, dan furnitur modern yang dirancang untuk meningkatkan standar hidup Anda.
+          </p>
 
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="flex flex-wrap items-center gap-4 mb-16"
-        >
-          <Link
-            to="/produk/bike"
-            id="hero-cta-primary"
-            className="flex items-center gap-2 px-7 py-3.5 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface hover:shadow-neon-cyan transition-all duration-300 group"
-          >
-            Jelajahi Produk
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </Link>
-          <Link
-            to="/promo"
-            id="hero-cta-secondary"
-            className="flex items-center gap-2 px-7 py-3.5 glass-premium rounded-xl font-display text-title-sm font-semibold text-on-surface hover:border-primary/50 transition-all duration-300 group"
-          >
-            <Play className="w-4 h-4 fill-primary text-primary" />
-            Lihat Promo
-          </Link>
-        </motion.div>
+          {/* Premium CTAs */}
+          <div className="flex flex-wrap items-center justify-center gap-6 mb-24">
+            <Link
+              to="/produk/bike"
+              className="relative flex items-center gap-3 px-10 py-5 gradient-primary rounded-2xl font-display text-title-sm font-bold text-surface hover:shadow-neon-cyan transition-all duration-500 group overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+              <span className="relative z-10">Jelajahi Produk</span>
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform relative z-10" />
+            </Link>
+            
+            <Link
+              to="/promo"
+              className="flex items-center gap-3 px-10 py-5 bg-surface-highest/80 border border-white/20 rounded-2xl font-display text-title-sm font-bold text-on-surface hover:bg-surface-highest hover:border-primary/40 transition-all duration-300 group backdrop-blur-sm"
+            >
+              <Play className="w-4 h-4 fill-primary text-primary group-hover:scale-125 transition-transform" />
+              Lihat Promo
+            </Link>
+          </div>
 
-        {/* Quick stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="flex flex-wrap items-center gap-6"
-        >
-          {[
-            { icon: Zap, label: '120 km Jangkauan', color: 'text-primary' },
-            { icon: Battery, label: 'Motor 750W', color: 'text-secondary' },
-            { icon: Shield, label: 'Garansi 3 Tahun', color: 'text-tertiary' },
-          ].map(({ icon: Icon, label, color }) => (
-            <div key={label} className="flex items-center gap-2">
-              <Icon className={`w-4 h-4 ${color}`} />
-              <span className="font-body text-body-sm font-bold text-on-surface">{label}</span>
-            </div>
-          ))}
+          {/* Refined Quick Stats - Increased readability with solid-ish backgrounds */}
+          <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
+            {[
+              { icon: Zap, label: '120 km', sub: 'Max Range', color: 'text-primary' },
+              { icon: Battery, label: '750W', sub: 'High Power', color: 'text-secondary' },
+              { icon: Shield, label: '3 Tahun', sub: 'Garansi Resmi', color: 'text-tertiary' },
+            ].map(({ icon: Icon, label, sub, color }) => (
+              <div key={label} className="flex flex-col items-center gap-1 group">
+                <div className={`p-4 rounded-2xl bg-surface-highest/95 border border-white/10 mb-3 group-hover:border-primary/40 transition-all duration-300 shadow-xl`}>
+                  <Icon className={`w-6 h-6 ${color} group-hover:scale-110 transition-transform`} />
+                </div>
+                <span className="font-display text-title-md font-black text-on-surface drop-shadow-sm">{label}</span>
+                <span className="font-body text-label-xs font-black text-on-surface-variant uppercase tracking-[0.2em]">{sub}</span>
+              </div>
+            ))}
+          </div>
         </motion.div>
       </motion.div>
 
-      {/* Scroll indicator */}
+      {/* Modern Scroll Indicator - High contrast */}
       <motion.div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-        animate={{ y: [0, 8, 0] }}
-        transition={{ duration: 2, repeat: Infinity }}
+        className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4"
+        animate={{ y: [0, 10, 0] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
       >
-        <span className="font-body text-label-sm text-on-surface-variant uppercase tracking-widest">Scroll</span>
-        <ChevronDown className="w-4 h-4 text-on-surface-variant" />
+        <div className="px-4 py-1.5 bg-surface-highest/80 rounded-full border border-white/10 backdrop-blur-sm mb-1 shadow-lg">
+          <span className="font-body text-[10px] font-black text-on-surface uppercase tracking-[0.4em]">Scroll</span>
+        </div>
+        <div className="w-[2.5px] h-16 bg-gradient-to-b from-primary to-transparent rounded-full shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]" />
       </motion.div>
     </section>
   );
@@ -298,7 +267,7 @@ const FeaturedProducts: React.FC = () => {
   const bikes = products.filter((p) => p.category === 'bike');
 
   return (
-    <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
+    <section className="section-padding bg-surface-low/95">
       <div className="container-custom">
         <div className="flex items-end justify-between mb-12">
           <SectionHeader
@@ -462,7 +431,7 @@ const WhyUs: React.FC = () => {
   ];
 
   return (
-    <section className="section-padding bg-surface-low/95 backdrop-blur-sm">
+    <section className="section-padding bg-surface-low/95">
       <div className="container-custom">
         <SectionHeader
           eyebrow="Mengapa Tridjaya?"

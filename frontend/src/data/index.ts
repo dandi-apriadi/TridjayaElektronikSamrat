@@ -53,6 +53,9 @@ export const products: Product[] = [
     },
     stock: 'available',
     colors: ['Obsidian Black', 'Midnight Navy', 'Carbon Gray'],
+    highlights: ['Baterai 72V 32Ah — radius 120km', 'Motor 750W Mid-Drive', 'Frame alloy ringan 28kg', 'Desain ergonomis & sporty'],
+    sellingPoints: ['Jangkauan paling jauh di kelasnya', 'Garansi motor panjang (3 tahun)', 'Cocok untuk jalan menanjak'],
+    objections: ['"Cukup berat?" → Berat terpusat di tengah (mid-drive) jadi stabil', '"Harga tinggi" → sebanding dengan kapasitas baterai 120km'],
   },
   {
     id: 'winfly-w200',

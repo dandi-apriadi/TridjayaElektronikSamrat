@@ -103,7 +103,7 @@ const BikesCatalogPage: React.FC = () => {
       </section>
 
       {/* Catalog */}
-      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
+      <section className="pb-20 bg-surface/90">
         <div className="container-custom">
           {/* Filter bar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">

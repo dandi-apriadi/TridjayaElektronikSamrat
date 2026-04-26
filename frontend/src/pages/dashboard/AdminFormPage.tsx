@@ -29,7 +29,8 @@ const AdminFormPage: React.FC = () => {
   const { products, fetchProducts } = useProductStore();
   const { promos, fetchPromos } = usePromoStore();
   const { posts, fetchPosts } = useBlogStore();
-  const { users, fetchUsers } = useUserStore();
+  const { users, fetchUsers, createUser, updateUser } = useUserStore();
+  const currentUser = useMemo(() => users.find((item) => item.id === id), [id, users]);
 
   useEffect(() => {
     if (path.includes('catalog')) setType('catalog');
@@ -52,16 +53,90 @@ const AdminFormPage: React.FC = () => {
   const [specs, setSpecs] = useState([{ key: 'Motor Power', value: '500W' }, { key: 'Top Speed', value: '45 km/h' }]);
   const [colors, setColors] = useState(['Red', 'Blue', 'Black']);
   const [newColor, setNewColor] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'admin' | 'agent' | 'editor' | 'operator'>('agent');
+  const [password, setPassword] = useState('');
+  const [avatar, setAvatar] = useState('');
+  const [bankAccount, setBankAccount] = useState('');
+  const [accountStatus, setAccountStatus] = useState<'active' | 'suspended' | 'pending'>('active');
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (type !== 'user') return;
+
+    if (currentUser) {
+      setName(currentUser.name || '');
+      setEmail(currentUser.email || '');
+      setRole((currentUser.role as 'admin' | 'agent' | 'editor' | 'operator') || 'agent');
+      setAvatar(currentUser.avatar || '');
+      setBankAccount(currentUser.bank_account || '');
+      setAccountStatus(currentUser.is_active ? 'active' : 'suspended');
+      setPassword('');
+    } else {
+      setName('');
+      setEmail('');
+      setRole('agent');
+      setAvatar('');
+      setBankAccount('');
+      setAccountStatus('active');
+      setPassword('');
+    }
+  }, [currentUser, type]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    // Sinkronisasi data terakhir sebelum kembali ke halaman sebelumnya.
-    setTimeout(() => {
+
+    try {
+      if (type === 'user') {
+        if (!name.trim() || !email.trim()) {
+          throw new Error('Nama dan email wajib diisi.');
+        }
+
+        const userPayload = {
+          email: email.trim(),
+          name: name.trim(),
+          role,
+          avatar: avatar.trim(),
+          bankAccount: bankAccount.trim(),
+          isActive: accountStatus === 'active',
+        };
+
+        if (isEdit && id) {
+          const updatePayload: typeof userPayload & { password?: string } = { ...userPayload };
+          if (password.trim()) {
+            updatePayload.password = password.trim();
+          }
+
+          const success = await updateUser(id, updatePayload);
+          if (!success) {
+            throw new Error('Gagal memperbarui user.');
+          }
+        } else {
+          if (password.trim().length < 8) {
+            throw new Error('Password baru minimal 8 karakter.');
+          }
+
+          const success = await createUser({
+            ...userPayload,
+            password: password.trim(),
+          });
+          if (!success) {
+            throw new Error('Gagal membuat user baru.');
+          }
+        }
+
+        toast.success(`${config.title} Berhasil Disimpan`, 'Data user telah tersinkron ke backend.');
+        navigate('/dashboard/admin/users');
+        return;
+      }
+
+      throw new Error('Tipe form tidak didukung untuk penyimpanan backend.');
+    } catch (error) {
+      toast.error('Gagal Menyimpan', error instanceof Error ? error.message : 'Terjadi kesalahan saat menyimpan data.');
+    } finally {
       setIsSaving(false);
-      toast.success(`${config.title} Berhasil Diperbarui`, 'Data telah disinkronkan ke seluruh sistem.');
-      setTimeout(() => navigate(-1), 1500);
-    }, 1000);
+    }
   };
 
   const config = {
@@ -243,6 +318,8 @@ const AdminFormPage: React.FC = () => {
                     <input
                       required
                       type="text"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
                       placeholder={`Masukkan nama ${config.title.toLowerCase()}...`}
                       className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
                     />
@@ -479,16 +556,70 @@ const AdminFormPage: React.FC = () => {
                 <input
                   required
                   type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="email@tridjaya.co.id"
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
                 />
               </div>
               <div className="space-y-1.5">
+                <label className="text-label-sm text-on-surface-variant font-semibold">Role</label>
+                <select
+                  value={role}
+                  onChange={(event) => setRole(event.target.value as 'admin' | 'agent' | 'editor' | 'operator')}
+                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="agent">Agent</option>
+                  <option value="editor">Editor</option>
+                  <option value="operator">Operator</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-label-sm text-on-surface-variant font-semibold">Nomor Rekening</label>
+                <input
+                  type="text"
+                  value={bankAccount}
+                  onChange={(event) => setBankAccount(event.target.value)}
+                  placeholder="BRI 1234-5678-9012"
+                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-label-sm text-on-surface-variant font-semibold">URL Avatar</label>
+                <input
+                  type="text"
+                  value={avatar}
+                  onChange={(event) => setAvatar(event.target.value)}
+                  placeholder="https://..."
+                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-label-sm text-on-surface-variant font-semibold">Password {isEdit ? '(kosongkan jika tidak diubah)' : '*'}</label>
+                <input
+                  required={!isEdit}
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder={isEdit ? 'Kosongkan jika tidak diubah' : 'Minimal 8 karakter'}
+                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5 md:col-span-2">
                 <label className="text-label-sm text-on-surface-variant font-semibold">Status Akun</label>
-                <select className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none">
-                  <option>Active</option>
-                  <option>Suspended</option>
-                  <option>Pending Approval</option>
+                <select
+                  value={accountStatus}
+                  onChange={(event) => setAccountStatus(event.target.value as 'active' | 'suspended' | 'pending')}
+                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                >
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="pending">Pending Approval</option>
                 </select>
               </div>
             </div>

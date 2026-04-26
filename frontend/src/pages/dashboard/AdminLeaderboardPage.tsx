@@ -26,6 +26,7 @@ import {
   Area
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
+import { useAgentStore } from '../../store/useAgentStore';
 
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
@@ -40,12 +41,15 @@ const itemVariants = {
 /* ─── Component ─────────────────────────────────────── */
 const AdminLeaderboardPage: React.FC = () => {
    const { registrations, claims, fetchRegistrations, fetchClaims, updateClaimStatus } = useAdminNetworkStore();
+   const { leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers } = useAgentStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'manage' | 'claims'>('overview');
 
    useEffect(() => {
       fetchRegistrations();
-    fetchClaims();
-   }, [fetchClaims, fetchRegistrations]);
+      fetchClaims();
+      fetchLeaderboard();
+      fetchRewardTiers();
+   }, [fetchClaims, fetchLeaderboard, fetchRegistrations, fetchRewardTiers]);
 
    const networkGrowthData = useMemo(() => {
       return Array.from({ length: 4 }).map((_, index) => {
@@ -77,67 +81,50 @@ const AdminLeaderboardPage: React.FC = () => {
       });
    }, [claims, registrations]);
 
+   const effectiveRewardTiers = rewardTiers.length > 0
+      ? rewardTiers
+      : [
+         { id: 'silver', name: 'Silver Tier', thresholdPoints: 5000, rewardValue: 650000, isActive: true },
+         { id: 'gold', name: 'Gold Tier', thresholdPoints: 15000, rewardValue: 1200000, isActive: true },
+         { id: 'diamond', name: 'Diamond Tier', thresholdPoints: 50000, rewardValue: 2400000, isActive: true },
+      ];
+
+   const resolveTierId = (points: number) => {
+      const sorted = [...effectiveRewardTiers].sort((left, right) => left.thresholdPoints - right.thresholdPoints);
+      return [...sorted].reverse().find((tier) => points >= tier.thresholdPoints)?.id || sorted[0]?.id || 'silver';
+   };
+
    const rewardConfig = useMemo(() => {
-      const counts = claims.reduce<Record<string, number>>((accumulator, claim) => {
-         accumulator[claim.tierId] = (accumulator[claim.tierId] || 0) + 1;
+      const counts = leaderboard.reduce<Record<string, number>>((accumulator, agent) => {
+         const tierId = resolveTierId(agent.points);
+         accumulator[tierId] = (accumulator[tierId] || 0) + 1;
          return accumulator;
       }, {});
 
-      return [
-         { id: 'silver', name: 'Silver', threshold: '5,000 pts', agents: counts.silver || 0, active: true },
-         { id: 'gold', name: 'Gold', threshold: '15,000 pts', agents: counts.gold || 0, active: true },
-         { id: 'diamond', name: 'Diamond', threshold: '50,000 pts', agents: counts.diamond || 0, active: true },
-      ];
-   }, [claims]);
+      return effectiveRewardTiers.map((tier) => ({
+         id: tier.id,
+         name: tier.name.replace(/ Tier$/i, ''),
+         threshold: `${tier.thresholdPoints.toLocaleString('id-ID')} pts`,
+         agents: counts[tier.id] || 0,
+         active: tier.isActive,
+      }));
+   }, [effectiveRewardTiers, leaderboard]);
 
    const topPeformers = useMemo(() => {
-      const performanceByAgent = new Map<string, {
-         id: string;
-         name: string;
-         city: string;
-         points: number;
-         growth: string;
-         tier: string;
-      }>();
-
-      registrations.forEach((registration) => {
-         performanceByAgent.set(registration.id, {
-            id: registration.id,
-            name: registration.fullName,
-            city: registration.city,
-            points: registration.status === 'approved' ? 1500 : 500,
-            growth: registration.status === 'approved' ? '+10%' : '+0%',
-            tier: registration.status === 'approved' ? 'Gold' : 'Silver',
-         });
-      });
-
-      claims.forEach((claim) => {
-         const existing = performanceByAgent.get(claim.agentId) || {
-            id: claim.agentId,
-            name: claim.agentName || 'Agent',
-            city: '-',
-            points: 0,
-            growth: '+0%',
-            tier: claim.tierId === 'diamond' ? 'Diamond' : claim.tierId === 'gold' ? 'Gold' : 'Silver',
-         };
-
-         if (claim.status === 'completed') {
-            existing.points += claim.tierId === 'diamond' ? 7000 : claim.tierId === 'gold' ? 4000 : 2000;
-            existing.growth = '+15%';
-         }
-
-         performanceByAgent.set(claim.agentId, existing);
-      });
-
-      return Array.from(performanceByAgent.values())
+      return [...leaderboard]
          .sort((left, right) => right.points - left.points)
-         .slice(0, 5);
-   }, [claims, registrations]);
+         .slice(0, 5)
+         .map((agent) => ({
+            id: agent.id,
+            name: agent.name,
+            city: agent.city || '-',
+            points: agent.points,
+            growth: `+${agent.totalSales} sales`,
+            tier: agent.tierName || effectiveRewardTiers.find((tier) => tier.id === resolveTierId(agent.points))?.name || 'Silver Tier',
+         }));
+   }, [effectiveRewardTiers, leaderboard]);
 
-   const totalPoints = claims.reduce((sum, claim) => {
-      if (claim.status !== 'completed') return sum;
-      return sum + (claim.tierId === 'diamond' ? 7000 : claim.tierId === 'gold' ? 4000 : 2000);
-   }, 0);
+   const totalPoints = leaderboard.reduce((sum, agent) => sum + agent.points, 0);
 
    const activeSilverAgents = rewardConfig.find((tier) => tier.id === 'silver')?.agents ?? 0;
    const activeGoldAgents = rewardConfig.find((tier) => tier.id === 'gold')?.agents ?? 0;

@@ -16,6 +16,8 @@ const steps = [
   { id: 4, title: 'Dokumen', subtitle: 'Upload Foto & KTP' },
 ];
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+
 const AgencyRegistrationPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -127,7 +129,7 @@ const AgencyRegistrationPage: React.FC = () => {
       if (files.profilePhoto) data.append('profilePhoto', files.profilePhoto);
       if (files.ktpPhoto) data.append('ktpPhoto', files.ktpPhoto);
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/agent-registrations`, {
+      const response = await fetch(`${API_BASE_URL}/api/agent-registrations`, {
         method: 'POST',
         body: data,
       });
@@ -388,7 +390,7 @@ const AgencyRegistrationPage: React.FC = () => {
                                         <span className="text-label-sm">Upload Foto</span>
                                       </div>
                                     )}
-                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, 'profilePhoto')} />
+                                    <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => handleFileChange(e, 'profilePhoto')} />
                                   </label>
                                 </div>
 
@@ -409,7 +411,7 @@ const AgencyRegistrationPage: React.FC = () => {
                                         <span className="text-label-sm">Upload KTP</span>
                                       </div>
                                     )}
-                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, 'ktpPhoto')} />
+                                    <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => handleFileChange(e, 'ktpPhoto')} />
                                   </label>
                                 </div>
                               </div>

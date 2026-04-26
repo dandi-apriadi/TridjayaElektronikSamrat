@@ -3,14 +3,18 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Save, FileText, Upload, AlertCircle } from 'lucide-react';
 import { useBlogStore } from '../../store/useBlogStore';
+import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import { adminArticleSchema, getFirstZodIssue } from '../../validators/adminSchemas';
 import type { BlogPost } from '../../types';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
 
 const AdminArticleFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { createPost, updatePost } = useBlogStore();
+  const accessToken = useAuthStore((state) => state.accessToken);
   const isEditMode = !!id;
 
   const [formData, setFormData] = useState<Partial<BlogPost>>({
@@ -27,6 +31,7 @@ const AdminArticleFormPage: React.FC = () => {
 
   const [tagsInput, setTagsInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,6 +56,42 @@ const AdminArticleFormPage: React.FC = () => {
   const handleSlugify = () => {
     if (formData.title) {
       setFormData(prev => ({ ...prev, slug: formData.title!.toLowerCase().replace(/[^a-z0-9]+/g, '-') }));
+    }
+  };
+
+  const handleHeroImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('File Tidak Valid', 'Silakan pilih file gambar saja.');
+      return;
+    }
+
+    const formDataPayload = new FormData();
+    formDataPayload.append('file', file);
+
+    setIsUploadingImage(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/uploads/image`, {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: formDataPayload,
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal mengunggah gambar');
+      }
+
+      const payload = await response.json();
+      const uploadedUrl = payload.data?.url as string | undefined;
+      if (!uploadedUrl) {
+        throw new Error('Respons upload tidak valid');
+      }
+
+      setFormData((prev) => ({ ...prev, heroImage: uploadedUrl }));
+      toast.success('Gambar berhasil diunggah');
+    } catch (error) {
+      toast.error('Upload Gagal', error instanceof Error ? error.message : 'Terjadi kesalahan saat upload gambar.');
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -174,17 +215,43 @@ const AdminArticleFormPage: React.FC = () => {
             <h3 className="font-display text-title-md font-semibold text-on-surface border-b border-outline-variant/20 pb-2">Kover & Kategori</h3>
             
             <div className="space-y-3">
-              <div className="aspect-[4/3] w-full rounded-xl bg-surface-high border-2 border-dashed border-outline-variant/40 flex flex-col items-center justify-center text-center p-4 overflow-hidden">
+              <div className="relative aspect-[4/3] w-full rounded-xl bg-surface-high border-2 border-dashed border-outline-variant/40 flex flex-col items-center justify-center text-center p-4 overflow-hidden group hover:border-primary/50 transition-all cursor-pointer">
+                <input 
+                  type="file" 
+                  accept=".jpg,.jpeg,.png,.webp" 
+                  disabled={isUploadingImage}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) handleHeroImageUpload(file);
+                    event.target.value = '';
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                />
+                
                 {formData.heroImage ? (
-                  <img src={formData.heroImage} alt="Preview" className="w-full h-full object-cover rounded-lg" />
-                ) : (
                   <>
-                    <Upload className="w-8 h-8 text-on-surface-variant/50 mb-2" />
-                    <p className="text-label-sm text-on-surface-variant">Gambar Kover</p>
+                    <img src={formData.heroImage} alt="Preview" className="w-full h-full object-cover rounded-lg" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 pointer-events-none">
+                      <div className="flex flex-col items-center gap-2">
+                         <Upload className="w-6 h-6 text-white" />
+                         <span className="text-[10px] text-white font-bold uppercase">Ganti Gambar</span>
+                      </div>
+                    </div>
                   </>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      {isUploadingImage ? (
+                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-primary" />
+                      )}
+                    </div>
+                    <p className="text-label-sm font-bold text-on-surface">Upload Kover</p>
+                    <p className="text-[10px] text-on-surface-variant mt-1">Disarankan 4:3 atau 16:9</p>
+                  </div>
                 )}
               </div>
-              <input required name="heroImage" placeholder="URL Gambar Kover" value={formData.heroImage || ''} onChange={handleChange} type="text" className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none" />
             </div>
 
             <div className="space-y-1.5 pt-4">

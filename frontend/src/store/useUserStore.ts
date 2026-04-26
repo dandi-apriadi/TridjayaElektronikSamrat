@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
+import { API_BASE_URL } from '../utils/apiClient';
+
+const API_ENDPOINT = `${API_BASE_URL}/api`;
 
 export interface AdminUser {
   id: string;
@@ -7,6 +10,9 @@ export interface AdminUser {
   name: string;
   role: 'admin' | 'agent' | 'editor' | 'operator' | string;
   avatar: string;
+  bank_account?: string;
+  created_at?: string;
+  last_login?: string;
   is_active: boolean;
 }
 
@@ -15,11 +21,27 @@ interface UserStoreState {
   isLoading: boolean;
   error: string | null;
   fetchUsers: (force?: boolean) => Promise<void>;
+  createUser: (data: {
+    email: string;
+    name: string;
+    role: string;
+    password: string;
+    avatar?: string;
+    bankAccount?: string;
+    isActive?: boolean;
+  }) => Promise<boolean>;
+  updateUser: (id: string, data: Partial<{
+    email: string;
+    name: string;
+    role: string;
+    password: string;
+    avatar: string;
+    bankAccount: string;
+    isActive: boolean;
+  }>) => Promise<boolean>;
   updateUserStatus: (id: string, isActive: boolean) => Promise<boolean>;
+  resetUserPassword: (id: string, password: string) => Promise<boolean>;
 }
-
-const API_ROOT = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
-const API_BASE_URL = `${API_ROOT}/api`;
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
   users: [],
@@ -34,7 +56,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_BASE_URL}/users`, {
+      const response = await fetch(`${API_ENDPOINT}/users`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -54,10 +76,58 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     }
   },
 
+  createUser: async (data) => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${API_ENDPOINT}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal membuat user baru');
+      }
+
+      await useUserStore.getState().fetchUsers(true);
+      return true;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });
+      return false;
+    }
+  },
+
+  updateUser: async (id, data) => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${API_ENDPOINT}/users/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal memperbarui user');
+      }
+
+      await useUserStore.getState().fetchUsers(true);
+      return true;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });
+      return false;
+    }
+  },
+
   updateUserStatus: async (id, isActive) => {
     try {
       const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+      const response = await fetch(`${API_ENDPOINT}/users/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -71,6 +141,29 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       }
 
       await useUserStore.getState().fetchUsers();
+      return true;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });
+      return false;
+    }
+  },
+
+  resetUserPassword: async (id, password) => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${API_ENDPOINT}/users/${id}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal mereset kata sandi user');
+      }
+
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });

@@ -6,6 +6,7 @@ import { Badge } from '../components/ui';
 import { useBlogStore } from '../store/useBlogStore';
 import type { BlogPost } from '../types';
 import blogHeroImg from '../assets/images/blog-hero.webp';
+import { getImageUrl } from '../utils/apiClient';
 
 const categories = ['Semua', 'Review', 'Tips & Trik', 'Edukasi', 'Home Styling'];
 
@@ -20,7 +21,7 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
       >
         <Link to={`/blog/${post.slug}`} className="group block">
           <div className="relative overflow-hidden rounded-2xl aspect-[16/7]">
-            <img src={post.heroImage} alt={post.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <img src={getImageUrl(post.heroImage)} alt={post.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent" />
             <div className="absolute top-5 left-5">
               <Badge label={`⭐ ${post.category}`} variant="primary" />
@@ -55,7 +56,7 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
       <Link to={`/blog/${post.slug}`} className="group block">
         <div className="glass-card rounded-2xl overflow-hidden hover:shadow-neon-cyan transition-all duration-300 h-full">
           <div className="relative overflow-hidden aspect-[16/9]">
-            <img src={post.heroImage} alt={post.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <img src={getImageUrl(post.heroImage)} alt={post.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
             <div className="absolute top-3 left-3">
               <span className="px-2.5 py-1 glass-dark rounded-lg font-body text-label-sm font-semibold text-primary uppercase tracking-wider">{post.category}</span>
             </div>
@@ -156,7 +157,7 @@ const BlogPage: React.FC = () => {
         </div>
       </section>
 
-      <section className="pb-20 bg-surface/90 backdrop-blur-sm">
+      <section className="pb-20 bg-surface/90">
         <div className="container-custom">
           {/* Featured */}
           {featured && !searchQuery && activeCategory === 'Semua' && !activeTag && (

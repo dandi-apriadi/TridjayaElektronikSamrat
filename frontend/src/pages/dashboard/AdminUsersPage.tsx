@@ -8,6 +8,7 @@ import {
   AlertTriangle, ArrowUpRight, Filter,
 } from 'lucide-react';
 import { useUserStore } from '../../store/useUserStore';
+import { toast } from '../../store/useNotificationStore';
 
 const roleConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
@@ -31,12 +32,25 @@ const permissions = [
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
+const formatDateTime = (value?: string) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+};
+
 const AdminUsersPage: React.FC = () => {
-  const { users, isLoading, error, fetchUsers, updateUserStatus } = useUserStore();
+  const { users, isLoading, error, fetchUsers, updateUserStatus, resetUserPassword } = useUserStore();
   const [search, setSearch]           = useState('');
   const [roleFilter, setRoleFilter]   = useState('Semua');
   const [statusFilter, setStatusFilter] = useState('Semua');
   const [showPerms, setShowPerms]       = useState(false);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -46,6 +60,58 @@ const AdminUsersPage: React.FC = () => {
 
   const toggleSuspend = async (id: string, isActive: boolean) => {
     await updateUserStatus(id, !isActive);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resettingUserId || !newPassword) return;
+    if (newPassword.length < 8) {
+      toast.error('Kata sandi terlalu pendek', 'Minimal 8 karakter.');
+      return;
+    }
+
+    setIsResetting(true);
+    const success = await resetUserPassword(resettingUserId, newPassword);
+    if (success) {
+      toast.success('Berhasil', 'Kata sandi user telah diatur ulang.');
+      setResettingUserId(null);
+      setNewPassword('');
+    }
+    setIsResetting(false);
+  };
+
+  const handleExportCsv = () => {
+    if (filtered.length === 0) {
+      toast.warning('Tidak ada data untuk diekspor');
+      return;
+    }
+
+    const escapeCsv = (value: string | number | boolean | null | undefined) => {
+      const raw = value === null || value === undefined ? '' : String(value);
+      return `"${raw.replace(/"/g, '""')}"`;
+    };
+
+    const rows = [
+      ['id', 'name', 'email', 'role', 'status', 'last_login', 'created_at'],
+      ...filtered.map((user) => [
+        user.id,
+        user.name,
+        user.email,
+        user.role,
+        userStatus(user.is_active),
+        user.last_login ?? '',
+        user.created_at ?? '',
+      ]),
+    ];
+
+    const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tridjaya-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('CSV berhasil diekspor', `${filtered.length} baris data telah diunduh.`);
   };
 
   const filtered = users.filter((u) => {
@@ -225,9 +291,9 @@ const AdminUsersPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">
-                      <div className="flex items-center gap-1"><Clock className="w-3 h-3" />-</div>
+                      <div className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDateTime(user.last_login)}</div>
                     </td>
-                    <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">-</td>
+                    <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{formatDateTime(user.created_at)}</td>
                     <td className="py-3.5">
                       <div className="flex items-center gap-2 transition-opacity">
                         <Link to={`/dashboard/admin/users/edit/${user.id}`}
@@ -238,6 +304,10 @@ const AdminUsersPage: React.FC = () => {
                           className={`p-1.5 rounded-md transition-colors ${!user.is_active ? 'bg-secondary/15 text-secondary hover:bg-secondary/25' : 'bg-error/10 text-error hover:bg-error/20'}`}
                           title={!user.is_active ? 'Aktifkan' : 'Suspend'}>
                           {!user.is_active ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                        </button>
+                        <button type="button" onClick={() => setResettingUserId(user.id)}
+                          className="p-1.5 rounded-md bg-tertiary/10 text-tertiary hover:bg-tertiary/20 transition-colors" title="Reset Password">
+                          <Lock className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -255,7 +325,7 @@ const AdminUsersPage: React.FC = () => {
           <span className="text-on-surface-variant">
             <strong className="text-on-surface">{filtered.length}</strong> dari {users.length} user
           </span>
-          <button type="button" className="text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
+          <button type="button" onClick={handleExportCsv} className="text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
             Export CSV <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -272,6 +342,54 @@ const AdminUsersPage: React.FC = () => {
             Detail <XCircle className="w-3.5 h-3.5" />
           </button>
         </motion.div>
+      )}
+      {/* Reset Password Modal */}
+      {resettingUserId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResettingUserId(null)} />
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative w-full max-w-md glass-card rounded-2xl p-6 shadow-2xl">
+            <h3 className="font-display text-title-md font-bold text-on-surface mb-4 inline-flex items-center gap-2">
+              <Lock className="w-5 h-5 text-tertiary" /> Reset Password User
+            </h3>
+            <p className="text-body-sm text-on-surface-variant mb-6">
+              Masukkan kata sandi baru untuk user <strong>{users.find(u => u.id === resettingUserId)?.name}</strong>.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-label-sm font-semibold text-on-surface-variant">Kata Sandi Baru</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Minimal 8 karakter"
+                    className="w-full pl-4 pr-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm outline-none focus:ring-2 focus:ring-tertiary/40"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setResettingUserId(null)}
+                  className="flex-1 py-2.5 rounded-lg bg-surface-highest text-on-surface font-semibold text-label-sm hover:bg-surface-highest/80 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={isResetting || !newPassword}
+                  className="flex-1 py-2.5 rounded-lg bg-tertiary text-on-tertiary font-bold text-label-sm hover:bg-tertiary-light shadow-lg shadow-tertiary/20 transition-all disabled:opacity-50"
+                >
+                  {isResetting ? 'Memproses...' : 'Reset Password'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
     </motion.div>
   );

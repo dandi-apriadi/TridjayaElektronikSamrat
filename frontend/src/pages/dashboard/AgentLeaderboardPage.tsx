@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
@@ -17,48 +17,42 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useAgentStore } from '../../store/useAgentStore';
 
-const leaderboardData = [
-  { rank: 1, name: 'Agen Samrat Makassar', city: 'Makassar', points: 12500, sales: 48, avatar: 'https://i.pravatar.cc/150?u=1' },
-  { rank: 2, name: 'Dian Sales Partner', city: 'Gowa', points: 10800, sales: 35, avatar: 'https://i.pravatar.cc/150?u=2' },
-  { rank: 3, name: 'Krisna Network', city: 'Manado', points: 9200, sales: 29, avatar: 'https://i.pravatar.cc/150?u=3' },
-  { rank: 4, name: 'Ratna Mobile Palu', city: 'Palu', points: 8100, sales: 22, avatar: 'https://i.pravatar.cc/150?u=4' },
-  { rank: 5, name: 'Bagas Elektro Kendari', city: 'Kendari', points: 7500, sales: 18, avatar: 'https://i.pravatar.cc/150?u=5' },
-  { rank: 6, name: 'Rudy Jaya Partner', city: 'Makassar', points: 6800, sales: 15, avatar: 'https://i.pravatar.cc/150?u=6' },
-  { rank: 7, name: 'Sinta Electric', city: 'Maros', points: 5900, sales: 12, avatar: 'https://i.pravatar.cc/150?u=7' },
-  { rank: 8, name: 'Budi Santoso', city: 'Takalar', points: 4200, sales: 9, avatar: 'https://i.pravatar.cc/150?u=8' },
+const fallbackLeaderboardData = [
+  { id: 'fallback-1', rank: 1, name: 'Agen Samrat Makassar', city: 'Makassar', points: 12500, totalSales: 48, avatar: 'https://i.pravatar.cc/150?u=1' },
+  { id: 'fallback-2', rank: 2, name: 'Dian Sales Partner', city: 'Gowa', points: 10800, totalSales: 35, avatar: 'https://i.pravatar.cc/150?u=2' },
+  { id: 'fallback-3', rank: 3, name: 'Krisna Network', city: 'Manado', points: 9200, totalSales: 29, avatar: 'https://i.pravatar.cc/150?u=3' },
+  { id: 'fallback-4', rank: 4, name: 'Ratna Mobile Palu', city: 'Palu', points: 8100, totalSales: 22, avatar: 'https://i.pravatar.cc/150?u=4' },
+  { id: 'fallback-5', rank: 5, name: 'Bagas Elektro Kendari', city: 'Kendari', points: 7500, totalSales: 18, avatar: 'https://i.pravatar.cc/150?u=5' },
+  { id: 'fallback-6', rank: 6, name: 'Rudy Jaya Partner', city: 'Makassar', points: 6800, totalSales: 15, avatar: 'https://i.pravatar.cc/150?u=6' },
+  { id: 'fallback-7', rank: 7, name: 'Sinta Electric', city: 'Maros', points: 5900, totalSales: 12, avatar: 'https://i.pravatar.cc/150?u=7' },
+  { id: 'fallback-8', rank: 8, name: 'Budi Santoso', city: 'Takalar', points: 4200, totalSales: 9, avatar: 'https://i.pravatar.cc/150?u=8' },
 ];
 
-const rewardTiers = [
-  { 
-    id: 'silver', 
-    name: 'Silver Tier', 
-    target: 5000, 
-    current: 4200, 
-    icon: Medal, 
-    color: 'text-slate-400', 
+const rewardTierMeta: Record<string, { icon: typeof Medal; color: string; bgColor: string; benefits: string[] }> = {
+  silver: {
+    icon: Medal,
+    color: 'text-slate-400',
     bgColor: 'bg-slate-400/10',
-    benefits: ['Komisi Extra 1%', 'Badge Profil Silver', 'Prioritas Support']
+    benefits: ['Komisi Extra 1%', 'Badge Profil Silver', 'Prioritas Support'],
   },
-  { 
-    id: 'gold', 
-    name: 'Gold Tier', 
-    target: 15000, 
-    current: 4200, 
-    icon: Trophy, 
-    color: 'text-amber-400', 
+  gold: {
+    icon: Trophy,
+    color: 'text-amber-400',
     bgColor: 'bg-amber-400/10',
-    benefits: ['Komisi Extra 2.5%', 'Akses Produk Pre-launch', 'Voucher Belanja Rp 500rb']
+    benefits: ['Komisi Extra 2.5%', 'Akses Produk Pre-launch', 'Voucher Belanja Rp 500rb'],
   },
-  { 
-    id: 'diamond', 
-    name: 'Diamond Tier', 
-    target: 50000, 
-    current: 4200, 
-    icon: Crown, 
-    color: 'text-cyan-400', 
+  diamond: {
+    icon: Crown,
+    color: 'text-cyan-400',
     bgColor: 'bg-cyan-400/10',
-    benefits: ['Komisi Extra 5%', 'Exclusive Gathering', 'Trip Liburan Tahunan']
+    benefits: ['Komisi Extra 5%', 'Exclusive Gathering', 'Trip Liburan Tahunan'],
   },
+};
+
+const fallbackRewardTiers = [
+  { id: 'silver', name: 'Silver Tier', thresholdPoints: 5000, rewardValue: 650000, isActive: true },
+  { id: 'gold', name: 'Gold Tier', thresholdPoints: 15000, rewardValue: 1200000, isActive: true },
+  { id: 'diamond', name: 'Diamond Tier', thresholdPoints: 50000, rewardValue: 2400000, isActive: true },
 ];
 
 /* ─── Variants ─────────────────────────────────────── */
@@ -74,21 +68,55 @@ const itemVariants = {
 /* ─── Component ─────────────────────────────────────── */
 const AgentLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
-  const { stats, fetchStats } = useAgentStore();
+  const { stats, fetchStats, leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers } = useAgentStore();
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'rewards'>('leaderboard');
   const [search, setSearch] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    fetchLeaderboard();
+    fetchRewardTiers();
+  }, [fetchLeaderboard, fetchRewardTiers, fetchStats]);
 
-  const filteredLeaderboard = leaderboardData.filter(a => 
+  const effectiveLeaderboard = leaderboard.length > 0
+    ? leaderboard.map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(entry.name)}`,
+      }))
+    : fallbackLeaderboardData;
+
+  const filteredLeaderboard = effectiveLeaderboard.filter(a => 
     a.name.toLowerCase().includes(search.toLowerCase()) || a.city.toLowerCase().includes(search.toLowerCase())
   );
 
   const currentPoints = stats?.points || 0;
+  const currentUserEntry = effectiveLeaderboard.find((entry) => entry.id === user?.id);
+  const currentRank = currentUserEntry ? effectiveLeaderboard.findIndex((entry) => entry.id === user?.id) + 1 : null;
+  const effectiveRewardTiers = rewardTiers.length > 0 ? rewardTiers : fallbackRewardTiers;
 
-  const dynamicRewardTiers = rewardTiers.map(t => ({ ...t, current: currentPoints }));
+  const nextTierProgress = useMemo(() => {
+    const sorted = [...effectiveRewardTiers].filter((tier) => tier.isActive).sort((a, b) => a.thresholdPoints - b.thresholdPoints);
+    const nextTier = sorted.find((tier) => tier.thresholdPoints > currentPoints) || null;
+    const previousTier = [...sorted].reverse().find((tier) => tier.thresholdPoints <= currentPoints) || null;
+    const currentThreshold = previousTier?.thresholdPoints ?? 0;
+    const nextThreshold = nextTier?.thresholdPoints ?? currentThreshold;
+    const base = Math.max(1, nextThreshold - currentThreshold);
+
+    return {
+      percent: nextTier ? Math.max(0, Math.min(100, ((currentPoints - currentThreshold) / base) * 100)) : 100,
+      remaining: nextTier ? Math.max(0, nextThreshold - currentPoints) : 0,
+      nextTierName: nextTier?.name ?? null,
+    };
+  }, [currentPoints, effectiveRewardTiers]);
+
+  const dynamicRewardTiers = useMemo(() => {
+    return effectiveRewardTiers.map((tier) => ({
+      ...tier,
+      meta: rewardTierMeta[tier.id] || rewardTierMeta.silver,
+      current: currentPoints,
+    }));
+  }, [currentPoints, effectiveRewardTiers]);
 
   return (
     <motion.div
@@ -135,16 +163,16 @@ const AgentLeaderboardPage: React.FC = () => {
               className="glass-card rounded-2xl p-6 text-center order-2 md:order-1 relative"
             >
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-slate-300 overflow-hidden shadow-xl">
-                <img src={leaderboardData[1].avatar} alt="" className="w-full h-full object-cover" />
+                <img src={filteredLeaderboard[1]?.avatar || fallbackLeaderboardData[1].avatar} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="mt-8">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-400/10 text-slate-400 font-bold text-label-sm mb-3">
                   <Star className="w-3.5 h-3.5 fill-current" /> Rank 2
                 </div>
-                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{leaderboardData[1].name}</h4>
-                <div className="text-label-xs text-on-surface-variant mb-4">{leaderboardData[1].city}</div>
-                <div className="text-headline-sm font-bold text-primary">{leaderboardData[1].points.toLocaleString()} pts</div>
-                <div className="text-label-xs text-on-surface-variant mt-1">{leaderboardData[1].sales} Sales (Month)</div>
+                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[1]?.name || fallbackLeaderboardData[1].name}</h4>
+                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[1]?.city || fallbackLeaderboardData[1].city}</div>
+                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[1]?.points || fallbackLeaderboardData[1].points).toLocaleString()} pts</div>
+                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[1]?.totalSales || fallbackLeaderboardData[1].totalSales} Sales (Month)</div>
               </div>
             </motion.div>
 
@@ -155,7 +183,7 @@ const AgentLeaderboardPage: React.FC = () => {
               className="glass-card rounded-2xl p-8 text-center order-1 md:order-2 border-primary/30 relative"
             >
               <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full border-4 border-amber-400 overflow-hidden shadow-2xl shadow-amber-400/20">
-                <img src={leaderboardData[0].avatar} alt="" className="w-full h-full object-cover" />
+                <img src={filteredLeaderboard[0]?.avatar || fallbackLeaderboardData[0].avatar} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-amber-400/40 to-transparent pointer-events-none" />
               </div>
               <div className="absolute -top-6 right-1/4 translate-x-1/2">
@@ -167,10 +195,10 @@ const AgentLeaderboardPage: React.FC = () => {
                 <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-400 text-surface font-bold text-label-md mb-4 shadow-lg shadow-amber-400/20">
                    THE CHAMPION
                 </div>
-                <h4 className="font-display text-headline-sm font-bold text-on-surface mb-1">{leaderboardData[0].name}</h4>
-                <div className="text-body-sm text-on-surface-variant mb-6">{leaderboardData[0].city}</div>
-                <div className="text-display-sm font-bold gradient-text-primary mb-2">{leaderboardData[0].points.toLocaleString()} pts</div>
-                <div className="text-title-sm font-bold text-secondary">{leaderboardData[0].sales} Successful Sales</div>
+                <h4 className="font-display text-headline-sm font-bold text-on-surface mb-1">{filteredLeaderboard[0]?.name || fallbackLeaderboardData[0].name}</h4>
+                <div className="text-body-sm text-on-surface-variant mb-6">{filteredLeaderboard[0]?.city || fallbackLeaderboardData[0].city}</div>
+                <div className="text-display-sm font-bold gradient-text-primary mb-2">{(filteredLeaderboard[0]?.points || fallbackLeaderboardData[0].points).toLocaleString()} pts</div>
+                <div className="text-title-sm font-bold text-secondary">{filteredLeaderboard[0]?.totalSales || fallbackLeaderboardData[0].totalSales} Successful Sales</div>
               </div>
             </motion.div>
 
@@ -181,16 +209,16 @@ const AgentLeaderboardPage: React.FC = () => {
               className="glass-card rounded-2xl p-6 text-center order-3 relative"
             >
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-orange-700 overflow-hidden shadow-xl">
-                <img src={leaderboardData[2].avatar} alt="" className="w-full h-full object-cover" />
+                <img src={filteredLeaderboard[2]?.avatar || fallbackLeaderboardData[2].avatar} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="mt-8">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-700/10 text-orange-700 font-bold text-label-sm mb-3">
                   <Star className="w-3.5 h-3.5 fill-current" /> Rank 3
                 </div>
-                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{leaderboardData[2].name}</h4>
-                <div className="text-label-xs text-on-surface-variant mb-4">{leaderboardData[2].city}</div>
-                <div className="text-headline-sm font-bold text-primary">{leaderboardData[2].points.toLocaleString()} pts</div>
-                <div className="text-label-xs text-on-surface-variant mt-1">{leaderboardData[2].sales} Sales (Month)</div>
+                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[2]?.name || fallbackLeaderboardData[2].name}</h4>
+                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[2]?.city || fallbackLeaderboardData[2].city}</div>
+                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[2]?.points || fallbackLeaderboardData[2].points).toLocaleString()} pts</div>
+                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[2]?.totalSales || fallbackLeaderboardData[2].totalSales} Sales (Month)</div>
               </div>
             </motion.div>
           </div>
@@ -200,7 +228,7 @@ const AgentLeaderboardPage: React.FC = () => {
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
             <div className="flex items-center gap-6 relative z-10">
               <div className="w-16 h-16 rounded-xl bg-primary flex items-center justify-center font-display text-headline-sm font-bold text-surface shadow-lg">
-                #8
+                {currentRank ? `#${currentRank}` : '#8'}
               </div>
               <div>
                 <h4 className="font-display text-title-lg font-bold text-on-surface">Peringkat Anda Saat Ini</h4>
@@ -212,12 +240,12 @@ const AgentLeaderboardPage: React.FC = () => {
             <div className="flex flex-col items-center md:items-end gap-2 relative z-10">
                <div className="text-title-md font-bold text-on-surface">{activeTab === 'leaderboard' ? `${currentPoints.toLocaleString('id-ID')} pts` : ''}</div>
                <div className="text-label-sm text-secondary font-bold flex items-center gap-1">
-                 <Target className="w-4 h-4" /> {Math.max(0, 5000 - currentPoints).toLocaleString('id-ID')} pts lagi ke Tier Silver
+                 <Target className="w-4 h-4" /> {nextTierProgress.nextTierName ? `${nextTierProgress.remaining.toLocaleString('id-ID')} pts lagi ke ${nextTierProgress.nextTierName}` : 'Tier tertinggi telah tercapai'}
                </div>
                <div className="w-48 h-2 bg-surface-highest rounded-full overflow-hidden mt-1">
                  <motion.div 
                    initial={{ width: 0 }}
-                   animate={{ width: `${Math.min(100, (currentPoints / 5000) * 100)}%` }}
+                   animate={{ width: `${nextTierProgress.percent}%` }}
                    transition={{ duration: 1.5, ease: "easeOut" }}
                    className="h-full bg-primary" 
                  />
@@ -294,8 +322,8 @@ const AgentLeaderboardPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
           <div className="lg:col-span-6 space-y-6">
             {dynamicRewardTiers.map(tier => {
-              const progress = Math.min(100, (tier.current / tier.target) * 100);
-              const TierIcon = tier.icon;
+              const progress = Math.min(100, (tier.current / tier.thresholdPoints) * 100);
+              const TierIcon = tier.meta.icon;
               const isUnlocked = progress === 100;
 
               return (
@@ -304,10 +332,10 @@ const AgentLeaderboardPage: React.FC = () => {
                   variants={itemVariants}
                   className={`glass-card rounded-2xl p-8 relative overflow-hidden transition-all duration-500 ${isUnlocked ? 'border-primary/50' : 'opacity-80'}`}
                 >
-                  <div className={`absolute top-0 right-0 w-48 h-48 ${tier.bgColor} rounded-full blur-3xl pointer-events-none`} />
+                  <div className={`absolute top-0 right-0 w-48 h-48 ${tier.meta.bgColor} rounded-full blur-3xl pointer-events-none`} />
                   
                   <div className="flex flex-col md:flex-row md:items-center gap-8 relative z-10">
-                    <div className={`w-20 h-20 rounded-2xl ${tier.bgColor} ${tier.color} flex items-center justify-center shadow-lg flex-shrink-0 group-hover:scale-110 transition-transform`}>
+                    <div className={`w-20 h-20 rounded-2xl ${tier.meta.bgColor} ${tier.meta.color} flex items-center justify-center shadow-lg flex-shrink-0 group-hover:scale-110 transition-transform`}>
                       <TierIcon className="w-10 h-10" />
                     </div>
                     
@@ -315,11 +343,11 @@ const AgentLeaderboardPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="font-display text-display-xs font-bold text-on-surface">{tier.name}</h4>
-                          <p className="text-body-sm text-on-surface-variant font-medium mt-1">Unlock with {tier.target.toLocaleString()} total points</p>
+                          <p className="text-body-sm text-on-surface-variant font-medium mt-1">Unlock with {tier.thresholdPoints.toLocaleString()} total points</p>
                         </div>
                         <div className="text-right">
-                           <div className="text-title-md font-bold text-on-surface">{isUnlocked ? 'UNLOCKED' : `${tier.current.toLocaleString()} / ${tier.target.toLocaleString()}`}</div>
-                           <div className="text-label-xs text-on-surface-variant mt-1">{isUnlocked ? 'Telah mencapai target' : `${(tier.target - tier.current).toLocaleString()} pts tersisa`}</div>
+                           <div className="text-title-md font-bold text-on-surface">{isUnlocked ? 'UNLOCKED' : `${tier.current.toLocaleString()} / ${tier.thresholdPoints.toLocaleString()}`}</div>
+                           <div className="text-label-xs text-on-surface-variant mt-1">{isUnlocked ? 'Telah mencapai target' : `${(tier.thresholdPoints - tier.current).toLocaleString()} pts tersisa`}</div>
                         </div>
                       </div>
 
@@ -328,14 +356,14 @@ const AgentLeaderboardPage: React.FC = () => {
                           initial={{ width: 0 }}
                           animate={{ width: `${progress}%` }}
                           transition={{ duration: 1.5, ease: "easeOut" }}
-                          className={`h-full ${tier.color.replace('text-', 'bg-')}`}
+                          className={`h-full ${tier.meta.color.replace('text-', 'bg-')}`}
                         />
                       </div>
 
                       <div className="flex flex-wrap gap-2 pt-2">
-                        {tier.benefits.map((benefit, i) => (
+                        {tier.meta.benefits.map((benefit, i) => (
                            <div key={i} className="px-3 py-1 rounded-md bg-surface-highest text-on-surface-variant text-label-xs font-bold flex items-center gap-1.5">
-                             <div className={`w-1.5 h-1.5 rounded-full ${tier.color.replace('text-', 'bg-')}`} />
+                             <div className={`w-1.5 h-1.5 rounded-full ${tier.meta.color.replace('text-', 'bg-')}`} />
                              {benefit}
                            </div>
                         ))}
