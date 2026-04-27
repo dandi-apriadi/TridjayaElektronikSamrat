@@ -490,12 +490,35 @@ async fn reset_password(
         AppError::Internal
     })?;
 
-    // Markir SEMUA token reset aktif user sebagai used. Mencegah token aktif
-    // lain (mis. dari email yang bocor) ikut bisa me-reset password lagi
-    // setelah reset legit. SQLite men-serialisasi write transaction, jadi
-    // request kedua yang masuk paralel akan melihat 0 baris terupdate dan
-    // dihentikan di sini sebelum sempat menulis password baru (TOCTOU guard).
+    // 1) TOCTOU guard: tandai HANYA token spesifik yang sedang dipakai sebagai
+    //    used. Filter `token = ? AND used_at IS NULL` sangat sempit sehingga
+    //    request paralel yang sudah memakai token yang sama (atau jika
+    //    forgot_password sempat meng-invalidasi token ini di antara SELECT
+    //    awal & UPDATE) akan dapat 0 baris dan kita batalkan transaksi.
     let token_update = sqlx::query(
+        "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP \
+         WHERE token = ? AND used_at IS NULL",
+    )
+    .bind(&token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error marking reset token used: {}", e);
+        AppError::Internal
+    })?;
+
+    if token_update.rows_affected() == 0 {
+        // Token sudah dipakai/di-invalidasi oleh request paralel di antara
+        // SELECT awal & UPDATE ini, atau memang sudah kadaluarsa.
+        let _ = tx.rollback().await;
+        return Err(AppError::Validation {
+            errors: vec!["Token reset tidak lagi berlaku".to_string()],
+        });
+    }
+
+    // 2) Setelah token spesifik berhasil dikunci, baru invalidasi token reset
+    //    aktif lain milik user supaya link bocor lain ikut hangus.
+    sqlx::query(
         "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP \
          WHERE user_id = ? AND used_at IS NULL",
     )
@@ -503,18 +526,9 @@ async fn reset_password(
     .execute(&mut *tx)
     .await
     .map_err(|e| {
-        tracing::error!("DB error marking reset tokens used: {}", e);
+        tracing::error!("DB error invalidating sibling reset tokens: {}", e);
         AppError::Internal
     })?;
-
-    if token_update.rows_affected() == 0 {
-        // Sudah dipakai oleh request paralel atau sudah kadaluarsa di antara
-        // SELECT awal dan UPDATE ini.
-        let _ = tx.rollback().await;
-        return Err(AppError::Validation {
-            errors: vec!["Token reset tidak lagi berlaku".to_string()],
-        });
-    }
 
     sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?")
         .bind(&password_hash)
