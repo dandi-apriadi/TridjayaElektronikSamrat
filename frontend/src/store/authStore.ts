@@ -222,6 +222,13 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'tridjaya-auth',
+      // Hanya persist info user (untuk menjaga UX saat reload). Access token
+      // sengaja TIDAK dipersist; refresh token disimpan di HttpOnly cookie
+      // oleh backend dan dipulihkan via restoreSession() saat aplikasi mount.
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 );

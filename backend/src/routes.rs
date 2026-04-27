@@ -292,12 +292,153 @@ async fn refresh(State(state): State<AppState>, headers: HeaderMap, Json(payload
     Ok(response)
 }
 
-async fn forgot_password() -> ResponseBody {
-    json_ok("If the account exists, reset instructions will be sent", json!({ "accepted": true }))
+async fn forgot_password(
+    State(state): State<AppState>,
+    Json(payload): Json<ForgotPasswordRequest>,
+) -> Result<ResponseBody, AppError> {
+    let email = payload.email.trim().to_lowercase();
+    if email.is_empty() || !email.contains('@') {
+        return Err(AppError::Validation {
+            errors: vec!["Email tidak valid".to_string()],
+        });
+    }
+
+    // Selalu kembalikan response sukses generik untuk mencegah email enumeration.
+    let user_row = sqlx::query_as::<_, (String, String, bool)>(
+        "SELECT id, name, is_active FROM users WHERE LOWER(email) = ? LIMIT 1",
+    )
+    .bind(&email)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error during forgot_password lookup: {}", e);
+        AppError::Internal
+    })?;
+
+    if let Some((user_id, name, is_active)) = user_row {
+        if is_active {
+            let token = uuid::Uuid::new_v4().simple().to_string();
+            let expires_at = (Utc::now() + Duration::minutes(30)).to_rfc3339();
+            let insert_res = sqlx::query(
+                "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+            )
+            .bind(&token)
+            .bind(&user_id)
+            .bind(&expires_at)
+            .execute(&state.pool)
+            .await;
+
+            if let Err(e) = insert_res {
+                tracing::error!("Failed to insert password reset token: {}", e);
+            } else {
+                let reset_link = format!(
+                    "{}/reset-password?token={}",
+                    frontend_base_url(),
+                    urlencoding::encode(&token)
+                );
+                if state.mailer.is_enabled() {
+                    if let Err(e) = state
+                        .mailer
+                        .send_password_reset_link_email(&email, &name, &reset_link)
+                        .await
+                    {
+                        tracing::error!("Failed to send reset link to {}: {}", email, e);
+                    }
+                } else {
+                    tracing::warn!(
+                        "Mailer disabled; password reset link for {} not delivered (token logged at debug only)",
+                        email
+                    );
+                    tracing::debug!("Reset link (mailer disabled): {}", reset_link);
+                }
+                state.audit("auth.password_reset.requested", Some(&email)).await;
+            }
+        }
+    }
+
+    Ok(json_ok(
+        "Jika akun terdaftar, instruksi reset password telah dikirim ke email",
+        json!({ "accepted": true }),
+    ))
 }
 
-async fn reset_password() -> ResponseBody {
-    json_ok("Password reset completed", json!({ "reset": true }))
+async fn reset_password(
+    State(state): State<AppState>,
+    Json(payload): Json<ResetPasswordRequest>,
+) -> Result<ResponseBody, AppError> {
+    let token = payload.token.trim().to_string();
+    if token.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Token reset wajib disertakan".to_string()],
+        });
+    }
+    if payload.new_password.len() < 8 {
+        return Err(AppError::Validation {
+            errors: vec!["Password baru minimal 8 karakter".to_string()],
+        });
+    }
+
+    let row = sqlx::query_as::<_, (String, String, Option<String>)>(
+        "SELECT user_id, expires_at, used_at FROM password_reset_tokens WHERE token = ? LIMIT 1",
+    )
+    .bind(&token)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching reset token: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Validation {
+        errors: vec!["Token reset tidak valid atau sudah kadaluarsa".to_string()],
+    })?;
+
+    let (user_id, expires_at_str, used_at) = row;
+    if used_at.is_some() {
+        return Err(AppError::Validation {
+            errors: vec!["Token reset sudah digunakan".to_string()],
+        });
+    }
+    let expires_at = chrono::DateTime::parse_from_rfc3339(&expires_at_str)
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|_| Utc::now() - Duration::seconds(1));
+    if expires_at < Utc::now() {
+        return Err(AppError::Validation {
+            errors: vec!["Token reset sudah kadaluarsa".to_string()],
+        });
+    }
+
+    let password_hash = hash_password(&payload.new_password);
+    sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?")
+        .bind(&password_hash)
+        .bind(&user_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error updating password: {}", e);
+            AppError::Internal
+        })?;
+
+    sqlx::query("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?")
+        .bind(&token)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error marking reset token used: {}", e);
+            AppError::Internal
+        })?;
+
+    // Invalidate any active sessions for this user.
+    {
+        let mut access = state.access_sessions.write().await;
+        access.retain(|_, session| session.user_id != user_id);
+    }
+    {
+        let mut refresh = state.refresh_sessions.write().await;
+        refresh.retain(|_, session| session.user_id != user_id);
+    }
+
+    state.audit("auth.password_reset.completed", Some(&user_id)).await;
+    Ok(json_ok("Password berhasil direset", json!({ "reset": true })))
 }
 
 #[derive(Deserialize)]
@@ -322,8 +463,28 @@ struct ResetUserPasswordRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct VerifyEmailRequest {
+    /// Token verifikasi yang dikirim via email. Field `email` lama masih
+    /// diterima untuk kompatibilitas request lama tapi tidak lagi cukup
+    /// untuk memverifikasi akun.
+    token: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    email: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ForgotPasswordRequest {
     email: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResetPasswordRequest {
+    token: String,
+    new_password: String,
 }
 
 async fn update_auth_profile(
@@ -331,7 +492,12 @@ async fn update_auth_profile(
     headers: HeaderMap,
     Json(payload): Json<AuthProfileUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::Editor, Role::Operator],
+    )
+    .await?;
 
     if payload.name.is_none() && payload.bank_account.is_none() && payload.avatar.is_none() {
         return Err(AppError::Validation {
@@ -370,7 +536,12 @@ async fn change_auth_password(
     headers: HeaderMap,
     Json(payload): Json<ChangePasswordRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::Editor, Role::Operator],
+    )
+    .await?;
 
     if payload.old_password.trim().is_empty() || payload.new_password.trim().is_empty() {
         return Err(AppError::Validation {
@@ -389,7 +560,7 @@ async fn change_auth_password(
     }
 
     let password_hash = hash_password(&payload.new_password);
-    sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?")
         .bind(password_hash)
         .bind(&user.id)
         .execute(&state.pool)
@@ -412,10 +583,50 @@ async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result
     Ok(json_ok(format!("Users fetched by {}", user.email), json!({ "items": users })))
 }
 
-async fn verify_email(State(state): State<AppState>, Json(payload): Json<VerifyEmailRequest>) -> Result<ResponseBody, AppError> {
-    let email = payload.email.trim().to_lowercase();
-    let result = sqlx::query("UPDATE users SET is_verified = 1 WHERE email = ?")
-        .bind(&email)
+async fn verify_email(
+    State(state): State<AppState>,
+    Json(payload): Json<VerifyEmailRequest>,
+) -> Result<ResponseBody, AppError> {
+    let token = payload.token.as_deref().map(str::trim).unwrap_or("").to_string();
+    if token.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Token verifikasi wajib disertakan".to_string()],
+        });
+    }
+
+    let row = sqlx::query_as::<_, (String, String, Option<String>)>(
+        "SELECT user_id, expires_at, used_at FROM email_verification_tokens WHERE token = ? LIMIT 1",
+    )
+    .bind(&token)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching verification token: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::Validation {
+        errors: vec!["Token verifikasi tidak valid atau sudah kadaluarsa".to_string()],
+    })?;
+
+    let (user_id, expires_at_str, used_at) = row;
+    if used_at.is_some() {
+        // Idempotent: token sudah dipakai, akun dianggap sudah terverifikasi.
+        return Ok(json_ok(
+            "Email sudah diverifikasi sebelumnya",
+            json!({ "verified": true }),
+        ));
+    }
+    let expires_at = chrono::DateTime::parse_from_rfc3339(&expires_at_str)
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|_| Utc::now() - Duration::seconds(1));
+    if expires_at < Utc::now() {
+        return Err(AppError::Validation {
+            errors: vec!["Token verifikasi sudah kadaluarsa".to_string()],
+        });
+    }
+
+    sqlx::query("UPDATE users SET is_verified = 1 WHERE id = ?")
+        .bind(&user_id)
         .execute(&state.pool)
         .await
         .map_err(|e| {
@@ -423,10 +634,16 @@ async fn verify_email(State(state): State<AppState>, Json(payload): Json<VerifyE
             AppError::Internal
         })?;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound);
-    }
+    sqlx::query("UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?")
+        .bind(&token)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error marking verification token used: {}", e);
+            AppError::Internal
+        })?;
 
+    state.audit("auth.email_verified", Some(&user_id)).await;
     Ok(json_ok("Email berhasil diverifikasi", json!({ "verified": true })))
 }
 
@@ -504,11 +721,59 @@ struct UpdateSupportTicketStatusRequest {
 
 fn normalize_role(value: &str) -> Option<String> {
     let role = value.trim().to_lowercase();
-    if matches!(role.as_str(), "admin") {
+    if matches!(role.as_str(), "admin" | "agent" | "editor" | "operator") {
         Some(role)
     } else {
         None
     }
+}
+
+fn frontend_base_url() -> String {
+    std::env::var("FRONTEND_URL")
+        .unwrap_or_else(|_| "http://localhost:5173".to_string())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+fn validate_referral_target_path(value: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok("/".to_string());
+    }
+    if !trimmed.starts_with('/') || trimmed.starts_with("//") {
+        return Err(AppError::Validation {
+            errors: vec!["targetPath harus berupa path internal yang diawali '/' (contoh: /produk/abc)".to_string()],
+        });
+    }
+    let lowered = trimmed.to_ascii_lowercase();
+    if lowered.starts_with("/javascript:") || lowered.starts_with("/data:") {
+        return Err(AppError::Validation {
+            errors: vec!["targetPath tidak boleh berisi skema berbahaya".to_string()],
+        });
+    }
+    Ok(trimmed.to_string())
+}
+
+fn image_decode_limits() -> image::Limits {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(8000);
+    limits.max_image_height = Some(8000);
+    limits.max_alloc = Some(64 * 1024 * 1024);
+    limits
+}
+
+fn decode_uploaded_image(data: &[u8]) -> Result<image::DynamicImage, AppError> {
+    let cursor = std::io::Cursor::new(data);
+    let format = image::guess_format(data).map_err(|e| {
+        tracing::warn!("Failed to guess image format: {}", e);
+        AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
+    })?;
+    let mut reader = image::ImageReader::with_format(cursor, format);
+    reader.limits(image_decode_limits());
+    reader.decode().map_err(|e| {
+        tracing::warn!("Failed to decode uploaded image: {}", e);
+        AppError::Validation { errors: vec!["Format file gambar tidak didukung atau ukuran terlalu besar".to_string()] }
+    })
 }
 
 fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
@@ -520,7 +785,7 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("name wajib diisi".to_string());
     }
     if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin".to_string());
+        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
@@ -542,7 +807,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         errors.push("name tidak boleh kosong".to_string());
     }
     if payload.role.as_ref().is_some_and(|value| normalize_role(value).is_none()) {
-        errors.push("role harus salah satu dari: admin".to_string());
+        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
     }
     if payload.password.as_ref().is_some_and(|value| value.len() < 8) {
         errors.push("password minimal 8 karakter".to_string());
@@ -845,7 +1110,19 @@ async fn get_user(State(state): State<AppState>, headers: HeaderMap, Path(id): P
 
 async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<UserUpdateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    tracing::info!("Admin {} updating user {}: {:?}", user.email, id, payload);
+    tracing::info!(
+        "Admin {} updating user {}; fields=[email={}, name={}, role={}, password={}, avatar={}, bank_account={}, is_active={}, is_verified={}]",
+        user.email,
+        id,
+        payload.email.is_some(),
+        payload.name.is_some(),
+        payload.role.is_some(),
+        payload.password.is_some(),
+        payload.avatar.is_some(),
+        payload.bank_account.is_some(),
+        payload.is_active.is_some(),
+        payload.is_verified.is_some(),
+    );
     validate_user_update(&payload)?;
 
     let current = sqlx::query_as::<_, (String, String, String, String, String, String, bool, bool)>(
@@ -925,23 +1202,49 @@ async fn reset_user_password(
         .ok_or(AppError::NotFound)?;
 
     let password_hash = hash_password(payload.password.trim());
-    let result = sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
-        .bind(password_hash)
-        .bind(&id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error resetting user password: {}", e);
-            AppError::Internal
-        })?;
+    let result = sqlx::query(
+        "UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?",
+    )
+    .bind(password_hash)
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error resetting user password: {}", e);
+        AppError::Internal
+    })?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
 
-    // Send password reset email
-    if let Err(e) = state.mailer.send_password_reset_email(&target_user.email, &target_user.name, payload.password.trim()).await {
-        tracing::error!("Failed to send password reset email to {}: {}", target_user.email, e);
+    // Invalidate any existing sessions for this user.
+    {
+        let mut access = state.access_sessions.write().await;
+        access.retain(|_, session| session.user_id != id);
+    }
+    {
+        let mut refresh = state.refresh_sessions.write().await;
+        refresh.retain(|_, session| session.user_id != id);
+    }
+
+    if state.mailer.is_enabled() {
+        if let Err(e) = state
+            .mailer
+            .send_password_reset_email(&target_user.email, &target_user.name, payload.password.trim())
+            .await
+        {
+            tracing::error!(
+                "Failed to send password reset email to {}: {}",
+                target_user.email,
+                e
+            );
+        }
+    } else {
+        tracing::warn!(
+            "Mailer disabled; admin-reset password for {} will not be emailed",
+            target_user.email
+        );
     }
 
     Ok(json_ok(
@@ -1014,10 +1317,7 @@ async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, m
         }
 
         tracing::info!("Loading image from memory...");
-        let image = image::load_from_memory(&data).map_err(|e| {
-            tracing::error!("Failed to load upload image {}: {}", file_name_orig, e);
-            AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
-        })?;
+        let image = decode_uploaded_image(&data)?;
 
         if let Err(error) = fs::create_dir_all("uploads") {
             tracing::error!("Failed to create uploads directory: {}", error);
@@ -1073,15 +1373,55 @@ async fn resend_verification(
             AppError::Internal
         })?;
 
-    // Send verification email
-    let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
-    let verification_link = format!("{}/verify-email?email={}", frontend_url, urlencoding::encode(&user.email));
-    
-    if let Err(e) = state.mailer.send_verification_email(&user.email, &user.name, &verification_link, "(Password Anda tetap sama)").await {
-        tracing::error!("Failed to send verification email to {}: {}", user.email, e);
+    // Issue a fresh single-use verification token and send it via email.
+    let token = match issue_verification_token(&state, &user.id).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("Failed to issue verification token for {}: {:?}", user.email, e);
+            return Err(AppError::Internal);
+        }
+    };
+    let verification_link = format!(
+        "{}/verify-email?token={}",
+        frontend_base_url(),
+        urlencoding::encode(&token)
+    );
+
+    if state.mailer.is_enabled() {
+        if let Err(e) = state
+            .mailer
+            .send_verification_email(
+                &user.email,
+                &user.name,
+                &verification_link,
+                "(Password Anda tetap sama)",
+            )
+            .await
+        {
+            tracing::error!("Failed to send verification email to {}: {}", user.email, e);
+        }
+    } else {
+        tracing::warn!(
+            "Mailer disabled; verification email for {} not sent",
+            user.email
+        );
     }
 
     Ok(json_ok("Verification email resent", json!({ "id": id })))
+}
+
+async fn issue_verification_token(state: &AppState, user_id: &str) -> Result<String, sqlx::Error> {
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    let expires_at = (Utc::now() + Duration::hours(24)).to_rfc3339();
+    sqlx::query(
+        "INSERT INTO email_verification_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+    )
+    .bind(&token)
+    .bind(user_id)
+    .bind(&expires_at)
+    .execute(&state.pool)
+    .await?;
+    Ok(token)
 }
 
 async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
@@ -2234,7 +2574,9 @@ async fn generate_referral(State(state): State<AppState>, headers: HeaderMap, Js
     };
     let slug = format!("ref-{}", uuid::Uuid::new_v4().simple());
     let id = uuid::Uuid::new_v4().to_string();
-    let target_path = payload.target_path.unwrap_or_else(|| "/".to_string());
+    let target_path = validate_referral_target_path(
+        payload.target_path.as_deref().unwrap_or("/"),
+    )?;
 
     sqlx::query(
         "INSERT INTO referrals (id, slug, owner_user_id, label, target_path) VALUES (?, ?, ?, ?, ?)"
@@ -3403,40 +3745,49 @@ async fn submit_agent_registration(State(state): State<AppState>, mut multipart:
             "profilePhoto" => {
                 let data = field.bytes().await.map_err(|_| AppError::Internal)?;
                 if !data.is_empty() {
-                    let img = image::load_from_memory(&data).map_err(|e| {
-                        tracing::error!("Failed to load profile photo: {}", e);
-                        AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
-                    })?;
-                    
+                    if data.len() > 5 * 1024 * 1024 {
+                        return Err(AppError::Validation {
+                            errors: vec!["Foto profil maksimal 5MB".to_string()],
+                        });
+                    }
+                    let img = decode_uploaded_image(&data)?;
+
                     let file_id = uuid::Uuid::new_v4().to_string();
                     let file_name = format!("{}_profile.webp", file_id);
                     let file_path = format!("uploads/{}", file_name);
-                    
+
                     img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
                         tracing::error!("Failed to save profile photo as webp: {}", e);
                         AppError::Internal
                     })?;
-                    
+
                     profile_photo_url = Some(format!("/uploads/{}", file_name));
                 }
             },
             "ktpPhoto" => {
                 let data = field.bytes().await.map_err(|_| AppError::Internal)?;
                 if !data.is_empty() {
-                    let img = image::load_from_memory(&data).map_err(|e| {
-                        tracing::error!("Failed to load KTP photo: {}", e);
-                        AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
-                    })?;
-                    
+                    if data.len() > 5 * 1024 * 1024 {
+                        return Err(AppError::Validation {
+                            errors: vec!["Foto KTP maksimal 5MB".to_string()],
+                        });
+                    }
+                    let img = decode_uploaded_image(&data)?;
+
                     let file_id = uuid::Uuid::new_v4().to_string();
                     let file_name = format!("{}_ktp.webp", file_id);
                     let file_path = format!("uploads/{}", file_name);
-                    
+
                     img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
                         tracing::error!("Failed to save KTP photo as webp: {}", e);
                         AppError::Internal
                     })?;
-                    
+
+                    // TODO(security): KTP saat ini di-serve dari ServeDir publik untuk
+                    // kompatibilitas dashboard admin yang memuat <img src>. UUID nama file
+                    // sulit ditebak, namun idealnya KTP dilayani via endpoint admin
+                    // ber-auth dengan signed URL singkat. Tidak diubah agar tidak merusak
+                    // halaman AdminAgentsPage saat ini.
                     ktp_photo_url = Some(format!("/uploads/{}", file_name));
                 }
             },
@@ -3542,11 +3893,11 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
 
             if user_exists.is_none() {
                 let user_id = uuid::Uuid::new_v4().to_string();
-                let temp_password = uuid::Uuid::new_v4().to_string();
+                let temp_password = uuid::Uuid::new_v4().simple().to_string();
                 let password_hash = hash_password(&temp_password);
 
                 sqlx::query(
-                    "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 1)"
+                    "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified, must_change_password) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 0, 1)"
                 )
                 .bind(&user_id)
                 .bind(&registration.email)
@@ -3559,15 +3910,48 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
                     tracing::error!("DB error creating user from approved registration: {}", e);
                     AppError::Internal
                 })?;
-                
+
                 tracing::info!("Created user {} for approved agent {}", user_id, registration.email);
 
-                // Send verification email
-                let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5174".to_string());
-                let verification_link = format!("{}/verify-email?email={}", frontend_url, urlencoding::encode(&registration.email));
-                
-                if let Err(e) = state.mailer.send_verification_email(&registration.email, &registration.full_name, &verification_link, &temp_password).await {
-                    tracing::error!("Failed to send verification email to {}: {}", registration.email, e);
+                let token = match issue_verification_token(&state, &user_id).await {
+                    Ok(t) => t,
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to issue verification token for {}: {:?}",
+                            registration.email,
+                            e
+                        );
+                        return Err(AppError::Internal);
+                    }
+                };
+                let verification_link = format!(
+                    "{}/verify-email?token={}",
+                    frontend_base_url(),
+                    urlencoding::encode(&token)
+                );
+
+                if state.mailer.is_enabled() {
+                    if let Err(e) = state
+                        .mailer
+                        .send_verification_email(
+                            &registration.email,
+                            &registration.full_name,
+                            &verification_link,
+                            &temp_password,
+                        )
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to send verification email to {}: {}",
+                            registration.email,
+                            e
+                        );
+                    }
+                } else {
+                    tracing::warn!(
+                        "Mailer disabled; agent registration for {} approved but verification email not sent. Manual delivery required.",
+                        registration.email
+                    );
                 }
             }
         }
