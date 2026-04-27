@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Send, CheckCircle2, Clock, User, Phone, Package, MessageSquare, TrendingUp, AlertCircle } from 'lucide-react';
+import { Send, CheckCircle2, Clock, User, Phone, Package, MessageSquare, TrendingUp, AlertCircle, Search, ChevronDown } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
 import { useAgentStore } from '../../store/useAgentStore';
+import { useProductStore } from '../../store/useProductStore';
 import { agentLeadSchema, getFirstZodIssue } from '../../validators/adminSchemas';
 import { toast } from '../../store/useNotificationStore';
 import type { Lead } from '../../store/useAgentStore';
@@ -11,6 +12,7 @@ const sources = ['WhatsApp', 'Instagram', 'Facebook', 'Referral Teman', 'Walk-in
 
 const AgentPushProspekPage: React.FC = () => {
   const { leads, stats, createLead, fetchLeads, fetchStats } = useAgentStore();
+  const { products: storeProducts, fetchProducts } = useProductStore();
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -21,12 +23,25 @@ const AgentPushProspekPage: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [productSearch, setProductSearch] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const itemsPerPage = 6;
 
   React.useEffect(() => {
     fetchLeads();
     fetchStats();
-  }, [fetchLeads, fetchStats]);
+    fetchProducts();
+  }, [fetchLeads, fetchStats, fetchProducts]);
+
+  // Combined product list
+  const allProductsList = React.useMemo(() => {
+    const fromStore = storeProducts.map(p => p.name);
+    return [...new Set([...fromStore, ...products])];
+  }, [storeProducts]);
+
+  const filteredProducts = allProductsList.filter(p => 
+    p.toLowerCase().includes(productSearch.toLowerCase())
+  );
 
   const totalPages = Math.ceil(leads.length / itemsPerPage);
   const paginated = leads.slice(
@@ -138,25 +153,89 @@ const AgentPushProspekPage: React.FC = () => {
               </label>
               <input
                 type="tel"
-                placeholder="Contoh: 0812-3456-7890"
+                placeholder="Contoh: 085161542103"
                 value={form.phone}
                 onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
                 className="w-full px-3 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-sm placeholder:text-on-surface-variant/50 transition-all"
               />
             </div>
 
-            <div>
+            <div className="relative">
               <label className="text-label-sm font-semibold text-on-surface-variant flex items-center gap-1 mb-1.5">
                 <Package className="w-3.5 h-3.5" /> Produk yang Diminati *
               </label>
-              <select
-                value={form.product}
-                onChange={(e) => setForm((p) => ({ ...p, product: e.target.value }))}
-                className="w-full px-3 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-sm text-on-surface transition-all"
+              
+              <div 
+                className="relative cursor-pointer"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               >
-                <option value="">-- Pilih Produk --</option>
-                {products.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+                <div className={`w-full px-3 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg flex items-center justify-between transition-all ${isDropdownOpen ? 'ring-2 ring-primary/40' : ''}`}>
+                  <span className={`text-body-sm ${form.product ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>
+                    {form.product || '-- Pilih Produk --'}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-on-surface-variant transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </div>
+
+              {isDropdownOpen && (
+                <div className="absolute z-50 left-0 right-0 mt-2 bg-surface-high border border-outline-variant/20 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="p-2 border-b border-outline-variant/10">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-on-surface-variant/50" />
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Cari produk..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full pl-9 pr-3 py-2 bg-surface-low border border-outline-variant/10 rounded-lg outline-none text-body-sm focus:ring-1 focus:ring-primary/30 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
+                    {filteredProducts.length > 0 ? (
+                      filteredProducts.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            setForm(prev => ({ ...prev, product: p }));
+                            setIsDropdownOpen(false);
+                            setProductSearch('');
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-body-sm transition-colors flex items-center justify-between hover:bg-primary/10 hover:text-primary ${form.product === p ? 'bg-primary/20 text-primary font-bold' : 'text-on-surface'}`}
+                        >
+                          {p}
+                          {form.product === p && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-center">
+                        <p className="text-label-sm text-on-surface-variant mb-2">Produk tidak ditemukan</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForm(prev => ({ ...prev, product: productSearch }));
+                            setIsDropdownOpen(false);
+                            setProductSearch('');
+                          }}
+                          className="text-label-sm font-bold text-primary hover:underline"
+                        >
+                          Gunakan "{productSearch}" sebagai input manual
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {/* Close dropdown on outside click - invisible overlay */}
+              {isDropdownOpen && (
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsDropdownOpen(false)}
+                />
+              )}
             </div>
 
             <div>

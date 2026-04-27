@@ -36,25 +36,6 @@ async fn main() {
         tracing::error!("Failed to seed database: {}", e);
     }
 
-    // Diagnostic: Check users table
-    if let Ok(rows) = sqlx::query("PRAGMA table_info(users)").fetch_all(&pool).await {
-        let columns: Vec<String> = rows.iter().map(|r: &sqlx::sqlite::SqliteRow| {
-            use sqlx::Row;
-            r.get::<String, _>("name")
-        }).collect();
-        tracing::info!("Users table columns: {:?}", columns);
-    }
-
-    if let Ok(user_info) = sqlx::query_as::<_, (String, bool, bool)>("SELECT email, is_active, is_verified FROM users WHERE email = 'dandigeming85@gmail.com'")
-        .fetch_optional(&pool)
-        .await {
-        if let Some(info) = user_info {
-            tracing::info!("DIAGNOSTIC: User {} status - active: {}, verified: {}", info.0, info.1, info.2);
-        } else {
-            tracing::info!("DIAGNOSTIC: User dandigeming85@gmail.com not found in users table");
-        }
-    }
-
     // Diagnostic: Check if columns exist
     match sqlx::query("PRAGMA table_info(agent_registrations)").fetch_all(&pool).await {
         Ok(rows) => {
@@ -68,7 +49,7 @@ async fn main() {
             let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM agent_registrations").fetch_one(&pool).await.unwrap_or((0,));
             tracing::info!("Total agent registrations in DB: {}", count_row.0);
         },
-        Err(e) => tracing::error!("Failed to check table info: {}", e),
+        Err(e) => tracing::error!("Failed to check agent_registrations table: {}", e),
     }
 
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")

@@ -30,7 +30,7 @@ const AdminFormPage: React.FC = () => {
   const { products, fetchProducts } = useProductStore();
   const { promos, fetchPromos } = usePromoStore();
   const { posts, fetchPosts } = useBlogStore();
-  const { users, fetchUsers, createUser, updateUser, resendVerification } = useUserStore();
+  const { users, fetchUsers, createUser, updateUser, resendVerification, verifyUser } = useUserStore();
   const { agents, fetchAgents, leads: adminLeads, fetchLeads } = useAdminNetworkStore();
   const currentUser = useMemo(() => users.find((item) => item.id === id), [id, users]);
 
@@ -158,6 +158,15 @@ const AdminFormPage: React.FC = () => {
       setIsVerified(false);
     }
   }, [currentUser, type, agentDetails]);
+
+  const handleVerify = async () => {
+    if (!id) return;
+    const success = await verifyUser(id);
+    if (success) {
+      toast.success('User Diverifikasi', 'User sekarang sudah bisa login.');
+      setIsVerified(true);
+    }
+  };
 
   const handleUnverify = async () => {
     if (!id) return;
@@ -747,7 +756,7 @@ const AdminFormPage: React.FC = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setIsVerified(true)}
+                        onClick={handleVerify}
                         className="px-4 py-2 bg-primary text-on-primary rounded-lg text-label-md font-bold hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
                       >
                         <CheckCircle2 size={16} />
@@ -766,7 +775,7 @@ const AdminFormPage: React.FC = () => {
                       type="text"
                       value={whatsapp}
                       onChange={(event) => setWhatsapp(event.target.value)}
-                      placeholder="0812..."
+                      placeholder="085161542103"
                       className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
                     />
                   </div>
