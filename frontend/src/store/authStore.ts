@@ -221,6 +221,13 @@ export const useAuthStore = create<AuthState>()(
             body: JSON.stringify({ old_password: old, new_password: newP })
           });
           if (!res.ok) throw new Error('Gagal ubah password');
+          // Backend baru saja meng-clear must_change_password di DB. Sinkronkan
+          // state lokal supaya banner force-change-password & redirect login
+          // berikutnya tidak salah berperilaku.
+          const currentUser = useAuthStore.getState().user;
+          if (currentUser?.must_change_password) {
+            set({ user: { ...currentUser, must_change_password: false } });
+          }
           return true;
         } catch (error) {
           console.error(error);

@@ -658,23 +658,48 @@ async fn verify_email(
         });
     }
 
+    // Mark token used + verifikasi user dalam satu transaksi (atomik) sekaligus
+    // mencegah race antar request paralel pakai token yang sama: yang kedua
+    // akan melihat rows_affected=0 di UPDATE token dan kita batalkan.
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("DB error starting verify transaction: {}", e);
+        AppError::Internal
+    })?;
+
+    let token_update = sqlx::query(
+        "UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP \
+         WHERE token = ? AND used_at IS NULL",
+    )
+    .bind(&token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error marking verification token used: {}", e);
+        AppError::Internal
+    })?;
+
+    if token_update.rows_affected() == 0 {
+        // Sudah dipakai request paralel di antara SELECT awal & UPDATE ini.
+        let _ = tx.rollback().await;
+        return Ok(json_ok(
+            "Email sudah diverifikasi sebelumnya",
+            json!({ "verified": true }),
+        ));
+    }
+
     sqlx::query("UPDATE users SET is_verified = 1 WHERE id = ?")
         .bind(&user_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| {
             tracing::error!("DB error verifying email: {}", e);
             AppError::Internal
         })?;
 
-    sqlx::query("UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?")
-        .bind(&token)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error marking verification token used: {}", e);
-            AppError::Internal
-        })?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("DB error committing verify transaction: {}", e);
+        AppError::Internal
+    })?;
 
     state.audit("auth.email_verified", Some(&user_id)).await;
     Ok(json_ok("Email berhasil diverifikasi", json!({ "verified": true })))
