@@ -62,7 +62,7 @@ const PromoPage: React.FC = () => {
             </h1>
             
             <p className="font-body text-body-lg text-on-surface-variant leading-relaxed text-balance">
-              Temukan penawaran terbatas untuk ekosistem kendaraan listrik dan hunian modern Anda. Diskon eksklusif hanya untuk pelanggan Tridjaya Samrat.
+              Temukan penawaran terbatas untuk ekosistem kendaraan listrik dan hunian modern Anda. Diskon eksklusif hanya untuk pelanggan Tridjaya Manado.
             </p>
           </motion.div>
 

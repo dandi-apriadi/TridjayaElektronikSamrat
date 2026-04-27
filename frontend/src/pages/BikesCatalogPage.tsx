@@ -26,7 +26,7 @@ const BikesCatalogPage: React.FC = () => {
   const bikes = getProductsByCategory('bike');
   const filteredByBrand = activeFilter === 'Semua'
     ? bikes
-    : bikes.filter((b) => b.name.toLowerCase().includes(activeFilter.toLowerCase()));
+    : bikes.filter((b) => (b.name?.toLowerCase() || '').includes(activeFilter.toLowerCase()));
 
   const filteredByStock = stockFilter === 'all'
     ? filteredByBrand

@@ -105,7 +105,7 @@ const PromoDetailPage: React.FC = () => {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href={`https://wa.me/6285161542103?text=${encodeURIComponent(`Halo Tridjaya Samrat, saya tertarik dengan promo ${promo.title}. Bagaimana cara klaimnya?`)}`}
+                  href={`https://wa.me/6285161542103?text=${encodeURIComponent(`Halo Tridjaya Manado, saya tertarik dengan promo ${promo.title}. Bagaimana cara klaimnya?`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => {
@@ -268,7 +268,7 @@ const PromoDetailPage: React.FC = () => {
               "Kualitas Terbaik dengan Penawaran yang Menguntungkan"
             </h2>
             <p className="font-body text-body-lg text-on-surface-variant mb-12">
-              Promo ini berlaku selama persediaan masih ada. Jangan lewatkan kesempatan untuk membawa pulang produk impian Anda dengan harga spesial dari Tridjaya Samrat.
+              Promo ini berlaku selama persediaan masih ada. Jangan lewatkan kesempatan untuk membawa pulang produk impian Anda dengan harga spesial dari Tridjaya Manado.
             </p>
             <div className="flex justify-center gap-12 text-on-surface-variant opacity-40">
               <span className="font-display font-black text-headline-sm tracking-tighter uppercase">Guaranteed Quality</span>

@@ -121,7 +121,7 @@ const ForgotPasswordPage: React.FC = () => {
 
               <div className="flex items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <img src={logoPng} alt="Tridjaya Samrat" className="h-14 w-auto object-contain" />
+                  <img src={logoPng} alt="Tridjaya Manado" className="h-14 w-auto object-contain" />
                 </div>
                 <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl glass-card border border-outline-variant/10">
                   <ShieldCheck className="w-4 h-4 text-primary" />

@@ -23,7 +23,7 @@ const TermsOfServicePage: React.FC = () => {
                 <Scale className="w-4 h-4 text-secondary" /> Ruang Lingkup Layanan
               </h2>
               <p>
-                Tridjaya Samrat menyediakan informasi produk, promo, pendaftaran kemitraan agen, dan kanal komunikasi penjualan melalui
+                Tridjaya Manado menyediakan informasi produk, promo, pendaftaran kemitraan agen, dan kanal komunikasi penjualan melalui
                 website resmi. Semua penggunaan layanan tunduk pada syarat ini dan hukum yang berlaku di Indonesia.
               </p>
             </div>

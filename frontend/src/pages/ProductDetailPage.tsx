@@ -79,7 +79,7 @@ const ProductDetailPage: React.FC = () => {
 
     const shareData = {
       title: product.name,
-      text: `Lihat detail ${product.name} di Tridjaya Samrat`,
+      text: `Lihat detail ${product.name} di Tridjaya Manado`,
       url,
     };
 

@@ -163,7 +163,7 @@ const AgentLeadsPage: React.FC = () => {
         <div className="space-y-3">
           {paginated.map((lead: Lead) => {
             const sc = statusConfig[lead.status] || { cls: 'bg-surface-highest', dot: 'bg-on-surface-variant' };
-            const waText = encodeURIComponent(`Halo ${lead.customerName}, saya dari Tridjaya Samrat. Saya ingin menindaklanjuti ketertarikan Anda pada ${lead.interestedProduct}. Ada yang bisa saya bantu?`);
+            const waText = encodeURIComponent(`Halo ${lead.customerName}, saya dari Tridjaya Manado. Saya ingin menindaklanjuti ketertarikan Anda pada ${lead.interestedProduct}. Ada yang bisa saya bantu?`);
             return (
               <div key={lead.id} className="flex flex-col md:flex-row md:items-start gap-4 p-4 rounded-xl border border-outline-variant/10 hover:bg-surface-high/30 transition-colors">
                 {/* Avatar */}

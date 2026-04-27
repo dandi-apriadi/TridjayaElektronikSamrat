@@ -14,7 +14,7 @@ const PrivacyPolicyPage: React.FC = () => {
           <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-lg bg-primary/15 text-primary text-label-sm font-semibold uppercase tracking-wide">
             <ShieldCheck className="w-4 h-4" /> Kebijakan Privasi
           </div>
-          <h1 className="font-display text-headline-md font-bold text-on-surface mb-2">Kebijakan Privasi Tridjaya Samrat</h1>
+          <h1 className="font-display text-headline-md font-bold text-on-surface mb-2">Kebijakan Privasi Tridjaya Manado</h1>
           <p className="text-body-sm text-on-surface-variant mb-8">Terakhir diperbarui: 19 April 2026</p>
 
           <div className="space-y-7 text-body-md text-on-surface-variant leading-relaxed">

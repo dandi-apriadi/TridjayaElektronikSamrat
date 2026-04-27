@@ -81,7 +81,8 @@ const AgentLeaderboardPage: React.FC = () => {
     : [];
 
   const filteredLeaderboard = effectiveLeaderboard.filter(a => 
-    a.name.toLowerCase().includes(search.toLowerCase()) || a.city.toLowerCase().includes(search.toLowerCase())
+    (a.name?.toLowerCase() || '').includes(search.toLowerCase()) || 
+    (a.city?.toLowerCase() || '').includes(search.toLowerCase())
   );
 
   const totalPages = Math.ceil(filteredLeaderboard.length / itemsPerPage);
@@ -90,14 +91,7 @@ const AgentLeaderboardPage: React.FC = () => {
     currentPage * itemsPerPage
   );
 
-  // If no data is available, render a friendly placeholder.
-  if (!isLoading && filteredLeaderboard.length === 0) {
-    return (
-      <div className="p-8 text-center text-on-surface-variant">
-        Belum ada data peringkat agen. Data akan muncul setelah ada aktivitas.
-      </div>
-    );
-  }
+
   const currentPoints = stats?.points || 0;
   const currentUserEntry = effectiveLeaderboard.find((entry) => entry.id === user?.id);
   const currentRank = currentUserEntry ? effectiveLeaderboard.findIndex((entry) => entry.id === user?.id) + 1 : null;
@@ -161,7 +155,16 @@ const AgentLeaderboardPage: React.FC = () => {
       </motion.div>
 
       {activeTab === 'leaderboard' ? (
-        <>
+        filteredLeaderboard.length === 0 && !isLoading ? (
+          <motion.div variants={itemVariants} className="glass-card rounded-2xl p-12 text-center">
+            <Trophy className="w-16 h-16 text-on-surface-variant/20 mx-auto mb-4" />
+            <h3 className="font-display text-title-lg font-bold text-on-surface">Leaderboard Kosong</h3>
+            <p className="text-body-md text-on-surface-variant mt-2">
+              Belum ada data peringkat agen. Data akan muncul setelah ada aktivitas penjualan.
+            </p>
+          </motion.div>
+        ) : (
+          <>
           {/* ── Top 3 Podium ───────────────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end pt-10">
             {/* 2nd Place */}
@@ -332,7 +335,7 @@ const AgentLeaderboardPage: React.FC = () => {
              />
           </motion.div>
         </>
-      ) : (
+      )) : (
         /* ── Rewards Tab ─────────────────────────────── */
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
           <div className="lg:col-span-6 space-y-6">

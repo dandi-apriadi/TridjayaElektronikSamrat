@@ -25,7 +25,7 @@ const HeroSection: React.FC = () => {
       <motion.div className="absolute inset-0 z-0" style={{ y }}>
         <motion.img
           src={heroBike}
-          alt="Tridjaya Samrat"
+          alt="Tridjaya Manado"
           className="w-full h-full object-cover object-center"
           style={{ scale }}
         />
@@ -403,7 +403,7 @@ const CTASection: React.FC = () => (
             <span className="gradient-text-neon">Raih Penghasilan Tak Terbatas</span>
           </h2>
           <p className="font-body text-body-lg text-on-surface-variant max-w-xl mx-auto mb-8 leading-relaxed">
-            Jadilah mitra bisnis Tridjaya Samrat dan nikmati komisi menarik, bonus bulanan, serta dukungan penuh dari tim kami.
+            Jadilah mitra bisnis Tridjaya Manado dan nikmati komisi menarik, bonus bulanan, serta dukungan penuh dari tim kami.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link

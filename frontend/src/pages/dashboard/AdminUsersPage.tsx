@@ -172,7 +172,7 @@ const AdminUsersPage: React.FC = () => {
               <Shield className="w-6 h-6 text-primary" /> User & Akses
             </h2>
             <p className="text-body-sm text-on-surface-variant mt-1">
-              Kelola role, hak akses, dan status akun semua pengguna sistem Tridjaya Samrat.
+              Kelola role, hak akses, dan status akun semua pengguna sistem Tridjaya Manado.
             </p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">

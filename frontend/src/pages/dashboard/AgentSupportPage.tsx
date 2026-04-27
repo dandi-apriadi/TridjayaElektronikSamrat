@@ -117,7 +117,7 @@ const AgentSupportPage: React.FC = () => {
             color: 'text-[#25D366]',
             bg: 'bg-[#25D366]/10 border-[#25D366]/20',
             action: 'Chat Sekarang',
-            href: 'https://wa.me/6285161542103?text=Halo Admin Tridjaya Samrat, saya butuh bantuan.',
+            href: 'https://wa.me/6285161542103?text=Halo Admin Tridjaya Manado, saya butuh bantuan.',
           },
           {
             label: 'Telepon Admin',

@@ -31,7 +31,7 @@ const CareerPage: React.FC = () => {
               Bangun Masa Depan <span className="gradient-text-neon">Bersama Kami</span>
             </h1>
             <p className="font-body text-body-lg text-on-surface-variant max-w-2xl mx-auto mb-10 leading-relaxed">
-              Kami mencari talenta berbakat yang bersemangat untuk merevolusi ekosistem mobilitas dan elektronik di Sulawesi. Mari tumbuh bersama Tridjaya Samrat.
+              Kami mencari talenta berbakat yang bersemangat untuk merevolusi ekosistem mobilitas dan elektronik di Sulawesi. Mari tumbuh bersama Tridjaya Manado.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl mx-auto">

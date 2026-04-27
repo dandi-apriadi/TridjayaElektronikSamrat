@@ -25,7 +25,7 @@ const TentangPage: React.FC = () => {
               Memberdayakan Sulawesi Dengan <span className="gradient-text-primary">Inovasi Berkelanjutan</span>
             </h1>
             <p className="font-body text-body-lg text-on-surface-variant leading-relaxed">
-              Tridjaya Samrat adalah mitra terpercaya Anda untuk solusi mobilitas listrik, elektronik premium, dan furnitur berkualitas di wilayah Sulawesi.
+              Tridjaya Manado adalah mitra terpercaya Anda untuk solusi mobilitas listrik, elektronik premium, dan furnitur berkualitas di wilayah Sulawesi.
             </p>
           </motion.div>
         </div>
@@ -64,7 +64,7 @@ const TentangPage: React.FC = () => {
               />
               <div className="space-y-4 font-body text-body-lg text-on-surface-variant leading-relaxed">
                 <p>
-                  Didirikan pada tahun 2010 di Manado, Tridjaya Samrat bermula sebagai toko elektronik sederhana dengan visi untuk menyediakan akses mudah bagi masyarakat lokal terhadap teknologi berkualitas.
+                  Didirikan pada tahun 2010 di Manado, Tridjaya Manado bermula sebagai toko elektronik sederhana dengan visi untuk menyediakan akses mudah bagi masyarakat lokal terhadap teknologi berkualitas.
                 </p>
                 <p>
                   Selama lebih dari satu dekade, kami telah berevolusi menjadi salah satu distributor multi-brand terbesar di Sulawesi, tidak hanya menyediakan elektronik dan furnitur, tetapi juga memimpin transisi menuju mobilitas hijau melalui kemitraan strategis dengan brand sepeda listrik ternama seperti Goda, Winfly, dan Nuv.

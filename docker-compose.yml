@@ -22,6 +22,15 @@ services:
       - "5173:80"
     depends_on:
       - backend
+      - redis
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
 volumes:
   backend_data:
+  redis_data:

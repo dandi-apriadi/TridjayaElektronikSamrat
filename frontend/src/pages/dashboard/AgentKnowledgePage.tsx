@@ -76,7 +76,7 @@ const AgentKnowledgePage: React.FC = () => {
   }, [fetchProducts]);
   const filtered = products.filter((k) => {
     const mappedCat = mapCategory(k.category);
-    const matchSearch   = k.name.toLowerCase().includes(search.toLowerCase());
+    const matchSearch   = (k.name?.toLowerCase() || '').includes(search.toLowerCase());
     const matchCategory = category === 'Semua' || mappedCat === category;
     return matchSearch && matchCategory;
   });
@@ -89,7 +89,7 @@ const AgentKnowledgePage: React.FC = () => {
 
   const handleCopyMaterial = (p: Product) => {
     const mkt = getMarketingInfo(p);
-    const text = `*PROMO TRIDJAYA SAMRAT* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${p.dpMin ? `💵 DP Mulai: ${formatPrice(p.dpMin)}\n💳 Cicilan: ${formatPrice(p.priceInstallment || 0)}/bln\n` : ''}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\nhttps://tridjayaelektronik.com/produk/${p.slug}\n\n_Segera hubungi saya untuk pemesanan!_`;
+    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${p.dpMin ? `💵 DP Mulai: ${formatPrice(p.dpMin)}\n💳 Cicilan: ${formatPrice(p.priceInstallment || 0)}/bln\n` : ''}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\nhttps://tridjayaelektronik.com/produk/${p.slug}\n\n_Segera hubungi saya untuk pemesanan!_`;
     
     navigator.clipboard.writeText(text);
     addNotification({
@@ -118,7 +118,9 @@ const AgentKnowledgePage: React.FC = () => {
 
   // Stats calculation
   const totalProducts = products.length;
-  const avgRating = (products.reduce((acc, p) => acc + (p.rating || 4.5), 0) / totalProducts).toFixed(1);
+  const avgRating = totalProducts > 0 
+    ? (products.reduce((acc, p) => acc + (p.rating || 4.5), 0) / totalProducts).toFixed(1) 
+    : '0.0';
   const totalReviews = products.reduce((acc, p) => acc + (p.reviewCount || 0), 0).toLocaleString('id-ID');
   const criticalStock = products.filter((product) => product.stock !== 'available').length;
 
@@ -418,7 +420,7 @@ const AgentKnowledgePage: React.FC = () => {
                                     <p className="text-label-sm font-bold text-on-surface">Informasi Penting</p>
                                     <p className="text-[10px] text-on-surface-variant leading-relaxed">
                                       Simulasi di atas sudah termasuk biaya admin <strong>Rp 700.000</strong>. 
-                                      Pembulatan harga barang dilakukan ke kelipatan <strong>Rp 25.000</strong> terdekat sesuai aturan baku pricelist Tridjaya Samrat 2025. 
+                                      Pembulatan harga barang dilakukan ke kelipatan <strong>Rp 25.000</strong> terdekat sesuai aturan baku pricelist Tridjaya Manado 2025. 
                                       Persetujuan final ditentukan oleh leasing partner.
                                     </p>
                                   </div>

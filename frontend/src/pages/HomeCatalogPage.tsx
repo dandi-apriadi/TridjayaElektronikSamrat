@@ -52,7 +52,7 @@ const HomeCatalogPage: React.FC = () => {
             Elektronik & <span className="gradient-text-neon">Furnitur Premium</span>
           </h1>
           <p className="font-body text-body-lg text-on-surface-variant max-w-xl leading-relaxed">
-            Lengkapi hunian modern Anda dengan koleksi TV, kulkas, kipas angin, dan sofa premium pilihan terbaik dari Tridjaya Samrat.
+            Lengkapi hunian modern Anda dengan koleksi TV, kulkas, kipas angin, dan sofa premium pilihan terbaik dari Tridjaya Manado.
           </p>
         </div>
       </section>

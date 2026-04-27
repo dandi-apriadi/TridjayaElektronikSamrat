@@ -168,7 +168,7 @@ const AgencyRegistrationPage: React.FC = () => {
             >
               <Badge label="Program Kemitraan" variant="secondary" />
               <h1 className="font-display text-display-sm font-bold text-white mt-4 mb-4 leading-tight">
-                Jadilah <span className="gradient-text-neon">Agen Resmi</span> Tridjaya Samrat
+                Jadilah <span className="gradient-text-neon">Agen Resmi</span> Tridjaya Manado
               </h1>
               <p className="font-body text-body-lg text-on-surface-variant mb-8 leading-relaxed">
                 Bergabunglah dengan jaringan distributor terbesar di Sulawesi. Berdayakan diri Anda dengan bisnis mandiri bersama dukungan teknologi dan logistik dari kami.
@@ -500,9 +500,9 @@ const AgencyRegistrationPage: React.FC = () => {
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
             {[
-              { q: 'Berapa biaya pendaftaran agen?', a: 'Pendaftaran agen resmi Tridjaya Samrat bersifat gratis. Anda hanya perlu menyetujui komitmen volume penjualan.' },
+              { q: 'Berapa biaya pendaftaran agen?', a: 'Pendaftaran agen resmi Tridjaya Manado bersifat gratis. Anda hanya perlu menyetujui komitmen volume penjualan.' },
               { q: 'Apakah ada minimal pembelian?', a: 'Ya, terdapat minimal stok awal sesuai dengan level keagenan (Bronze, Silver, Gold).' },
-              { q: 'Bagaimana dengan pengiriman?', a: 'Pengiriman unit ke lokasi agen sepenuhnya ditangani oleh armada logistik Tridjaya Samrat.' },
+              { q: 'Bagaimana dengan pengiriman?', a: 'Pengiriman unit ke lokasi agen sepenuhnya ditangani oleh armada logistik Tridjaya Manado.' },
               { q: 'Dukungan apa yang diberikan?', a: 'Training produk, mentoring sales, materi marketing, dan akses ke sistem monitoring agen.' },
             ].map((faq, i) => (
               <div key={i} className="glass-card rounded-2xl p-6">

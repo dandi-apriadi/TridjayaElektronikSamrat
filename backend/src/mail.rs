@@ -79,19 +79,19 @@ impl Mailer {
         })?;
         let body = format!(
             "Halo {},\n\n\
-            Selamat! Pendaftaran Anda sebagai Agent Tridjaya Samrat telah disetujui.\n\n\
+            Selamat! Pendaftaran Anda sebagai Agent Tridjaya Manado telah disetujui.\n\n\
             Berikut detail akun Anda:\n\
             - Email: {}\n\
             - Password Sementara: {}\n\n\
             Silakan klik tautan di bawah ini untuk memverifikasi akun Anda:\n{}\n\n\
             Catatan: Anda akan diminta mengganti password pada login pertama demi keamanan.\n\n\
-            Terima kasih,\nTim Tridjaya Samrat",
+            Terima kasih,\nTim Tridjaya Manado",
             name, to_email, temp_password, verification_link
         );
         let email = Message::builder()
             .from(from)
             .to(to)
-            .subject("Verifikasi Akun Agent Tridjaya Samrat")
+            .subject("Verifikasi Akun Agent Tridjaya Manado")
             .body(body)
             .map_err(|e| MailerError::Other(Box::new(e)))?;
         self.send(email).await
@@ -114,13 +114,13 @@ impl Mailer {
             Admin telah mereset password akun Anda. Berikut adalah password baru Anda:\n\n\
             Password: {}\n\n\
             Anda akan diminta mengganti password ini pada login berikutnya demi keamanan.\n\n\
-            Terima kasih,\nTim Tridjaya Samrat",
+            Terima kasih,\nTim Tridjaya Manado",
             name, new_password
         );
         let email = Message::builder()
             .from(from)
             .to(to)
-            .subject("Reset Password Akun Tridjaya Samrat")
+            .subject("Reset Password Akun Tridjaya Manado")
             .body(body)
             .map_err(|e| MailerError::Other(Box::new(e)))?;
         self.send(email).await
@@ -140,17 +140,17 @@ impl Mailer {
         })?;
         let body = format!(
             "Halo {},\n\n\
-            Kami menerima permintaan reset password untuk akun Anda di Tridjaya Samrat.\n\n\
+            Kami menerima permintaan reset password untuk akun Anda di Tridjaya Manado.\n\n\
             Silakan klik tautan berikut untuk mengatur password baru. Tautan ini berlaku selama 30 menit dan hanya dapat digunakan sekali:\n\n\
             {}\n\n\
             Jika Anda tidak meminta reset password, abaikan email ini. Akun Anda tetap aman.\n\n\
-            Terima kasih,\nTim Tridjaya Samrat",
+            Terima kasih,\nTim Tridjaya Manado",
             name, reset_link
         );
         let email = Message::builder()
             .from(from)
             .to(to)
-            .subject("Reset Password Tridjaya Samrat")
+            .subject("Reset Password Tridjaya Manado")
             .body(body)
             .map_err(|e| MailerError::Other(Box::new(e)))?;
         self.send(email).await

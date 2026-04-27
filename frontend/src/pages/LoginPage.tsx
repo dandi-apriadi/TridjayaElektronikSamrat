@@ -55,7 +55,7 @@ const LoginPage: React.FC = () => {
           navigate('/dashboard');
         }
       } else {
-        toast.success('Login Berhasil', 'Selamat datang di Portal Internal Tridjaya Samrat.');
+        toast.success('Login Berhasil', 'Selamat datang di Portal Internal Tridjaya Manado.');
         navigate('/dashboard');
       }
     } catch (error) {
@@ -169,7 +169,7 @@ const LoginPage: React.FC = () => {
 
               <div className="flex items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <img src={logoHorizontal} alt="Tridjaya Samrat" className="h-14 w-auto object-contain" />
+                  <img src={logoHorizontal} alt="Tridjaya Manado" className="h-14 w-auto object-contain" />
                 </div>
                 <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl glass-card border border-outline-variant/10">
                   <ShieldCheck className="w-4 h-4 text-primary" />

@@ -20,6 +20,27 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     let seeds_raw = fs::read_to_string("seeds.json")?;
     let seeds: Value = serde_json::from_str(&seeds_raw)?;
 
+    // Clear existing data for a clean simulation
+    println!("Wiping existing data for clean simulation...");
+    sqlx::query("PRAGMA foreign_keys = OFF").execute(pool).await?;
+    sqlx::query("DELETE FROM notifications").execute(pool).await?;
+    sqlx::query("DELETE FROM support_tickets").execute(pool).await?;
+    sqlx::query("DELETE FROM telemetry_events").execute(pool).await?;
+    sqlx::query("DELETE FROM leads").execute(pool).await?;
+    sqlx::query("DELETE FROM agent_registrations").execute(pool).await?;
+    sqlx::query("DELETE FROM reward_claims").execute(pool).await?;
+    sqlx::query("DELETE FROM agent_achievements").execute(pool).await?;
+    sqlx::query("DELETE FROM agent_stats").execute(pool).await?;
+    sqlx::query("DELETE FROM users").execute(pool).await?;
+    sqlx::query("DELETE FROM promos").execute(pool).await?;
+    sqlx::query("DELETE FROM products").execute(pool).await?;
+    sqlx::query("DELETE FROM blog_posts").execute(pool).await?;
+    sqlx::query("DELETE FROM job_listings").execute(pool).await?;
+    sqlx::query("DELETE FROM partners").execute(pool).await?;
+    sqlx::query("DELETE FROM reward_tiers").execute(pool).await?;
+    sqlx::query("DELETE FROM achievements").execute(pool).await?;
+    sqlx::query("PRAGMA foreign_keys = ON").execute(pool).await?;
+
     // Seed Users
     if let Some(users) = seeds["users"].as_array() {
         for u in users {
@@ -73,7 +94,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             };
             let reward_value = t["reward_value"].as_i64().unwrap_or(default_reward);
 
-            sqlx::query("INSERT OR IGNORE INTO reward_tiers (id, name, threshold_points, icon, color, benefits, reward_value) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            sqlx::query("REPLACE INTO reward_tiers (id, name, threshold_points, icon, color, benefits, reward_value) VALUES (?, ?, ?, ?, ?, ?, ?)")
                 .bind(t["id"].as_str())
                 .bind(t["name"].as_str())
                 .bind(t["threshold_points"].as_i64())
@@ -89,7 +110,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Agent Stats
     if let Some(stats) = seeds["agent_stats"].as_array() {
         for s in stats {
-            sqlx::query("INSERT OR IGNORE INTO agent_stats (user_id, points, sales_count, monthly_growth, current_tier_id) VALUES (?, ?, ?, ?, ?)")
+            sqlx::query("REPLACE INTO agent_stats (user_id, points, sales_count, monthly_growth, current_tier_id) VALUES (?, ?, ?, ?, ?)")
                 .bind(s["user_id"].as_str())
                 .bind(s["points"].as_i64())
                 .bind(s["sales_count"].as_i64())
@@ -103,7 +124,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Achievements
     if let Some(achs) = seeds["achievements"].as_array() {
         for a in achs {
-            sqlx::query("INSERT OR IGNORE INTO achievements (id, name, description, icon, color) VALUES (?, ?, ?, ?, ?)")
+            sqlx::query("REPLACE INTO achievements (id, name, description, icon, color) VALUES (?, ?, ?, ?, ?)")
                 .bind(a["id"].as_str())
                 .bind(a["name"].as_str())
                 .bind(a["description"].as_str())
@@ -117,7 +138,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Agent Achievements
     if let Some(agent_achs) = seeds["agent_achievements"].as_array() {
         for aa in agent_achs {
-            sqlx::query("INSERT OR IGNORE INTO agent_achievements (agent_id, achievement_id) VALUES (?, ?)")
+            sqlx::query("REPLACE INTO agent_achievements (agent_id, achievement_id) VALUES (?, ?)")
                 .bind(aa["agent_id"].as_str())
                 .bind(aa["achievement_id"].as_str())
                 .execute(pool)
@@ -128,7 +149,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Reward Claims
     if let Some(claims) = seeds["reward_claims"].as_array() {
         for c in claims {
-            sqlx::query("INSERT OR IGNORE INTO reward_claims (id, agent_id, tier_id, reward_name, status) VALUES (?, ?, ?, ?, ?)")
+            sqlx::query("REPLACE INTO reward_claims (id, agent_id, tier_id, reward_name, status) VALUES (?, ?, ?, ?, ?)")
                 .bind(c["id"].as_str())
                 .bind(c["agent_id"].as_str())
                 .bind(c["tier_id"].as_str())
@@ -147,7 +168,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             let colors_json = serde_json::to_string(&p["colors"]).unwrap_or_else(|_| "[]".to_string());
 
             sqlx::query(
-                "INSERT OR IGNORE INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors) 
+                "REPLACE INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(p["id"].as_str())
@@ -179,7 +200,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         for p in promos {
             let product_ids_json = serde_json::to_string(&p["productIds"]).unwrap_or_else(|_| "[]".to_string());
             sqlx::query(
-                "INSERT OR IGNORE INTO promos (id, title, subtitle, description, discount, original_price, promo_price, image, badge, valid_until, category, variant, product_ids) 
+                "REPLACE INTO promos (id, title, subtitle, description, discount, original_price, promo_price, image, badge, valid_until, category, variant, product_ids) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(p["id"].as_str())
@@ -205,7 +226,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         for p in posts {
             let tags_json = serde_json::to_string(&p["tags"]).unwrap_or_else(|_| "[]".to_string());
             sqlx::query(
-                "INSERT OR IGNORE INTO blog_posts (id, slug, title, excerpt, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured) 
+                "REPLACE INTO blog_posts (id, slug, title, excerpt, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(p["id"].as_str())
@@ -232,7 +253,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             let requirements_json = serde_json::to_string(&j["requirements"]).unwrap_or_else(|_| "[]".to_string());
             let benefits_json = serde_json::to_string(&j["benefits"]).unwrap_or_else(|_| "[]".to_string());
             sqlx::query(
-                "INSERT OR IGNORE INTO job_listings (id, title, department, location, type, level, description, requirements, benefits, posted_at) 
+                "REPLACE INTO job_listings (id, title, department, location, type, level, description, requirements, benefits, posted_at) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(j["id"].as_str())
@@ -253,11 +274,120 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Partners
     if let Some(partners) = seeds["partners"].as_array() {
         for p in partners {
-            sqlx::query("INSERT OR IGNORE INTO partners (id, name, logo_url, sort_order) VALUES (?, ?, ?, ?)")
+            sqlx::query("REPLACE INTO partners (id, name, logo_url, sort_order) VALUES (?, ?, ?, ?)")
                 .bind(p["id"].as_str())
                 .bind(p["name"].as_str())
                 .bind(p["logo_url"].as_str())
                 .bind(p["sort_order"].as_i64().unwrap_or(0))
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    // Seed Agent Registrations
+    if let Some(regs) = seeds["agent_registrations"].as_array() {
+        for r in regs {
+            let preferred_json = serde_json::to_string(&r["preferred_products"]).unwrap_or_else(|_| "[]".to_string());
+            sqlx::query("REPLACE INTO agent_registrations (id, full_name, email, whatsapp, province, city, address, preferred_products, status, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(r["id"].as_str())
+                .bind(r["full_name"].as_str())
+                .bind(r["email"].as_str())
+                .bind(r["whatsapp"].as_str())
+                .bind(r["province"].as_str())
+                .bind(r["city"].as_str())
+                .bind(r["address"].as_str())
+                .bind(preferred_json)
+                .bind(r["status"].as_str())
+                .bind(r["submitted_at"].as_str())
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    // Seed Leads
+    if let Some(leads) = seeds["leads"].as_array() {
+        for l in leads {
+            sqlx::query("REPLACE INTO leads (id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(l["id"].as_str())
+                .bind(l["agent_id"].as_str())
+                .bind(l["customer_name"].as_str())
+                .bind(l["phone_number"].as_str())
+                .bind(l["interested_product"].as_str())
+                .bind(l["status"].as_str())
+                .bind(l["notes"].as_str())
+                .bind(l["created_at"].as_str())
+                .bind(l["updated_at"].as_str())
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    // Seed Telemetry Events
+    if let Some(events) = seeds["telemetry_events"].as_array() {
+        for e in events {
+            let metadata_json = serde_json::to_string(&e["metadata"]).unwrap_or_else(|_| "{}".to_string());
+            sqlx::query("REPLACE INTO telemetry_events (id, event_type, path, source, session_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                .bind(e["id"].as_str())
+                .bind(e["event_type"].as_str())
+                .bind(e["path"].as_str())
+                .bind(e["source"].as_str())
+                .bind(e["session_id"].as_str())
+                .bind(metadata_json)
+                .bind(e["created_at"].as_str())
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    // Seed Referrals
+    if let Some(referrals) = seeds["referrals"].as_array() {
+        for r in referrals {
+            sqlx::query("REPLACE INTO referrals (id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(r["id"].as_str())
+                .bind(r["slug"].as_str())
+                .bind(r["owner_user_id"].as_str())
+                .bind(r["label"].as_str())
+                .bind(r["target_path"].as_str())
+                .bind(r["clicks"].as_i64())
+                .bind(r["leads"].as_i64())
+                .bind(r["is_active"].as_bool())
+                .bind(r["created_at"].as_str())
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    // Seed Support Tickets
+    if let Some(tickets) = seeds["support_tickets"].as_array() {
+        for t in tickets {
+            sqlx::query("REPLACE INTO support_tickets (id, agent_id, subject, message, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(t["id"].as_str())
+                .bind(t["agent_id"].as_str())
+                .bind(t["subject"].as_str())
+                .bind(t["message"].as_str())
+                .bind(t["priority"].as_str())
+                .bind(t["status"].as_str())
+                .bind(t["created_at"].as_str())
+                .bind(t["updated_at"].as_str())
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    // Seed Notifications
+    if let Some(notifs) = seeds["notifications"].as_array() {
+        for n in notifs {
+            sqlx::query("REPLACE INTO notifications (id, recipient_user_id, type, title, message, action_path, entity_id, is_read, created_at, read_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(n["id"].as_str())
+                .bind(n["recipient_user_id"].as_str())
+                .bind(n["type"].as_str())
+                .bind(n["title"].as_str())
+                .bind(n["message"].as_str())
+                .bind(n["action_path"].as_str())
+                .bind(n["entity_id"].as_str())
+                .bind(n["is_read"].as_bool())
+                .bind(n["created_at"].as_str())
+                .bind(n["read_at"].as_str())
                 .execute(pool)
                 .await?;
         }
