@@ -34,14 +34,16 @@ impl<T> ApiResponse<T> {
 pub struct ErrorResponse {
     pub success: bool,
     pub message: String,
+    pub detail: Option<String>,
     pub errors: Vec<String>,
 }
 
 impl ErrorResponse {
-    pub fn new(message: impl Into<String>, errors: Vec<String>) -> Self {
+    pub fn new(message: impl Into<String>, detail: Option<String>, errors: Vec<String>) -> Self {
         Self {
             success: false,
             message: message.into(),
+            detail,
             errors,
         }
     }
@@ -99,9 +101,14 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = self.status();
         let message = self.message();
+        let detail = match &self {
+            Self::EmailUnverified => Some("Email belum terverifikasi. Silakan cek inbox Anda.".to_string()),
+            _ => None,
+        };
+
         let body = match self {
-            Self::Validation { errors } => ErrorResponse::new(message, errors),
-            _ => ErrorResponse::new(message, Vec::new()),
+            Self::Validation { errors } => ErrorResponse::new(message, None, errors),
+            _ => ErrorResponse::new(message, detail, Vec::new()),
         };
 
         (status, Json(body)).into_response()

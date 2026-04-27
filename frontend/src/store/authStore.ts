@@ -128,6 +128,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
+            // Silently fail — user mungkin belum login atau token sudah expired.
             set({ user: null, isAuthenticated: false, accessToken: null });
             return false;
           }
@@ -147,14 +148,17 @@ export const useAuthStore = create<AuthState>()(
           });
 
           return true;
-        } catch (error) {
-          console.error('Refresh session error:', error);
+        } catch {
+          // Silently fail — user mungkin belum login.
           set({ user: null, isAuthenticated: false, accessToken: null });
           return false;
         }
       },
       restoreSession: async () => {
         set({ isInitializing: true });
+        
+        // Always try to refresh on mount if we were previously authenticated
+        // or if we want to check for an existing HttpOnly cookie session.
         try {
           const response = await fetch(`${API_URL}/auth/refresh`, {
             method: 'POST',
@@ -166,6 +170,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
+            // If refresh fails, clear all auth state
             set({ user: null, isAuthenticated: false, accessToken: null });
             return;
           }
@@ -183,7 +188,7 @@ export const useAuthStore = create<AuthState>()(
             set({ user: null, isAuthenticated: false, accessToken: null });
           }
         } catch (error) {
-          console.error('Restore session error:', error);
+          console.error('Session restoration failed:', error);
           set({ user: null, isAuthenticated: false, accessToken: null });
         } finally {
           set({ isInitializing: false });

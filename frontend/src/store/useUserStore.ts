@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
-import { API_BASE_URL } from '../utils/apiClient';
+import { API_BASE_URL, apiFetch } from '../utils/apiClient';
 
 const API_ENDPOINT = `${API_BASE_URL}/api`;
 
@@ -59,12 +59,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
  
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_ENDPOINT}/users`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiFetch('/api/users');
 
       if (!response.ok) {
         throw new Error('Gagal mengambil data users');
@@ -82,13 +77,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   createUser: async (data) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_ENDPOINT}/users`, {
+      const response = await apiFetch('/api/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify(data),
       });
 
@@ -106,13 +96,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   updateUser: async (id, data) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_ENDPOINT}/users/${id}`, {
+      const response = await apiFetch(`/api/users/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify(data),
       });
 
@@ -154,13 +139,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   verifyUser: async (id) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_ENDPOINT}/users/${id}`, {
+      const response = await apiFetch(`/api/users/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({ isVerified: true }),
       });
 
@@ -178,12 +158,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   resendVerification: async (id) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_ENDPOINT}/users/${id}/resend-verification`, {
+      const response = await apiFetch(`/api/users/${id}/resend-verification`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {
@@ -200,13 +176,8 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   resetUserPassword: async (id, password) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_ENDPOINT}/users/${id}/reset-password`, {
+      const response = await apiFetch(`/api/users/${id}/reset-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({ password }),
       });
 

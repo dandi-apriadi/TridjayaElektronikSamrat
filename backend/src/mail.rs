@@ -1,6 +1,5 @@
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{Message, AsyncSmtpTransport, Tokio1Executor, AsyncTransport};
-use lettre::transport::smtp::client::Tls;
 use std::env;
 
 pub struct Mailer {
@@ -26,15 +25,8 @@ impl Mailer {
         match (smtp_email, smtp_password) {
             (Some(email), Some(password)) if !email.trim().is_empty() && !password.trim().is_empty() => {
                 let creds = Credentials::new(email.clone(), password);
-                let tls = match lettre::transport::smtp::client::TlsParameters::new(smtp_server.clone()) {
-                    Ok(params) => params,
-                    Err(error) => {
-                        tracing::warn!("Failed to build TLS params for SMTP: {}", error);
-                        return Self { transport: None, from_email: email, enabled: false };
-                    }
-                };
                 let transport = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_server)
-                    .map(|builder| builder.credentials(creds).tls(Tls::Required(tls)).build());
+                    .map(|builder| builder.credentials(creds).build());
 
                 match transport {
                     Ok(t) => Self {

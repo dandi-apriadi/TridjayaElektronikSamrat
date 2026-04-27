@@ -107,10 +107,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   fetchLeads: async () => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/leads`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/admin/leads');
       if (!res.ok) throw new Error('Failed to fetch admin leads');
       const data = await res.json();
       set({ leads: data.data.items || [], isLoading: false });
@@ -121,13 +118,8 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
 
   updateLeadStatus: async (id, status) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/leads/${id}/status`, {
+      const res = await apiFetch(`/api/admin/leads/${id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify({ status })
       });
       if (!res.ok) throw new Error('Failed to update lead status');
@@ -140,17 +132,9 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   },
 
   fetchRegistrations: async () => {
-    const token = useAuthStore.getState().accessToken;
-    if (!token) {
-      set({ registrations: [], isLoading: false, error: 'Sesi login tidak valid. Silakan login ulang.' });
-      return;
-    }
-
     set({ isLoading: true, error: null });
     try {
-      const res = await apiFetch('/api/admin/agent-registrations', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch('/api/admin/agent-registrations');
 
       if (!res.ok) throw new Error('Failed to fetch agent registrations');
       const data = await res.json();
@@ -162,13 +146,8 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
 
   updateRegistrationStatus: async (id, status) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/agent-registrations/${id}/status`, {
+      const res = await apiFetch(`/api/admin/agent-registrations/${id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify({ status })
       });
       if (!res.ok) throw new Error('Failed to update status');
@@ -181,17 +160,9 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   },
 
   fetchClaims: async () => {
-    const token = useAuthStore.getState().accessToken;
-    if (!token) {
-      set({ claims: [], isLoading: false, error: 'Sesi login tidak valid. Silakan login ulang.' });
-      return;
-    }
-
     set({ isLoading: true, error: null });
     try {
-      const res = await apiFetch('/api/admin/claims', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch('/api/admin/claims');
 
       if (!res.ok) throw new Error('Failed to fetch claims');
       const data = await res.json();
@@ -203,13 +174,8 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
 
   updateClaimStatus: async (id, status) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/claims/${id}/status`, {
+      const res = await apiFetch(`/api/admin/claims/${id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify({ status })
       });
       if (!res.ok) throw new Error('Failed to update claim');
@@ -224,10 +190,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   fetchAgents: async () => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ROOT}/api/admin/agents`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/admin/agents');
       if (!res.ok) throw new Error('Failed to fetch agents');
       const data = await res.json();
       set({ agents: data.data.items, isLoading: false });
@@ -239,10 +202,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   fetchSupportTickets: async () => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/support-tickets`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/admin/support-tickets');
       if (!res.ok) throw new Error('Failed to fetch support tickets');
       const payload = await res.json();
       set({ supportTickets: payload.data.items ?? [], isLoading: false });
@@ -253,13 +213,8 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
 
   updateSupportTicketStatus: async (id, status) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/support-tickets/${id}/status`, {
+      const res = await apiFetch(`/api/admin/support-tickets/${id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify({ status })
       });
       if (!res.ok) throw new Error('Failed to update support ticket status');
@@ -274,10 +229,7 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   fetchTelemetryStats: async () => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ADMIN_URL}/telemetry-stats`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/admin/telemetry-stats');
       if (!res.ok) throw new Error('Failed to fetch telemetry stats');
       const payload = await res.json();
       set({ telemetryStats: payload.data, isLoading: false });

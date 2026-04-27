@@ -101,27 +101,43 @@ pub async fn login_with_request(
     state: &AppState,
     request: LoginRequest,
 ) -> Result<AuthPayload, AppError> {
-    if request.email.trim().is_empty() || request.password.trim().is_empty() {
+    let email = request.email.trim().to_lowercase();
+    let password = request.password;
+
+    if email.is_empty() || password.trim().is_empty() {
         return Err(AppError::Validation {
             errors: vec!["Email dan password wajib diisi".to_string()],
         });
     }
 
-    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE email = ?")
-        .bind(&request.email)
+    tracing::info!("Login attempt for email: {}", email);
+    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE LOWER(email) = ?")
+        .bind(&email)
         .fetch_optional(&state.pool)
         .await
         .map_err(|e| {
-            tracing::error!("DB error: {}", e);
+            tracing::error!("DB error during login: {}", e);
             AppError::Internal
         })?
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or_else(|| {
+            tracing::warn!("Login failed: user not found for email '{}'", email);
+            AppError::Unauthorized
+        })?;
 
-    if !user.is_active || !verify_password(&request.password, &user.password_hash) {
+    tracing::debug!("User record retrieved: email={}, is_active={}, is_verified={}", user.email, user.is_active, user.is_verified);
+
+    if !user.is_active {
+        tracing::warn!("Login failed: account is suspended for email '{}'", email);
+        return Err(AppError::Unauthorized);
+    }
+
+    if !verify_password(&password, &user.password_hash) {
+        tracing::warn!("Login failed: incorrect password for email '{}'", email);
         return Err(AppError::Unauthorized);
     }
 
     if !user.is_verified {
+        tracing::warn!("Login failed: email not verified for email '{}'", email);
         return Err(AppError::EmailUnverified);
     }
 

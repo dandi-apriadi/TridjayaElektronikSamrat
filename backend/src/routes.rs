@@ -361,8 +361,8 @@ async fn forgot_password(
     }
 
     // Selalu kembalikan response sukses generik untuk mencegah email enumeration.
-    let user_row = sqlx::query_as::<_, (String, String, bool)>(
-        "SELECT id, name, is_active FROM users WHERE LOWER(email) = ? LIMIT 1",
+    let user_row = sqlx::query_as::<_, (String, String, bool, String)>(
+        "SELECT id, name, is_active, email FROM users WHERE LOWER(email) = ? LIMIT 1",
     )
     .bind(&email)
     .fetch_optional(&state.pool)
@@ -372,7 +372,7 @@ async fn forgot_password(
         AppError::Internal
     })?;
 
-    if let Some((user_id, name, is_active)) = user_row {
+    if let Some((user_id, name, is_active, recipient_email)) = user_row {
         if is_active {
             // Invalidasi token reset aktif sebelumnya milik user ini supaya
             // tabel password_reset_tokens tidak tumbuh tak terbatas dan hanya
@@ -410,15 +410,26 @@ async fn forgot_password(
                 if state.mailer.is_enabled() {
                     if let Err(e) = state
                         .mailer
-                        .send_password_reset_link_email(&email, &name, &reset_link)
+                        .send_password_reset_link_email(&recipient_email, &name, &reset_link)
                         .await
                     {
-                        tracing::error!("Failed to send reset link to {}: {}", email, e);
+                        tracing::error!(
+                            "Failed to send reset link to {} (requested={}): {}",
+                            recipient_email,
+                            email,
+                            e
+                        );
+                    } else {
+                        tracing::info!(
+                            "Password reset email sent to {} (requested={})",
+                            recipient_email,
+                            email
+                        );
                     }
                 } else {
                     tracing::warn!(
                         "Mailer disabled; password reset link for {} not delivered (token logged at debug only)",
-                        email
+                        recipient_email
                     );
                     tracing::debug!("Reset link (mailer disabled): {}", reset_link);
                 }

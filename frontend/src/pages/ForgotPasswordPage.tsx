@@ -18,13 +18,16 @@ const ForgotPasswordPage: React.FC = () => {
     setLoading(true);
     setErrorMessage('');
 
+    const formData = new FormData(event.currentTarget);
+    const submittedEmail = String(formData.get('forgot-password-email') ?? '').trim();
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: submittedEmail }),
       });
 
       if (!response.ok) {
@@ -149,9 +152,14 @@ const ForgotPasswordPage: React.FC = () => {
                   </span>
                   <input
                     type="email"
+                    name="forgot-password-email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    autoComplete="email"
+                    onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     placeholder="user@gmail.com"
                     className="w-full px-4 py-3.5 rounded-xl glass-dark border border-outline-variant/30 hover:border-outline-variant/50 focus:border-primary/50 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-surface transition-all duration-200"
                     required

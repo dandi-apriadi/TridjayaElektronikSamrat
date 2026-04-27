@@ -32,8 +32,18 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             let avatar = u["avatar"].as_str().unwrap();
             let bank_account = u["bank_account"].as_str().unwrap_or("");
 
-            sqlx::query(
-                "INSERT OR IGNORE INTO users (id, email, name, role, password_hash, avatar, bank_account) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            let res = sqlx::query(
+                "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1) \
+                 ON CONFLICT(id) DO UPDATE SET \
+                   email = excluded.email, \
+                   name = excluded.name, \
+                   role = excluded.role, \
+                   password_hash = excluded.password_hash, \
+                   avatar = excluded.avatar, \
+                   bank_account = excluded.bank_account, \
+                   is_active = 1, \
+                   is_verified = 1"
             )
             .bind(id)
             .bind(email)
@@ -44,6 +54,10 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(bank_account)
             .execute(pool)
             .await?;
+
+            if res.rows_affected() > 0 {
+                tracing::info!("Seeded user: {} (ID: {}, Role: {})", email, id, role);
+            }
         }
     }
 
