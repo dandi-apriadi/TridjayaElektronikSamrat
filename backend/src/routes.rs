@@ -319,24 +319,32 @@ async fn forgot_password(
         attempts.retain(|_, ts| now.signed_duration_since(*ts).num_minutes() < 30);
 
         let email_key = format!("email:{}", email);
+        let ip_key = client_ip.as_ref().map(|ip| format!("ip:{}", ip));
         let mut throttled = false;
         if let Some(prev) = attempts.get(&email_key) {
             if now.signed_duration_since(*prev).num_seconds() < FORGOT_PASSWORD_COOLDOWN_SECONDS {
                 throttled = true;
             }
         }
-        if let Some(ip) = client_ip.as_ref() {
-            let ip_key = format!("ip:{}", ip);
-            if let Some(prev) = attempts.get(&ip_key) {
+        if let Some(ip_key) = ip_key.as_ref() {
+            if let Some(prev) = attempts.get(ip_key) {
                 if now.signed_duration_since(*prev).num_seconds()
                     < FORGOT_PASSWORD_IP_COOLDOWN_SECONDS
                 {
                     throttled = true;
                 }
             }
-            attempts.insert(ip_key, now);
         }
-        attempts.insert(email_key, now);
+
+        // Hanya update timestamp jika request TIDAK ditolak. Kalau throttled
+        // request ikut nge-reset window, user yang retry cepat akan stuck
+        // selamanya karena cooldown terus bergeser.
+        if !throttled {
+            if let Some(ip_key) = ip_key {
+                attempts.insert(ip_key, now);
+            }
+            attempts.insert(email_key, now);
+        }
         throttled
     };
 
