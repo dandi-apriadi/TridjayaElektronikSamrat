@@ -13,6 +13,9 @@ pub struct AppState {
     pub login_email_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     pub login_ip_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     pub blocked_login_subjects: Arc<RwLock<HashMap<String, DateTime<Utc>>>>,
+    /// Timestamp permintaan forgot-password terakhir per kunci (email / ip).
+    /// Dipakai untuk membatasi flooding email reset password.
+    pub forgot_password_attempts: Arc<RwLock<HashMap<String, DateTime<Utc>>>>,
     pub mailer: Arc<crate::mail::Mailer>,
 }
 
@@ -26,6 +29,7 @@ impl AppState {
             login_email_attempts: Arc::new(RwLock::new(HashMap::new())),
             login_ip_attempts: Arc::new(RwLock::new(HashMap::new())),
             blocked_login_subjects: Arc::new(RwLock::new(HashMap::new())),
+            forgot_password_attempts: Arc::new(RwLock::new(HashMap::new())),
             mailer: Arc::new(crate::mail::Mailer::new()),
         }
     }
@@ -56,7 +60,7 @@ pub struct UserPublic {
     /// normal (mis. setelah admin reset password atau auto-create dari
     /// approval registrasi agen). Dipakai frontend untuk memaksa flow
     /// change-password.
-    #[serde(default)]
+    #[sqlx(default)]
     pub must_change_password: bool,
 }
 

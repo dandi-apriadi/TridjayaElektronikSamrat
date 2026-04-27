@@ -294,13 +294,62 @@ async fn refresh(State(state): State<AppState>, headers: HeaderMap, Json(payload
 
 async fn forgot_password(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<ForgotPasswordRequest>,
 ) -> Result<ResponseBody, AppError> {
+    const FORGOT_PASSWORD_COOLDOWN_SECONDS: i64 = 60;
+    const FORGOT_PASSWORD_IP_COOLDOWN_SECONDS: i64 = 5;
+
     let email = payload.email.trim().to_lowercase();
     if email.is_empty() || !email.contains('@') {
         return Err(AppError::Validation {
             errors: vec!["Email tidak valid".to_string()],
         });
+    }
+
+    // Rate limit ringan untuk mencegah flooding email reset & pembengkakan
+    // tabel password_reset_tokens. Gabungan cooldown per email dan per IP.
+    // Bila terkena rate limit kita tetap mengembalikan response sukses generik
+    // (tidak melempar 429) supaya tidak bocor email enumeration.
+    let client_ip = extract_client_ip(&headers);
+    let throttled = {
+        let now = Utc::now();
+        let mut attempts = state.forgot_password_attempts.write().await;
+        // Cleanup entri tua agar HashMap tidak tumbuh tak terbatas.
+        attempts.retain(|_, ts| now.signed_duration_since(*ts).num_minutes() < 30);
+
+        let email_key = format!("email:{}", email);
+        let mut throttled = false;
+        if let Some(prev) = attempts.get(&email_key) {
+            if now.signed_duration_since(*prev).num_seconds() < FORGOT_PASSWORD_COOLDOWN_SECONDS {
+                throttled = true;
+            }
+        }
+        if let Some(ip) = client_ip.as_ref() {
+            let ip_key = format!("ip:{}", ip);
+            if let Some(prev) = attempts.get(&ip_key) {
+                if now.signed_duration_since(*prev).num_seconds()
+                    < FORGOT_PASSWORD_IP_COOLDOWN_SECONDS
+                {
+                    throttled = true;
+                }
+            }
+            attempts.insert(ip_key, now);
+        }
+        attempts.insert(email_key, now);
+        throttled
+    };
+
+    if throttled {
+        tracing::warn!(
+            "forgot_password throttled for email={} ip={:?}",
+            email,
+            client_ip
+        );
+        return Ok(json_ok(
+            "Jika akun terdaftar, instruksi reset password telah dikirim ke email",
+            json!({ "accepted": true }),
+        ));
     }
 
     // Selalu kembalikan response sukses generik untuk mencegah email enumeration.
@@ -317,6 +366,20 @@ async fn forgot_password(
 
     if let Some((user_id, name, is_active)) = user_row {
         if is_active {
+            // Invalidasi token reset aktif sebelumnya milik user ini supaya
+            // tabel password_reset_tokens tidak tumbuh tak terbatas dan hanya
+            // satu link aktif per user dalam satu waktu.
+            if let Err(e) = sqlx::query(
+                "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP \
+                 WHERE user_id = ? AND used_at IS NULL",
+            )
+            .bind(&user_id)
+            .execute(&state.pool)
+            .await
+            {
+                tracing::error!("Failed to invalidate prior reset tokens: {}", e);
+            }
+
             let token = uuid::Uuid::new_v4().simple().to_string();
             let expires_at = (Utc::now() + Duration::minutes(30)).to_rfc3339();
             let insert_res = sqlx::query(
