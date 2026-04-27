@@ -52,6 +52,12 @@ pub struct UserPublic {
     pub last_login: Option<String>,
     pub is_active: bool,
     pub is_verified: bool,
+    /// True kalau user wajib mengganti password sebelum bisa pakai akun secara
+    /// normal (mis. setelah admin reset password atau auto-create dari
+    /// approval registrasi agen). Dipakai frontend untuk memaksa flow
+    /// change-password.
+    #[serde(default)]
+    pub must_change_password: bool,
 }
 
 #[derive(Clone, sqlx::FromRow)]
@@ -67,6 +73,8 @@ pub struct UserRecord {
     pub last_login: Option<String>,
     pub is_active: bool,
     pub is_verified: bool,
+    #[sqlx(default)]
+    pub must_change_password: bool,
 }
 
 impl UserRecord {
@@ -82,6 +90,7 @@ impl UserRecord {
             last_login: self.last_login.clone(),
             is_active: self.is_active,
             is_verified: self.is_verified,
+            must_change_password: self.must_change_password,
         }
     }
 }

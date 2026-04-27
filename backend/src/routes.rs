@@ -419,7 +419,12 @@ async fn reset_password(
         AppError::Internal
     })?;
 
-    sqlx::query(
+    // Markir SEMUA token reset aktif user sebagai used. Mencegah token aktif
+    // lain (mis. dari email yang bocor) ikut bisa me-reset password lagi
+    // setelah reset legit. SQLite men-serialisasi write transaction, jadi
+    // request kedua yang masuk paralel akan melihat 0 baris terupdate dan
+    // dihentikan di sini sebelum sempat menulis password baru (TOCTOU guard).
+    let token_update = sqlx::query(
         "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP \
          WHERE user_id = ? AND used_at IS NULL",
     )
@@ -430,6 +435,15 @@ async fn reset_password(
         tracing::error!("DB error marking reset tokens used: {}", e);
         AppError::Internal
     })?;
+
+    if token_update.rows_affected() == 0 {
+        // Sudah dipakai oleh request paralel atau sudah kadaluarsa di antara
+        // SELECT awal dan UPDATE ini.
+        let _ = tx.rollback().await;
+        return Err(AppError::Validation {
+            errors: vec!["Token reset tidak lagi berlaku".to_string()],
+        });
+    }
 
     sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?")
         .bind(&password_hash)
@@ -594,7 +608,7 @@ async fn change_auth_password(
 
 async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified FROM users")
+    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified, must_change_password FROM users")
         .fetch_all(&state.pool)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -1053,7 +1067,7 @@ async fn notify_all_admins(
 
 async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
     sqlx::query_as::<_, UserPublic>(
-        "SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified, must_change_password FROM users WHERE id = ? LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -1382,7 +1396,18 @@ async fn resend_verification(
         })?
         .ok_or(AppError::NotFound)?;
 
-    // Set is_verified to false
+    // Issue a fresh single-use verification token DULU. Kalau insert token
+    // gagal, status is_verified user tidak ikut diubah sehingga user tidak
+    // ter-lock-out tanpa mekanisme recovery.
+    let token = match issue_verification_token(&state, &user.id).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("Failed to issue verification token for {}: {:?}", user.email, e);
+            return Err(AppError::Internal);
+        }
+    };
+
+    // Set is_verified to false hanya setelah token berhasil dibuat.
     sqlx::query("UPDATE users SET is_verified = 0 WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -1392,14 +1417,6 @@ async fn resend_verification(
             AppError::Internal
         })?;
 
-    // Issue a fresh single-use verification token and send it via email.
-    let token = match issue_verification_token(&state, &user.id).await {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::error!("Failed to issue verification token for {}: {:?}", user.email, e);
-            return Err(AppError::Internal);
-        }
-    };
     let verification_link = format!(
         "{}/verify-email?token={}",
         frontend_base_url(),

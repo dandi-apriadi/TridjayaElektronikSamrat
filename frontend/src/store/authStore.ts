@@ -14,6 +14,14 @@ interface User {
   created_at?: string;
   last_login?: string;
   isActive?: boolean;
+  is_active?: boolean;
+  is_verified?: boolean;
+  /**
+   * Backend mengirim flag ini sebagai true bila user wajib mengganti password
+   * (mis. baru disetujui admin atau password-nya direset). Frontend wajib
+   * mengarahkan user ke halaman ganti password sebelum membuka dashboard.
+   */
+  must_change_password?: boolean;
 }
 
 interface LoginCredentials {

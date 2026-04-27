@@ -314,6 +314,29 @@ const DashboardLayout: React.FC = () => {
           </div>
         </motion.header>
 
+        {/* Force-change-password banner */}
+        {user?.must_change_password && (
+          <div className="px-4 md:px-8 pt-4">
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-start gap-3">
+              <Shield className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold text-on-surface">Anda perlu mengganti password.</p>
+                <p className="text-body-sm text-on-surface-variant">
+                  Demi keamanan, atur password baru Anda di halaman pengaturan akun.
+                </p>
+              </div>
+              {user.role === 'agent' && (
+                <Link
+                  to="/dashboard/agent/settings?force=password"
+                  className="text-label-md font-bold text-amber-400 hover:text-amber-300 whitespace-nowrap"
+                >
+                  Ganti sekarang
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Content Outlet */}
         <div className="p-4 md:p-8 flex-1 relative z-10 overflow-x-hidden">
           <motion.div

@@ -39,9 +39,25 @@ const LoginPage: React.FC = () => {
     setErrorMessage('');
 
     try {
-      await login({ email, password });
-      toast.success('Login Berhasil', 'Selamat datang di Portal Internal Tridjaya Samrat.');
-      navigate('/dashboard');
+      const user = await login({ email, password });
+      if (user.must_change_password) {
+        toast.warning(
+          'Ganti Password',
+          'Silakan atur password baru sebelum mengakses fitur lain.'
+        );
+        // Untuk role agent kita arahkan ke halaman settings yang sudah punya
+        // form ganti password. Untuk role lain (admin/editor/operator) sementara
+        // diarahkan ke dashboard utama dengan banner; profil mereka juga sudah
+        // bisa ganti password lewat endpoint /api/auth/change-password.
+        if (user.role === 'agent') {
+          navigate('/dashboard/agent/settings?force=password');
+        } else {
+          navigate('/dashboard');
+        }
+      } else {
+        toast.success('Login Berhasil', 'Selamat datang di Portal Internal Tridjaya Samrat.');
+        navigate('/dashboard');
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Login gagal, silakan coba lagi.';
       setErrorMessage(msg);
