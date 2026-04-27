@@ -1543,6 +1543,17 @@ async fn resend_verification(
 }
 
 async fn issue_verification_token(state: &AppState, user_id: &str) -> Result<String, sqlx::Error> {
+    // Invalidasi token verifikasi aktif sebelumnya milik user. Konsisten dengan
+    // pola di forgot_password — mencegah pembengkakan email_verification_tokens
+    // dan memastikan hanya satu link verifikasi aktif per user dalam satu waktu.
+    sqlx::query(
+        "UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP \
+         WHERE user_id = ? AND used_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+
     let token = uuid::Uuid::new_v4().simple().to_string();
     let expires_at = (Utc::now() + Duration::hours(24)).to_rfc3339();
     sqlx::query(
