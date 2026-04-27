@@ -4048,67 +4048,136 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
                     AppError::Internal
                 })?;
 
-            if user_exists.is_none() {
-                let user_id = uuid::Uuid::new_v4().to_string();
-                let temp_password = uuid::Uuid::new_v4().simple().to_string();
-                let password_hash = hash_password(&temp_password);
+            // Provision atau self-heal akun agen. INSERT user + INSERT token
+            // verifikasi dibungkus satu transaksi supaya kalau salah satu
+            // gagal tidak ada state setengah jalan (user tanpa token, dst).
+            // Kalau user sudah ada dari approval sebelumnya tapi belum
+            // terverifikasi & belum punya token aktif, kita cuma reissue
+            // tokennya — tapi password tidak di-reset karena admin tidak
+            // bisa lagi mengirim password lama via email.
+            let provision_result: Result<Option<(String, String)>, sqlx::Error> = async {
+                let mut tx = state.pool.begin().await?;
 
-                sqlx::query(
-                    "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified, must_change_password) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 0, 1)"
-                )
-                .bind(&user_id)
-                .bind(&registration.email)
-                .bind(&registration.full_name)
-                .bind(password_hash)
-                .bind(registration.profile_photo.unwrap_or_default())
-                .execute(&state.pool)
-                .await
-                .map_err(|e| {
-                    tracing::error!("DB error creating user from approved registration: {}", e);
-                    AppError::Internal
-                })?;
-
-                tracing::info!("Created user {} for approved agent {}", user_id, registration.email);
-
-                let token = match issue_verification_token(&state, &user_id).await {
-                    Ok(t) => t,
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to issue verification token for {}: {:?}",
-                            registration.email,
-                            e
-                        );
-                        return Err(AppError::Internal);
+                let (user_id, temp_password_for_email) = if let Some(_existing) = user_exists {
+                    let row = sqlx::query_as::<_, (String, bool)>(
+                        "SELECT id, is_verified FROM users WHERE email = ? LIMIT 1",
+                    )
+                    .bind(&registration.email)
+                    .fetch_one(&mut *tx)
+                    .await?;
+                    let (user_id, is_verified) = row;
+                    if is_verified {
+                        // Sudah selesai sebelumnya — tidak perlu apa-apa.
+                        tx.commit().await?;
+                        return Ok(None);
                     }
-                };
-                let verification_link = format!(
-                    "{}/verify-email?token={}",
-                    frontend_base_url(),
-                    urlencoding::encode(&token)
-                );
-
-                if state.mailer.is_enabled() {
-                    if let Err(e) = state
-                        .mailer
-                        .send_verification_email(
-                            &registration.email,
-                            &registration.full_name,
-                            &verification_link,
-                            &temp_password,
-                        )
-                        .await
-                    {
-                        tracing::error!(
-                            "Failed to send verification email to {}: {}",
-                            registration.email,
-                            e
-                        );
+                    let active_token: Option<String> = sqlx::query_scalar(
+                        "SELECT token FROM email_verification_tokens \
+                         WHERE user_id = ? AND used_at IS NULL \
+                         AND expires_at > ? LIMIT 1",
+                    )
+                    .bind(&user_id)
+                    .bind(Utc::now().to_rfc3339())
+                    .fetch_optional(&mut *tx)
+                    .await?;
+                    if active_token.is_some() {
+                        // Sudah punya token aktif — biarkan saja, jangan kirim
+                        // ulang temp_password yang berbeda dari hash di DB.
+                        tx.commit().await?;
+                        return Ok(None);
                     }
+                    (user_id, String::new())
                 } else {
-                    tracing::warn!(
-                        "Mailer disabled; agent registration for {} approved but verification email not sent. Manual delivery required.",
+                    let user_id = uuid::Uuid::new_v4().to_string();
+                    let temp_password = uuid::Uuid::new_v4().simple().to_string();
+                    let password_hash = hash_password(&temp_password);
+
+                    sqlx::query(
+                        "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified, must_change_password) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 0, 1)"
+                    )
+                    .bind(&user_id)
+                    .bind(&registration.email)
+                    .bind(&registration.full_name)
+                    .bind(password_hash)
+                    .bind(registration.profile_photo.clone().unwrap_or_default())
+                    .execute(&mut *tx)
+                    .await?;
+
+                    tracing::info!(
+                        "Created user {} for approved agent {}",
+                        user_id,
                         registration.email
                     );
+
+                    (user_id, temp_password)
+                };
+
+                let token = uuid::Uuid::new_v4().simple().to_string();
+                let expires_at = (Utc::now() + Duration::hours(24)).to_rfc3339();
+                sqlx::query(
+                    "INSERT INTO email_verification_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+                )
+                .bind(&token)
+                .bind(&user_id)
+                .bind(&expires_at)
+                .execute(&mut *tx)
+                .await?;
+
+                tx.commit().await?;
+                Ok(Some((token, temp_password_for_email)))
+            }
+            .await;
+
+            match provision_result {
+                Ok(Some((token, temp_password))) => {
+                    let verification_link = format!(
+                        "{}/verify-email?token={}",
+                        frontend_base_url(),
+                        urlencoding::encode(&token)
+                    );
+                    let temp_password_label = if temp_password.is_empty() {
+                        "(Password Anda tetap sama)"
+                    } else {
+                        temp_password.as_str()
+                    };
+
+                    if state.mailer.is_enabled() {
+                        if let Err(e) = state
+                            .mailer
+                            .send_verification_email(
+                                &registration.email,
+                                &registration.full_name,
+                                &verification_link,
+                                temp_password_label,
+                            )
+                            .await
+                        {
+                            tracing::error!(
+                                "Failed to send verification email to {}: {}",
+                                registration.email,
+                                e
+                            );
+                        }
+                    } else {
+                        tracing::warn!(
+                            "Mailer disabled; agent registration for {} approved but verification email not sent. Manual delivery required.",
+                            registration.email
+                        );
+                    }
+                }
+                Ok(None) => {
+                    tracing::info!(
+                        "Agent {} already provisioned with active verification — no token reissued",
+                        registration.email
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to provision agent user/token for {}: {:?}",
+                        registration.email,
+                        e
+                    );
+                    return Err(AppError::Internal);
                 }
             }
         }
