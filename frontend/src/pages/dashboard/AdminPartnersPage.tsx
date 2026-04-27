@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Save, Plus, Pencil, Trash2, Link as LinkIcon, Building2, Upload, GripVertical } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { usePartnerStore } from '../../store/usePartnerStore';
 import type { PartnerItem } from '../../types';
@@ -27,6 +28,8 @@ const AdminPartnersPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchPartners(true, true);
@@ -38,6 +41,12 @@ const AdminPartnersPage: React.FC = () => {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
   }, [partners]);
+
+  const totalPages = Math.ceil(sortedPartners.length / itemsPerPage);
+  const paginated = sortedPartners.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Set default sort order for new partner
   useEffect(() => {
@@ -295,7 +304,7 @@ const AdminPartnersPage: React.FC = () => {
           <Droppable droppableId="partners">
             {(provided) => (
               <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
-                {sortedPartners.map((partner, index) => (
+                {paginated.map((partner, index) => (
                   <Draggable key={partner.id} draggableId={partner.id} index={index}>
                     {(provided, snapshot) => (
                       <div
@@ -353,6 +362,13 @@ const AdminPartnersPage: React.FC = () => {
             )}
           </Droppable>
         </DragDropContext>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-6 border-t border-outline-variant/10"
+        />
       </div>
     </div>
   );

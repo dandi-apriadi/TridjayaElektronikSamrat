@@ -39,7 +39,10 @@ interface UserStoreState {
     avatar: string;
     bankAccount: string;
     isActive: boolean;
+    isVerified: boolean;
   }>) => Promise<boolean>;
+  verifyUser: (id: string) => Promise<boolean>;
+  resendVerification: (id: string) => Promise<boolean>;
   updateUserStatus: (id: string, isActive: boolean) => Promise<boolean>;
   resetUserPassword: (id: string, password: string) => Promise<boolean>;
 }
@@ -141,7 +144,53 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         throw new Error('Gagal memperbarui status user');
       }
 
-      await useUserStore.getState().fetchUsers();
+      await useUserStore.getState().fetchUsers(true);
+      return true;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });
+      return false;
+    }
+  },
+
+  verifyUser: async (id) => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${API_ENDPOINT}/users/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isVerified: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal memverifikasi user');
+      }
+
+      await useUserStore.getState().fetchUsers(true);
+      return true;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });
+      return false;
+    }
+  },
+
+  resendVerification: async (id) => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const response = await fetch(`${API_ENDPOINT}/users/${id}/resend-verification`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal mengirim ulang verifikasi');
+      }
+
+      await useUserStore.getState().fetchUsers(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Clock, AlertCircle, MessageSquare, User, Mail } from 'lucide-react';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { toast } from '../../store/useNotificationStore';
+import Pagination from '../../components/ui/Pagination';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -42,6 +43,8 @@ const AdminSupportTicketsPage: React.FC = () => {
   const { supportTickets, isLoading, fetchSupportTickets, updateSupportTicketStatus } = useAdminNetworkStore();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   useEffect(() => {
     fetchSupportTickets();
@@ -51,6 +54,12 @@ const AdminSupportTicketsPage: React.FC = () => {
     if (statusFilter === 'all') return supportTickets;
     return supportTickets.filter((ticket) => ticket.status === statusFilter);
   }, [statusFilter, supportTickets]);
+
+  const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
+  const paginated = filteredTickets.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const counts = useMemo(() => {
     return {
@@ -135,7 +144,7 @@ const AdminSupportTicketsPage: React.FC = () => {
           <div className="text-body-sm text-on-surface-variant py-8">Belum ada ticket untuk filter saat ini.</div>
         ) : (
           <div className="space-y-3">
-            {filteredTickets.map((ticket) => {
+            {paginated.map((ticket) => {
               const status = statusMeta[ticket.status] ?? statusMeta.open;
               const priority = priorityMeta[ticket.priority] ?? priorityMeta.medium;
               return (
@@ -193,6 +202,13 @@ const AdminSupportTicketsPage: React.FC = () => {
                 </div>
               );
             })}
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(page) => setCurrentPage(page)}
+              className="mt-6 border-t border-outline-variant/10"
+            />
           </div>
         )}
       </motion.div>

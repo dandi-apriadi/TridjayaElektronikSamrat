@@ -7,6 +7,7 @@ import type { Product } from '../../types';
 import { formatPrice } from '../../data';
 import { getImageUrl } from '../../utils/apiClient';
 import { useMinInstallment } from '../../hooks/useMinInstallment';
+import { recordTelemetry } from '../../utils/telemetry';
 
 interface ProductCardProps {
   product: Product;
@@ -32,7 +33,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) 
       whileHover={{ y: -6, scale: 1.01 }}
       className="group relative overflow-hidden rounded-2xl glass-card cursor-pointer"
     >
-      <Link to={`/produk/${product.slug}`} className="block">
+      <Link
+        to={`/produk/${product.slug}`}
+        onClick={() => {
+          recordTelemetry('click', {
+            path: `/produk/${product.slug}`,
+            source: 'internal',
+            metadata: {
+              contentType: 'product',
+              contentSlug: product.slug,
+              contentKey: `product:${product.slug}`,
+              contentTitle: product.name,
+              action: 'open_product_detail',
+              location: 'product_card',
+            },
+          });
+        }}
+        className="block"
+      >
         {/* Image */}
         <div className="relative overflow-hidden bg-surface-high aspect-[4/3]">
           <img

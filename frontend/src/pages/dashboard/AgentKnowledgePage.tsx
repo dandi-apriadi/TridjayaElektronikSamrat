@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, Zap, ShoppingCart, Eye,
   Share2, Shield, CreditCard, Copy, Info, Image as ImageIcon
 } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 import { formatPrice } from '../../data';
 import type { Product } from '../../types';
 import { useNotificationStore } from '../../store/useNotificationStore';
@@ -35,8 +36,8 @@ const getMarketingInfo = (product: Product) => {
     };
   }
 
-  // Fallback to legacy hardcoded data
-  return marketingData[product.id] || {
+  // Fallback to default marketing data
+  return {
     highlights: ['Produk Kualitas Premium', 'Garansi Resmi Tridjaya', 'Lolos Quality Control'],
     sellingPoints: ['Harga sangat bersaing', 'Bisa dicicil via Tridjaya', 'Layanan after-sales terbaik'],
     objections: ['"Bisa kurang?" → Sudah harga pas dengan bonus melimpah', '"Garansi?" → Resmi 1-3 tahun tergantung sparepart'],
@@ -63,6 +64,8 @@ const AgentKnowledgePage: React.FC = () => {
   const [activeTabs, setActiveTabs] = useState<Record<string, 'sales' | 'specs' | 'gallery' | 'installments'>>({});
   const [customerType, setCustomerType] = useState<CustomerType>('NEW');
   const [creditData, setCreditData] = useState<CreditData | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const { products, isLoading, fetchProducts } = useProductStore();
   const { addNotification } = useNotificationStore();
@@ -71,13 +74,18 @@ const AgentKnowledgePage: React.FC = () => {
     fetchProducts();
     loadCreditData().then(setCreditData);
   }, [fetchProducts]);
-
   const filtered = products.filter((k) => {
     const mappedCat = mapCategory(k.category);
     const matchSearch   = k.name.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === 'Semua' || mappedCat === category;
     return matchSearch && matchCategory;
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleCopyMaterial = (p: Product) => {
     const mkt = getMarketingInfo(p);
@@ -198,7 +206,7 @@ const AgentKnowledgePage: React.FC = () => {
             <p className="text-body-sm text-on-surface-variant mt-1">Coba gunakan kata kunci atau kategori lain.</p>
           </div>
         ) : (
-          filtered.map((item) => {
+          paginated.map((item) => {
             const isExpanded = expandedId === item.id;
             const currentTab = getTab(item.id);
             const mappedCat = mapCategory(item.category);
@@ -470,6 +478,13 @@ const AgentKnowledgePage: React.FC = () => {
         })
       )}
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={(page) => setCurrentPage(page)}
+        className="mt-6 border-t border-outline-variant/10"
+      />
     </motion.div>
   );
 };

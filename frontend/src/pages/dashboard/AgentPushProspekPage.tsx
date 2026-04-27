@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Send, CheckCircle2, Clock, User, Phone, Package, MessageSquare, TrendingUp, AlertCircle } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 import { useAgentStore } from '../../store/useAgentStore';
 import { agentLeadSchema, getFirstZodIssue } from '../../validators/adminSchemas';
 import { toast } from '../../store/useNotificationStore';
@@ -19,11 +20,19 @@ const AgentPushProspekPage: React.FC = () => {
   });
   const [submitted, setSubmitted] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   React.useEffect(() => {
     fetchLeads();
     fetchStats();
   }, [fetchLeads, fetchStats]);
+
+  const totalPages = Math.ceil(leads.length / itemsPerPage);
+  const paginated = leads.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const currentMonthKey = new Date().toISOString().slice(0, 7);
   const monthlyLeads = leads.filter((lead) => lead.createdAt.slice(0, 7) === currentMonthKey);
@@ -195,7 +204,7 @@ const AgentPushProspekPage: React.FC = () => {
             <h4 className="font-display text-title-sm font-bold text-on-surface">Prospek Hari Ini</h4>
           </div>
           <div className="space-y-3">
-            {leads.map((p: Lead) => (
+            {paginated.map((p: Lead) => (
               <div key={p.id} className="p-3 rounded-lg border border-outline-variant/10 bg-surface-low/30 hover:bg-surface-high/40 transition-colors">
                 <div className="flex items-center justify-between mb-1">
                   <div className="font-semibold text-on-surface text-body-sm">{p.customerName}</div>
@@ -213,6 +222,13 @@ const AgentPushProspekPage: React.FC = () => {
               <p className="text-body-sm text-on-surface-variant text-center py-6">Belum ada prospek yang di-push hari ini.</p>
             )}
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={(page) => setCurrentPage(page)}
+            className="mt-6 border-t border-outline-variant/10"
+          />
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { SectionHeader, StatsRow, PartnerLogos } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
 import sofaImg from '../assets/images/sofa.webp';
 import tvImg from '../assets/images/tv.webp';
+import { recordTelemetry } from '../utils/telemetry';
 
 /* ========================
    HERO SECTION
@@ -72,6 +73,18 @@ const HeroSection: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-6 mb-24">
             <Link
               to="/produk/bike"
+              onClick={() => {
+                recordTelemetry('click', {
+                  path: '/produk/bike',
+                  source: 'direct',
+                  metadata: {
+                    contentType: 'page',
+                    contentKey: 'catalog:bike',
+                    pageType: 'home_hero_cta',
+                    action: 'open_product_catalog',
+                  },
+                });
+              }}
               className="relative flex items-center gap-3 px-10 py-5 gradient-primary rounded-2xl font-display text-title-sm font-bold text-surface hover:shadow-neon-cyan transition-all duration-500 group overflow-hidden"
             >
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
@@ -81,6 +94,18 @@ const HeroSection: React.FC = () => {
             
             <Link
               to="/promo"
+              onClick={() => {
+                recordTelemetry('click', {
+                  path: '/promo',
+                  source: 'direct',
+                  metadata: {
+                    contentType: 'page',
+                    contentKey: 'promo:index',
+                    pageType: 'home_promo_cta',
+                    action: 'open_promo_page',
+                  },
+                });
+              }}
               className="flex items-center gap-3 px-10 py-5 bg-surface-highest/80 border border-white/20 rounded-2xl font-display text-title-sm font-bold text-on-surface hover:bg-surface-highest hover:border-primary/40 transition-all duration-300 group backdrop-blur-sm"
             >
               <Play className="w-4 h-4 fill-primary text-primary group-hover:scale-125 transition-transform" />
@@ -190,7 +215,24 @@ const CategoryBentoGrid: React.FC = () => (
                 transition={{ delay: i * 0.1 }}
                 className={`${cat.span}`}
               >
-                <Link to={cat.href} className="group block">
+                <Link
+                  to={cat.href}
+                  onClick={() => {
+                    recordTelemetry('click', {
+                      path: cat.href,
+                      source: 'direct',
+                      metadata: {
+                        contentType: 'page',
+                        contentKey: cat.id === 'bike' ? 'catalog:bike' : 'catalog:home',
+                        pageType: 'home_category_card',
+                        categoryId: cat.id,
+                        categoryLabel: cat.label,
+                        action: 'open_category_catalog',
+                      },
+                    });
+                  }}
+                  className="group block"
+                >
                   <div className={`relative overflow-hidden rounded-2xl glass-card ${cat.height} flex items-center`}>
                     <div className="absolute inset-0">
                       <img src={cat.image} alt={cat.label} className="w-full h-full object-cover opacity-90 dark:opacity-40 group-hover:opacity-100 dark:group-hover:opacity-60 transition-opacity duration-500" />
@@ -367,6 +409,18 @@ const CTASection: React.FC = () => (
             <Link
               to="/daftar-agen"
               id="cta-daftar-agen"
+              onClick={() => {
+                recordTelemetry('click', {
+                  path: '/daftar-agen',
+                  source: 'direct',
+                  metadata: {
+                    contentType: 'page',
+                    contentKey: 'agent-registration',
+                    pageType: 'home_agent_cta',
+                    action: 'open_agent_registration',
+                  },
+                });
+              }}
               className="flex items-center gap-2 px-8 py-4 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface hover:shadow-neon-cyan transition-all duration-300 group"
             >
               Daftar Jadi Agen
@@ -374,6 +428,18 @@ const CTASection: React.FC = () => (
             </Link>
             <Link
               to="/tentang"
+              onClick={() => {
+                recordTelemetry('click', {
+                  path: '/tentang',
+                  source: 'direct',
+                  metadata: {
+                    contentType: 'page',
+                    contentKey: 'about',
+                    pageType: 'home_about_cta',
+                    action: 'open_about_page',
+                  },
+                });
+              }}
               className="flex items-center gap-2 px-8 py-4 glass-premium rounded-xl font-display text-title-sm font-semibold text-on-surface hover:border-primary/50 transition-all duration-300"
             >
               Pelajari Lebih Lanjut

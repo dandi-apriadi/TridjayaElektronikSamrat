@@ -5,6 +5,7 @@ import { Ticket, ArrowRight, Zap, Clock, Info, Share2 } from 'lucide-react';
 import { formatPrice } from '../data';
 import { Badge, SectionHeader, PartnerLogos } from '../components/ui';
 import { usePromoStore } from '../store/usePromoStore';
+import { recordTelemetry } from '../utils/telemetry';
 
 const PromoPage: React.FC = () => {
   const { promos, isLoading } = usePromoStore();
@@ -97,7 +98,7 @@ const PromoPage: React.FC = () => {
                 <div className="lg:w-1/2 p-10 lg:p-16 flex flex-col justify-center relative bg-surface-low/30">
                   <div className="inline-flex items-center gap-2 mb-6 px-3 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 w-fit">
                     <Zap className="w-4 h-4 animate-pulse" />
-                    <span className="text-label-sm font-bold uppercase tracking-widest tracking-widest">Penawaran Unggulan</span>
+                    <span className="text-label-sm font-bold uppercase tracking-widest">Penawaran Unggulan</span>
                   </div>
 
                   <h2 className="font-display text-display-sm font-bold text-on-surface mb-4 leading-tight">
@@ -126,6 +127,20 @@ const PromoPage: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-5">
                     <Link
                       to={`/promo/${heroPromo.id}`}
+                      onClick={() => {
+                        recordTelemetry('click', {
+                          path: `/promo/${heroPromo.id}`,
+                          source: 'direct',
+                          metadata: {
+                            contentType: 'promo',
+                            contentKey: `promo:${heroPromo.id}`,
+                            contentId: heroPromo.id,
+                            contentTitle: heroPromo.title,
+                            action: 'open_promo_detail',
+                            location: 'promo_hero_card',
+                          },
+                        });
+                      }}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-5 gradient-primary rounded-2xl font-display text-title-md font-bold text-surface hover:shadow-neon-cyan transition-all duration-300 group"
                     >
                       Klaim Promo Sekarang
@@ -193,7 +208,24 @@ const PromoPage: React.FC = () => {
                             <Clock className="w-4 h-4 text-secondary" /> 12 Hari
                           </div>
                         </div>
-                        <Link to={`/promo/${promo.id}`} className="w-12 h-12 rounded-xl bg-surface-high flex items-center justify-center text-on-surface hover:bg-primary hover:text-surface transition-all">
+                        <Link
+                          to={`/promo/${promo.id}`}
+                          onClick={() => {
+                            recordTelemetry('click', {
+                              path: `/promo/${promo.id}`,
+                              source: 'direct',
+                              metadata: {
+                                contentType: 'promo',
+                                contentKey: `promo:${promo.id}`,
+                                contentId: promo.id,
+                                contentTitle: promo.title,
+                                action: 'open_promo_detail',
+                                location: 'promo_grid_card',
+                              },
+                            });
+                          }}
+                          className="w-12 h-12 rounded-xl bg-surface-high flex items-center justify-center text-on-surface hover:bg-primary hover:text-surface transition-all"
+                        >
                           <ArrowRight className="w-5 h-5" />
                         </Link>
                       </div>
@@ -228,6 +260,18 @@ const PromoPage: React.FC = () => {
                   href="https://wa.me/6285161542103"
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => {
+                    recordTelemetry('whatsapp_click', {
+                      path: '/promo',
+                      source: 'direct',
+                      metadata: {
+                        contentType: 'page',
+                        contentKey: 'promo:index',
+                        pageType: 'promo_index_cta',
+                        action: 'promo_whatsapp_cta',
+                      },
+                    });
+                  }}
                   className="flex items-center justify-center gap-3 px-8 py-4 bg-on-surface text-surface rounded-2xl font-display text-title-sm font-bold hover:bg-primary transition-all duration-300 shadow-xl"
                 >
                   Hubungi Agen Sekarang

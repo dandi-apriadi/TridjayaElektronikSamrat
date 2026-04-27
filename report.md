@@ -1,4 +1,26 @@
-# PROJECT STATUS REPORT: TRIDJAYA SAMRAT
+# Laporan Error UI / Console
+
+## 1. Error JavaScript
+**Halaman:** /path/to/page
+**Pesan:** `Uncaught TypeError: ...`
+**Stack Trace:**
+```
+<stack trace>
+```
+**Penyebab yang Diduga:** <penjelasan singkat, misalnya "objek tidak terdefinisi karena response API kosong".>
+
+## 2. Request API Gagal
+**Endpoint:** `GET /api/v1/credits`
+**Status:** 500 Internal Server Error
+**Response Body:** `{ "error": "..." }`
+**Penyebab yang Diduga:** <penjelasan, misalnya "backend belum menangani kasus null".>
+
+## 3. Form Validation Error
+**Form:** Registrasi Pengguna
+**Pesan:** `Field \"email\" is required`
+**Penyebab:** Validasi sisi klien tidak sinkron dengan aturan backend.
+
+*(tambahkan bagian lain sesuai temuan)*# PROJECT STATUS REPORT: TRIDJAYA SAMRAT
 **Tanggal: 24 April 2026**
 **Status: PRODUCTION READY (PHASE 1-8 COMPLETED)**
 

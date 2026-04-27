@@ -6,6 +6,7 @@ import { formatPrice } from '../data';
 import { SectionHeader } from '../components/ui';
 import { usePromoStore } from '../store/usePromoStore';
 import { useProductStore } from '../store/useProductStore';
+import { recordTelemetry } from '../utils/telemetry';
 
 const PromoDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +51,19 @@ const PromoDetailPage: React.FC = () => {
         <div className="container-custom relative">
           <Link 
             to="/promo" 
+            onClick={() => {
+              recordTelemetry('click', {
+                path: '/promo',
+                source: 'direct',
+                metadata: {
+                  contentType: 'page',
+                  contentKey: 'promo:index',
+                  pageType: 'promo_detail_back',
+                  sourcePromoId: promo.id,
+                  action: 'back_to_promo_list',
+                },
+              });
+            }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl glass-card text-on-surface-variant hover:text-primary transition-all mb-8"
           >
             <ArrowLeft className="w-4 h-4" /> Daftar Promo
@@ -94,6 +108,19 @@ const PromoDetailPage: React.FC = () => {
                   href={`https://wa.me/6285161542103?text=${encodeURIComponent(`Halo Tridjaya Samrat, saya tertarik dengan promo ${promo.title}. Bagaimana cara klaimnya?`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => {
+                    recordTelemetry('whatsapp_click', {
+                      path: `/promo/${promo.id}`,
+                      source: 'direct',
+                      metadata: {
+                        contentType: 'promo',
+                        contentKey: `promo:${promo.id}`,
+                        contentId: promo.id,
+                        contentTitle: promo.title,
+                        action: 'promo_detail_whatsapp_cta',
+                      },
+                    });
+                  }}
                   className="flex items-center justify-center gap-3 px-8 py-5 gradient-primary rounded-2xl font-display text-title-sm font-bold text-surface shadow-neon-cyan hover:scale-[1.02] transition-all"
                 >
                   Klaim Promo Sekarang
@@ -205,6 +232,20 @@ const PromoDetailPage: React.FC = () => {
                         </div>
                         <Link 
                           to={`/produk/${product.slug}`}
+                          onClick={() => {
+                            recordTelemetry('click', {
+                              path: `/produk/${product.slug}`,
+                              source: 'direct',
+                              metadata: {
+                                contentType: 'product',
+                                contentSlug: product.slug,
+                                contentKey: `product:${product.slug}`,
+                                contentTitle: product.name,
+                                sourcePromoId: promo.id,
+                                action: 'open_product_from_promo',
+                              },
+                            });
+                          }}
                           className="w-12 h-12 rounded-2xl bg-surface-high flex items-center justify-center text-on-surface hover:bg-primary hover:text-surface transition-all group-hover:shadow-neon-cyan-sm"
                         >
                           <ArrowRight className="w-5 h-5" />

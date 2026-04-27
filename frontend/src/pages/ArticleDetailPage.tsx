@@ -15,6 +15,7 @@ import { Badge, ProductCard } from '../components/ui';
 import { useBlogStore } from '../store/useBlogStore';
 import { useProductStore } from '../store/useProductStore';
 import { getImageUrl } from '../utils/apiClient';
+import { recordTelemetry } from '../utils/telemetry';
 
 const ArticleDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -72,6 +73,18 @@ const ArticleDetailPage: React.FC = () => {
 
   const handleShareArticle = async () => {
     const url = window.location.href;
+    recordTelemetry('click', {
+      path: `/blog/${post.slug}`,
+      source: 'direct',
+      metadata: {
+        contentType: 'article',
+        contentSlug: post.slug,
+        contentKey: `article:${post.slug}`,
+        contentTitle: post.title,
+        action: 'share_article',
+      },
+    });
+
     if (navigator.share) {
       try {
         await navigator.share({ title: post.title || 'Insight Tridjaya', url });
@@ -160,13 +173,45 @@ const ArticleDetailPage: React.FC = () => {
                 <div className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest [writing-mode:vertical-lr] hidden lg:block mb-4">
                   Share Article
                 </div>
-                <button onClick={handleShareArticle} className="w-12 h-12 rounded-full border border-outline-variant/20 flex items-center justify-center text-white hover:bg-primary hover:border-primary transition-all group">
+                <button type="button" onClick={handleShareArticle} className="w-12 h-12 rounded-full border border-outline-variant/20 flex items-center justify-center text-white hover:bg-primary hover:border-primary transition-all group">
                   <Share2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </button>
-                <button className="w-12 h-12 rounded-full border border-outline-variant/20 flex items-center justify-center text-white hover:bg-secondary hover:border-secondary transition-all group">
+                <button
+                  type="button"
+                  onClick={() => {
+                    recordTelemetry('click', {
+                      path: `/blog/${post.slug}`,
+                      source: 'direct',
+                      metadata: {
+                        contentType: 'article',
+                        contentSlug: post.slug,
+                        contentKey: `article:${post.slug}`,
+                        contentTitle: post.title,
+                        action: 'bookmark_article',
+                      },
+                    });
+                  }}
+                  className="w-12 h-12 rounded-full border border-outline-variant/20 flex items-center justify-center text-white hover:bg-secondary hover:border-secondary transition-all group"
+                >
                   <Bookmark className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </button>
-                <a href="#comments" className="w-12 h-12 rounded-full border border-outline-variant/20 flex items-center justify-center text-white hover:bg-tertiary hover:border-tertiary transition-all group">
+                <a
+                  href="#comments"
+                  onClick={() => {
+                    recordTelemetry('click', {
+                      path: `/blog/${post.slug}`,
+                      source: 'direct',
+                      metadata: {
+                        contentType: 'article',
+                        contentSlug: post.slug,
+                        contentKey: `article:${post.slug}`,
+                        contentTitle: post.title,
+                        action: 'jump_to_comments',
+                      },
+                    });
+                  }}
+                  className="w-12 h-12 rounded-full border border-outline-variant/20 flex items-center justify-center text-white hover:bg-tertiary hover:border-tertiary transition-all group"
+                >
                   <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </a>
               </div>
@@ -228,10 +273,45 @@ const ArticleDetailPage: React.FC = () => {
                     Tim ahli kami di Tridjaya Samrat siap membantu Anda memberikan informasi lebih detail mengenai topik di atas.
                   </p>
                   <div className="flex flex-wrap justify-center gap-4 relative z-10">
-                    <Link to="/bikes" className="px-8 py-3 bg-primary text-surface font-display text-sm font-bold rounded-full hover:shadow-neon-cyan transition-all duration-300">
+                    <Link
+                      to="/bikes"
+                      onClick={() => {
+                        recordTelemetry('click', {
+                          path: '/bikes',
+                          source: 'direct',
+                          metadata: {
+                            contentType: 'page',
+                            contentKey: 'catalog:bike',
+                            pageType: 'related_products_cta',
+                            pageLabel: 'Lihat Produk Terkait',
+                            sourceArticleSlug: post.slug,
+                            action: 'open_product_catalog',
+                          },
+                        });
+                      }}
+                      className="px-8 py-3 bg-primary text-surface font-display text-sm font-bold rounded-full hover:shadow-neon-cyan transition-all duration-300"
+                    >
                       Lihat Produk Terkait
                     </Link>
-                    <a href="https://wa.me/6281234567890" target="_blank" rel="noopener noreferrer" className="px-8 py-3 border border-outline-variant/30 text-white font-display text-sm font-bold rounded-full hover:bg-white/5 transition-all duration-300">
+                    <a
+                      href="https://wa.me/6281234567890"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        recordTelemetry('whatsapp_click', {
+                          path: `/blog/${post.slug}`,
+                          source: 'direct',
+                          metadata: {
+                            contentType: 'article',
+                            contentSlug: post.slug,
+                            contentKey: `article:${post.slug}`,
+                            contentTitle: post.title,
+                            action: 'article_whatsapp_cta',
+                          },
+                        });
+                      }}
+                      className="px-8 py-3 border border-outline-variant/30 text-white font-display text-sm font-bold rounded-full hover:bg-white/5 transition-all duration-300"
+                    >
                       Tanya via WhatsApp
                     </a>
                   </div>
@@ -246,6 +326,20 @@ const ArticleDetailPage: React.FC = () => {
                     <Link
                       key={tag}
                       to={`/blog?tag=${encodeURIComponent(tag)}`}
+                      onClick={() => {
+                        recordTelemetry('click', {
+                          path: `/blog?tag=${encodeURIComponent(tag)}`,
+                          source: 'direct',
+                          metadata: {
+                            contentType: 'article',
+                            contentSlug: post.slug,
+                            contentKey: `article:${post.slug}`,
+                            contentTitle: post.title,
+                            action: 'filter_by_tag',
+                            tag,
+                          },
+                        });
+                      }}
                       className="px-4 py-1.5 rounded-full border border-outline-variant/10 bg-surface-high/30 text-on-surface-variant font-display text-[11px] font-bold uppercase tracking-wider hover:border-primary/50 hover:text-primary transition-all"
                     >
                       {tag}
@@ -274,7 +368,23 @@ const ArticleDetailPage: React.FC = () => {
                 <p className="text-xs text-on-surface-variant leading-relaxed mb-4">
                   Spesialis Review Produk Kendaraan Listrik dengan pengalaman lebih dari 5 tahun di industri otomotif urban.
                 </p>
-                <Link to="/tentang" className="text-xs font-bold text-white hover:text-primary transition-colors flex items-center gap-1">
+                <Link
+                  to="/tentang"
+                  onClick={() => {
+                    recordTelemetry('click', {
+                      path: '/tentang',
+                      source: 'direct',
+                      metadata: {
+                        contentType: 'page',
+                        contentKey: 'about',
+                        pageType: 'author_profile_cta',
+                        sourceArticleSlug: post.slug,
+                        action: 'open_about_page',
+                      },
+                    });
+                  }}
+                  className="text-xs font-bold text-white hover:text-primary transition-colors flex items-center gap-1"
+                >
                   Lihat Profil <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -284,7 +394,25 @@ const ArticleDetailPage: React.FC = () => {
                 <h5 className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-6">Artikel Terkait</h5>
                 <div className="space-y-6">
                   {related.map((p) => (
-                    <Link key={p.id} to={`/blog/${p.slug}`} className="group block">
+                    <Link
+                      key={p.id}
+                      to={`/blog/${p.slug}`}
+                      onClick={() => {
+                        recordTelemetry('click', {
+                          path: `/blog/${p.slug}`,
+                          source: 'direct',
+                          metadata: {
+                            contentType: 'article',
+                            contentSlug: p.slug,
+                            contentKey: `article:${p.slug}`,
+                            contentTitle: p.title,
+                            action: 'open_related_article',
+                            sourceArticleSlug: post.slug,
+                          },
+                        });
+                      }}
+                      className="group block"
+                    >
                       <div className="flex gap-4">
                         <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-surface-high border border-outline-variant/10">
                           <img src={getImageUrl(p.heroImage)} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -330,7 +458,23 @@ const ArticleDetailPage: React.FC = () => {
               <h2 className="font-display text-headline-md md:text-headline-lg font-bold text-white mb-4">Rekomendasi Produk Terkait</h2>
               <p className="text-on-surface-variant">Berdasarkan artikel yang Anda baca, unit-unit di bawah ini mungkin cocok untuk kebutuhan mobilitas Anda.</p>
             </div>
-            <Link to="/bikes" className="px-8 py-3 bg-surface-high text-white rounded-full font-display text-sm font-bold border border-outline-variant/20 hover:bg-white hover:text-surface transition-all duration-300 flex items-center gap-2 w-fit">
+            <Link
+              to="/bikes"
+              onClick={() => {
+                recordTelemetry('click', {
+                  path: '/bikes',
+                  source: 'direct',
+                  metadata: {
+                    contentType: 'page',
+                    contentKey: 'catalog:bike',
+                    pageType: 'featured_products_footer_cta',
+                    sourceArticleSlug: post.slug,
+                    action: 'open_product_catalog',
+                  },
+                });
+              }}
+              className="px-8 py-3 bg-surface-high text-white rounded-full font-display text-sm font-bold border border-outline-variant/20 hover:bg-white hover:text-surface transition-all duration-300 flex items-center gap-2 w-fit"
+            >
               Lihat Katalog Lengkap <ExternalLink className="w-4 h-4" />
             </Link>
           </div>

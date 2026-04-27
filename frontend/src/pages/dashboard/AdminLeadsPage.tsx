@@ -9,6 +9,7 @@ import {
 
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { toast } from '../../store/useNotificationStore';
+import Pagination from '../../components/ui/Pagination';
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
   'Follow Up':      { cls: 'bg-primary/15 text-primary',      dot: 'bg-primary' },
@@ -29,6 +30,8 @@ const AdminLeadsPage: React.FC = () => {
   const [search, setSearch]       = useState('');
   const [filterStatus, setFilter] = useState('Semua');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchLeads();
@@ -53,6 +56,12 @@ const AdminLeadsPage: React.FC = () => {
     const matchStatus = filterStatus === 'Semua' || l.status === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const countByStatus = (s: string) => leads.filter((l) => l.status === s).length;
 
@@ -138,7 +147,7 @@ const AdminLeadsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((lead) => {
+              {paginated.map((lead) => {
                 const sc = statusConfig[lead.status] || { cls: 'bg-surface-highest', dot: 'bg-on-surface-variant' };
                 return (
                   <tr key={lead.id} className="border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
@@ -210,6 +219,13 @@ const AdminLeadsPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-4 border-t border-outline-variant/10"
+        />
       </motion.div>
     </motion.div>
   );

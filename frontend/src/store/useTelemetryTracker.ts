@@ -1,8 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-
-const API_ROOT = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
-const API_BASE_URL = `${API_ROOT}/api/telemetry`;
+import { buildTelemetryPagePayload, recordTelemetry } from '../utils/telemetry';
 
 export const useTelemetryTracker = () => {
   const location = useLocation();
@@ -10,15 +8,7 @@ export const useTelemetryTracker = () => {
   useEffect(() => {
     const trackPageView = async () => {
       try {
-        await fetch(`${API_BASE_URL}/page-view`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            path: location.pathname + location.search,
-            source: document.referrer || 'direct',
-            sessionId: sessionStorage.getItem('trx_session') || initializeSession()
-          }),
-        });
+        recordTelemetry('page_view', buildTelemetryPagePayload(location.pathname + location.search));
       } catch (error) {
         console.error('Telemetry failed to synchronize', error);
       }
@@ -27,9 +17,3 @@ export const useTelemetryTracker = () => {
     trackPageView();
   }, [location.pathname, location.search]);
 };
-
-function initializeSession() {
-  const id = Math.random().toString(36).substring(2, 15);
-  sessionStorage.setItem('trx_session', id);
-  return id;
-}

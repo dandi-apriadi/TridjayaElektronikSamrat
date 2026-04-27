@@ -8,6 +8,7 @@ import {
 
 import { useProductStore } from '../../store/useProductStore';
 import { toast } from '../../store/useNotificationStore';
+import Pagination from '../../components/ui/Pagination';
 
 const categories = ['Semua', 'bike', 'electronics', 'furniture'];
 const statuses   = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
@@ -27,6 +28,8 @@ const AdminCatalogPage: React.FC = () => {
   const [category, setCategory] = useState('Semua');
   const [status, setStatus]     = useState('Semua');
   const [sortBy, setSortBy]     = useState('views');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   React.useEffect(() => {
     fetchProducts();
@@ -71,6 +74,12 @@ const AdminCatalogPage: React.FC = () => {
       if (sortBy === 'rating')       return (b.rating || 0) - (a.rating || 0);
       return 0;
     });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const getStatus = (stock: any) => {
     if (typeof stock === 'string') {
@@ -224,7 +233,7 @@ const AdminCatalogPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {paginated.map((p) => (
                 <tr key={p.id} className="border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
                   <td className="py-3.5 pr-4">
                     <div>
@@ -283,6 +292,13 @@ const AdminCatalogPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-4 border-t border-outline-variant/10"
+        />
 
         <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
           <div className="text-label-sm text-on-surface-variant">

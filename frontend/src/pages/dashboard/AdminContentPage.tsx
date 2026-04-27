@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Eye, Archive, Plus, Tag, Clock, CheckCircle2 } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 
 import { useBlogStore } from '../../store/useBlogStore';
 
@@ -15,6 +16,8 @@ const statusConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
 const AdminContentPage: React.FC = () => {
   const { posts, isLoading, error } = useBlogStore();
   const [filterStatus, setFilterStatus] = useState('Semua');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   if (isLoading) {
     return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data artikel...</div>;
@@ -30,6 +33,12 @@ const AdminContentPage: React.FC = () => {
   const filtered = posts.filter((a) => filterStatus === 'Semua' || getStatus(a.publishedAt) === filterStatus);
   const publishedCount = posts.filter((a) => getStatus(a.publishedAt) === 'Published').length;
   const categories = Array.from(new Set(posts.map(p => p.category))).length;
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="space-y-6">
@@ -83,7 +92,7 @@ const AdminContentPage: React.FC = () => {
 
       {/* Article List */}
       <div className="glass-card rounded-xl p-6 space-y-3">
-        {filtered.map((article) => {
+        {paginated.map((article) => {
           const status = getStatus(article.publishedAt);
           const sc = statusConfig[status];
           return (
@@ -119,6 +128,13 @@ const AdminContentPage: React.FC = () => {
             </div>
           );
         })}
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-6 border-t border-outline-variant/10"
+        />
       </div>
     </div>
   );

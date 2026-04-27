@@ -4,6 +4,7 @@ import {
   Headphones, MessageCircle, Phone, Mail, Clock,
   CheckCircle2, AlertCircle, ArrowUpRight, BookOpen, Zap,
 } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 import { useAgentStore } from '../../store/useAgentStore';
 import { toast } from '../../store/useNotificationStore';
 
@@ -36,10 +37,18 @@ const AgentSupportPage: React.FC = () => {
   const [newTicketMsg, setNewTicketMsg] = useState('');
   const [newTicketPriority, setNewTicketPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [ticketSent, setTicketSent] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 4;
 
   useEffect(() => {
     fetchSupportTickets();
   }, [fetchSupportTickets]);
+
+  const totalPages = Math.ceil(supportTickets.length / itemsPerPage);
+  const paginated = supportTickets.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const formatStatusLabel = (status: 'open' | 'in_progress' | 'resolved') => {
     if (status === 'in_progress') return 'In Progress';
@@ -153,7 +162,7 @@ const AgentSupportPage: React.FC = () => {
                 Belum ada tiket. Buat tiket baru jika membutuhkan bantuan admin.
               </div>
             )}
-            {supportTickets.map((t) => (
+            {paginated.map((t) => (
               <div key={t.id} className="flex items-start gap-3 p-3.5 rounded-xl border border-outline-variant/10 hover:bg-surface-high/30 transition-colors">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.status === 'resolved' ? 'bg-secondary/15' : t.status === 'in_progress' ? 'bg-tertiary/15' : 'bg-primary/15'}`}>
                   {t.status === 'resolved'
@@ -180,6 +189,13 @@ const AgentSupportPage: React.FC = () => {
               </div>
             ))}
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={(page) => setCurrentPage(page)}
+            className="mt-6 border-t border-outline-variant/10"
+          />
         </motion.div>
 
         {/* New Ticket */}

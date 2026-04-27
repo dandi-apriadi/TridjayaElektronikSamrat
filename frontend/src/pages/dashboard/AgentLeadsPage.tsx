@@ -5,6 +5,7 @@ import {
   Clock, TrendingUp, CheckCircle2, ArrowUpRight,
   Package, Circle, Plus,
 } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 import { Link } from 'react-router-dom';
 
 import { useAgentStore } from '../../store/useAgentStore';
@@ -28,6 +29,8 @@ const AgentLeadsPage: React.FC = () => {
   const { leads, fetchLeads, isLoading } = useAgentStore();
   const [search, setSearch]       = useState('');
   const [filterStatus, setFilter] = useState('Semua');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   React.useEffect(() => {
     fetchLeads();
@@ -38,6 +41,12 @@ const AgentLeadsPage: React.FC = () => {
     const matchStatus = filterStatus === 'Semua' || l.status === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const countByStatus = (s: string) => leads.filter((l) => l.status === s).length;
 
@@ -152,7 +161,7 @@ const AgentLeadsPage: React.FC = () => {
 
         {/* Cards */}
         <div className="space-y-3">
-          {filtered.map((lead: Lead) => {
+          {paginated.map((lead: Lead) => {
             const sc = statusConfig[lead.status] || { cls: 'bg-surface-highest', dot: 'bg-on-surface-variant' };
             const waText = encodeURIComponent(`Halo ${lead.customerName}, saya dari Tridjaya Samrat. Saya ingin menindaklanjuti ketertarikan Anda pada ${lead.interestedProduct}. Ada yang bisa saya bantu?`);
             return (
@@ -198,6 +207,13 @@ const AgentLeadsPage: React.FC = () => {
             <p className="text-center text-on-surface-variant text-body-sm py-8">Tidak ada leads yang sesuai filter.</p>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-6 border-t border-outline-variant/10"
+        />
 
         <div className="mt-5 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
           <div className="text-label-sm text-on-surface-variant">

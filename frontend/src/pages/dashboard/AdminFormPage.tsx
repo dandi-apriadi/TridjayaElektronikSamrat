@@ -14,6 +14,7 @@ import { useProductStore } from '../../store/useProductStore';
 import { usePromoStore } from '../../store/usePromoStore';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useUserStore } from '../../store/useUserStore';
+import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 
 type FormType = 'catalog' | 'promo' | 'content' | 'user';
 
@@ -29,7 +30,8 @@ const AdminFormPage: React.FC = () => {
   const { products, fetchProducts } = useProductStore();
   const { promos, fetchPromos } = usePromoStore();
   const { posts, fetchPosts } = useBlogStore();
-  const { users, fetchUsers, createUser, updateUser } = useUserStore();
+  const { users, fetchUsers, createUser, updateUser, resendVerification } = useUserStore();
+  const { agents, fetchAgents, leads: adminLeads, fetchLeads } = useAdminNetworkStore();
   const currentUser = useMemo(() => users.find((item) => item.id === id), [id, users]);
 
   useEffect(() => {
@@ -43,13 +45,14 @@ const AdminFormPage: React.FC = () => {
     if (type === 'catalog') fetchProducts();
     if (type === 'promo') fetchPromos();
     if (type === 'content') fetchPosts();
-    if (type === 'user') fetchUsers();
+    if (type === 'user') {
+      fetchUsers();
+      fetchAgents();
+      fetchLeads();
+    }
   }, [fetchPosts, fetchProducts, fetchPromos, fetchUsers, type]);
-
   const [activeTab, setActiveTab] = useState<string>('details');
   const [isSaving, setIsSaving] = useState(false);
-
-  // Advanced States for Catalog
   const [specs, setSpecs] = useState([{ key: 'Motor Power', value: '500W' }, { key: 'Top Speed', value: '45 km/h' }]);
   const [colors, setColors] = useState(['Red', 'Blue', 'Black']);
   const [newColor, setNewColor] = useState('');
@@ -60,6 +63,64 @@ const AdminFormPage: React.FC = () => {
   const [avatar, setAvatar] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [accountStatus, setAccountStatus] = useState<'active' | 'suspended' | 'pending'>('active');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
+  const [isVerified, setIsVerified] = useState(false);
+
+  const config = useMemo(() => {
+    return {
+      catalog: { icon: Package, title: 'Produk', color: 'text-primary', bg: 'bg-primary/10' },
+      promo: { icon: Megaphone, title: 'Promo', color: 'text-tertiary', bg: 'bg-tertiary/10' },
+      content: { icon: Layout, title: 'Konten', color: 'text-secondary', bg: 'bg-secondary/10' },
+      user: { icon: User, title: 'User', color: 'text-primary', bg: 'bg-primary/10' },
+    }[type];
+  }, [type]);
+
+  const agentDetails = useMemo(() => {
+    if (type !== 'user' || !id) return null;
+    return agents.find(a => a.id === id);
+  }, [agents, id, type]);
+
+  const insightData = useMemo(() => {
+    const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    const today = new Date();
+    
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date();
+      d.setDate(today.getDate() - (6 - i));
+      const day = days[d.getDay()];
+      const dateStr = d.toISOString().split('T')[0];
+      
+      const age = 6 - i;
+      const productCount = products.length;
+      const promoCount = promos.length;
+      const postCount = posts.length;
+      const userCount = users.length;
+
+      if (type === 'catalog') {
+        return { day, views: productCount * 20 + age * 8, clicks: products.filter((item) => item.stock === 'available').length * 10 + age * 5 };
+      }
+
+      if (type === 'promo') {
+        return { day, views: promoCount * 18 + age * 6, clicks: promos.filter((item) => item.variant === 'hero').length * 12 + age * 4 };
+      }
+
+      if (type === 'content') {
+        return { day, views: postCount * 15 + age * 7, clicks: posts.filter((item) => item.featured).length * 11 + age * 3 };
+      }
+
+      // For users/agents, try to show real lead activity if it's an agent
+      if (type === 'user' && currentUser?.role === 'agent') {
+        const userLeads = adminLeads.filter(l => l.agentId === id);
+        const dailyLeads = userLeads.filter(l => l.createdAt?.split('T')[0] === dateStr).length;
+        // Mocking some views for visual effect, but leads are real
+        return { day, views: dailyLeads * 15 + (age % 3) * 5, clicks: dailyLeads };
+      }
+
+      return { day, views: userCount * 12 + age * 5, clicks: users.filter((item) => item.is_active).length * 8 + age * 2 };
+    });
+  }, [posts, products, promos, type, users, currentUser, adminLeads, id]);
 
   useEffect(() => {
     if (type !== 'user') return;
@@ -72,6 +133,17 @@ const AdminFormPage: React.FC = () => {
       setBankAccount(currentUser.bank_account || '');
       setAccountStatus(currentUser.is_active ? 'active' : 'suspended');
       setPassword('');
+      
+      // Load agent specific fields if available
+      if (agentDetails) {
+        setWhatsapp(agentDetails.whatsapp || '');
+        setCity(agentDetails.city || '');
+        setProvince(agentDetails.province || '');
+      }
+
+      if (currentUser) {
+        setIsVerified(currentUser.is_verified);
+      }
     } else {
       setName('');
       setEmail('');
@@ -80,8 +152,21 @@ const AdminFormPage: React.FC = () => {
       setBankAccount('');
       setAccountStatus('active');
       setPassword('');
+      setWhatsapp('');
+      setCity('');
+      setProvince('');
+      setIsVerified(false);
     }
-  }, [currentUser, type]);
+  }, [currentUser, type, agentDetails]);
+
+  const handleUnverify = async () => {
+    if (!id) return;
+    const success = await resendVerification(id);
+    if (success) {
+      toast.success('Email Dikirim', 'Status user diubah ke belum terverifikasi.');
+      setIsVerified(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +185,7 @@ const AdminFormPage: React.FC = () => {
           avatar: avatar.trim(),
           bankAccount: bankAccount.trim(),
           isActive: accountStatus === 'active',
+          isVerified,
         };
 
         if (isEdit && id) {
@@ -139,40 +225,10 @@ const AdminFormPage: React.FC = () => {
     }
   };
 
-  const config = {
-    catalog: { icon: Package, title: 'Produk', color: 'text-primary', bg: 'bg-primary/10' },
-    promo: { icon: Megaphone, title: 'Promo', color: 'text-tertiary', bg: 'bg-tertiary/10' },
-    content: { icon: Layout, title: 'Konten', color: 'text-secondary', bg: 'bg-secondary/10' },
-    user: { icon: User, title: 'User', color: 'text-primary', bg: 'bg-primary/10' },
-  }[type];
 
   const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
   const iv = { hidden: { y: 12, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
-  const insightData = useMemo(() => {
-    const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-    return days.map((day, index) => {
-      const age = 6 - index;
-      const productCount = products.length;
-      const promoCount = promos.length;
-      const postCount = posts.length;
-      const userCount = users.length;
-
-      if (type === 'catalog') {
-        return { day, views: productCount * 20 + age * 8, clicks: products.filter((item) => item.stock === 'available').length * 10 + age * 5 };
-      }
-
-      if (type === 'promo') {
-        return { day, views: promoCount * 18 + age * 6, clicks: promos.filter((item) => item.variant === 'hero').length * 12 + age * 4 };
-      }
-
-      if (type === 'content') {
-        return { day, views: postCount * 15 + age * 7, clicks: posts.filter((item) => item.featured).length * 11 + age * 3 };
-      }
-
-      return { day, views: userCount * 12 + age * 5, clicks: users.filter((item) => item.is_active).length * 8 + age * 2 };
-    });
-  }, [posts, products, promos, type, users]);
 
   return (
     <motion.div variants={cv} initial="hidden" animate="visible" className="max-w-4xl mx-auto space-y-6">
@@ -226,29 +282,56 @@ const AdminFormPage: React.FC = () => {
         <motion.div variants={iv} className="glass-card rounded-2xl p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 border border-outline-variant/10">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
           <div className="flex items-center gap-5">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-xl ${config.bg} ${config.color}`}>
-              <config.icon className="w-8 h-8" />
-            </div>
+            {type === 'user' && avatar ? (
+              <img src={avatar} alt={name} className="w-16 h-16 rounded-2xl object-cover border-2 border-primary/20 shadow-neon-cyan/10 shadow-lg" />
+            ) : (
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-xl ${config.bg} ${config.color}`}>
+                <config.icon className="w-8 h-8" />
+              </div>
+            )}
             <div>
               <div className="font-display text-title-md font-bold text-on-surface mb-1">
-                {id} - {config.title} Record
+                {isEdit && type === 'user' ? name : `${id} - ${config.title} Record`}
               </div>
               <div className="flex items-center gap-3 text-label-sm text-on-surface-variant">
-                <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-secondary" /> Active Status</span>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Updated 2h ago</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className={`w-3.5 h-3.5 ${accountStatus === 'active' ? 'text-secondary' : 'text-error'}`} /> 
+                  {accountStatus === 'active' ? 'Akun Aktif' : accountStatus === 'suspended' ? 'Akun Ditangguhkan' : 'Menunggu Approval'}
+                </span>
+                {currentUser?.last_login && (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Login: {new Date(currentUser.last_login).toLocaleDateString('id-ID')}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
+          
           <div className="flex gap-6 pr-4">
-            <div>
-              <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Views</div>
-              <div className="font-display font-bold text-title-md text-primary">1,280</div>
-            </div>
-            <div>
-              <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Interactions</div>
-              <div className="font-display font-bold text-title-md text-secondary">A+ Score</div>
-            </div>
+            {type === 'user' && currentUser?.role === 'agent' ? (
+              <>
+                <div>
+                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Poin</div>
+                  <div className="font-display font-bold text-title-md text-primary">{agentDetails?.points || 0} pts</div>
+                </div>
+                <div>
+                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Sales</div>
+                  <div className="font-display font-bold text-title-md text-secondary">{agentDetails?.totalSales || 0} unit</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Views</div>
+                  <div className="font-display font-bold text-title-md text-primary">1,280</div>
+                </div>
+                <div>
+                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Interactions</div>
+                  <div className="font-display font-bold text-title-md text-secondary">A+ Score</div>
+                </div>
+              </>
+            )}
           </div>
         </motion.div>
       )}
@@ -612,16 +695,103 @@ const AdminFormPage: React.FC = () => {
 
               <div className="space-y-1.5 md:col-span-2">
                 <label className="text-label-sm text-on-surface-variant font-semibold">Status Akun</label>
-                <select
-                  value={accountStatus}
-                  onChange={(event) => setAccountStatus(event.target.value as 'active' | 'suspended' | 'pending')}
-                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
-                >
-                  <option value="active">Active</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="pending">Pending Approval</option>
-                </select>
+                <div className="flex gap-3">
+                  <select
+                    value={accountStatus}
+                    onChange={(event) => setAccountStatus(event.target.value as 'active' | 'suspended' | 'pending')}
+                    className="flex-1 px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                  >
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="pending">Pending Approval</option>
+                  </select>
+                  <div className={`px-4 py-3 rounded-xl font-bold text-label-md flex items-center justify-center min-w-[120px] ${
+                    accountStatus === 'active' ? 'bg-secondary/10 text-secondary border border-secondary/20' :
+                    accountStatus === 'suspended' ? 'bg-error/10 text-error border border-error/20' :
+                    'bg-warning/10 text-warning border border-warning/20'
+                  }`}>
+                    {accountStatus.toUpperCase()}
+                  </div>
+                </div>
               </div>
+
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-label-sm text-on-surface-variant font-semibold">Verifikasi Email</label>
+                <div className="flex items-center gap-3 p-4 bg-surface-high border border-outline-variant/20 rounded-xl">
+                  {isVerified ? (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-body-md font-bold text-on-surface">Email Sudah Terverifikasi</p>
+                        <p className="text-label-sm text-on-surface-variant">User ini sudah bisa login ke sistem.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleUnverify}
+                        className="px-4 py-2 bg-surface-highest text-on-surface-variant rounded-lg text-label-md font-bold hover:text-on-surface transition-all flex items-center gap-2 border border-outline-variant/10"
+                      >
+                        <Megaphone className="w-4 h-4" />
+                        Unverify & Resend Link
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center text-warning">
+                        <AlertCircle size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-body-md font-bold text-on-surface text-warning">Email Belum Terverifikasi</p>
+                        <p className="text-label-sm text-on-surface-variant">User tidak bisa login sebelum diverifikasi.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsVerified(true)}
+                        className="px-4 py-2 bg-primary text-on-primary rounded-lg text-label-md font-bold hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
+                      >
+                        <CheckCircle2 size={16} />
+                        Verifikasi Manual
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {role === 'agent' && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-label-sm text-on-surface-variant font-semibold">WhatsApp</label>
+                    <input
+                      type="text"
+                      value={whatsapp}
+                      onChange={(event) => setWhatsapp(event.target.value)}
+                      placeholder="0812..."
+                      className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-label-sm text-on-surface-variant font-semibold">Kota</label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(event) => setCity(event.target.value)}
+                      placeholder="Masukkan kota..."
+                      className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-label-sm text-on-surface-variant font-semibold">Provinsi</label>
+                    <input
+                      type="text"
+                      value={province}
+                      onChange={(event) => setProvince(event.target.value)}
+                      placeholder="Masukkan provinsi..."
+                      className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -635,11 +805,15 @@ const AdminFormPage: React.FC = () => {
         </form>
         ) : (
           <div className="space-y-6">
-            {/* Insights Content (unchanged or similar to before but within tab logic) */}
+            {/* Insights Content */}
             <div className="flex items-center justify-between mb-6 border-b border-outline-variant/10 pb-4">
               <div>
-                <h3 className="font-display text-title-md font-bold text-on-surface">Data Kinerja & Interaksi</h3>
-                <p className="text-body-sm text-on-surface-variant mt-0.5">Metrik aktivitas selama 7 hari terakhir.</p>
+                <h3 className="font-display text-title-md font-bold text-on-surface">
+                  {type === 'user' && currentUser?.role === 'agent' ? 'Statistik Performa Agent' : 'Data Kinerja & Interaksi'}
+                </h3>
+                <p className="text-body-sm text-on-surface-variant mt-0.5">
+                  {type === 'user' && currentUser?.role === 'agent' ? 'Aktivitas pengajuan prospek selama 7 hari terakhir.' : 'Metrik aktivitas selama 7 hari terakhir.'}
+                </p>
               </div>
             </div>
             
@@ -660,28 +834,74 @@ const AdminFormPage: React.FC = () => {
                   <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF' }} />
-                  <Area type="monotone" dataKey="views" stroke="#8FF5FF" strokeWidth={2} fillOpacity={1} fill="url(#colorViews)" name="Views" />
-                  <Area type="monotone" dataKey="clicks" stroke="#A2F31F" strokeWidth={2} fillOpacity={1} fill="url(#colorClicks)" name="Interactions" />
+                  <Area type="monotone" dataKey="views" stroke="#8FF5FF" strokeWidth={2} fillOpacity={1} fill="url(#colorViews)" name={type === 'user' && currentUser?.role === 'agent' ? 'Aktivitas' : 'Views'} />
+                  <Area type="monotone" dataKey="clicks" stroke="#A2F31F" strokeWidth={2} fillOpacity={1} fill="url(#colorClicks)" name={type === 'user' && currentUser?.role === 'agent' ? 'Leads' : 'Interactions'} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
             
             <div className="grid grid-cols-2 gap-4 mt-6">
-               <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
-                 <div className="flex items-center gap-2 mb-2">
-                   <Activity className="w-4 h-4 text-primary" />
-                   <div className="text-label-sm font-semibold text-on-surface">Total Views</div>
+                <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    <div className="text-label-sm font-semibold text-on-surface">
+                      {type === 'user' && currentUser?.role === 'agent' ? 'Total Leads (7d)' : 'Total Views'}
+                    </div>
+                  </div>
+                  <div className="font-display font-bold text-headline-sm text-on-surface">
+                    {insightData.reduce((sum, row) => sum + row.clicks, 0).toLocaleString('id-ID')}
+                  </div>
+                </div>
+                <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Megaphone className="w-4 h-4 text-secondary" />
+                    <div className="text-label-sm font-semibold text-on-surface">
+                      {type === 'user' && currentUser?.role === 'agent' ? 'Success Rate' : 'Conversion Rate'}
+                    </div>
+                  </div>
+                  <div className="font-display font-bold text-headline-sm text-on-surface">
+                    {type === 'user' && currentUser?.role === 'agent' 
+                      ? `${Math.round(((agentDetails?.totalSales || 0) / Math.max(1, adminLeads.filter(l => l.agentId === id).length)) * 100)}%`
+                      : `${Math.round((insightData.reduce((sum, row) => sum + row.clicks, 0) / Math.max(1, insightData.reduce((sum, row) => sum + row.views, 0))) * 100)}%`
+                    }
+                  </div>
+                </div>
+             </div>
+
+             {/* Agent specific leads summary */}
+             {type === 'user' && currentUser?.role === 'agent' && (
+               <div className="glass-card rounded-xl p-4 border border-outline-variant/10">
+                 <div className="flex items-center justify-between mb-3">
+                   <h4 className="font-display text-label-md font-bold text-on-surface">Prospek Terbaru</h4>
+                   <button onClick={() => navigate('/dashboard/admin/leads')} className="text-label-xs text-primary font-bold hover:underline">Lihat Semua</button>
                  </div>
-                 <div className="font-display font-bold text-headline-sm text-on-surface">{insightData.reduce((sum, row) => sum + row.views, 0).toLocaleString('id-ID')}</div>
-               </div>
-               <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
-                 <div className="flex items-center gap-2 mb-2">
-                   <Megaphone className="w-4 h-4 text-secondary" />
-                   <div className="text-label-sm font-semibold text-on-surface">Conversion Rate</div>
+                 <div className="space-y-2">
+                   {adminLeads.filter(l => l.agentId === id).slice(0, 3).map((lead, idx) => (
+                     <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-surface-highest/50 border border-outline-variant/5">
+                       <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                           {lead.customerName?.charAt(0) || 'L'}
+                         </div>
+                         <div>
+                           <div className="text-label-sm font-bold text-on-surface">{lead.customerName}</div>
+                           <div className="text-label-xs text-on-surface-variant">{lead.interestedProduct}</div>
+                         </div>
+                       </div>
+                       <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                         lead.status === 'Closed Won' ? 'bg-secondary/10 text-secondary' :
+                         lead.status === 'Closed Lost' ? 'bg-error/10 text-error' :
+                         'bg-primary/10 text-primary'
+                       }`}>
+                         {lead.status}
+                       </div>
+                     </div>
+                   ))}
+                   {adminLeads.filter(l => l.agentId === id).length === 0 && (
+                     <div className="text-center py-4 text-label-sm text-on-surface-variant">Belum ada data prospek.</div>
+                   )}
                  </div>
-                 <div className="font-display font-bold text-headline-sm text-on-surface">{Math.round((insightData.reduce((sum, row) => sum + row.clicks, 0) / Math.max(1, insightData.reduce((sum, row) => sum + row.views, 0))) * 100)}%</div>
                </div>
-            </div>
+             )}
           </div>
         )}
       </motion.div>

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useAgentStore } from '../../store/useAgentStore';
+import Pagination from '../../components/ui/Pagination';
 
 // Data will be fetched from the backend via useAgentStore. No static fallback data.
 // Fallback data removed; we will rely on fetched leaderboard data.
@@ -62,6 +63,8 @@ const AgentLeaderboardPage: React.FC = () => {
   const { stats, fetchStats, leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers, isLoading } = useAgentStore();
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'rewards'>('leaderboard');
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchStats();
@@ -79,6 +82,12 @@ const AgentLeaderboardPage: React.FC = () => {
 
   const filteredLeaderboard = effectiveLeaderboard.filter(a => 
     a.name.toLowerCase().includes(search.toLowerCase()) || a.city.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredLeaderboard.length / itemsPerPage);
+  const paginatedLeaderboard = filteredLeaderboard.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   // If no data is available, render a friendly placeholder.
@@ -162,16 +171,16 @@ const AgentLeaderboardPage: React.FC = () => {
               className="glass-card rounded-2xl p-6 text-center order-2 md:order-1 relative"
             >
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-slate-300 overflow-hidden shadow-xl">
-                <img src={filteredLeaderboard[1]?.avatar || fallbackLeaderboardData[1].avatar} alt="" className="w-full h-full object-cover" />
+                <img src={filteredLeaderboard[1]?.avatar || (fallbackLeaderboardData[1]?.avatar || '')} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="mt-8">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-400/10 text-slate-400 font-bold text-label-sm mb-3">
                   <Star className="w-3.5 h-3.5 fill-current" /> Rank 2
                 </div>
-                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[1]?.name || fallbackLeaderboardData[1].name}</h4>
-                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[1]?.city || fallbackLeaderboardData[1].city}</div>
-                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[1]?.points || fallbackLeaderboardData[1].points).toLocaleString()} pts</div>
-                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[1]?.totalSales || fallbackLeaderboardData[1].totalSales} Sales (Month)</div>
+                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[1]?.name || (fallbackLeaderboardData[1]?.name || '-')}</h4>
+                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[1]?.city || (fallbackLeaderboardData[1]?.city || '-')}</div>
+                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[1]?.points || (fallbackLeaderboardData[1]?.points || 0)).toLocaleString()} pts</div>
+                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[1]?.totalSales || (fallbackLeaderboardData[1]?.totalSales || 0)} Sales (Month)</div>
               </div>
             </motion.div>
 
@@ -182,7 +191,7 @@ const AgentLeaderboardPage: React.FC = () => {
               className="glass-card rounded-2xl p-8 text-center order-1 md:order-2 border-primary/30 relative"
             >
               <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full border-4 border-amber-400 overflow-hidden shadow-2xl shadow-amber-400/20">
-                <img src={filteredLeaderboard[0]?.avatar || fallbackLeaderboardData[0].avatar} alt="" className="w-full h-full object-cover" />
+                <img src={filteredLeaderboard[0]?.avatar || (fallbackLeaderboardData[0]?.avatar || '')} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-amber-400/40 to-transparent pointer-events-none" />
               </div>
               <div className="absolute -top-6 right-1/4 translate-x-1/2">
@@ -194,10 +203,10 @@ const AgentLeaderboardPage: React.FC = () => {
                 <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-400 text-surface font-bold text-label-md mb-4 shadow-lg shadow-amber-400/20">
                    THE CHAMPION
                 </div>
-                <h4 className="font-display text-headline-sm font-bold text-on-surface mb-1">{filteredLeaderboard[0]?.name || fallbackLeaderboardData[0].name}</h4>
-                <div className="text-body-sm text-on-surface-variant mb-6">{filteredLeaderboard[0]?.city || fallbackLeaderboardData[0].city}</div>
-                <div className="text-display-sm font-bold gradient-text-primary mb-2">{(filteredLeaderboard[0]?.points || fallbackLeaderboardData[0].points).toLocaleString()} pts</div>
-                <div className="text-title-sm font-bold text-secondary">{filteredLeaderboard[0]?.totalSales || fallbackLeaderboardData[0].totalSales} Successful Sales</div>
+                <h4 className="font-display text-headline-sm font-bold text-on-surface mb-1">{filteredLeaderboard[0]?.name || (fallbackLeaderboardData[0]?.name || '-')}</h4>
+                <div className="text-body-sm text-on-surface-variant mb-6">{filteredLeaderboard[0]?.city || (fallbackLeaderboardData[0]?.city || '-')}</div>
+                <div className="text-display-sm font-bold gradient-text-primary mb-2">{(filteredLeaderboard[0]?.points || (fallbackLeaderboardData[0]?.points || 0)).toLocaleString()} pts</div>
+                <div className="text-title-sm font-bold text-secondary">{filteredLeaderboard[0]?.totalSales || (fallbackLeaderboardData[0]?.totalSales || 0)} Successful Sales</div>
               </div>
             </motion.div>
 
@@ -208,16 +217,16 @@ const AgentLeaderboardPage: React.FC = () => {
               className="glass-card rounded-2xl p-6 text-center order-3 relative"
             >
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-orange-700 overflow-hidden shadow-xl">
-                <img src={filteredLeaderboard[2]?.avatar || fallbackLeaderboardData[2].avatar} alt="" className="w-full h-full object-cover" />
+                <img src={filteredLeaderboard[2]?.avatar || (fallbackLeaderboardData[2]?.avatar || '')} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="mt-8">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-700/10 text-orange-700 font-bold text-label-sm mb-3">
                   <Star className="w-3.5 h-3.5 fill-current" /> Rank 3
                 </div>
-                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[2]?.name || fallbackLeaderboardData[2].name}</h4>
-                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[2]?.city || fallbackLeaderboardData[2].city}</div>
-                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[2]?.points || fallbackLeaderboardData[2].points).toLocaleString()} pts</div>
-                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[2]?.totalSales || fallbackLeaderboardData[2].totalSales} Sales (Month)</div>
+                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[2]?.name || (fallbackLeaderboardData[2]?.name || '-')}</h4>
+                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[2]?.city || (fallbackLeaderboardData[2]?.city || '-')}</div>
+                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[2]?.points || (fallbackLeaderboardData[2]?.points || 0)).toLocaleString()} pts</div>
+                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[2]?.totalSales || (fallbackLeaderboardData[2]?.totalSales || 0)} Sales (Month)</div>
               </div>
             </motion.div>
           </div>
@@ -227,12 +236,12 @@ const AgentLeaderboardPage: React.FC = () => {
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
             <div className="flex items-center gap-6 relative z-10">
               <div className="w-16 h-16 rounded-xl bg-primary flex items-center justify-center font-display text-headline-sm font-bold text-surface shadow-lg">
-                {currentRank ? `#${currentRank}` : '#8'}
+                {currentRank ? `#${currentRank}` : '#-'}
               </div>
               <div>
                 <h4 className="font-display text-title-lg font-bold text-on-surface">Peringkat Anda Saat Ini</h4>
                 <p className="text-body-sm text-on-surface-variant mt-1 font-medium">
-                  Hebat, {user?.name}! Anda termasuk dalam <strong className="text-primary font-bold">top 15%</strong> agen di Sulawesi. 
+                  Hebat, {user?.name}! Anda terus berkembang di jaringan Sulawesi. 
                 </p>
               </div>
             </div>
@@ -283,13 +292,13 @@ const AgentLeaderboardPage: React.FC = () => {
                  </tr>
                </thead>
                <tbody className="divide-y divide-outline-variant/10">
-                 {filteredLeaderboard.map((item, idx) => (
+                 {paginatedLeaderboard.map((item, idx) => (
                    <motion.tr 
                      key={item.rank}
                      initial={{ opacity: 0, x: -10 }}
                      animate={{ opacity: 1, x: 0 }}
                      transition={{ delay: idx * 0.05 }}
-                     className={`hover:bg-surface-high/40 transition-colors group ${item.rank === 8 ? 'bg-primary/5' : ''}`}
+                     className={`hover:bg-surface-high/40 transition-colors group ${item.id === user?.id ? 'bg-primary/5' : ''}`}
                    >
                      <td className="px-6 py-4 font-display font-bold text-on-surface">
                        {item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : item.rank === 3 ? '🥉' : `#${item.rank}`}
@@ -300,7 +309,7 @@ const AgentLeaderboardPage: React.FC = () => {
                             <img src={item.avatar} alt="" className="w-full h-full object-cover" />
                          </div>
                          <span className="font-body text-body-sm font-bold text-on-surface">{item.name}</span>
-                         {item.rank === 8 && <span className="px-2 py-0.5 rounded bg-primary text-surface text-label-xs font-bold uppercase">You</span>}
+                         {item.id === user?.id && <span className="px-2 py-0.5 rounded bg-primary text-surface text-label-xs font-bold uppercase">You</span>}
                        </div>
                      </td>
                      <td className="px-6 py-4 text-body-sm text-on-surface-variant font-medium">{item.city}</td>
@@ -314,6 +323,13 @@ const AgentLeaderboardPage: React.FC = () => {
                  ))}
                </tbody>
              </table>
+
+             <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={(page) => setCurrentPage(page)}
+                className="mt-4 border-t border-outline-variant/10"
+             />
           </motion.div>
         </>
       ) : (

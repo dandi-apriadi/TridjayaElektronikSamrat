@@ -7,6 +7,7 @@ import { useBlogStore } from '../store/useBlogStore';
 import type { BlogPost } from '../types';
 import blogHeroImg from '../assets/images/blog-hero.webp';
 import { getImageUrl } from '../utils/apiClient';
+import { recordTelemetry } from '../utils/telemetry';
 
 const categories = ['Semua', 'Review', 'Tips & Trik', 'Edukasi', 'Home Styling'];
 
@@ -19,7 +20,24 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
         transition={{ duration: 0.6 }}
         className="lg:col-span-2"
       >
-        <Link to={`/blog/${post.slug}`} className="group block">
+        <Link
+          to={`/blog/${post.slug}`}
+          onClick={() => {
+            recordTelemetry('click', {
+              path: `/blog/${post.slug}`,
+              source: 'internal',
+              metadata: {
+                contentType: 'article',
+                contentSlug: post.slug,
+                contentKey: `article:${post.slug}`,
+                contentTitle: post.title,
+                action: 'open_article_detail',
+                location: featured ? 'blog_featured_card' : 'blog_card',
+              },
+            });
+          }}
+          className="group block"
+        >
           <div className="relative overflow-hidden rounded-2xl aspect-[16/7]">
             <img src={getImageUrl(post.heroImage)} alt={post.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent" />
@@ -53,7 +71,24 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
       viewport={{ once: true }}
       transition={{ delay: index * 0.08 }}
     >
-      <Link to={`/blog/${post.slug}`} className="group block">
+      <Link
+        to={`/blog/${post.slug}`}
+        onClick={() => {
+          recordTelemetry('click', {
+            path: `/blog/${post.slug}`,
+            source: 'internal',
+            metadata: {
+              contentType: 'article',
+              contentSlug: post.slug,
+              contentKey: `article:${post.slug}`,
+              contentTitle: post.title,
+              action: 'open_article_detail',
+              location: featured ? 'blog_featured_card' : 'blog_card',
+            },
+          });
+        }}
+        className="group block"
+      >
         <div className="glass-card rounded-2xl overflow-hidden hover:shadow-neon-cyan transition-all duration-300 h-full">
           <div className="relative overflow-hidden aspect-[16/9]">
             <img src={getImageUrl(post.heroImage)} alt={post.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />

@@ -8,6 +8,7 @@ import {
 
 import { usePromoStore } from '../../store/usePromoStore';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
+import Pagination from '../../components/ui/Pagination';
 
 const statusConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   'Active': { cls: 'bg-secondary/15 text-secondary', label: 'Aktif', icon: <CheckCircle2 className="w-3 h-3" /> },
@@ -30,6 +31,8 @@ const AdminPromoPage: React.FC = () => {
   const { promos, isLoading, error } = usePromoStore();
   const { telemetryStats, fetchTelemetryStats } = useAdminNetworkStore();
   const [filterStatus, setFilterStatus] = useState('Semua');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   React.useEffect(() => {
     fetchTelemetryStats();
@@ -51,6 +54,12 @@ const AdminPromoPage: React.FC = () => {
   const totalClicks = telemetryStats?.sourceRows?.reduce((sum, row: any) => sum + (row.clicks ?? 0), 0) ?? 0;
   const totalConvs = telemetryStats?.trafficData?.reduce((sum, row: any) => sum + (row.conversions ?? 0), 0) ?? 0;
   const avgConvRate   = totalClicks > 0 ? ((totalConvs / totalClicks) * 100).toFixed(1) : '0.0';
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
@@ -113,7 +122,7 @@ const AdminPromoPage: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {filtered.map((promo) => {
+          {paginated.map((promo) => {
             const status = getPromoStatus(promo.validUntil);
             const sc = statusConfig[status];
             return (
@@ -175,6 +184,13 @@ const AdminPromoPage: React.FC = () => {
             );
           })}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-6 border-t border-outline-variant/10"
+        />
 
         <div className="mt-6 pt-4 border-t border-outline-variant/10">
           <Link to="/promo" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">

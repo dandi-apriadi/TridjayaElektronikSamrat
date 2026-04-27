@@ -13,7 +13,15 @@ const statusStyle: Record<string, { label: string; cls: string; icon: React.Reac
 };
 
 const AdminFinancePage: React.FC = () => {
-  const { claims, registrations, fetchClaims, fetchRegistrations, updateClaimStatus, isLoading, error } = useAdminNetworkStore();
+  const { 
+    claims, 
+    agents,
+    fetchClaims, 
+    fetchAgents,
+    updateClaimStatus, 
+    isLoading, 
+    error 
+  } = useAdminNetworkStore();
   const { isAuthenticated, accessToken, isInitializing } = useAuthStore();
   const [filter, setFilter] = useState('Semua');
   const [chartReady, setChartReady] = useState(false);
@@ -33,17 +41,17 @@ const AdminFinancePage: React.FC = () => {
     }
 
     fetchClaims();
-    fetchRegistrations();
-  }, [accessToken, fetchClaims, fetchRegistrations, isAuthenticated, isInitializing]);
+    fetchAgents();
+  }, [accessToken, fetchAgents, fetchClaims, isAuthenticated, isInitializing]);
 
   const payoutRequests = useMemo(() => {
     if (!Array.isArray(claims)) return [];
-    return claims.map((claim, index) => {
+    return claims.map((claim) => {
       const amount = getClaimRewardValue(claim.tierId, claim.rewardValue);
       const currentStatus = claim.status || 'pending';
       return {
         id: claim.id,
-        displayId: `PO-${String(4401 - index).padStart(4, '0')}`,
+        displayId: `PO-${claim.id.slice(0, 8).toUpperCase()}`,
         agent: claim.agentName || `Agent ${claim.agentId}`,
         agentId: claim.agentId,
         amount: `Rp ${amount.toLocaleString('id-ID')}`,
@@ -56,19 +64,22 @@ const AdminFinancePage: React.FC = () => {
   }, [claims]);
 
   const commissionByArea = useMemo(() => {
-    if (!Array.isArray(registrations)) return [];
-    const areaTotals = registrations.reduce<Record<string, number>>((accumulator, registration) => {
-      if (!registration || !registration.city) return accumulator;
-      const base = registration.status === 'approved' ? 1800000 : registration.status === 'pending' ? 900000 : 1200000;
-      accumulator[registration.city] = (accumulator[registration.city] || 0) + base;
-      return accumulator;
+    if (!Array.isArray(claims) || !Array.isArray(agents)) return [];
+    
+    const areaTotals = claims.reduce<Record<string, number>>((acc, claim) => {
+      const agent = agents.find(a => a.id === claim.agentId);
+      const city = agent?.city || 'Unknown';
+      const amount = getClaimRewardValue(claim.tierId, claim.rewardValue);
+      
+      acc[city] = (acc[city] || 0) + amount;
+      return acc;
     }, {});
 
     return Object.entries(areaTotals)
       .map(([area, total]) => ({ area, total }))
       .sort((left, right) => right.total - left.total)
       .slice(0, 5);
-  }, [registrations]);
+  }, [claims, agents]);
 
   const handleAction = async (id: string, action: 'processing' | 'completed' | 'cancelled') => {
     await updateClaimStatus(id, action);
@@ -123,7 +134,7 @@ const AdminFinancePage: React.FC = () => {
           <p className="text-body-sm text-on-surface-variant mt-1">{error}</p>
         </div>
         <button 
-          onClick={() => { fetchClaims(); fetchRegistrations(); }}
+          onClick={() => { fetchClaims(); fetchAgents(); }}
           className="px-6 py-2 bg-surface-high rounded-lg text-label-sm font-bold hover:bg-surface-highest transition-colors"
         >
           Coba Lagi

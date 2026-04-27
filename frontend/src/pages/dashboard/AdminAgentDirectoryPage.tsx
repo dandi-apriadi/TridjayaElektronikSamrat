@@ -10,6 +10,7 @@ import {
   Eye 
 } from 'lucide-react';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
+import Pagination from '../../components/ui/Pagination';
 
 const formatDate = (dateStr: string) => {
   try {
@@ -30,6 +31,8 @@ const AdminAgentDirectoryPage: React.FC = () => {
   const { agents, isLoading, fetchAgents } = useAdminNetworkStore();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchAgents();
@@ -47,6 +50,12 @@ const AdminAgentDirectoryPage: React.FC = () => {
     const matchStatus = filterStatus === 'Semua' || a.status === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const totalAktif = agents.filter((a) => a.isActive).length;
   const totalSalesCount = agents.reduce((s, a) => s + a.totalSales, 0);
@@ -131,7 +140,7 @@ const AdminAgentDirectoryPage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((agent) => (
+            {paginated.map((agent) => (
               <tr key={agent.id} className="border-b border-outline-variant/10 hover:bg-surface-high/40 transition-colors group">
                 <td className="py-4 pr-4">
                   <div className="flex items-center gap-3">
@@ -199,6 +208,13 @@ const AdminAgentDirectoryPage: React.FC = () => {
             )}
           </tbody>
         </table>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-4 border-t border-outline-variant/10"
+        />
       </div>
     </div>
   );

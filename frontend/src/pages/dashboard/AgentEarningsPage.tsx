@@ -10,6 +10,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
+import Pagination from '../../components/ui/Pagination';
 import { useAgentStore } from '../../store/useAgentStore';
 import { useAuthStore } from '../../store/authStore';
 import { getClaimRewardValue } from '../../utils/claimRewards';
@@ -26,6 +27,8 @@ const AgentEarningsPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filterType, setFilterType] = useState('Semua');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchClaims();
@@ -85,6 +88,12 @@ const AgentEarningsPage: React.FC = () => {
   }, [claims]);
 
   const filtered = transactions.filter((t) => filterType === 'Semua' || t.type === filterType);
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
   const totalEarnings = earningHistory.reduce((s, e) => s + e.komisi, 0);
   const payoutTrend = earningHistory.reduce((s, e) => s + e.payout, 0);
 
@@ -357,7 +366,7 @@ const AgentEarningsPage: React.FC = () => {
           </div>
         </div>
         <div className="space-y-2">
-          {filtered.map((trx) => {
+          {paginated.map((trx) => {
             const isPositive = trx.amount > 0;
             return (
               <div key={trx.id} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-surface-high/30 transition-colors">
@@ -388,6 +397,14 @@ const AgentEarningsPage: React.FC = () => {
             <div className="text-center py-8 text-body-sm text-on-surface-variant">Belum ada transaksi pada filter ini.</div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-6 border-t border-outline-variant/10"
+        />
+
         <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
           <span className="text-label-sm text-on-surface-variant">{filtered.length} transaksi</span>
           <button 

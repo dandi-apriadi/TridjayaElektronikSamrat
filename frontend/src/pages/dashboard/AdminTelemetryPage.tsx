@@ -12,13 +12,14 @@ import {
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { TelemetryStats } from '../../store/useAdminNetworkStore';
 
-const sourceRows = [
-  { source: 'Referral Link Agen', icon: Share2,          color: 'text-primary',   clicks: 3240, conversion: '8.1%', bar: 82 },
-  { source: 'WhatsApp CTA',       icon: MessageCircle,   color: 'text-[#25D366]', clicks: 2910, conversion: '6.4%', bar: 72 },
-  { source: 'Promo Landing Page', icon: Zap,             color: 'text-tertiary',  clicks: 1880, conversion: '5.2%', bar: 55 },
-  { source: 'Blog & Artikel',     icon: Globe,           color: 'text-secondary', clicks: 1420, conversion: '4.8%', bar: 42 },
-  { source: 'Instagram Profile',  icon: Share2,          color: 'text-pink-400',  clicks: 980,  conversion: '3.9%', bar: 30 },
-];
+const sourceConfig: Record<string, { icon: typeof Share2; color: string }> = {
+  'Referral Link Agen': { icon: Share2,          color: 'text-primary' },
+  'WhatsApp CTA':       { icon: MessageCircle,   color: 'text-[#25D366]' },
+  'Promo Landing Page': { icon: Zap,             color: 'text-tertiary' },
+  'Blog & Artikel':     { icon: Globe,           color: 'text-secondary' },
+  'Instagram Profile':  { icon: Share2,          color: 'text-pink-400' },
+  'unknown':            { icon: Activity,        color: 'text-on-surface-variant' },
+};
 
 const levelConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
   error:   { cls: 'bg-error/15 text-error',         icon: <AlertCircle className="w-3.5 h-3.5" /> },
@@ -29,6 +30,13 @@ const levelConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
+
+const contentTypeConfig: Record<string, { label: string; className: string }> = {
+  page: { label: 'Page', className: 'bg-primary/15 text-primary' },
+  product: { label: 'Product', className: 'bg-secondary/15 text-secondary' },
+  article: { label: 'Article', className: 'bg-tertiary/15 text-tertiary' },
+  promo: { label: 'Promo', className: 'bg-yellow-500/15 text-yellow-400' },
+};
 
 const AdminTelemetryPage: React.FC = () => {
   const { telemetryStats, fetchTelemetryStats } = useAdminNetworkStore();
@@ -44,16 +52,24 @@ const AdminTelemetryPage: React.FC = () => {
     trafficData: [],
     monthlyPageViews: [],
     sourceRows: [],
+    topContentRows: [],
     systemMetrics: [],
     errorLogs: []
   };
 
-  const totalClicks = data.trafficData.reduce((s, d) => s + d.clicks, 0);
-  const totalLeads  = data.trafficData.reduce((s, d) => s + d.leads, 0);
-  const totalConvs  = data.trafficData.reduce((s, d) => s + d.conversions, 0);
+  const trafficData = Array.isArray(data.trafficData) ? data.trafficData : [];
+  const monthlyPageViews = Array.isArray(data.monthlyPageViews) ? data.monthlyPageViews : [];
+  const sourceRows = Array.isArray(data.sourceRows) ? data.sourceRows : [];
+  const topContentRows = Array.isArray((data as any).topContentRows) ? (data as any).topContentRows : [];
+  const systemMetrics = Array.isArray(data.systemMetrics) ? data.systemMetrics : [];
+  const errorLogs = Array.isArray(data.errorLogs) ? data.errorLogs : [];
+
+  const totalClicks = trafficData.reduce((s, d) => s + d.clicks, 0);
+  const totalLeads  = trafficData.reduce((s, d) => s + d.leads, 0);
+  const totalConvs  = trafficData.reduce((s, d) => s + d.conversions, 0);
   const convRate    = totalClicks > 0 ? ((totalConvs / totalClicks) * 100).toFixed(2) : "0.00";
 
-  const displayedLogs = data.errorLogs.filter((l) => {
+  const displayedLogs = errorLogs.filter((l) => {
     if (logFilter === 'Semua') return true;
     if (logFilter === 'Error') return l.level === 'error';
     if (logFilter === 'Warning') return l.level === 'warning';
@@ -85,8 +101,8 @@ const AdminTelemetryPage: React.FC = () => {
                 : 'bg-secondary/10 text-secondary'
             }`}>
               <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
-              {data.errorLogs.filter((l) => !l.resolved && l.level === 'error').length > 0
-                ? `${data.errorLogs.filter((l) => !l.resolved && l.level === 'error').length} Error Aktif`
+              {errorLogs.filter((l) => !l.resolved && l.level === 'error').length > 0
+                ? `${errorLogs.filter((l) => !l.resolved && l.level === 'error').length} Error Aktif`
                 : 'Sistem Normal'
               }
             </span>
@@ -97,10 +113,10 @@ const AdminTelemetryPage: React.FC = () => {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Klik (7 Hari)', value: totalClicks.toLocaleString('id-ID'), sub: '+8.2% vs minggu lalu', color: 'text-primary',   bg: 'bg-primary/10',   icon: MousePointerClick },
+          { label: 'Total Klik (7 Hari)', value: totalClicks.toLocaleString('id-ID'), sub: 'akumulasi klik link', color: 'text-primary',   bg: 'bg-primary/10',   icon: MousePointerClick },
           { label: 'Total Lead Masuk',    value: totalLeads,  sub: 'dari semua sumber',    color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: Target },
           { label: 'Konversi Aktual',     value: totalConvs,  sub: 'klik → transaksi',     color: 'text-secondary', bg: 'bg-secondary/10', icon: CheckCircle2 },
-          { label: 'Avg Conv. Rate',      value: `${convRate}%`, sub: 'minggu ini',         color: 'text-primary',   bg: 'bg-primary/10',   icon: TrendingUp },
+          { label: 'Avg Conv. Rate',      value: `${convRate}%`, sub: 'rata-rata konversi',         color: 'text-primary',   bg: 'bg-primary/10',   icon: TrendingUp },
         ].map((k) => (
           <motion.div key={k.label} variants={iv} className="glass-card rounded-xl p-5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
@@ -132,7 +148,7 @@ const AdminTelemetryPage: React.FC = () => {
           </div>
           <div className="h-[240px] w-full min-h-[240px]">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <LineChart data={data.trafficData}>
+              <LineChart data={trafficData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
@@ -154,7 +170,7 @@ const AdminTelemetryPage: React.FC = () => {
           </div>
           <div className="h-[200px] w-full min-h-[200px] flex-1">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <AreaChart data={data.monthlyPageViews}>
+              <AreaChart data={monthlyPageViews}>
                 <defs>
                   <linearGradient id="pvGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#A2F31F" stopOpacity={0.3} />
@@ -170,11 +186,15 @@ const AdminTelemetryPage: React.FC = () => {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-3 p-3 rounded-lg bg-surface-high">
-            <div className="text-label-xs text-on-surface-variant">April (tertinggi)</div>
-            <div className="font-display font-bold text-secondary">44.8K views</div>
-            <div className="text-label-xs text-primary">↑ +25.8% vs Maret</div>
-          </div>
+          {monthlyPageViews.length > 0 && (
+            <div className="mt-3 p-3 rounded-lg bg-surface-high">
+              <div className="text-label-xs text-on-surface-variant">Bulan Terakhir</div>
+              <div className="font-display font-bold text-secondary">
+                {(monthlyPageViews[monthlyPageViews.length - 1].views).toLocaleString('id-ID')} views
+              </div>
+              <div className="text-label-xs text-on-surface-variant">Data real-time dari sistem</div>
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -185,9 +205,10 @@ const AdminTelemetryPage: React.FC = () => {
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-tertiary/30 to-transparent" />
           <h3 className="font-display text-title-md font-bold text-on-surface mb-5">Sumber Klik & Konversi</h3>
           <div className="space-y-4">
-            {data.sourceRows.map((row) => {
-              const IconComp = sourceRows.find(x => x.source === row.source)?.icon || Share2;
-              const colorCls = sourceRows.find(x => x.source === row.source)?.color || 'text-primary';
+            {sourceRows.map((row) => {
+              const conf = sourceConfig[row.source] || sourceConfig['unknown'];
+              const IconComp = conf.icon;
+              const colorCls = conf.color;
               return (
               <div key={row.source} className="group">
                 <div className="flex items-center justify-between mb-1.5">
@@ -218,7 +239,7 @@ const AdminTelemetryPage: React.FC = () => {
             <h3 className="font-display text-title-md font-bold text-on-surface">System Health</h3>
           </div>
           <div className="space-y-3">
-            {data.systemMetrics.map((m) => (
+            {systemMetrics.map((m) => (
               <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-surface-high/30 transition-colors">
                 <div>
                   <div className="text-body-sm font-semibold text-on-surface">{m.label}</div>
@@ -233,6 +254,56 @@ const AdminTelemetryPage: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Top Content */}
+      <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/30 to-transparent" />
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="font-display text-title-md font-bold text-on-surface">Top Halaman, Produk, dan Artikel</h3>
+            <p className="text-label-sm text-on-surface-variant mt-0.5">Urutan berdasarkan page view dengan klik dan lead pendukung</p>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left">
+            <thead>
+              <tr className="border-b border-outline-variant/10 text-label-xs uppercase tracking-widest text-on-surface-variant">
+                <th className="py-3 pr-4">Konten</th>
+                <th className="py-3 pr-4">Tipe</th>
+                <th className="py-3 pr-4 text-right">Views</th>
+                <th className="py-3 pr-4 text-right">Clicks</th>
+                <th className="py-3 text-right">Leads</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topContentRows.map((row) => {
+                const conf = contentTypeConfig[row.contentType] || contentTypeConfig.page;
+                return (
+                  <tr key={row.contentKey} className="border-b border-outline-variant/5 last:border-0 hover:bg-surface-high/30 transition-colors">
+                    <td className="py-3 pr-4">
+                      <div className="font-semibold text-on-surface">{row.contentTitle}</div>
+                      <div className="text-label-xs text-on-surface-variant">{row.contentKey}</div>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <span className={`inline-flex px-2 py-1 rounded-md text-label-xs font-bold ${conf.className}`}>
+                        {conf.label}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 text-right text-on-surface">{row.views.toLocaleString('id-ID')}</td>
+                    <td className="py-3 pr-4 text-right text-on-surface-variant">{row.clicks.toLocaleString('id-ID')}</td>
+                    <td className="py-3 text-right text-secondary">{row.leads.toLocaleString('id-ID')}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {topContentRows.length === 0 && (
+            <div className="py-8 text-center text-on-surface-variant text-body-sm">
+              Belum ada data konten yang cukup untuk ditampilkan.
+            </div>
+          )}
+        </div>
+      </motion.div>
 
       {/* Error Logs */}
       <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">

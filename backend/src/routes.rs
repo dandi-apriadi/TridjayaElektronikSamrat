@@ -1,7 +1,7 @@
 use crate::{
     auth::{authorize, hash_password, login_with_request, logout_with_headers, refresh_with_request, verify_password, LoginRequest, RefreshRequest, Role},
     response::{json_ok, AppError},
-    state::{AppState, UserPublic},
+    state::{AppState, UserPublic, UserRecord},
 };
 use axum::{extract::{Path, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{get, post, patch}, Json, Router};
 use chrono::{Duration, Utc};
@@ -22,11 +22,16 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/refresh", post(refresh))
         .route("/api/auth/forgot-password", post(forgot_password))
         .route("/api/auth/reset-password", post(reset_password))
+        .route("/api/notifications", get(list_notifications))
+        .route("/api/notifications/unread-count", get(get_notifications_unread_count))
+        .route("/api/notifications/read-all", patch(mark_all_notifications_as_read))
+        .route("/api/notifications/{id}/read", patch(mark_notification_as_read))
         .route("/api/auth/profile", patch(update_auth_profile))
         .route("/api/auth/change-password", post(change_auth_password))
         .route("/api/users", get(list_users).post(create_user))
         .route("/api/users/{id}", get(get_user).patch(update_user).delete(delete_user))
         .route("/api/users/{id}/reset-password", post(reset_user_password))
+        .route("/api/users/{id}/resend-verification", post(resend_verification))
         .route("/api/reward-tiers", get(list_reward_tiers))
         .route("/api/admin/uploads/image", post(upload_admin_image))
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
@@ -326,7 +331,7 @@ async fn update_auth_profile(
     headers: HeaderMap,
     Json(payload): Json<AuthProfileUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Editor, Role::Operator]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     if payload.name.is_none() && payload.bank_account.is_none() && payload.avatar.is_none() {
         return Err(AppError::Validation {
@@ -365,7 +370,7 @@ async fn change_auth_password(
     headers: HeaderMap,
     Json(payload): Json<ChangePasswordRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Editor, Role::Operator]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     if payload.old_password.trim().is_empty() || payload.new_password.trim().is_empty() {
         return Err(AppError::Validation {
@@ -438,7 +443,7 @@ struct UserCreateRequest {
     is_active: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct UserUpdateRequest {
     email: Option<String>,
@@ -448,7 +453,9 @@ struct UserUpdateRequest {
     avatar: Option<String>,
     bank_account: Option<String>,
     is_active: Option<bool>,
+    is_verified: Option<bool>,
 }
+
 
 #[derive(sqlx::FromRow)]
 struct LeadRecord {
@@ -497,7 +504,7 @@ struct UpdateSupportTicketStatusRequest {
 
 fn normalize_role(value: &str) -> Option<String> {
     let role = value.trim().to_lowercase();
-    if matches!(role.as_str(), "admin" | "agent" | "editor" | "operator") {
+    if matches!(role.as_str(), "admin") {
         Some(role)
     } else {
         None
@@ -513,7 +520,7 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("name wajib diisi".to_string());
     }
     if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
+        errors.push("role harus salah satu dari: admin".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
@@ -535,7 +542,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         errors.push("name tidak boleh kosong".to_string());
     }
     if payload.role.as_ref().is_some_and(|value| normalize_role(value).is_none()) {
-        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
+        errors.push("role harus salah satu dari: admin".to_string());
     }
     if payload.password.as_ref().is_some_and(|value| value.len() < 8) {
         errors.push("password minimal 8 karakter".to_string());
@@ -626,6 +633,20 @@ struct AdminSupportTicketRow {
     agent_email: Option<String>,
 }
 
+#[derive(sqlx::FromRow)]
+struct NotificationRecord {
+    id: String,
+    recipient_user_id: String,
+    r#type: String,
+    title: String,
+    message: Option<String>,
+    action_path: Option<String>,
+    entity_id: Option<String>,
+    is_read: bool,
+    created_at: Option<String>,
+    read_at: Option<String>,
+}
+
 fn support_ticket_to_json(record: SupportTicketRecord) -> Value {
     json!({
         "id": record.id,
@@ -668,6 +689,82 @@ fn admin_support_ticket_to_json(row: AdminSupportTicketRow) -> Value {
         "createdAt": row.created_at,
         "updatedAt": row.updated_at,
     })
+}
+
+fn notification_to_json(record: NotificationRecord) -> Value {
+    json!({
+        "id": record.id,
+        "recipientUserId": record.recipient_user_id,
+        "type": record.r#type,
+        "title": record.title,
+        "message": record.message,
+        "actionPath": record.action_path,
+        "entityId": record.entity_id,
+        "isRead": record.is_read,
+        "createdAt": record.created_at,
+        "readAt": record.read_at,
+    })
+}
+
+async fn create_notification_for_user(
+    state: &AppState,
+    recipient_user_id: &str,
+    notif_type: &str,
+    title: &str,
+    message: Option<&str>,
+    action_path: Option<&str>,
+    entity_id: Option<&str>,
+) {
+    let id = uuid::Uuid::new_v4().to_string();
+    let _ = sqlx::query(
+        "INSERT INTO notifications (id, recipient_user_id, type, title, message, action_path, entity_id, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, 0)"
+    )
+    .bind(id)
+    .bind(recipient_user_id)
+    .bind(notif_type)
+    .bind(title)
+    .bind(message)
+    .bind(action_path)
+    .bind(entity_id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::warn!("Failed to create notification for user {}: {}", recipient_user_id, e);
+        e
+    });
+}
+
+async fn notify_all_admins(
+    state: &AppState,
+    notif_type: &str,
+    title: &str,
+    message: Option<&str>,
+    action_path: Option<&str>,
+    entity_id: Option<&str>,
+) {
+    let admin_ids = sqlx::query_scalar::<_, String>(
+        "SELECT id FROM users WHERE LOWER(role) = 'admin' AND is_active = 1"
+    )
+    .fetch_all(&state.pool)
+    .await;
+
+    match admin_ids {
+        Ok(ids) => {
+            for admin_id in ids {
+                create_notification_for_user(
+                    state,
+                    &admin_id,
+                    notif_type,
+                    title,
+                    message,
+                    action_path,
+                    entity_id,
+                )
+                .await;
+            }
+        }
+        Err(e) => tracing::warn!("Failed to fetch admin users for notifications: {}", e),
+    }
 }
 
 async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
@@ -715,7 +812,7 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
     let password_hash = hash_password(&payload.password);
 
     sqlx::query(
-        "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(payload.email.trim())
@@ -725,6 +822,7 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
     .bind(payload.avatar.unwrap_or_else(|| "".to_string()))
     .bind(payload.bank_account.unwrap_or_else(|| "".to_string()))
     .bind(payload.is_active.unwrap_or(true))
+    .bind(true) // Admin created users are verified by default
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
@@ -747,10 +845,11 @@ async fn get_user(State(state): State<AppState>, headers: HeaderMap, Path(id): P
 
 async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<UserUpdateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    tracing::info!("Admin {} updating user {}: {:?}", user.email, id, payload);
     validate_user_update(&payload)?;
 
-    let current = sqlx::query_as::<_, (String, String, String, String, String, String, bool)>(
-        "SELECT email, name, role, password_hash, avatar, bank_account, is_active FROM users WHERE id = ? LIMIT 1",
+    let current = sqlx::query_as::<_, (String, String, String, String, String, String, bool, bool)>(
+        "SELECT email, name, role, password_hash, avatar, bank_account, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -776,9 +875,10 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     let next_avatar = payload.avatar.unwrap_or(current.4);
     let next_bank_account = payload.bank_account.unwrap_or(current.5);
     let next_is_active = payload.is_active.unwrap_or(current.6);
+    let next_is_verified = payload.is_verified.unwrap_or(current.7);
 
     sqlx::query(
-        "UPDATE users SET email = ?, name = ?, role = ?, password_hash = ?, avatar = ?, bank_account = ?, is_active = ? WHERE id = ?",
+        "UPDATE users SET email = ?, name = ?, role = ?, password_hash = ?, avatar = ?, bank_account = ?, is_active = ?, is_verified = ? WHERE id = ?",
     )
     .bind(next_email.trim())
     .bind(next_name.trim())
@@ -787,6 +887,7 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     .bind(next_avatar)
     .bind(next_bank_account)
     .bind(next_is_active)
+    .bind(next_is_verified)
     .bind(&id)
     .execute(&state.pool)
     .await
@@ -943,6 +1044,44 @@ async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, m
     })?;
 
     Ok(json_ok("Image uploaded", json!({ "url": url })))
+}
+
+async fn resend_verification(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let _admin = authorize(&state, &headers, &[Role::Admin]).await?;
+    
+    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::NotFound)?;
+
+    // Set is_verified to false
+    sqlx::query("UPDATE users SET is_verified = 0 WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    // Send verification email
+    let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let verification_link = format!("{}/verify-email?email={}", frontend_url, urlencoding::encode(&user.email));
+    
+    if let Err(e) = state.mailer.send_verification_email(&user.email, &user.name, &verification_link, "(Password Anda tetap sama)").await {
+        tracing::error!("Failed to send verification email to {}: {}", user.email, e);
+    }
+
+    Ok(json_ok("Verification email resent", json!({ "id": id })))
 }
 
 async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
@@ -2533,6 +2672,105 @@ async fn delete_article(State(state): State<AppState>, headers: HeaderMap, Path(
 
 type ResponseBody = axum::response::Response;
 
+async fn list_notifications(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+
+    let rows = sqlx::query_as::<_, NotificationRecord>(
+        "SELECT id, recipient_user_id, type, title, message, action_path, entity_id, is_read, created_at, read_at
+         FROM notifications
+         WHERE recipient_user_id = ?
+         ORDER BY is_read ASC, created_at DESC
+         LIMIT 100"
+    )
+    .bind(&user.id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error listing notifications: {}", e);
+        AppError::Internal
+    })?;
+
+    let unread_count = rows.iter().filter(|row| !row.is_read).count() as i64;
+    let items: Vec<Value> = rows.into_iter().map(notification_to_json).collect();
+    Ok(json_ok(
+        "Notifications fetched",
+        json!({
+            "items": items,
+            "unreadCount": unread_count
+        }),
+    ))
+}
+
+async fn get_notifications_unread_count(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+
+    let unread_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notifications WHERE recipient_user_id = ? AND is_read = 0"
+    )
+    .bind(&user.id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error counting unread notifications: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Unread notifications fetched", json!({ "unreadCount": unread_count })))
+}
+
+async fn mark_notification_as_read(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+
+    let result = sqlx::query(
+        "UPDATE notifications
+         SET is_read = 1, read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+         WHERE id = ? AND recipient_user_id = ?"
+    )
+    .bind(&id)
+    .bind(&user.id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error marking notification as read: {}", e);
+        AppError::Internal
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Notification marked as read", json!({ "id": id, "updated": true })))
+}
+
+async fn mark_all_notifications_as_read(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+
+    let result = sqlx::query(
+        "UPDATE notifications
+         SET is_read = 1, read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+         WHERE recipient_user_id = ? AND is_read = 0"
+    )
+    .bind(&user.id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error marking all notifications as read: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        "All notifications marked as read",
+        json!({ "updated": result.rows_affected() }),
+    ))
+}
+
 async fn list_leads(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
@@ -2600,6 +2838,17 @@ async fn create_lead(State(state): State<AppState>, headers: HeaderMap, Json(pay
     })?;
 
     let created = find_lead_by_id(&state, &id).await?;
+
+    notify_all_admins(
+        &state,
+        "lead_created",
+        "Lead baru masuk",
+        Some(&format!("Lead dari {} untuk produk {}", created.customer_name, created.interested_product)),
+        Some("/dashboard/admin/leads"),
+        Some(&created.id),
+    )
+    .await;
+
     Ok(json_ok("Lead submitted successfully", json!({ "item": lead_to_json(created) })))
 }
 
@@ -2627,6 +2876,20 @@ async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, P
     })?;
 
     let updated = find_lead_by_id(&state, &id).await?;
+
+    if is_admin {
+        create_notification_for_user(
+            &state,
+            &updated.agent_id,
+            "lead_status_updated",
+            "Status lead diperbarui",
+            Some(&format!("Lead {} sekarang berstatus {}", updated.customer_name, updated.status)),
+            Some("/dashboard/agent/leads"),
+            Some(&updated.id),
+        )
+        .await;
+    }
+
     Ok(json_ok(format!("Lead {} status updated", id), json!({ "item": lead_to_json(updated) })))
 }
 
@@ -2690,6 +2953,16 @@ async fn create_support_ticket(
         AppError::Internal
     })?
     .ok_or(AppError::Internal)?;
+
+    notify_all_admins(
+        &state,
+        "support_ticket_created",
+        "Ticket support baru",
+        Some(&format!("{} membuat ticket: {}", user.name, created.subject)),
+        Some("/dashboard/admin/support"),
+        Some(&created.id),
+    )
+    .await;
 
     Ok(json_ok("Support ticket created", json!({ "item": support_ticket_to_json(created) })))
 }
@@ -2759,6 +3032,29 @@ async fn update_admin_support_ticket_status(
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
+
+    let updated_ticket = sqlx::query_as::<_, SupportTicketRecord>(
+        "SELECT id, agent_id, subject, message, priority, status, created_at FROM support_tickets WHERE id = ? LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching updated support ticket: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    create_notification_for_user(
+        &state,
+        &updated_ticket.agent_id,
+        "support_ticket_updated",
+        "Update ticket support",
+        Some(&format!("Ticket '{}' berubah ke status {}", updated_ticket.subject, updated_ticket.status)),
+        Some("/dashboard/agent/support"),
+        Some(&updated_ticket.id),
+    )
+    .await;
 
     Ok(json_ok("Support ticket status updated", json!({ "id": id, "updated": true })))
 }
@@ -3069,6 +3365,16 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
     })?
     .ok_or(AppError::Internal)?;
 
+    notify_all_admins(
+        &state,
+        "claim_created",
+        "Klaim reward baru",
+        Some(&format!("{} mengajukan klaim {}", user.name, created.reward_name)),
+        Some("/dashboard/admin/finance"),
+        Some(&created.id),
+    )
+    .await;
+
     Ok(json_ok("Reward claimed successfully", json!({ "item": claim_to_json(created) })))
 }
 
@@ -3171,6 +3477,16 @@ async fn submit_agent_registration(State(state): State<AppState>, mut multipart:
         AppError::Internal
     })?;
 
+    notify_all_admins(
+        &state,
+        "agent_registration_submitted",
+        "Pendaftar agen baru",
+        Some(&format!("{} mendaftar sebagai agen", full_name.trim())),
+        Some("/dashboard/admin/registrations"),
+        Some(&id),
+    )
+    .await;
+
     Ok(json_ok("Pendaftaran agen berhasil dikirim", json!({ "id": id, "status": "pending" })))
 }
 
@@ -3230,7 +3546,7 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
                 let password_hash = hash_password(&temp_password);
 
                 sqlx::query(
-                    "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 0)"
+                    "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 1)"
                 )
                 .bind(&user_id)
                 .bind(&registration.email)
@@ -3250,12 +3566,21 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
                 let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5174".to_string());
                 let verification_link = format!("{}/verify-email?email={}", frontend_url, urlencoding::encode(&registration.email));
                 
-                if let Err(e) = state.mailer.send_verification_email(&registration.email, &registration.full_name, &verification_link).await {
+                if let Err(e) = state.mailer.send_verification_email(&registration.email, &registration.full_name, &verification_link, &temp_password).await {
                     tracing::error!("Failed to send verification email to {}: {}", registration.email, e);
                 }
             }
         }
     }
+
+    let registration_email: Option<String> = sqlx::query_scalar("SELECT email FROM agent_registrations WHERE id = ? LIMIT 1")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching registration email: {}", e);
+            AppError::Internal
+        })?;
 
     let result = sqlx::query("UPDATE agent_registrations SET status = ? WHERE id = ?")
         .bind(&status)
@@ -3269,6 +3594,30 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
+    }
+
+    if let Some(email) = registration_email {
+        let agent_user_id = sqlx::query_scalar::<_, String>("SELECT id FROM users WHERE email = ? LIMIT 1")
+            .bind(&email)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error fetching user for registration notification: {}", e);
+                AppError::Internal
+            })?;
+
+        if let Some(agent_id) = agent_user_id {
+            create_notification_for_user(
+                &state,
+                &agent_id,
+                "registration_status_updated",
+                "Status pendaftaran agen",
+                Some(&format!("Status pendaftaran Anda: {}", status)),
+                Some("/dashboard/agent/notifications"),
+                Some(&id),
+            )
+            .await;
+        }
     }
 
     Ok(json_ok(format!("Agent registration {} status updated", id), json!({ "updated": true, "status": status })))
@@ -3320,6 +3669,29 @@ async fn update_claim_status(State(state): State<AppState>, headers: HeaderMap, 
         return Err(AppError::NotFound);
     }
 
+    let updated_claim = sqlx::query_as::<_, ClaimRow>(
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.id = ? LIMIT 1"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching updated claim: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    create_notification_for_user(
+        &state,
+        &updated_claim.agent_id,
+        "claim_status_updated",
+        "Update status klaim reward",
+        Some(&format!("Klaim '{}' berubah ke status {}", updated_claim.reward_name, updated_claim.status)),
+        Some("/dashboard/agent/claims"),
+        Some(&updated_claim.id),
+    )
+    .await;
+
     Ok(json_ok(format!("Claim {} status updated", id), json!({ "updated": true, "status": status })))
 }
 
@@ -3345,10 +3717,10 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
 
     let monthly_rows = sqlx::query(
         "SELECT strftime('%Y-%m', created_at) AS month,
-                COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views
+                COALESCE(COUNT(DISTINCT session_id || path), 0) AS views
          FROM telemetry_events
-         WHERE created_at >= datetime('now', '-180 days')
-         GROUP BY strftime('%Y-%m', created_at)
+         WHERE event_type = 'page_view' AND created_at >= datetime('now', '-180 days')
+         GROUP BY month
          ORDER BY month ASC"
     )
     .fetch_all(&state.pool)
@@ -3360,12 +3732,34 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
 
     let source_rows = sqlx::query(
         "SELECT COALESCE(source, 'unknown') AS source,
-                COUNT(*) AS clicks,
+                COUNT(DISTINCT session_id || path) AS clicks,
                 COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads
          FROM telemetry_events
          GROUP BY COALESCE(source, 'unknown')
          ORDER BY clicks DESC
          LIMIT 5"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    let top_content_rows = sqlx::query(
+        "SELECT
+            COALESCE(json_extract(metadata, '$.contentType'), json_extract(metadata, '$.pageType'), 'page') AS content_type,
+            COALESCE(json_extract(metadata, '$.contentKey'), json_extract(metadata, '$.pageKey'), path) AS content_key,
+            COALESCE(json_extract(metadata, '$.contentTitle'), json_extract(metadata, '$.pageLabel'), json_extract(metadata, '$.contentSlug'), path) AS content_title,
+            COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views,
+            COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) AS clicks,
+            COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads
+         FROM telemetry_events
+         WHERE COALESCE(json_extract(metadata, '$.contentKey'), json_extract(metadata, '$.pageKey'), path) IS NOT NULL
+           AND COALESCE(json_extract(metadata, '$.contentKey'), json_extract(metadata, '$.pageKey'), path) <> ''
+         GROUP BY content_type, content_key, content_title
+         ORDER BY views DESC, clicks DESC
+         LIMIT 10"
     )
     .fetch_all(&state.pool)
     .await
@@ -3442,6 +3836,21 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
         })
         .collect();
 
+    let top_content_rows_json: Vec<Value> = top_content_rows
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            json!({
+                "contentType": row.get::<String, _>("content_type"),
+                "contentKey": row.get::<String, _>("content_key"),
+                "contentTitle": row.get::<String, _>("content_title"),
+                "views": row.get::<i64, _>("views"),
+                "clicks": row.get::<i64, _>("clicks"),
+                "leads": row.get::<i64, _>("leads"),
+            })
+        })
+        .collect();
+
     let system_metrics = {
         use sqlx::Row;
         let total_events = totals_row.get::<i64, _>("total_events");
@@ -3481,6 +3890,7 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
         "trafficData": traffic_data,
         "monthlyPageViews": monthly_page_views,
         "sourceRows": source_rows_json,
+        "topContentRows": top_content_rows_json,
         "systemMetrics": system_metrics,
         "errorLogs": []
     });

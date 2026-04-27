@@ -5,10 +5,11 @@ import {
   ShieldCheck, UserCog, Search, Plus,
   CheckCircle2, XCircle, Clock, Shield,
   Users, Lock, Unlock, Eye, EyeOff,
-  AlertTriangle, ArrowUpRight, Filter,
+  AlertTriangle, ArrowUpRight, Filter, Megaphone
 } from 'lucide-react';
 import { useUserStore } from '../../store/useUserStore';
 import { toast } from '../../store/useNotificationStore';
+import Pagination from '../../components/ui/Pagination';
 
 const roleConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
@@ -43,7 +44,7 @@ const formatDateTime = (value?: string) => {
 };
 
 const AdminUsersPage: React.FC = () => {
-  const { users, isLoading, error, fetchUsers, updateUserStatus, resetUserPassword } = useUserStore();
+  const { users, isLoading, error, fetchUsers, updateUserStatus, resetUserPassword, verifyUser, resendVerification } = useUserStore();
   const [search, setSearch]           = useState('');
   const [roleFilter, setRoleFilter]   = useState('Semua');
   const [statusFilter, setStatusFilter] = useState('Semua');
@@ -51,6 +52,9 @@ const AdminUsersPage: React.FC = () => {
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchUsers();
@@ -60,6 +64,20 @@ const AdminUsersPage: React.FC = () => {
 
   const toggleSuspend = async (id: string, isActive: boolean) => {
     await updateUserStatus(id, !isActive);
+  };
+
+  const handleVerify = async (id: string) => {
+    const success = await verifyUser(id);
+    if (success) {
+      toast.success('User Diverifikasi', 'User sekarang sudah bisa login.');
+    }
+  };
+
+  const handleUnverify = async (id: string) => {
+    const success = await resendVerification(id);
+    if (success) {
+      toast.success('Email Dikirim', 'Status user diubah ke belum terverifikasi.');
+    }
   };
 
   const handleResetPassword = async () => {
@@ -120,6 +138,12 @@ const AdminUsersPage: React.FC = () => {
     const matchStatus = statusFilter === 'Semua' || userStatus(u.is_active) === statusFilter;
     return matchSearch && matchRole && matchStatus;
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const totalAdmin    = users.filter((u) => u.role.toLowerCase() === 'admin').length;
   const totalAgent    = users.filter((u) => u.role.toLowerCase() === 'agent').length;
@@ -263,7 +287,7 @@ const AdminUsersPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user) => {
+              {paginated.map((user) => {
                 const rc = roleConfig[user.role.toLowerCase()] || roleConfig.operator;
                 const effectiveStatus = userStatus(user.is_active);
                 const sc = statusConfig[effectiveStatus] || statusConfig['Pending'];
@@ -309,6 +333,18 @@ const AdminUsersPage: React.FC = () => {
                           className="p-1.5 rounded-md bg-tertiary/10 text-tertiary hover:bg-tertiary/20 transition-colors" title="Reset Password">
                           <Lock className="w-4 h-4" />
                         </button>
+                        {!user.is_verified && (
+                          <button type="button" onClick={() => handleVerify(user.id)}
+                            className="p-1.5 rounded-md bg-secondary/15 text-secondary hover:bg-secondary/25 transition-colors animate-pulse" title="Verifikasi Akun">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {user.is_verified && (
+                          <button type="button" onClick={() => handleUnverify(user.id)}
+                            className="p-1.5 rounded-md bg-surface-highest text-on-surface-variant hover:text-on-surface transition-colors" title="Unverify & Resend Email">
+                            <Megaphone className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -320,6 +356,13 @@ const AdminUsersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => setCurrentPage(page)}
+          className="mt-4 border-t border-outline-variant/10"
+        />
 
         <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between text-label-sm">
           <span className="text-on-surface-variant">

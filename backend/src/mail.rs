@@ -28,14 +28,14 @@ impl Mailer {
         }
     }
 
-    pub async fn send_verification_email(&self, to_email: &str, name: &str, verification_link: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn send_verification_email(&self, to_email: &str, name: &str, verification_link: &str, temp_password: &str) -> Result<(), Box<dyn std::error::Error>> {
         let email = Message::builder()
             .from(self.from_email.parse()?)
             .to(to_email.parse()?)
             .subject("Verifikasi Akun Agent Tridjaya Samrat")
             .body(format!(
-                "Halo {},\n\nSelamat! Pendaftaran Anda sebagai Agent Tridjaya Samrat telah disetujui.\n\nSilakan klik tautan di bawah ini untuk memverifikasi akun Anda dan mulai menggunakan dashboard:\n{}\n\nTerima kasih,\nTim Tridjaya Samrat",
-                name, verification_link
+                "Halo {},\n\nSelamat! Pendaftaran Anda sebagai Agent Tridjaya Samrat telah disetujui.\n\nBerikut adalah detail akun Anda:\n- Email: {}\n- Password Sementara: {}\n\nSilakan klik tautan di bawah ini untuk memverifikasi akun Anda dan mulai menggunakan dashboard:\n{}\n\nCatatan: Kami sangat menyarankan Anda untuk segera mengganti password setelah login pertama demi keamanan.\n\nTerima kasih,\nTim Tridjaya Samrat",
+                name, to_email, temp_password, verification_link
             ))?;
 
         self.transport.send(email).await?;

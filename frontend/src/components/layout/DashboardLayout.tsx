@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useDashboardNotificationsStore } from '../../store/useDashboardNotificationsStore';
+import { toast } from '../../store/useNotificationStore';
 import logoPng from '../../assets/images/logo.webp';
 
 const DashboardLayout: React.FC = () => {
@@ -35,8 +37,10 @@ const DashboardLayout: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
+  const { unreadCount, fetchUnreadCount, clear: clearDashboardNotifications } = useDashboardNotificationsStore();
   const location = useLocation();
   const navigate = useNavigate();
+  const previousUnreadRef = React.useRef<number | null>(null);
 
   // Detect mobile view for logic branching
   React.useEffect(() => {
@@ -51,7 +55,39 @@ const DashboardLayout: React.FC = () => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  React.useEffect(() => {
+    if (!user?.id) {
+      previousUnreadRef.current = null;
+      clearDashboardNotifications();
+      return;
+    }
+
+    let isMounted = true;
+    const syncUnread = async () => {
+      const count = await fetchUnreadCount();
+      if (!isMounted) {
+        return;
+      }
+
+      if (previousUnreadRef.current !== null && count > previousUnreadRef.current) {
+        toast.info('Notifikasi baru', 'Ada pesan baru yang belum dibaca.');
+      }
+      previousUnreadRef.current = count;
+    };
+
+    void syncUnread();
+    const intervalId = window.setInterval(() => {
+      void syncUnread();
+    }, 30_000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [user?.id, fetchUnreadCount, clearDashboardNotifications]);
+
   const handleLogout = () => {
+    clearDashboardNotifications();
     logout();
     navigate('/login');
   };
@@ -95,7 +131,7 @@ const DashboardLayout: React.FC = () => {
       ];
 
   const activeItem = navItems.find((item) => location.pathname === item.path);
-  const notificationsPath = user?.role === 'admin' ? '/dashboard/admin/telemetry' : '/dashboard/agent/support';
+  const notificationsPath = user?.role === 'admin' ? '/dashboard/admin/notifications' : '/dashboard/agent/notifications';
 
   return (
     <div className="min-h-screen bg-surface flex text-on-surface relative overflow-hidden page-shell">
@@ -141,7 +177,7 @@ const DashboardLayout: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto overflow-x-hidden custom-scrollbar">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
@@ -150,6 +186,7 @@ const DashboardLayout: React.FC = () => {
               <Link 
                 key={item.path} 
                 to={item.path}
+                title={!isSidebarOpen && !isMobile ? item.label : undefined}
                 className={`flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group relative ${
                   isActive 
                     ? 'bg-primary/10 border border-primary/40 text-primary shadow-sm shadow-primary/5' 
@@ -159,12 +196,6 @@ const DashboardLayout: React.FC = () => {
                 <Icon className={`w-5 h-5 flex-shrink-0 transition-transform ${isActive ? 'text-primary' : 'group-hover:scale-110'}`} />
                 {(isSidebarOpen || isMobile) && (
                   <span className="font-body text-body-md font-semibold truncate">{item.label}</span>
-                )}
-                {/* Tooltip for collapsed sidebar */}
-                {!isSidebarOpen && !isMobile && (
-                  <div className="absolute left-full ml-4 px-3 py-1 bg-surface-highest text-white text-label-md rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                    {item.label}
-                  </div>
                 )}
               </Link>
             )
@@ -262,7 +293,11 @@ const DashboardLayout: React.FC = () => {
               aria-label="Buka notifikasi"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-surface" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-primary text-on-primary text-[10px] font-bold border border-surface flex items-center justify-center leading-none">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
             
             <div className="h-10 w-px bg-outline-variant/20 mx-2 hidden sm:block" />

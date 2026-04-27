@@ -16,6 +16,7 @@ import {
   Plus,
   Star
 } from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
 import { 
   XAxis, 
   YAxis, 
@@ -27,6 +28,13 @@ import {
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useAgentStore } from '../../store/useAgentStore';
+
+// Fallback data for reward tiers if backend returns empty
+const fallbackRewardTiers = [
+  { id: 'silver', name: 'Silver Tier', thresholdPoints: 0, isActive: true },
+  { id: 'gold', name: 'Gold Tier', thresholdPoints: 5000, isActive: true },
+  { id: 'diamond', name: 'Diamond Tier', thresholdPoints: 15000, isActive: true },
+];
 
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
@@ -43,6 +51,8 @@ const AdminLeaderboardPage: React.FC = () => {
    const { registrations, claims, fetchRegistrations, fetchClaims, updateClaimStatus } = useAdminNetworkStore();
    const { leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers } = useAgentStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'manage' | 'claims'>('overview');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
    useEffect(() => {
       fetchRegistrations();
@@ -123,6 +133,12 @@ const AdminLeaderboardPage: React.FC = () => {
    const activeSilverAgents = rewardConfig.find((tier) => tier.id === 'silver')?.agents ?? 0;
    const activeGoldAgents = rewardConfig.find((tier) => tier.id === 'gold')?.agents ?? 0;
    const legendaryDiamondAgents = rewardConfig.find((tier) => tier.id === 'diamond')?.agents ?? 0;
+
+   const totalPages = Math.ceil(claims.length / itemsPerPage);
+   const paginatedClaims = claims.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+   );
 
   return (
     <motion.div
@@ -330,7 +346,7 @@ const AdminLeaderboardPage: React.FC = () => {
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
-                   {claims.map((claim) => (
+                   {paginatedClaims.map((claim) => (
                      <tr key={claim.id} className="hover:bg-surface-high/40 transition-colors group">
                         <td className="px-6 py-4 font-mono text-[11px] font-bold text-on-surface-variant">{claim.id}</td>
                         <td className="px-6 py-4">
@@ -361,15 +377,22 @@ const AdminLeaderboardPage: React.FC = () => {
                         </td>
                      </tr>
                    ))}
-                            {claims.length === 0 && (
-                     <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-on-surface-variant text-body-sm">Belum ada reward yang diklaim agen untuk saat ini.</td>
-                     </tr>
+                             {claims.length === 0 && (
+                      <tr>
+                                     <td colSpan={6} className="px-6 py-10 text-center text-on-surface-variant text-body-sm">Belum ada reward yang diklaim agen untuk saat ini.</td>
+                      </tr>
                    )}
                 </tbody>
               </table>
-           </div>
-        </motion.div>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(page) => setCurrentPage(page)}
+              className="mt-4 border-t border-outline-variant/10"
+            />
+         </motion.div>
       )}
 
       {/* ── Help Button ─────────────────────────────── */}

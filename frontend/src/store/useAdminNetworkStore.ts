@@ -32,6 +32,7 @@ export interface TelemetryStats {
   trafficData: any[];
   monthlyPageViews: any[];
   sourceRows: any[];
+  topContentRows: any[];
   systemMetrics: any[];
   errorLogs: any[];
 }

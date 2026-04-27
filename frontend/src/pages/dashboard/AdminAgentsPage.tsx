@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { useUserStore } from '../../store/useUserStore';
+import Pagination from '../../components/ui/Pagination';
 
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { AgentRegistration } from '../../store/useAdminNetworkStore';
@@ -53,6 +54,9 @@ const AdminAgentsPage: React.FC = () => {
   const { users, fetchUsers, resetUserPassword } = useUserStore();
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   React.useEffect(() => {
     fetchRegistrations();
@@ -114,6 +118,12 @@ const AdminAgentsPage: React.FC = () => {
   ) : [];
 
   const pendingRegistrations = Array.isArray(registrations) ? registrations.filter((a) => !approvedIds.includes(a.id) && !rejectedIds.includes(a.id)) : [];
+
+  const totalPages = Math.ceil(filteredAgents.length / itemsPerPage);
+  const paginatedAgents = filteredAgents.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -208,7 +218,7 @@ const AdminAgentsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredAgents.map((item) => {
+                {paginatedAgents.map((item) => {
                   const isApproved = approvedIds.includes(item.id);
                   const isRejected = rejectedIds.includes(item.id);
                   const isExpanded = expandedId === item.id;
@@ -420,6 +430,13 @@ const AdminAgentsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={(page) => setCurrentPage(page)}
+            className="mt-4 border-t border-outline-variant/10"
+          />
 
           {/* Summary Bar */}
           <div className="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">

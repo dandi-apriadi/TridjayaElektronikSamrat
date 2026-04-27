@@ -21,6 +21,22 @@ export const PartnerLogos: React.FC = () => {
     return [...partners].sort((a, b) => a.sortOrder - b.sortOrder);
   }, [partners]);
 
+  const uniquePartners = useMemo(() => {
+    const seen = new Set<string>();
+
+    return sortedPartners.filter((partner) => {
+      // Normalize name: remove special chars, trim, and lowercase
+      const normalizedName = partner.name.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+      
+      if (!normalizedName || seen.has(normalizedName)) {
+        return false;
+      }
+
+      seen.add(normalizedName);
+      return true;
+    });
+  }, [sortedPartners]);
+
   if (isLoading && partners.length === 0) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -31,7 +47,7 @@ export const PartnerLogos: React.FC = () => {
     );
   }
 
-  if (!isLoading && partners.length === 0) {
+  if (!isLoading && uniquePartners.length === 0) {
     return (
       <div className="glass-card rounded-2xl p-8 text-center text-on-surface-variant">
         Logo partner akan tampil di sini setelah ditambahkan dari admin panel.
@@ -41,7 +57,7 @@ export const PartnerLogos: React.FC = () => {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-      {sortedPartners.map((partner, i) => (
+      {uniquePartners.map((partner, i) => (
         <motion.div
           key={partner.id}
           initial={{ opacity: 0, y: 20 }}

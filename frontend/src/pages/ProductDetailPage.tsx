@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -28,22 +28,6 @@ const ProductDetailPage: React.FC = () => {
     tenor: '6x' | '9x' | '12x' | '15x';
     monthlyInstallment: number;
   } | null>(null);
-
-  useEffect(() => {
-    if (!product) {
-      return;
-    }
-
-    recordTelemetry('page_view', {
-      path: `/produk/${product.slug}`,
-      source: 'direct',
-      metadata: {
-        productSlug: product.slug,
-        productId: product.id,
-        category: product.category,
-      },
-    });
-  }, [product?.id, product?.slug, product?.category]);
 
   if (isLoading) {
     return (
@@ -81,6 +65,18 @@ const ProductDetailPage: React.FC = () => {
 
   const handleShareProduct = async () => {
     const url = window.location.href;
+    recordTelemetry('click', {
+      path: `/produk/${product.slug}`,
+      source: 'direct',
+      metadata: {
+        contentType: 'product',
+        contentSlug: product.slug,
+        contentKey: `product:${product.slug}`,
+        contentTitle: product.name,
+        action: 'share_product',
+      },
+    });
+
     const shareData = {
       title: product.name,
       text: `Lihat detail ${product.name} di Tridjaya Samrat`,
@@ -211,7 +207,22 @@ const ProductDetailPage: React.FC = () => {
               {/* CTAs */}
               <div className="flex flex-col sm:flex-row gap-3 mb-6">
                 <button
-                  onClick={() => setShowCreditForm(!showCreditForm)}
+                  type="button"
+                  onClick={() => {
+                    setShowCreditForm(!showCreditForm);
+                    recordTelemetry('click', {
+                      path: `/produk/${product.slug}`,
+                      source: 'direct',
+                      metadata: {
+                        contentType: 'product',
+                        contentSlug: product.slug,
+                        contentKey: `product:${product.slug}`,
+                        contentTitle: product.name,
+                        action: 'toggle_credit_form',
+                        isOpen: !showCreditForm,
+                      },
+                    });
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface hover:shadow-neon-cyan transition-all duration-300"
                 >
                   <CreditCard className="w-4 h-4" />
@@ -226,8 +237,10 @@ const ProductDetailPage: React.FC = () => {
                       path: `/produk/${product.slug}`,
                       source: 'direct',
                       metadata: {
-                        productSlug: product.slug,
-                        productId: product.id,
+                        contentType: 'product',
+                        contentSlug: product.slug,
+                        contentKey: `product:${product.slug}`,
+                        contentTitle: product.name,
                         action: 'general_inquiry',
                       },
                     });
@@ -261,8 +274,10 @@ const ProductDetailPage: React.FC = () => {
                         path: `/produk/${product.slug}`,
                         source: 'direct',
                         metadata: {
-                          productSlug: product.slug,
-                          productId: product.id,
+                          contentType: 'product',
+                          contentSlug: product.slug,
+                          contentKey: `product:${product.slug}`,
+                          contentTitle: product.name,
                           action: 'credit_inquiry',
                           selectedTenor: selectedCreditPlan?.tenor ?? null,
                         },
