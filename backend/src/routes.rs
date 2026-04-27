@@ -408,24 +408,43 @@ async fn reset_password(
     }
 
     let password_hash = hash_password(&payload.new_password);
+
+    // Update password & invalidasi seluruh token reset milik user dalam satu
+    // transaksi: kalau salah satu gagal, password tidak ikut berubah dan token
+    // tidak ikut hangus. Invalidasi SEMUA token (bukan hanya yang dipakai)
+    // untuk mencegah token aktif lain (mis. dari email yang bocor) ikut bisa
+    // me-reset password lagi.
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("DB error starting reset transaction: {}", e);
+        AppError::Internal
+    })?;
+
+    sqlx::query(
+        "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP \
+         WHERE user_id = ? AND used_at IS NULL",
+    )
+    .bind(&user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error marking reset tokens used: {}", e);
+        AppError::Internal
+    })?;
+
     sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?")
         .bind(&password_hash)
         .bind(&user_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| {
             tracing::error!("DB error updating password: {}", e);
             AppError::Internal
         })?;
 
-    sqlx::query("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?")
-        .bind(&token)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error marking reset token used: {}", e);
-            AppError::Internal
-        })?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("DB error committing reset transaction: {}", e);
+        AppError::Internal
+    })?;
 
     // Invalidate any active sessions for this user.
     {
