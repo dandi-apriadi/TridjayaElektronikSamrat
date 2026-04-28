@@ -32,7 +32,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     sqlx::query("DELETE FROM reward_claims").execute(&mut *conn).await?;
     sqlx::query("DELETE FROM agent_achievements").execute(&mut *conn).await?;
     sqlx::query("DELETE FROM agent_stats").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM users").execute(&mut *conn).await?;
+    sqlx::query("DELETE FROM users WHERE email NOT LIKE '%dandi%' AND email NOT LIKE '%admin%'").execute(&mut *conn).await?;
     sqlx::query("DELETE FROM promos").execute(&mut *conn).await?;
     sqlx::query("DELETE FROM products").execute(&mut *conn).await?;
     sqlx::query("DELETE FROM blog_posts").execute(&mut *conn).await?;
@@ -40,7 +40,8 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     sqlx::query("DELETE FROM partners").execute(&mut *conn).await?;
     sqlx::query("DELETE FROM reward_tiers").execute(&mut *conn).await?;
     sqlx::query("DELETE FROM achievements").execute(&mut *conn).await?;
-    sqlx::query("PRAGMA foreign_keys = ON").execute(&mut *conn).await?;
+    sqlx::query("DELETE FROM product_categories").execute(&mut *conn).await?;
+    // We leave foreign_keys OFF for the duration of the seeding to prevent REPLACE INTO constraint issues
 
     // Seed Users
     if let Some(users) = seeds["users"].as_array() {
@@ -74,7 +75,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(password_hash)
             .bind(avatar)
             .bind(bank_account)
-            .execute(pool)
+            .execute(&mut *conn)
             .await?;
 
             if res.rows_affected() > 0 {
@@ -103,7 +104,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(t["color"].as_str())
                 .bind(benefits_json)
                 .bind(reward_value)
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -117,7 +118,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(s["sales_count"].as_i64())
                 .bind(s["monthly_growth"].as_f64())
                 .bind(s["current_tier_id"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -131,7 +132,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(a["description"].as_str())
                 .bind(a["icon"].as_str())
                 .bind(a["color"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -142,7 +143,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             sqlx::query("REPLACE INTO agent_achievements (agent_id, achievement_id) VALUES (?, ?)")
                 .bind(aa["agent_id"].as_str())
                 .bind(aa["achievement_id"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -156,7 +157,20 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(c["tier_id"].as_str())
                 .bind(c["reward_name"].as_str())
                 .bind(c["status"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
+                .await?;
+        }
+    }
+
+    // Seed Product Categories
+    if let Some(categories) = seeds["product_categories"].as_array() {
+        for c in categories {
+            sqlx::query("REPLACE INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)")
+                .bind(c["id"].as_str())
+                .bind(c["name"].as_str())
+                .bind(c["slug"].as_str())
+                .bind(c["description"].as_str())
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -167,10 +181,13 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             let specs_json = serde_json::to_string(&p["specs"]).unwrap_or_else(|_| "{}".to_string());
             let images_json = serde_json::to_string(&p["images"]).unwrap_or_else(|_| "[]".to_string());
             let colors_json = serde_json::to_string(&p["colors"]).unwrap_or_else(|_| "[]".to_string());
+            let highlights_json = serde_json::to_string(&p["highlights"]).unwrap_or_else(|_| "[]".to_string());
+            let selling_points_json = serde_json::to_string(&p["sellingPoints"]).unwrap_or_else(|_| "[]".to_string());
+            let objections_json = serde_json::to_string(&p["objections"]).unwrap_or_else(|_| "[]".to_string());
 
             sqlx::query(
-                "REPLACE INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "REPLACE INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors, highlights, selling_points, objections) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(p["id"].as_str())
             .bind(p["slug"].as_str())
@@ -191,7 +208,10 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(specs_json)
             .bind(p["stock"].as_str())
             .bind(colors_json)
-            .execute(pool)
+            .bind(highlights_json)
+            .bind(selling_points_json)
+            .bind(objections_json)
+            .execute(&mut *conn)
             .await?;
         }
     }
@@ -217,7 +237,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(p["category"].as_str())
             .bind(p["variant"].as_str())
             .bind(product_ids_json)
-            .execute(pool)
+            .execute(&mut *conn)
             .await?;
         }
     }
@@ -243,7 +263,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(p["publishedAt"].as_str())
             .bind(p["readTime"].as_i64())
             .bind(p["featured"].as_bool())
-            .execute(pool)
+            .execute(&mut *conn)
             .await?;
         }
     }
@@ -267,7 +287,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(requirements_json)
             .bind(benefits_json)
             .bind(j["postedAt"].as_str())
-            .execute(pool)
+            .execute(&mut *conn)
             .await?;
         }
     }
@@ -280,7 +300,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(p["name"].as_str())
                 .bind(p["logo_url"].as_str())
                 .bind(p["sort_order"].as_i64().unwrap_or(0))
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -300,7 +320,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(preferred_json)
                 .bind(r["status"].as_str())
                 .bind(r["submitted_at"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -318,7 +338,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(l["notes"].as_str())
                 .bind(l["created_at"].as_str())
                 .bind(l["updated_at"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -335,7 +355,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(e["session_id"].as_str())
                 .bind(metadata_json)
                 .bind(e["created_at"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -353,7 +373,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(r["leads"].as_i64())
                 .bind(r["is_active"].as_bool())
                 .bind(r["created_at"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -370,7 +390,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(t["status"].as_str())
                 .bind(t["created_at"].as_str())
                 .bind(t["updated_at"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
@@ -389,10 +409,12 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(n["is_read"].as_bool())
                 .bind(n["created_at"].as_str())
                 .bind(n["read_at"].as_str())
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
     }
+    
+    sqlx::query("PRAGMA foreign_keys = ON").execute(&mut *conn).await?;
 
     println!("Database seeding completed successfully!");
     Ok(())

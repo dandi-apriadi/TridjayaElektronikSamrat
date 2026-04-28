@@ -128,15 +128,14 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
-            // Silently fail — user mungkin belum login atau token sudah expired.
             set({ user: null, isAuthenticated: false, accessToken: null });
             return false;
           }
 
-          const payload = (await response.json()) as { data?: LoginResponse };
+          const payload = (await response.json()) as { data?: LoginResponse & { authenticated?: boolean } };
           const authData = payload.data;
 
-          if (!authData?.access_token || !authData?.user) {
+          if (authData?.authenticated === false || !authData?.access_token || !authData?.user) {
             set({ user: null, isAuthenticated: false, accessToken: null });
             return false;
           }
@@ -149,7 +148,6 @@ export const useAuthStore = create<AuthState>()(
 
           return true;
         } catch {
-          // Silently fail — user mungkin belum login.
           set({ user: null, isAuthenticated: false, accessToken: null });
           return false;
         }
@@ -157,8 +155,6 @@ export const useAuthStore = create<AuthState>()(
       restoreSession: async () => {
         set({ isInitializing: true });
         
-        // Always try to refresh on mount if we were previously authenticated
-        // or if we want to check for an existing HttpOnly cookie session.
         try {
           const response = await fetch(`${API_URL}/auth/refresh`, {
             method: 'POST',
@@ -170,15 +166,14 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
-            // If refresh fails, clear all auth state
             set({ user: null, isAuthenticated: false, accessToken: null });
             return;
           }
 
-          const payload = (await response.json()) as { data?: LoginResponse };
+          const payload = (await response.json()) as { data?: LoginResponse & { authenticated?: boolean } };
           const authData = payload.data;
 
-          if (authData?.access_token && authData?.user) {
+          if (authData?.authenticated !== false && authData?.access_token && authData?.user) {
             set({
               user: authData.user,
               isAuthenticated: true,

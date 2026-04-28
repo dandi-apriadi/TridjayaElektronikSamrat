@@ -28,7 +28,7 @@ const AdminProductFormPage: React.FC = () => {
     loadCreditData().then(setCreditData);
 
     // Fetch categories
-    fetch('/api/product-categories')
+    apiFetch('/api/product-categories')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -420,12 +420,12 @@ const AdminProductFormPage: React.FC = () => {
 
             <div className="space-y-1.5 mt-4">
               <label className="text-label-sm font-semibold text-on-surface-variant">Deskripsi Singkat (Short Catchy Phrase)</label>
-              <textarea required name="shortDesc" value={formData.shortDesc || ''} onChange={handleChange} rows={2} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Gaya futuristik dengan jangkauan terjauh..." />
+              <textarea name="shortDesc" value={formData.shortDesc || ''} onChange={handleChange} rows={2} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Gaya futuristik dengan jangkauan terjauh..." />
             </div>
 
             <div className="space-y-1.5 mt-4">
               <label className="text-label-sm font-semibold text-on-surface-variant">Deskripsi Lengkap (Product Knowledge)</label>
-              <textarea required name="description" value={formData.description || ''} onChange={handleChange} rows={6} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Masukkan detail lengkap produk untuk referensi agen..." />
+              <textarea name="description" value={formData.description || ''} onChange={handleChange} rows={6} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Masukkan detail lengkap produk untuk referensi agen..." />
             </div>
           </div>
 

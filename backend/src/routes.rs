@@ -274,24 +274,41 @@ async fn login(State(state): State<AppState>, headers: HeaderMap, Json(payload):
 }
 
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    logout_with_headers(&state, &headers).await?;
-    let mut response = json_ok("Logout successful", json!({ "logged_out": true }));
-    append_set_cookie(&mut response, &build_clear_refresh_cookie());
-    Ok(response)
+    match logout_with_headers(&state, &headers).await {
+        Ok(_) | Err(AppError::Unauthorized) => {
+            let mut response = json_ok("Logout successful", json!({ "logged_out": true }));
+            append_set_cookie(&mut response, &build_clear_refresh_cookie());
+            Ok(response)
+        }
+        Err(e) => Err(e),
+    }
 }
 
-async fn refresh(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<RefreshRequest>) -> Result<ResponseBody, AppError> {
+async fn refresh(State(state): State<AppState>, headers: HeaderMap, body: axum::body::Bytes) -> axum::response::Response {
+    let payload: RefreshRequest = serde_json::from_slice(&body).unwrap_or(RefreshRequest { refresh_token: "".to_string() });
+    
     let refresh_token = if payload.refresh_token.trim().is_empty() {
-        extract_cookie_token(&headers, "refresh_token").ok_or(AppError::Unauthorized)?
+        match extract_cookie_token(&headers, "refresh_token") {
+            Some(token) => token,
+            None => return json_ok("Session not found", json!({ "authenticated": false })),
+        }
     } else {
         payload.refresh_token
     };
 
-    let auth = refresh_with_request(&state, RefreshRequest { refresh_token }).await?;
-    let new_refresh_token = auth.refresh_token.clone();
-    let mut response = json_ok("Token refreshed", auth);
-    append_set_cookie(&mut response, &build_refresh_cookie(&new_refresh_token));
-    Ok(response)
+    match refresh_with_request(&state, RefreshRequest { refresh_token }).await {
+        Ok(auth) => {
+            let new_refresh_token = auth.refresh_token.clone();
+            let mut response = json_ok("Token refreshed", auth);
+            append_set_cookie(&mut response, &build_refresh_cookie(&new_refresh_token));
+            response
+        }
+        Err(_) => {
+            let mut response = json_ok("Session invalid or expired", json!({ "authenticated": false }));
+            append_set_cookie(&mut response, &build_clear_refresh_cookie());
+            response
+        }
+    }
 }
 
 async fn forgot_password(
@@ -1745,9 +1762,7 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
     if payload.category.trim().is_empty() {
         errors.push("category wajib diisi".to_string());
     }
-    if payload.image.trim().is_empty() {
-        errors.push("image wajib diisi".to_string());
-    }
+    // image is now optional
     if payload.price < 0.0 {
         errors.push("price tidak boleh negatif".to_string());
     }
@@ -1788,9 +1803,7 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
     if payload.category.as_ref().is_some_and(|value| value.trim().is_empty()) {
         errors.push("category tidak boleh kosong".to_string());
     }
-    if payload.image.as_ref().is_some_and(|value| value.trim().is_empty()) {
-        errors.push("image tidak boleh kosong".to_string());
-    }
+    // image is now optional
     if payload.price.is_some_and(|value| value < 0.0) {
         errors.push("price tidak boleh negatif".to_string());
     }

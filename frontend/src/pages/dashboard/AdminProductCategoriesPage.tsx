@@ -10,6 +10,7 @@ import {
   X
 } from 'lucide-react';
 import { toast } from '../../store/useNotificationStore';
+import { apiFetch } from '../../utils/apiClient';
 
 interface Category {
   id: string;
@@ -31,7 +32,7 @@ const AdminProductCategoriesPage: React.FC = () => {
   const fetchCategories = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/product-categories');
+      const response = await apiFetch('/api/product-categories');
       const data = await response.json();
       if (data.success) {
         setCategories(data.data.items);
@@ -61,9 +62,8 @@ const AdminProductCategoriesPage: React.FC = () => {
         ? `/api/product-categories/${editingCategory.id}` 
         : '/api/product-categories';
       
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: editingCategory ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
 
@@ -91,7 +91,7 @@ const AdminProductCategoriesPage: React.FC = () => {
     if (!window.confirm(`Hapus kategori "${name}"? Produk dalam kategori ini mungkin tidak akan terpengaruh secara langsung, tetapi label kategorinya tetap ada di data produk.`)) return;
 
     try {
-      const response = await fetch(`/api/product-categories/${id}`, { method: 'DELETE' });
+      const response = await apiFetch(`/api/product-categories/${id}`, { method: 'DELETE' });
       const data = await response.json();
       if (data.success) {
         toast.success('Kategori Dihapus', `Kategori ${name} berhasil dihapus`);

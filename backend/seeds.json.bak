@@ -23,6 +23,141 @@
       "role": "Admin",
       "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin3"
+    },
+    {
+      "id": "agt-001",
+      "email": "agent@gmail.com",
+      "name": "Heri Lestari",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Heri Lestari",
+      "bank_account": "BNI - 579162324"
+    },
+    {
+      "id": "agt-002",
+      "email": "dewi.saputra.agt-002@gmail.com",
+      "name": "Dewi Saputra",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Dewi Saputra",
+      "bank_account": "BNI - 822154427"
+    },
+    {
+      "id": "agt-003",
+      "email": "budi.lestari.agt-003@gmail.com",
+      "name": "Budi Lestari",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Budi Lestari",
+      "bank_account": "BNI - 411985590"
+    },
+    {
+      "id": "agt-004",
+      "email": "joko.putri.agt-004@gmail.com",
+      "name": "Joko Putri",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Joko Putri",
+      "bank_account": "BNI - 508805406"
+    },
+    {
+      "id": "agt-005",
+      "email": "tono.santoso.agt-005@gmail.com",
+      "name": "Tono Santoso",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Tono Santoso",
+      "bank_account": "BNI - 635890871"
+    },
+    {
+      "id": "agt-006",
+      "email": "rina.pratama.agt-006@gmail.com",
+      "name": "Rina Pratama",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Rina Pratama",
+      "bank_account": "BNI - 821410415"
+    },
+    {
+      "id": "agt-007",
+      "email": "dewi.lestari.agt-007@gmail.com",
+      "name": "Dewi Lestari",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Dewi Lestari",
+      "bank_account": "BNI - 760810306"
+    },
+    {
+      "id": "agt-008",
+      "email": "maya.hidayat.agt-008@gmail.com",
+      "name": "Maya Hidayat",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya Hidayat",
+      "bank_account": "BNI - 740434203"
+    },
+    {
+      "id": "agt-009",
+      "email": "lia.lestari.agt-009@gmail.com",
+      "name": "Lia Lestari",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Lia Lestari",
+      "bank_account": "BNI - 550130800"
+    },
+    {
+      "id": "agt-010",
+      "email": "tono.hidayat.agt-010@gmail.com",
+      "name": "Tono Hidayat",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Tono Hidayat",
+      "bank_account": "BNI - 813209379"
+    },
+    {
+      "id": "agt-011",
+      "email": "andi.lestari.agt-011@gmail.com",
+      "name": "Andi Lestari",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Andi Lestari",
+      "bank_account": "BNI - 55631848"
+    },
+    {
+      "id": "agt-012",
+      "email": "wati.lestari.agt-012@gmail.com",
+      "name": "Wati Lestari",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Wati Lestari",
+      "bank_account": "BNI - 33882271"
+    },
+    {
+      "id": "agt-013",
+      "email": "joko.pratama.agt-013@gmail.com",
+      "name": "Joko Pratama",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Joko Pratama",
+      "bank_account": "BNI - 356309548"
+    },
+    {
+      "id": "agt-014",
+      "email": "sari.pratama.agt-014@gmail.com",
+      "name": "Sari Pratama",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Sari Pratama",
+      "bank_account": "BNI - 63151096"
+    },
+    {
+      "id": "agt-015",
+      "email": "eko.putri.agt-015@gmail.com",
+      "name": "Eko Putri",
+      "role": "agent",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Eko Putri",
+      "bank_account": "BNI - 735738853"
     }
   ],
   "reward_tiers": [
@@ -279,8 +414,8 @@
       "category": "KASUR",
       "price": 3200000,
       "image": "",
-      "shortDesc": "Kasur spring bed premium dengan teknologi pegas canggih untuk tidur yang lebih berkualitas.",
-      "description": "Kasur spring bed premium dengan teknologi pegas canggih untuk tidur yang lebih berkualitas. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk COMFORTA SET KASUR + DIVAN SUPER ONE 180",
+      "description": "Deskripsi lengkap untuk COMFORTA SET KASUR + DIVAN SUPER ONE 180. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -320,11 +455,11 @@
     {
       "id": "p2",
       "name": "Set sofa minimalis + meja abu corak",
-      "category": "SOFA",
+      "category": "SOPA",
       "price": 2800000,
       "image": "",
-      "shortDesc": "Sofa minimalis modern dengan bahan berkualitas tinggi, memberikan kenyamanan ekstra di ruang tamu.",
-      "description": "Sofa minimalis modern dengan bahan berkualitas tinggi, memberikan kenyamanan ekstra di ruang tamu. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk Set sofa minimalis + meja abu corak",
+      "description": "Deskripsi lengkap untuk Set sofa minimalis + meja abu corak. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -344,7 +479,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "set-sofa-minimalis-+-meja-abu-corak",
-      "subcategory": "SOFA",
+      "subcategory": "SOPA",
       "priceInstallment": 233333.33333333334,
       "dpMin": 280000,
       "images": [
@@ -367,12 +502,11 @@
       "category": "AC",
       "price": 2750000,
       "image": "",
-      "shortDesc": "AC kapasitas 1/2 PK. AC LG dengan teknologi JetCool untuk pendinginan instan dan fitur hemat energi yang efisien.",
-      "description": "AC kapasitas 1/2 PK. AC LG dengan teknologi JetCool untuk pendinginan instan dan fitur hemat energi yang efisien. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk AC LG STANDARD 1/2 PK K05NSA",
+      "description": "Deskripsi lengkap untuk AC LG STANDARD 1/2 PK K05NSA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1/2 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -412,12 +546,11 @@
       "category": "AC",
       "price": 3350000,
       "image": "",
-      "shortDesc": "AC kapasitas 1 PK. AC Sharp dengan fitur J-Tech Inverter dan Plasmacluster untuk udara lebih bersih dan hemat listrik.",
-      "description": "AC kapasitas 1 PK. AC Sharp dengan fitur J-Tech Inverter dan Plasmacluster untuk udara lebih bersih dan hemat listrik. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk AC SHARP 1 PK AH-A9ZCY+AU-A9ZCY",
+      "description": "Deskripsi lengkap untuk AC SHARP 1 PK AH-A9ZCY+AU-A9ZCY. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -457,12 +590,11 @@
       "category": "AC",
       "price": 2850000,
       "image": "",
-      "shortDesc": "AC kapasitas 1/2 PK. AC Sharp dengan fitur J-Tech Inverter dan Plasmacluster untuk udara lebih bersih dan hemat listrik.",
-      "description": "AC kapasitas 1/2 PK. AC Sharp dengan fitur J-Tech Inverter dan Plasmacluster untuk udara lebih bersih dan hemat listrik. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk AC SHARP 1/2 PK AH-A5ZCY+AU-A5ZCY",
+      "description": "Deskripsi lengkap untuk AC SHARP 1/2 PK AH-A5ZCY+AU-A5ZCY. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1/2 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -502,8 +634,8 @@
       "category": "KULKAS",
       "price": 2850000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk AQUA KULKAS AQR-DTM245CBP",
+      "description": "Deskripsi lengkap untuk AQUA KULKAS AQR-DTM245CBP. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -546,8 +678,8 @@
       "category": "BAN",
       "price": 200000,
       "image": "",
-      "shortDesc": "Ban berkualitas dengan daya cengkeram kuat dan tahan lama untuk keamanan berkendara Anda.",
-      "description": "Ban berkualitas dengan daya cengkeram kuat dan tahan lama untuk keamanan berkendara Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BAN AURORA",
+      "description": "Deskripsi lengkap untuk BAN AURORA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -590,8 +722,8 @@
       "category": "SPAREPART SELIS",
       "price": 150000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BAN LUAR SAIGE EGO PLUS",
+      "description": "Deskripsi lengkap untuk BAN LUAR SAIGE EGO PLUS. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -634,8 +766,8 @@
       "category": "BAN",
       "price": 200000,
       "image": "",
-      "shortDesc": "Ban berkualitas dengan daya cengkeram kuat dan tahan lama untuk keamanan berkendara Anda.",
-      "description": "Ban berkualitas dengan daya cengkeram kuat dan tahan lama untuk keamanan berkendara Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BAN POLARIS",
+      "description": "Deskripsi lengkap untuk BAN POLARIS. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -678,8 +810,8 @@
       "category": "BATERAI",
       "price": 0,
       "image": "",
-      "shortDesc": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal.",
-      "description": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BATERAI GODA 48V/12AH",
+      "description": "Deskripsi lengkap untuk BATERAI GODA 48V/12AH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -722,8 +854,8 @@
       "category": "BATERAI",
       "price": 0,
       "image": "",
-      "shortDesc": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal.",
-      "description": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BATERAI GODA 48V/20AH",
+      "description": "Deskripsi lengkap untuk BATERAI GODA 48V/20AH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -766,8 +898,8 @@
       "category": "BATERAI",
       "price": 0,
       "image": "",
-      "shortDesc": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal.",
-      "description": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BATERAI SAIGE 48V/20AH",
+      "description": "Deskripsi lengkap untuk BATERAI SAIGE 48V/20AH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -810,8 +942,8 @@
       "category": "BATERAI",
       "price": 0,
       "image": "",
-      "shortDesc": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal.",
-      "description": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BATERAI SAIGE LITHIUM 48V/20AH",
+      "description": "Deskripsi lengkap untuk BATERAI SAIGE LITHIUM 48V/20AH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -854,8 +986,8 @@
       "category": "BATERAI",
       "price": 0,
       "image": "",
-      "shortDesc": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal.",
-      "description": "Daya tahan ekstra lama dengan pengisian stabil, memastikan performa selis tetap optimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BATERAI U-WINFLY 48V/12AH",
+      "description": "Deskripsi lengkap untuk BATERAI U-WINFLY 48V/12AH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -898,8 +1030,8 @@
       "category": "BLENDER",
       "price": 260000,
       "image": "",
-      "shortDesc": "Menghaluskan bahan makanan dengan cepat dan merata berkat mata pisau stainless steel yang tajam.",
-      "description": "Menghaluskan bahan makanan dengan cepat dan merata berkat mata pisau stainless steel yang tajam. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BLENDER COSMOS CB-171-AP",
+      "description": "Deskripsi lengkap untuk BLENDER COSMOS CB-171-AP. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -942,8 +1074,8 @@
       "category": "BRAKET",
       "price": 70000,
       "image": "",
-      "shortDesc": "Bracket kokoh dengan standar keamanan tinggi, mudah dipasang dan mendukung berbagai ukuran perangkat.",
-      "description": "Bracket kokoh dengan standar keamanan tinggi, mudah dipasang dan mendukung berbagai ukuran perangkat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BRACKET AC 1 PK",
+      "description": "Deskripsi lengkap untuk BRACKET AC 1 PK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -986,8 +1118,8 @@
       "category": "BRAKET",
       "price": 385000,
       "image": "",
-      "shortDesc": "Bracket kokoh dengan standar keamanan tinggi, mudah dipasang dan mendukung berbagai ukuran perangkat.",
-      "description": "Bracket kokoh dengan standar keamanan tinggi, mudah dipasang dan mendukung berbagai ukuran perangkat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BRACKET TV QUALITY 50-100",
+      "description": "Deskripsi lengkap untuk BRACKET TV QUALITY 50-100. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1030,8 +1162,8 @@
       "category": "BRAKET",
       "price": 110000,
       "image": "",
-      "shortDesc": "Bracket kokoh dengan standar keamanan tinggi, mudah dipasang dan mendukung berbagai ukuran perangkat.",
-      "description": "Bracket kokoh dengan standar keamanan tinggi, mudah dipasang dan mendukung berbagai ukuran perangkat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk BRAKET TV BERVIN BWBA-1940M",
+      "description": "Deskripsi lengkap untuk BRAKET TV BERVIN BWBA-1940M. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1074,8 +1206,8 @@
       "category": "SPAREPART SELIS",
       "price": 160000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk CHARGER SAIGE 48V-12AH",
+      "description": "Deskripsi lengkap untuk CHARGER SAIGE 48V-12AH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1118,8 +1250,8 @@
       "category": "SPAREPART SELIS",
       "price": 230000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk CHARGER SAIGE 48V-20AH",
+      "description": "Deskripsi lengkap untuk CHARGER SAIGE 48V-20AH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1162,12 +1294,11 @@
       "category": "AC",
       "price": 1350000,
       "image": "",
-      "shortDesc": "AC kapasitas 1/2 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal.",
-      "description": "AC kapasitas 1/2 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk COSMOS AIR COOLER CAC 005-ABW",
+      "description": "Deskripsi lengkap untuk COSMOS AIR COOLER CAC 005-ABW. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1/2 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -1207,12 +1338,11 @@
       "category": "AC",
       "price": 0,
       "image": "",
-      "shortDesc": "AC kapasitas 1/2 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal.",
-      "description": "AC kapasitas 1/2 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk DENPO PIPA ECONOMY 1/4 + 3/8",
+      "description": "Deskripsi lengkap untuk DENPO PIPA ECONOMY 1/4 + 3/8. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1/2 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -1252,12 +1382,11 @@
       "category": "AC",
       "price": 130000,
       "image": "",
-      "shortDesc": "AC kapasitas 1 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal.",
-      "description": "AC kapasitas 1 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk DENPOO PIPA AC PLATINUM 1/4+1/2 x 0.6",
+      "description": "Deskripsi lengkap untuk DENPOO PIPA AC PLATINUM 1/4+1/2 x 0.6. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -1297,8 +1426,8 @@
       "category": "DISPENSER",
       "price": 200000,
       "image": "",
-      "shortDesc": "Dispenser higienis dengan pilihan panas, dingin, dan normal yang hemat energi untuk keluarga.",
-      "description": "Dispenser higienis dengan pilihan panas, dingin, dan normal yang hemat energi untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk DISPENSER COSMOS CWD-113",
+      "description": "Deskripsi lengkap untuk DISPENSER COSMOS CWD-113. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1341,8 +1470,8 @@
       "category": "DISPENSER",
       "price": 250000,
       "image": "",
-      "shortDesc": "Dispenser higienis dengan pilihan panas, dingin, dan normal yang hemat energi untuk keluarga.",
-      "description": "Dispenser higienis dengan pilihan panas, dingin, dan normal yang hemat energi untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk DISPENSER COSMOS CWD-115",
+      "description": "Deskripsi lengkap untuk DISPENSER COSMOS CWD-115. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1385,8 +1514,8 @@
       "category": "DISPENSER",
       "price": 200000,
       "image": "",
-      "shortDesc": "Dispenser higienis dengan pilihan panas, dingin, dan normal yang hemat energi untuk keluarga.",
-      "description": "Dispenser higienis dengan pilihan panas, dingin, dan normal yang hemat energi untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk DISPENSER COSMOS CWD-1170",
+      "description": "Deskripsi lengkap untuk DISPENSER COSMOS CWD-1170. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1429,8 +1558,8 @@
       "category": "OVEN",
       "price": 690000,
       "image": "",
-      "shortDesc": "Memanggang lebih merata dan praktis dengan fitur pengatur suhu otomatis dan kapasitas ideal.",
-      "description": "Memanggang lebih merata dan praktis dengan fitur pengatur suhu otomatis dan kapasitas ideal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk ELECTRIC OVEN COSMOS CO-9919 R",
+      "description": "Deskripsi lengkap untuk ELECTRIC OVEN COSMOS CO-9919 R. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1470,11 +1599,11 @@
     {
       "id": "p28",
       "name": "FAN COSMOS 16 SDB",
-      "category": "KIPAS ANGIN",
+      "category": "KIPAS",
       "price": 265000,
       "image": "",
-      "shortDesc": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan.",
-      "description": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FAN COSMOS 16 SDB",
+      "description": "Deskripsi lengkap untuk FAN COSMOS 16 SDB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1494,7 +1623,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "fan-cosmos-16-sdb",
-      "subcategory": "KIPAS ANGIN",
+      "subcategory": "KIPAS",
       "priceInstallment": 22083.333333333332,
       "dpMin": 26500,
       "images": [
@@ -1517,8 +1646,8 @@
       "category": "FREEZER",
       "price": 2300000,
       "image": "",
-      "shortDesc": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang.",
-      "description": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREEZER BOX GEA AB-108 R",
+      "description": "Deskripsi lengkap untuk FREEZER BOX GEA AB-108 R. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1561,8 +1690,8 @@
       "category": "FREEZER",
       "price": 3000000,
       "image": "",
-      "shortDesc": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang.",
-      "description": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREEZER BOX GEA AB-208-R",
+      "description": "Deskripsi lengkap untuk FREEZER BOX GEA AB-208-R. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1605,8 +1734,8 @@
       "category": "FREEZER",
       "price": 2600000,
       "image": "",
-      "shortDesc": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang.",
-      "description": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREEZER BOX RSA CF-210",
+      "description": "Deskripsi lengkap untuk FREEZER BOX RSA CF-210. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1649,8 +1778,8 @@
       "category": "FREEZER",
       "price": 3300000,
       "image": "",
-      "shortDesc": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang.",
-      "description": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREEZER BOX RSA CF-310Q",
+      "description": "Deskripsi lengkap untuk FREEZER BOX RSA CF-310Q. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1693,8 +1822,8 @@
       "category": "FREEZER",
       "price": 4600000,
       "image": "",
-      "shortDesc": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang.",
-      "description": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREZEER AQUA AQF-460MG",
+      "description": "Deskripsi lengkap untuk FREZEER AQUA AQF-460MG. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1737,8 +1866,8 @@
       "category": "FREEZER",
       "price": 2050000,
       "image": "",
-      "shortDesc": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang.",
-      "description": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREZER AQUA AQF-120MC",
+      "description": "Deskripsi lengkap untuk FREZER AQUA AQF-120MC. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1781,8 +1910,8 @@
       "category": "FREEZER",
       "price": 2000000,
       "image": "",
-      "shortDesc": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang.",
-      "description": "Pendinginan ekstra cepat hingga -26°C, cocok untuk usaha kuliner dan penyimpanan jangka panjang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREZER RSA CF-110",
+      "description": "Deskripsi lengkap untuk FREZER RSA CF-110. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1825,8 +1954,8 @@
       "category": "KULKAS",
       "price": 3500000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FREZER RSA CF-310",
+      "description": "Deskripsi lengkap untuk FREZER RSA CF-310. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1869,8 +1998,8 @@
       "category": "KULKAS",
       "price": 2750000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk FRIZER BOX RSA XS-110",
+      "description": "Deskripsi lengkap untuk FRIZER BOX RSA XS-110. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1913,8 +2042,8 @@
       "category": "SPAREPART SELIS",
       "price": 30000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk HANDLE REM KANAN SAIGE M35",
+      "description": "Deskripsi lengkap untuk HANDLE REM KANAN SAIGE M35. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -1957,8 +2086,8 @@
       "category": "SPAREPART SELIS",
       "price": 85000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk HANDLE REM KIRI SAIGE LUNA",
+      "description": "Deskripsi lengkap untuk HANDLE REM KIRI SAIGE LUNA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2001,8 +2130,8 @@
       "category": "SPAREPART SELIS",
       "price": 30000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk HANDLE REM KIRI SAIGE M35",
+      "description": "Deskripsi lengkap untuk HANDLE REM KIRI SAIGE M35. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2042,11 +2171,11 @@
     {
       "id": "p41",
       "name": "Handphone Samsung A56 5G 8/256GB Pink",
-      "category": "HANDPHONE",
+      "category": "HP",
       "price": 6200000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk Handphone Samsung A56 5G 8/256GB Pink",
+      "description": "Deskripsi lengkap untuk Handphone Samsung A56 5G 8/256GB Pink. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2066,7 +2195,7 @@
         "\"Panas?\" -> Sudah pakai sistem pendingin baru untuk Exynos 1580."
       ],
       "slug": "handphone-samsung-a56-5g-8/256gb-pink",
-      "subcategory": "HANDPHONE",
+      "subcategory": "HP",
       "priceInstallment": 516666.6666666667,
       "dpMin": 620000,
       "images": [
@@ -2089,12 +2218,11 @@
       "category": "AC",
       "price": 3000000,
       "image": "",
-      "shortDesc": "AC kapasitas 1 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal.",
-      "description": "AC kapasitas 1 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk HISENSE AC SPLIT 1 PK AN09CDG",
+      "description": "Deskripsi lengkap untuk HISENSE AC SPLIT 1 PK AN09CDG. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -2134,12 +2262,11 @@
       "category": "AC",
       "price": 2700000,
       "image": "",
-      "shortDesc": "AC kapasitas 1/2 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal.",
-      "description": "AC kapasitas 1/2 PK. Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk HISENSE AC SPLIT 1/2 PK AN05CDG",
+      "description": "Deskripsi lengkap untuk HISENSE AC SPLIT 1/2 PK AN05CDG. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "1/2 PK"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Pendinginan cepat & merata",
@@ -2179,8 +2306,8 @@
       "category": "TV",
       "price": 1999000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk HISENSE SMART TV 32A4200G",
+      "description": "Deskripsi lengkap untuk HISENSE SMART TV 32A4200G. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2223,8 +2350,8 @@
       "category": "TV",
       "price": 3300000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk HISENSE SMART TV 43E6K",
+      "description": "Deskripsi lengkap untuk HISENSE SMART TV 43E6K. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2264,11 +2391,11 @@
     {
       "id": "p46",
       "name": "Hp Samsung Galaxy A56 5G 8/256 Light Gray",
-      "category": "HANDPHONE",
+      "category": "HP",
       "price": 6200000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk Hp Samsung Galaxy A56 5G 8/256 Light Gray",
+      "description": "Deskripsi lengkap untuk Hp Samsung Galaxy A56 5G 8/256 Light Gray. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2288,7 +2415,7 @@
         "\"Panas?\" -> Sudah pakai sistem pendingin baru untuk Exynos 1580."
       ],
       "slug": "hp-samsung-galaxy-a56-5g-8/256-light-gray",
-      "subcategory": "HANDPHONE",
+      "subcategory": "HP",
       "priceInstallment": 516666.6666666667,
       "dpMin": 620000,
       "images": [
@@ -2311,8 +2438,8 @@
       "category": "MEJA",
       "price": 1100000,
       "image": "",
-      "shortDesc": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional.",
-      "description": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk IMP TV CABINET 120 MOTIF L04",
+      "description": "Deskripsi lengkap untuk IMP TV CABINET 120 MOTIF L04. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2355,8 +2482,8 @@
       "category": "LEMARI",
       "price": 2900000,
       "image": "",
-      "shortDesc": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih.",
-      "description": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk IMP ZW-M03 C01 DM LEMARI BESI 3 PINTU 120 CM",
+      "description": "Deskripsi lengkap untuk IMP ZW-M03 C01 DM LEMARI BESI 3 PINTU 120 CM. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2399,8 +2526,8 @@
       "category": "LEMARI",
       "price": 2900000,
       "image": "",
-      "shortDesc": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih.",
-      "description": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk IMP ZW-M03 C11 DM LEMARI BESI 3 PINTU 120 CM",
+      "description": "Deskripsi lengkap untuk IMP ZW-M03 C11 DM LEMARI BESI 3 PINTU 120 CM. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2443,8 +2570,8 @@
       "category": "LEMARI",
       "price": 2900000,
       "image": "",
-      "shortDesc": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih.",
-      "description": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk IMP ZW-M03 C21 DM LEMARI BESI 3 PINTU 120 CM",
+      "description": "Deskripsi lengkap untuk IMP ZW-M03 C21 DM LEMARI BESI 3 PINTU 120 CM. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2487,8 +2614,8 @@
       "category": "AKSESORIS",
       "price": 150000,
       "image": "",
-      "shortDesc": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk ISI KAMPAS REM DEPAN / BELAKANG M35",
+      "description": "Deskripsi lengkap untuk ISI KAMPAS REM DEPAN / BELAKANG M35. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2531,8 +2658,8 @@
       "category": "SPAREPART SELIS",
       "price": 13000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KABEL AKI SAIGE",
+      "description": "Deskripsi lengkap untuk KABEL AKI SAIGE. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2575,8 +2702,8 @@
       "category": "AKSESORIS",
       "price": 15000,
       "image": "",
-      "shortDesc": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KABEL FEDERAL NYM 2X1.5 MM @30M",
+      "description": "Deskripsi lengkap untuk KABEL FEDERAL NYM 2X1.5 MM @30M. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2619,8 +2746,8 @@
       "category": "AKSESORIS",
       "price": 15000,
       "image": "",
-      "shortDesc": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KABEL SUPREME NYM 2X1.5",
+      "description": "Deskripsi lengkap untuk KABEL SUPREME NYM 2X1.5. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2663,8 +2790,8 @@
       "category": "AKSESORIS",
       "price": 150000,
       "image": "",
-      "shortDesc": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KAMPAS REM AURORA",
+      "description": "Deskripsi lengkap untuk KAMPAS REM AURORA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2707,8 +2834,8 @@
       "category": "SPAREPART SELIS",
       "price": 70000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KAMPAS REM BELAKANG SAIGE M35",
+      "description": "Deskripsi lengkap untuk KAMPAS REM BELAKANG SAIGE M35. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2751,8 +2878,8 @@
       "category": "SPAREPART SELIS",
       "price": 40000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KAMPAS REM DEPAN SAIGE M35",
+      "description": "Deskripsi lengkap untuk KAMPAS REM DEPAN SAIGE M35. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2795,8 +2922,8 @@
       "category": "AKSESORIS",
       "price": 150000,
       "image": "",
-      "shortDesc": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KAMPAS REM POLARIS",
+      "description": "Deskripsi lengkap untuk KAMPAS REM POLARIS. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2839,8 +2966,8 @@
       "category": "KASUR",
       "price": 1500000,
       "image": "",
-      "shortDesc": "Tidur lebih nyenyak dengan desain ergonomis dan bahan premium yang mendukung kesehatan tulang belakang.",
-      "description": "Tidur lebih nyenyak dengan desain ergonomis dan bahan premium yang mendukung kesehatan tulang belakang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KASUR BUSA ROYAL FOAM MEDIACARE ORTHO 120 X 200",
+      "description": "Deskripsi lengkap untuk KASUR BUSA ROYAL FOAM MEDIACARE ORTHO 120 X 200. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2880,11 +3007,11 @@
     {
       "id": "p60",
       "name": "KASUR GADJAH BALI 23 CM 120 X 200",
-      "category": "SOFA",
+      "category": "SOPA",
       "price": 1050000,
       "image": "",
-      "shortDesc": "Sofa minimalis modern dengan bahan berkualitas tinggi, memberikan kenyamanan ekstra di ruang tamu.",
-      "description": "Sofa minimalis modern dengan bahan berkualitas tinggi, memberikan kenyamanan ekstra di ruang tamu. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KASUR GADJAH BALI 23 CM 120 X 200",
+      "description": "Deskripsi lengkap untuk KASUR GADJAH BALI 23 CM 120 X 200. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2904,7 +3031,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "kasur-gadjah-bali-23-cm-120-x-200",
-      "subcategory": "SOFA",
+      "subcategory": "SOPA",
       "priceInstallment": 87500,
       "dpMin": 105000,
       "images": [
@@ -2927,8 +3054,8 @@
       "category": "KASUR",
       "price": 1350000,
       "image": "",
-      "shortDesc": "Tidur lebih nyenyak dengan desain ergonomis dan bahan premium yang mendukung kesehatan tulang belakang.",
-      "description": "Tidur lebih nyenyak dengan desain ergonomis dan bahan premium yang mendukung kesehatan tulang belakang. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KASUR GADJAH BALI SUPERBED 160x200 23 CM",
+      "description": "Deskripsi lengkap untuk KASUR GADJAH BALI SUPERBED 160x200 23 CM. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -2971,8 +3098,8 @@
       "category": "BLENDER",
       "price": 180000,
       "image": "",
-      "shortDesc": "Menghaluskan bahan makanan dengan cepat dan merata berkat mata pisau stainless steel yang tajam.",
-      "description": "Menghaluskan bahan makanan dengan cepat dan merata berkat mata pisau stainless steel yang tajam. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KETTLE COSMOS CTL-618N",
+      "description": "Deskripsi lengkap untuk KETTLE COSMOS CTL-618N. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3012,11 +3139,11 @@
     {
       "id": "p63",
       "name": "KIPAS ANGIN COSMOS 12-LDA",
-      "category": "KIPAS ANGIN",
+      "category": "KIPAS",
       "price": 210000,
       "image": "",
-      "shortDesc": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan.",
-      "description": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KIPAS ANGIN COSMOS 12-LDA",
+      "description": "Deskripsi lengkap untuk KIPAS ANGIN COSMOS 12-LDA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3036,7 +3163,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "kipas-angin-cosmos-12-lda",
-      "subcategory": "KIPAS ANGIN",
+      "subcategory": "KIPAS",
       "priceInstallment": 17500,
       "dpMin": 21000,
       "images": [
@@ -3056,11 +3183,11 @@
     {
       "id": "p64",
       "name": "KIPAS ANGIN COSMOS 16 SN",
-      "category": "KIPAS ANGIN",
+      "category": "KIPAS",
       "price": 315000,
       "image": "",
-      "shortDesc": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan.",
-      "description": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KIPAS ANGIN COSMOS 16 SN",
+      "description": "Deskripsi lengkap untuk KIPAS ANGIN COSMOS 16 SN. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3080,7 +3207,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "kipas-angin-cosmos-16-sn",
-      "subcategory": "KIPAS ANGIN",
+      "subcategory": "KIPAS",
       "priceInstallment": 26250,
       "dpMin": 31500,
       "images": [
@@ -3100,11 +3227,11 @@
     {
       "id": "p65",
       "name": "KIPAS ANGIN COSMOS 16 WFC",
-      "category": "KIPAS ANGIN",
+      "category": "KIPAS",
       "price": 275000,
       "image": "",
-      "shortDesc": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan.",
-      "description": "Hembusan angin kuat dan sejuk dengan motor senyap yang tahan lama untuk sirkulasi udara ruangan. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KIPAS ANGIN COSMOS 16 WFC",
+      "description": "Deskripsi lengkap untuk KIPAS ANGIN COSMOS 16 WFC. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3124,7 +3251,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "kipas-angin-cosmos-16-wfc",
-      "subcategory": "KIPAS ANGIN",
+      "subcategory": "KIPAS",
       "priceInstallment": 22916.666666666668,
       "dpMin": 27500,
       "images": [
@@ -3147,8 +3274,8 @@
       "category": "AIR FRYER",
       "price": 999000,
       "image": "",
-      "shortDesc": "Menggoreng sehat tanpa minyak dengan teknologi udara panas yang merata, hasil renyah dan rendah lemak.",
-      "description": "Menggoreng sehat tanpa minyak dengan teknologi udara panas yang merata, hasil renyah dan rendah lemak. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk Kirin AIR FRYER 4.5L KAF - 745",
+      "description": "Deskripsi lengkap untuk Kirin AIR FRYER 4.5L KAF - 745. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3191,8 +3318,8 @@
       "category": "PISAU",
       "price": 175000,
       "image": "",
-      "shortDesc": "Produk berkualitas pisau dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas pisau dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk Kirin KNIFE SET 06 PP KUS-KS06",
+      "description": "Deskripsi lengkap untuk Kirin KNIFE SET 06 PP KUS-KS06. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3232,11 +3359,11 @@
     {
       "id": "p68",
       "name": "Kirin RICE COOKER 2.0 LT KRC 238 GREY",
-      "category": "MAGIC COM",
+      "category": "MAGICOM",
       "price": 330000,
       "image": "",
-      "shortDesc": "Memasak nasi lebih pulen dan menjaga kehangatan lebih lama dengan panci anti-lengket berkualitas.",
-      "description": "Memasak nasi lebih pulen dan menjaga kehangatan lebih lama dengan panci anti-lengket berkualitas. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk Kirin RICE COOKER 2.0 LT KRC 238 GREY",
+      "description": "Deskripsi lengkap untuk Kirin RICE COOKER 2.0 LT KRC 238 GREY. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3256,7 +3383,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "kirin-rice-cooker-2.0-lt-krc-238-grey",
-      "subcategory": "MAGIC COM",
+      "subcategory": "MAGICOM",
       "priceInstallment": 27500,
       "dpMin": 33000,
       "images": [
@@ -3279,8 +3406,8 @@
       "category": "AKSESORIS",
       "price": 50000,
       "image": "",
-      "shortDesc": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KLAKSON EGO PLUS",
+      "description": "Deskripsi lengkap untuk KLAKSON EGO PLUS. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3323,8 +3450,8 @@
       "category": "AKSESORIS",
       "price": 50000,
       "image": "",
-      "shortDesc": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas aksesoris dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KLAKSON M35",
+      "description": "Deskripsi lengkap untuk KLAKSON M35. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3367,8 +3494,8 @@
       "category": "KOMPOR",
       "price": 425000,
       "image": "",
-      "shortDesc": "Pemanasan cepat dan merata dengan desain aman dan mudah dibersihkan untuk aktivitas memasak harian.",
-      "description": "Pemanasan cepat dan merata dengan desain aman dan mudah dibersihkan untuk aktivitas memasak harian. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KOMPOR GAS RINNAI RI-522 CE",
+      "description": "Deskripsi lengkap untuk KOMPOR GAS RINNAI RI-522 CE. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3411,8 +3538,8 @@
       "category": "KULKAS",
       "price": 2150000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS 1P SHARP SJ-N192D-VB",
+      "description": "Deskripsi lengkap untuk KULKAS 1P SHARP SJ-N192D-VB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3455,8 +3582,8 @@
       "category": "KULKAS",
       "price": 1800000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS AQUA AQR-D185 (MME)",
+      "description": "Deskripsi lengkap untuk KULKAS AQUA AQR-D185 (MME). Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3499,8 +3626,8 @@
       "category": "KULKAS",
       "price": 1850000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS AQUA AQR-D185 (MPE)",
+      "description": "Deskripsi lengkap untuk KULKAS AQUA AQR-D185 (MPE). Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3543,8 +3670,8 @@
       "category": "KULKAS",
       "price": 1600000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS CHANGHONG CBC-100",
+      "description": "Deskripsi lengkap untuk KULKAS CHANGHONG CBC-100. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3587,8 +3714,8 @@
       "category": "KULKAS",
       "price": 1299000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS GEA MINI BAR INOX GMB-50",
+      "description": "Deskripsi lengkap untuk KULKAS GEA MINI BAR INOX GMB-50. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3631,8 +3758,8 @@
       "category": "KULKAS",
       "price": 2900000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS HISENSE 2 PINTU RT218N4IBN",
+      "description": "Deskripsi lengkap untuk KULKAS HISENSE 2 PINTU RT218N4IBN. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3675,8 +3802,8 @@
       "category": "KULKAS",
       "price": 1550000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS HISENSE RR125D4IBN",
+      "description": "Deskripsi lengkap untuk KULKAS HISENSE RR125D4IBN. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3719,8 +3846,8 @@
       "category": "KULKAS",
       "price": 1900000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS HISENSE RR198D4IBN",
+      "description": "Deskripsi lengkap untuk KULKAS HISENSE RR198D4IBN. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3763,8 +3890,8 @@
       "category": "KULKAS",
       "price": 5500000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS HISENSE RT469N4IWU",
+      "description": "Deskripsi lengkap untuk KULKAS HISENSE RT469N4IWU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3807,8 +3934,8 @@
       "category": "KULKAS",
       "price": 2350000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS LG GN-Y201CLAR",
+      "description": "Deskripsi lengkap untuk KULKAS LG GN-Y201CLAR. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3851,8 +3978,8 @@
       "category": "KULKAS",
       "price": 3500000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS LG GN-B202SQIR",
+      "description": "Deskripsi lengkap untuk KULKAS LG GN-B202SQIR. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3895,12 +4022,11 @@
       "category": "KULKAS",
       "price": 1250000,
       "image": "",
-      "shortDesc": "KULKAS kapasitas 43 Liter. Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "KULKAS kapasitas 43 Liter. Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS MINI BAR HISENSE RR68D4IGN 43L SILVER",
+      "description": "Deskripsi lengkap untuk KULKAS MINI BAR HISENSE RR68D4IGN 43L SILVER. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "43 Liter"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Menjaga kesegaran lebih lama",
@@ -3940,8 +4066,8 @@
       "category": "KULKAS",
       "price": 2900000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS SHARP SJ-197ND-VB",
+      "description": "Deskripsi lengkap untuk KULKAS SHARP SJ-197ND-VB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -3984,8 +4110,8 @@
       "category": "KULKAS",
       "price": 3150000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS SHARP SJ-237MG-DP",
+      "description": "Deskripsi lengkap untuk KULKAS SHARP SJ-237MG-DP. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4028,8 +4154,8 @@
       "category": "KULKAS",
       "price": 1850000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS SHARP SJ-N162D-SH/SB/SP",
+      "description": "Deskripsi lengkap untuk KULKAS SHARP SJ-N162D-SH/SB/SP. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4072,8 +4198,8 @@
       "category": "KULKAS",
       "price": 2150000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS SHARP SJ-N192D AB/AP",
+      "description": "Deskripsi lengkap untuk KULKAS SHARP SJ-N192D AB/AP. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4116,8 +4242,8 @@
       "category": "KULKAS",
       "price": 1850000,
       "image": "",
-      "shortDesc": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi.",
-      "description": "Menjaga kesegaran optimal dengan kapasitas luas dan teknologi pendinginan cepat hemat energi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KULKAS SHARP SJ-X165MG",
+      "description": "Deskripsi lengkap untuk KULKAS SHARP SJ-X165MG. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4160,8 +4286,8 @@
       "category": "KURSI",
       "price": 1150000,
       "image": "",
-      "shortDesc": "Produk berkualitas kursi dari brand ternama dengan garansi resmi.",
-      "description": "Produk berkualitas kursi dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk KURSI TERAS AF 001",
+      "description": "Deskripsi lengkap untuk KURSI TERAS AF 001. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4204,8 +4330,8 @@
       "category": "SPAREPART SELIS",
       "price": 60000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk LAMPU SEIN SAIGE M35 BELAKANG",
+      "description": "Deskripsi lengkap untuk LAMPU SEIN SAIGE M35 BELAKANG. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4248,8 +4374,8 @@
       "category": "SPAREPART SELIS",
       "price": 60000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk LAMPU SEIN SAIGE M35 DEPAN",
+      "description": "Deskripsi lengkap untuk LAMPU SEIN SAIGE M35 DEPAN. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4292,8 +4418,8 @@
       "category": "AC",
       "price": 15000,
       "image": "",
-      "shortDesc": "Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal.",
-      "description": "Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk LEM DUCT TAPE LEM ADHESIVE DU",
+      "description": "Deskripsi lengkap untuk LEM DUCT TAPE LEM ADHESIVE DU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4336,8 +4462,8 @@
       "category": "AC",
       "price": 10000,
       "image": "",
-      "shortDesc": "Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal.",
-      "description": "Pendinginan cepat, hemat listrik (Low Watt), dan teknologi anti-korosi untuk kenyamanan maksimal. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk LEM DUCT TAPE NON ADHESIVE DU",
+      "description": "Deskripsi lengkap untuk LEM DUCT TAPE NON ADHESIVE DU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4380,8 +4506,8 @@
       "category": "LEMARI",
       "price": 1850000,
       "image": "",
-      "shortDesc": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih.",
-      "description": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk LEMARI ARSIP KABINET IMPORTA SC-04MS",
+      "description": "Deskripsi lengkap untuk LEMARI ARSIP KABINET IMPORTA SC-04MS. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4424,8 +4550,8 @@
       "category": "LEMARI",
       "price": 1900000,
       "image": "",
-      "shortDesc": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih.",
-      "description": "Penyimpanan luas dengan desain modern dan bahan kokoh, menjaga pakaian tetap rapi dan bersih. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk LEMARI BESI ANAK 2P IMPORTA LCS-S02 B56 FM 90 CM",
+      "description": "Deskripsi lengkap untuk LEMARI BESI ANAK 2P IMPORTA LCS-S02 B56 FM 90 CM. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4465,11 +4591,11 @@
     {
       "id": "p96",
       "name": "MAGICOM COSMOS CRJ-3307",
-      "category": "MAGIC COM",
+      "category": "MAGICOM",
       "price": 290000,
       "image": "",
-      "shortDesc": "Memasak nasi lebih pulen dan menjaga kehangatan lebih lama dengan panci anti-lengket berkualitas.",
-      "description": "Memasak nasi lebih pulen dan menjaga kehangatan lebih lama dengan panci anti-lengket berkualitas. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MAGICOM COSMOS CRJ-3307",
+      "description": "Deskripsi lengkap untuk MAGICOM COSMOS CRJ-3307. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4489,7 +4615,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "magicom-cosmos-crj-3307",
-      "subcategory": "MAGIC COM",
+      "subcategory": "MAGICOM",
       "priceInstallment": 24166.666666666668,
       "dpMin": 29000,
       "images": [
@@ -4512,8 +4638,8 @@
       "category": "MEJA",
       "price": 999000,
       "image": "",
-      "shortDesc": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional.",
-      "description": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MEGAN COFFEE TABLE BLACK SET",
+      "description": "Deskripsi lengkap untuk MEGAN COFFEE TABLE BLACK SET. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4556,8 +4682,8 @@
       "category": "MEJA",
       "price": 2499000,
       "image": "",
-      "shortDesc": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional.",
-      "description": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MEJA MAKAN BULAT MIAMI 4P",
+      "description": "Deskripsi lengkap untuk MEJA MAKAN BULAT MIAMI 4P. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4600,8 +4726,8 @@
       "category": "MEJA",
       "price": 600000,
       "image": "",
-      "shortDesc": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional.",
-      "description": "Meja berkualitas dengan desain minimalis, cocok untuk mempercantik ruangan dan kebutuhan fungsional. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MEJA TAMU 306 B",
+      "description": "Deskripsi lengkap untuk MEJA TAMU 306 B. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4644,8 +4770,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 1600000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI AQUA QW-8031 HT",
+      "description": "Deskripsi lengkap untuk MESIN CUCI AQUA QW-8031 HT. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -4688,12 +4814,11 @@
       "category": "MESIN CUCI",
       "price": 1800000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI AQUA QW-9031HT",
+      "description": "Deskripsi lengkap untuk MESIN CUCI AQUA QW-9031HT. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "9 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -4733,12 +4858,11 @@
       "category": "MESIN CUCI",
       "price": 1500000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI HISENSE WS80SK10",
+      "description": "Deskripsi lengkap untuk MESIN CUCI HISENSE WS80SK10. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "8 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -4778,12 +4902,11 @@
       "category": "MESIN CUCI",
       "price": 1700000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI HISENSE WS90SK10",
+      "description": "Deskripsi lengkap untuk MESIN CUCI HISENSE WS90SK10. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "9 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -4823,12 +4946,11 @@
       "category": "MESIN CUCI",
       "price": 1950000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI HISENSE WSHS1013UB",
+      "description": "Deskripsi lengkap untuk MESIN CUCI HISENSE WSHS1013UB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "10 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -4868,12 +4990,11 @@
       "category": "MESIN CUCI",
       "price": 2250000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 12 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 12 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI HISENSE WSHS1213UB",
+      "description": "Deskripsi lengkap untuk MESIN CUCI HISENSE WSHS1213UB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "12 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -4913,12 +5034,11 @@
       "category": "MESIN CUCI",
       "price": 2900000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI LG P1000RT",
+      "description": "Deskripsi lengkap untuk MESIN CUCI LG P1000RT. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "10 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -4958,12 +5078,11 @@
       "category": "MESIN CUCI",
       "price": 3250000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 12 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 12 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI LG P-1200RT",
+      "description": "Deskripsi lengkap untuk MESIN CUCI LG P-1200RT. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "12 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5003,12 +5122,11 @@
       "category": "MESIN CUCI",
       "price": 2500000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI LG P7000N",
+      "description": "Deskripsi lengkap untuk MESIN CUCI LG P7000N. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "7 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Roller Jet Pulsator untuk hasil bersih maksimal",
@@ -5048,12 +5166,11 @@
       "category": "MESIN CUCI",
       "price": 2700000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI LG P8000N",
+      "description": "Deskripsi lengkap untuk MESIN CUCI LG P8000N. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "8 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5093,12 +5210,11 @@
       "category": "MESIN CUCI",
       "price": 2800000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI LG P9050RTB",
+      "description": "Deskripsi lengkap untuk MESIN CUCI LG P9050RTB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "9 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5138,12 +5254,11 @@
       "category": "MESIN CUCI",
       "price": 2150000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI POLYTRON PWM-1076",
+      "description": "Deskripsi lengkap untuk MESIN CUCI POLYTRON PWM-1076. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "10 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Fitur khusus Hijab Mode",
@@ -5183,12 +5298,11 @@
       "category": "MESIN CUCI",
       "price": 1600000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI POLYTRON PWM-7073-P",
+      "description": "Deskripsi lengkap untuk MESIN CUCI POLYTRON PWM-7073-P. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "7 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5228,12 +5342,11 @@
       "category": "MESIN CUCI",
       "price": 1700000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI POLYTRON PWM-8072",
+      "description": "Deskripsi lengkap untuk MESIN CUCI POLYTRON PWM-8072. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "8 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5270,15 +5383,14 @@
     {
       "id": "p114",
       "name": "MESIN CUCI POLYTRON PWM-9076",
-      "category": "MESIN CUCI",
+      "category": "MC",
       "price": 1900000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
-      "description": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI POLYTRON PWM-9076",
+      "description": "Deskripsi lengkap untuk MESIN CUCI POLYTRON PWM-9076. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "9 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Kualitas Terjamin",
@@ -5295,7 +5407,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "mesin-cuci-polytron-pwm-9076",
-      "subcategory": "MESIN CUCI",
+      "subcategory": "MC",
       "priceInstallment": 158333.33333333334,
       "dpMin": 190000,
       "images": [
@@ -5318,12 +5430,11 @@
       "category": "MESIN CUCI",
       "price": 1700000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI RSA 10Kg WM-TT100",
+      "description": "Deskripsi lengkap untuk MESIN CUCI RSA 10Kg WM-TT100. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "10 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5363,12 +5474,11 @@
       "category": "MESIN CUCI",
       "price": 1300000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI RSA 7kg WM-TT70",
+      "description": "Deskripsi lengkap untuk MESIN CUCI RSA 7kg WM-TT70. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "7 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5408,12 +5518,11 @@
       "category": "MESIN CUCI",
       "price": 1400000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI RSA 8Kg WM-TT80",
+      "description": "Deskripsi lengkap untuk MESIN CUCI RSA 8Kg WM-TT80. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "8 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5453,12 +5562,11 @@
       "category": "MESIN CUCI",
       "price": 2499000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
-      "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI SHARP ES-T1090-VK/PK",
+      "description": "Deskripsi lengkap untuk MESIN CUCI SHARP ES-T1090-VK/PK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "10 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Bersih maksimal, lembut di kain",
@@ -5495,15 +5603,14 @@
     {
       "id": "p119",
       "name": "MESIN CUCI SHARP ES-T1290WA",
-      "category": "MESIN CUCI",
+      "category": "MC",
       "price": 3050000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 12 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
-      "description": "Mesin cuci kapasitas 12 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI SHARP ES-T1290WA",
+      "description": "Deskripsi lengkap untuk MESIN CUCI SHARP ES-T1290WA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "12 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Kualitas Terjamin",
@@ -5520,7 +5627,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "mesin-cuci-sharp-es-t1290wa",
-      "subcategory": "MESIN CUCI",
+      "subcategory": "MC",
       "priceInstallment": 254166.66666666666,
       "dpMin": 305000,
       "images": [
@@ -5540,15 +5647,14 @@
     {
       "id": "p120",
       "name": "MESIN CUCI SHARP ES-T70MW-BL",
-      "category": "MESIN CUCI",
+      "category": "MC",
       "price": 1500000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 7 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
-      "description": "Mesin cuci kapasitas 7 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI SHARP ES-T70MW-BL",
+      "description": "Deskripsi lengkap untuk MESIN CUCI SHARP ES-T70MW-BL. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "7 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Kualitas Terjamin",
@@ -5565,7 +5671,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "mesin-cuci-sharp-es-t70mw-bl",
-      "subcategory": "MESIN CUCI",
+      "subcategory": "MC",
       "priceInstallment": 125000,
       "dpMin": 150000,
       "images": [
@@ -5585,15 +5691,14 @@
     {
       "id": "p121",
       "name": "MESIN CUCI SHARP ES-T80MW",
-      "category": "MESIN CUCI",
+      "category": "MC",
       "price": 1650000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 8 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
-      "description": "Mesin cuci kapasitas 8 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI SHARP ES-T80MW",
+      "description": "Deskripsi lengkap untuk MESIN CUCI SHARP ES-T80MW. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "8 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Kualitas Terjamin",
@@ -5610,7 +5715,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "mesin-cuci-sharp-es-t80mw",
-      "subcategory": "MESIN CUCI",
+      "subcategory": "MC",
       "priceInstallment": 137500,
       "dpMin": 165000,
       "images": [
@@ -5630,15 +5735,14 @@
     {
       "id": "p122",
       "name": "MESIN CUCI SHARP ES-T90MW",
-      "category": "MESIN CUCI",
+      "category": "MC",
       "price": 1975000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
-      "description": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI SHARP ES-T90MW",
+      "description": "Deskripsi lengkap untuk MESIN CUCI SHARP ES-T90MW. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "9 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Kualitas Terjamin",
@@ -5655,7 +5759,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "mesin-cuci-sharp-es-t90mw",
-      "subcategory": "MESIN CUCI",
+      "subcategory": "MC",
       "priceInstallment": 164583.33333333334,
       "dpMin": 197500,
       "images": [
@@ -5675,15 +5779,14 @@
     {
       "id": "p123",
       "name": "MESIN CUCI SHARP ES-T90MW-PK",
-      "category": "MESIN CUCI",
+      "category": "MC",
       "price": 1975000,
       "image": "",
-      "shortDesc": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
-      "description": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk MESIN CUCI SHARP ES-T90MW-PK",
+      "description": "Deskripsi lengkap untuk MESIN CUCI SHARP ES-T90MW-PK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
-        "Warna": "Beragam",
-        "Kapasitas": "9 kg"
+        "Warna": "Beragam"
       },
       "highlights": [
         "Kualitas Terjamin",
@@ -5700,7 +5803,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "mesin-cuci-sharp-es-t90mw-pk",
-      "subcategory": "MESIN CUCI",
+      "subcategory": "MC",
       "priceInstallment": 164583.33333333334,
       "dpMin": 197500,
       "images": [
@@ -5723,8 +5826,8 @@
       "category": "SPAREPART SELIS",
       "price": 220000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk REM KANAN SAIGE LUNA",
+      "description": "Deskripsi lengkap untuk REM KANAN SAIGE LUNA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -5767,8 +5870,8 @@
       "category": "SHOWCASE",
       "price": 3300000,
       "image": "",
-      "shortDesc": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda.",
-      "description": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk RSA SHOWCASE RUBY 200",
+      "description": "Deskripsi lengkap untuk RSA SHOWCASE RUBY 200. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -5811,8 +5914,8 @@
       "category": "SPAREPART SELIS",
       "price": 65000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SADLE DEPAN SAIGE EGO PLUS",
+      "description": "Deskripsi lengkap untuk SADLE DEPAN SAIGE EGO PLUS. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -5855,8 +5958,8 @@
       "category": "HANDPHONE",
       "price": 3699000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG GALAXY A17 5G 8/256 BLACK",
+      "description": "Deskripsi lengkap untuk SAMSUNG GALAXY A17 5G 8/256 BLACK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -5896,11 +5999,11 @@
     {
       "id": "p128",
       "name": "SAMSUNG GALAXY A17 LTE 8/256 GB BLACK",
-      "category": "HANDPHONE",
+      "category": "HP",
       "price": 3399000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG GALAXY A17 LTE 8/256 GB BLACK",
+      "description": "Deskripsi lengkap untuk SAMSUNG GALAXY A17 LTE 8/256 GB BLACK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -5920,7 +6023,7 @@
         "\"Memori penuh?\" -> Dukungan slot MicroSD hingga 1TB."
       ],
       "slug": "samsung-galaxy-a17-lte-8/256-gb-black",
-      "subcategory": "HANDPHONE",
+      "subcategory": "HP",
       "priceInstallment": 283250,
       "dpMin": 339900,
       "images": [
@@ -5943,8 +6046,8 @@
       "category": "HANDPHONE",
       "price": 5200000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG GALAXY A36 5G 8/256 GB AWESOME BLACK",
+      "description": "Deskripsi lengkap untuk SAMSUNG GALAXY A36 5G 8/256 GB AWESOME BLACK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -5987,8 +6090,8 @@
       "category": "HANDPHONE",
       "price": 5200000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG GALAXY A36 5G 8/256 GB AWESOME LAVENDER",
+      "description": "Deskripsi lengkap untuk SAMSUNG GALAXY A36 5G 8/256 GB AWESOME LAVENDER. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6031,8 +6134,8 @@
       "category": "HANDPHONE",
       "price": 5700000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG GALAXY A36 5G 8/256 GB AWESOME WHITE",
+      "description": "Deskripsi lengkap untuk SAMSUNG GALAXY A36 5G 8/256 GB AWESOME WHITE. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6072,11 +6175,11 @@
     {
       "id": "p132",
       "name": "SAMSUNG GALAXY A56 5G 8/256 GB AWESOME GRAPHITE",
-      "category": "HANDPHONE",
+      "category": "HP",
       "price": 6200000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG GALAXY A56 5G 8/256 GB AWESOME GRAPHITE",
+      "description": "Deskripsi lengkap untuk SAMSUNG GALAXY A56 5G 8/256 GB AWESOME GRAPHITE. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6096,7 +6199,7 @@
         "\"Panas?\" -> Sudah pakai sistem pendingin baru untuk Exynos 1580."
       ],
       "slug": "samsung-galaxy-a56-5g-8/256-gb-awesome-graphite",
-      "subcategory": "HANDPHONE",
+      "subcategory": "HP",
       "priceInstallment": 516666.6666666667,
       "dpMin": 620000,
       "images": [
@@ -6119,8 +6222,8 @@
       "category": "HANDPHONE",
       "price": 6300000,
       "image": "",
-      "shortDesc": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat.",
-      "description": "Samsung Galaxy dengan layar Super AMOLED, kamera kelas profesional, dan performa 5G yang sangat cepat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG GALAXY A56 5G 8/256 GB AWESOME OLIVE",
+      "description": "Deskripsi lengkap untuk SAMSUNG GALAXY A56 5G 8/256 GB AWESOME OLIVE. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6163,8 +6266,8 @@
       "category": "TV",
       "price": 2450000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SAMSUNG SMART TV UA32H5000FKLXD",
+      "description": "Deskripsi lengkap untuk SAMSUNG SMART TV UA32H5000FKLXD. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6207,8 +6310,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 17000000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SELIS GROBAK PUJASERA3 FIBER C",
+      "description": "Deskripsi lengkap untuk SELIS GROBAK PUJASERA3 FIBER C. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6251,8 +6354,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4000000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK GODA 118 HITAM",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK GODA 118 HITAM. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6295,8 +6398,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4000000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK GODA 118 MERAH",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK GODA 118 MERAH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6339,8 +6442,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4000000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK GODA 118 PUTIH",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK GODA 118 PUTIH. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6383,8 +6486,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4500000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK GODA 122 ABU",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK GODA 122 ABU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6427,8 +6530,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4500000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK GODA 150A ABU",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK GODA 150A ABU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6471,8 +6574,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 13200000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK GODA 199 MAX-C RRQ",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK GODA 199 MAX-C RRQ. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6515,8 +6618,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4200000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK NUV F1 SPIVA BIRU",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK NUV F1 SPIVA BIRU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6559,8 +6662,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4200000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK NUV F1 SPIVA HIJAU",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK NUV F1 SPIVA HIJAU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6603,8 +6706,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4200000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK NUV F1 SPIVA UNGU",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK NUV F1 SPIVA UNGU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6647,8 +6750,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 6800000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK SAIGE LUNA",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK SAIGE LUNA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6691,8 +6794,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 19800000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK SELIS RETRO COKLAT",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK SELIS RETRO COKLAT. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6735,8 +6838,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 5699000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK SOLOZ G-L18 HIJAU",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK SOLOZ G-L18 HIJAU. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6779,8 +6882,8 @@
       "category": "SEPEDA LISTRIK",
       "price": 4600000,
       "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SEPEDA LISTRIK U-WINFLY D65 PINK",
+      "description": "Deskripsi lengkap untuk SEPEDA LISTRIK U-WINFLY D65 PINK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6823,8 +6926,8 @@
       "category": "SETRIKA",
       "price": 160000,
       "image": "",
-      "shortDesc": "Menghaluskan pakaian dengan cepat berkat lapisan anti-lengket dan pengatur suhu yang akurat.",
-      "description": "Menghaluskan pakaian dengan cepat berkat lapisan anti-lengket dan pengatur suhu yang akurat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SETRIKA COSMOS CI-3110CM",
+      "description": "Deskripsi lengkap untuk SETRIKA COSMOS CI-3110CM. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6867,8 +6970,8 @@
       "category": "SETRIKA",
       "price": 150000,
       "image": "",
-      "shortDesc": "Menghaluskan pakaian dengan cepat berkat lapisan anti-lengket dan pengatur suhu yang akurat.",
-      "description": "Menghaluskan pakaian dengan cepat berkat lapisan anti-lengket dan pengatur suhu yang akurat. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SETRIKA COSMOS CIS-318",
+      "description": "Deskripsi lengkap untuk SETRIKA COSMOS CIS-318. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6911,8 +7014,8 @@
       "category": "TV",
       "price": 2500000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SHARP LED TV 2T-C32GH3000I",
+      "description": "Deskripsi lengkap untuk SHARP LED TV 2T-C32GH3000I. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6955,8 +7058,8 @@
       "category": "TV",
       "price": 2500000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SHARP LED TV 2T-C32GH3000I",
+      "description": "Deskripsi lengkap untuk SHARP LED TV 2T-C32GH3000I. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -6999,8 +7102,8 @@
       "category": "SHOWCASE",
       "price": 3200000,
       "image": "",
-      "shortDesc": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda.",
-      "description": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SHOWCASE RSA AGATE-200",
+      "description": "Deskripsi lengkap untuk SHOWCASE RSA AGATE-200. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7043,8 +7146,8 @@
       "category": "SHOWCASE",
       "price": 3500000,
       "image": "",
-      "shortDesc": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda.",
-      "description": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SHOWCASE RSA AGATE-240R",
+      "description": "Deskripsi lengkap untuk SHOWCASE RSA AGATE-240R. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7087,8 +7190,8 @@
       "category": "SHOWCASE",
       "price": 3999000,
       "image": "",
-      "shortDesc": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda.",
-      "description": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SHOWCASE RSA AGATE-300R",
+      "description": "Deskripsi lengkap untuk SHOWCASE RSA AGATE-300R. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7131,8 +7234,8 @@
       "category": "SHOWCASE",
       "price": 3600000,
       "image": "",
-      "shortDesc": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda.",
-      "description": "Display produk lebih menarik dengan pendinginan merata dan kaca anti-embun untuk usaha Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SHOWCASE RSA RUBY240",
+      "description": "Deskripsi lengkap untuk SHOWCASE RSA RUBY240. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7172,11 +7275,11 @@
     {
       "id": "p157",
       "name": "SOFA MINIMALIS 221 + MEJA COKLAT CORAK",
-      "category": "SOFA",
+      "category": "SOPA",
       "price": 3000000,
       "image": "",
-      "shortDesc": "Sofa minimalis modern dengan bahan berkualitas tinggi, memberikan kenyamanan ekstra di ruang tamu.",
-      "description": "Sofa minimalis modern dengan bahan berkualitas tinggi, memberikan kenyamanan ekstra di ruang tamu. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SOFA MINIMALIS 221 + MEJA COKLAT CORAK",
+      "description": "Deskripsi lengkap untuk SOFA MINIMALIS 221 + MEJA COKLAT CORAK. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7196,7 +7299,7 @@
         "\"Garansi?\" -> Resmi pabrikan."
       ],
       "slug": "sofa-minimalis-221-+-meja-coklat-corak",
-      "subcategory": "SOFA",
+      "subcategory": "SOPA",
       "priceInstallment": 250000,
       "dpMin": 300000,
       "images": [
@@ -7219,8 +7322,8 @@
       "category": "SPEAKER",
       "price": 3150000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SOUNDBAR JBL CINEMA 550",
+      "description": "Deskripsi lengkap untuk SOUNDBAR JBL CINEMA 550. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7263,8 +7366,8 @@
       "category": "SPEAKER",
       "price": 2400000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER AKTIV SHARP CBOX-D1280CB",
+      "description": "Deskripsi lengkap untuk SPEAKER AKTIV SHARP CBOX-D1280CB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7307,8 +7410,8 @@
       "category": "SPEAKER",
       "price": 3999000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER HARDWELL 12 PRO",
+      "description": "Deskripsi lengkap untuk SPEAKER HARDWELL 12 PRO. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7351,8 +7454,8 @@
       "category": "SPEAKER",
       "price": 3450000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER NIKO MEGABOX 12",
+      "description": "Deskripsi lengkap untuk SPEAKER NIKO MEGABOX 12. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7395,8 +7498,8 @@
       "category": "SPEAKER",
       "price": 1550000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER NIKO OXXO 8",
+      "description": "Deskripsi lengkap untuk SPEAKER NIKO OXXO 8. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7439,8 +7542,8 @@
       "category": "SPEAKER",
       "price": 1250000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER NIKO PT-1202",
+      "description": "Deskripsi lengkap untuk SPEAKER NIKO PT-1202. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7483,8 +7586,8 @@
       "category": "SPEAKER",
       "price": 1250000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER NIKO WT10B",
+      "description": "Deskripsi lengkap untuk SPEAKER NIKO WT10B. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7527,8 +7630,8 @@
       "category": "SPEAKER",
       "price": 1099000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER NIKO WT6A",
+      "description": "Deskripsi lengkap untuk SPEAKER NIKO WT6A. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7571,8 +7674,8 @@
       "category": "SPEAKER",
       "price": 1599000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER NIKO WTD-10A",
+      "description": "Deskripsi lengkap untuk SPEAKER NIKO WTD-10A. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7615,8 +7718,8 @@
       "category": "SPEAKER",
       "price": 3100000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER POLYTRON PAS-10DF22",
+      "description": "Deskripsi lengkap untuk SPEAKER POLYTRON PAS-10DF22. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7659,8 +7762,8 @@
       "category": "SPEAKER",
       "price": 3000000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER POLYTRON PAS-PR012F3",
+      "description": "Deskripsi lengkap untuk SPEAKER POLYTRON PAS-PR012F3. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7703,8 +7806,8 @@
       "category": "SPEAKER",
       "price": 3300000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER POLYTRON PAS-PRO15F3",
+      "description": "Deskripsi lengkap untuk SPEAKER POLYTRON PAS-PRO15F3. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7747,8 +7850,8 @@
       "category": "SPEAKER",
       "price": 3600000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER WIRELESS HUPPER JL 10",
+      "description": "Deskripsi lengkap untuk SPEAKER WIRELESS HUPPER JL 10. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7791,8 +7894,8 @@
       "category": "SPEAKER",
       "price": 5500000,
       "image": "",
-      "shortDesc": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film.",
-      "description": "Kualitas suara jernih dengan bass bertenaga, cocok untuk hiburan musik dan menonton film. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk SPEAKER WIRELESS HUPPER JL 15",
+      "description": "Deskripsi lengkap untuk SPEAKER WIRELESS HUPPER JL 15. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7835,8 +7938,8 @@
       "category": "SPAREPART SELIS",
       "price": 20000,
       "image": "",
-      "shortDesc": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda.",
-      "description": "Suku cadang asli berkualitas tinggi untuk menjaga performa dan keamanan sepeda listrik Anda. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk STOP KONTAK SAIGE",
+      "description": "Deskripsi lengkap untuk STOP KONTAK SAIGE. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7879,8 +7982,8 @@
       "category": "TV",
       "price": 1900000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk TV HISENSE 32E4H",
+      "description": "Deskripsi lengkap untuk TV HISENSE 32E4H. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7923,8 +8026,8 @@
       "category": "TV",
       "price": 7800000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk TV HISENSE 65A6Q",
+      "description": "Deskripsi lengkap untuk TV HISENSE 65A6Q. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -7967,8 +8070,8 @@
       "category": "TV",
       "price": 11500000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk TV HISENSE 75A65N",
+      "description": "Deskripsi lengkap untuk TV HISENSE 75A65N. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -8011,8 +8114,8 @@
       "category": "TV",
       "price": 4400000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk TV HISENSE SAMRT TV 50A65N",
+      "description": "Deskripsi lengkap untuk TV HISENSE SAMRT TV 50A65N. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -8055,8 +8158,8 @@
       "category": "TV",
       "price": 2300000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk TV LG 32LR600BPSB",
+      "description": "Deskripsi lengkap untuk TV LG 32LR600BPSB. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -8099,8 +8202,8 @@
       "category": "TV",
       "price": 3800000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk TV LG SMART-TV 43UA7500PSA",
+      "description": "Deskripsi lengkap untuk TV LG SMART-TV 43UA7500PSA. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -8143,8 +8246,8 @@
       "category": "TV",
       "price": 1800000,
       "image": "",
-      "shortDesc": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga.",
-      "description": "Visual tajam dengan fitur Smart TV modern dan desain bezelless yang elegan untuk keluarga. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "shortDesc": "Deskripsi singkat untuk TV TOSHIBA 32S25KP",
+      "description": "Deskripsi lengkap untuk TV TOSHIBA 32S25KP. Produk berkualitas dengan garansi resmi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
@@ -28744,176 +28847,6 @@
       "is_read": true,
       "created_at": "2026-03-03T06:47:35.136Z",
       "read_at": null
-    }
-  ],
-  "product_categories": [
-    {
-      "id": "cat-ac",
-      "name": "AC",
-      "slug": "ac",
-      "description": "Sistem pendingin udara untuk kenyamanan ruangan Anda."
-    },
-    {
-      "id": "cat-air-fryer",
-      "name": "AIR FRYER",
-      "slug": "air-fryer",
-      "description": "Alat masak modern untuk menggoreng sehat tanpa minyak."
-    },
-    {
-      "id": "cat-aksesoris",
-      "name": "AKSESORIS",
-      "slug": "aksesoris",
-      "description": "Berbagai perlengkapan pendukung produk elektronik dan furnitur."
-    },
-    {
-      "id": "cat-ban",
-      "name": "BAN",
-      "slug": "ban",
-      "description": "Pilihan ban berkualitas untuk kendaraan dan sepeda listrik."
-    },
-    {
-      "id": "cat-baterai",
-      "name": "BATERAI",
-      "slug": "baterai",
-      "description": "Sumber daya cadangan dan utama untuk perangkat Anda."
-    },
-    {
-      "id": "cat-blender",
-      "name": "BLENDER",
-      "slug": "blender",
-      "description": "Penghalus makanan dan bumbu dapur berkualitas."
-    },
-    {
-      "id": "cat-braket",
-      "name": "BRAKET",
-      "slug": "braket",
-      "description": "Penyangga TV dan peralatan elektronik lainnya."
-    },
-    {
-      "id": "cat-dispenser",
-      "name": "DISPENSER",
-      "slug": "dispenser",
-      "description": "Penyedia air minum panas dan dingin praktis."
-    },
-    {
-      "id": "cat-freezer",
-      "name": "FREEZER",
-      "slug": "freezer",
-      "description": "Penyimpanan beku untuk kesegaran makanan lebih lama."
-    },
-    {
-      "id": "cat-handphone",
-      "name": "HANDPHONE",
-      "slug": "handphone",
-      "description": "Perangkat komunikasi cerdas terbaru dari berbagai brand."
-    },
-    {
-      "id": "cat-kasur",
-      "name": "KASUR",
-      "slug": "kasur",
-      "description": "Pilihan kasur springbed untuk tidur yang berkualitas."
-    },
-    {
-      "id": "cat-kipas-angin",
-      "name": "KIPAS ANGIN",
-      "slug": "kipas-angin",
-      "description": "Penyegar udara ruangan dengan berbagai model."
-    },
-    {
-      "id": "cat-kompor",
-      "name": "KOMPOR",
-      "slug": "kompor",
-      "description": "Peralatan memasak dapur dengan teknologi keamanan terbaru."
-    },
-    {
-      "id": "cat-kulkas",
-      "name": "KULKAS",
-      "slug": "kulkas",
-      "description": "Lemari es untuk menjaga kesegaran bahan makanan."
-    },
-    {
-      "id": "cat-kursi",
-      "name": "KURSI",
-      "slug": "kursi",
-      "description": "Pilihan kursi duduk nyaman untuk berbagai kebutuhan."
-    },
-    {
-      "id": "cat-lemari",
-      "name": "LEMARI",
-      "slug": "lemari",
-      "description": "Penyimpanan pakaian dan barang rumah tangga lainnya."
-    },
-    {
-      "id": "cat-magic-com",
-      "name": "MAGIC COM",
-      "slug": "magic-com",
-      "description": "Penanak nasi otomatis dengan fitur multifungsi."
-    },
-    {
-      "id": "cat-meja",
-      "name": "MEJA",
-      "slug": "meja",
-      "description": "Pilihan meja fungsional untuk rumah dan kantor."
-    },
-    {
-      "id": "cat-mesin-cuci",
-      "name": "MESIN CUCI",
-      "slug": "mesin-cuci",
-      "description": "Solusi pencucian pakaian yang bersih dan efisien."
-    },
-    {
-      "id": "cat-oven",
-      "name": "OVEN",
-      "slug": "oven",
-      "description": "Alat pemanggang roti dan makanan berkualitas."
-    },
-    {
-      "id": "cat-pisau",
-      "name": "PISAU",
-      "slug": "pisau",
-      "description": "Peralatan potong dapur tajam dan tahan lama."
-    },
-    {
-      "id": "cat-sepeda-listrik",
-      "name": "SEPEDA LISTRIK",
-      "slug": "sepeda-listrik",
-      "description": "Kendaraan ramah lingkungan untuk mobilitas harian."
-    },
-    {
-      "id": "cat-setrika",
-      "name": "SETRIKA",
-      "slug": "setrika",
-      "description": "Penghalus pakaian praktis dan hemat energi."
-    },
-    {
-      "id": "cat-showcase",
-      "name": "SHOWCASE",
-      "slug": "showcase",
-      "description": "Lemari pendingin dengan pintu kaca untuk display produk."
-    },
-    {
-      "id": "cat-sofa",
-      "name": "SOFA",
-      "slug": "sofa",
-      "description": "Pilihan sofa empuk dan stylish untuk ruang tamu."
-    },
-    {
-      "id": "cat-sparepart-selis",
-      "name": "SPAREPART SELIS",
-      "slug": "sparepart-selis",
-      "description": "Suku cadang asli untuk perawatan sepeda listrik."
-    },
-    {
-      "id": "cat-speaker",
-      "name": "SPEAKER",
-      "slug": "speaker",
-      "description": "Sistem audio untuk hiburan berkualitas di rumah."
-    },
-    {
-      "id": "cat-tv",
-      "name": "TV",
-      "slug": "tv",
-      "description": "Televisi layar datar dengan teknologi gambar jernih."
     }
   ]
 }

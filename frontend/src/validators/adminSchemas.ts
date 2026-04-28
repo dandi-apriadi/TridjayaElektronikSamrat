@@ -9,10 +9,10 @@ export const adminProductSchema = z.object({
   priceInstallment: z.number().nonnegative('Harga cicilan tidak boleh negatif').optional(),
   dpMin: z.number().nonnegative('DP minimum tidak boleh negatif').optional(),
   stock: z.enum(['available', 'indent', 'hidden']),
-  image: z.string().trim().min(1, 'Gambar utama wajib diisi'), // Relaxed from .url()
-  images: z.array(z.string().trim().min(1)).optional(), // Relaxed from .url()
-  description: z.string().trim().min(20, 'Deskripsi lengkap minimal 20 karakter'),
-  shortDesc: z.string().trim().min(10, 'Deskripsi singkat minimal 10 karakter'),
+  image: z.string().trim().optional().default(''), 
+  images: z.array(z.string().trim()).optional().default([]),
+  description: z.string().trim().optional().default(''),
+  shortDesc: z.string().trim().optional().default(''),
   badge: z.enum(['eco', 'new', 'sale', 'popular', 'limited', '']).optional().transform(v => v === '' ? undefined : v),
   specs: z.record(z.string(), z.string()).optional().default({}),
   colors: z.array(z.string()).optional().default([]),

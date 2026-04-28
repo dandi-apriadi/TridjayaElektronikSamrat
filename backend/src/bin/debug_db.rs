@@ -33,5 +33,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("ID: {}, Name: {}", id, name);
     }
 
+    let tables = [
+        "agent_stats",
+        "agent_achievements",
+        "reward_claims",
+        "leads",
+        "agent_registrations",
+        "support_tickets",
+        "sales",
+        "telemetry_events"
+    ];
+
+    for table in tables {
+        let count: (i64,) = sqlx::query_as(&format!("SELECT COUNT(*) FROM {}", table))
+            .fetch_one(&pool)
+            .await
+            .unwrap_or((0,));
+        println!("Table {}: {} rows", table, count.0);
+    }
+
     Ok(())
 }
