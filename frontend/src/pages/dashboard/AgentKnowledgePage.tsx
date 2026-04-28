@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
+import { 
   BookOpen, Search, Filter, Star, Package,
   ChevronDown, ChevronUp, Zap, ShoppingCart, Eye,
-  Share2, Shield, CreditCard, Copy, Info, Image as ImageIcon
+  Share2, Shield, CreditCard, Copy, Info, Image as ImageIcon,
+  Bed, Smartphone, Tv, Refrigerator, WashingMachine,
+  ChefHat, Wind, Coffee, Table as TableIcon, Archive, Speaker
 } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
 import { formatPrice } from '../../data';
@@ -45,12 +47,21 @@ const getMarketingInfo = (product: Product) => {
 };
 
 /* ─── Configuration ───────────────────────────────────── */
-const categories = ['Semua', 'Sepeda Listrik', 'Elektronik', 'Furnitur'];
-const mapCategory = (cat: string) => {
-  if (cat === 'bike') return 'Sepeda Listrik';
-  if (cat === 'tv' || cat === 'ac' || cat === 'fridge' || cat === 'washing_machine') return 'Elektronik';
-  if (cat === 'sofa' || cat === 'springbed' || cat === 'wardrobe') return 'Furnitur';
-  return 'Lainnya';
+const getCategoryIcon = (cat: string) => {
+  const c = (cat || '').toLowerCase();
+  if (c.includes('sepeda') || c.includes('motor')) return <Zap className="w-4 h-4" />;
+  if (c.includes('kasur') || c.includes('springbed') || c.includes('comforta')) return <Bed className="w-4 h-4" />;
+  if (c.includes('sofa') || c.includes('kursi')) return <Coffee className="w-4 h-4" />;
+  if (c.includes('meja')) return <TableIcon className="w-4 h-4" />;
+  if (c.includes('lemari')) return <Archive className="w-4 h-4" />;
+  if (c.includes('ac')) return <Wind className="w-4 h-4" />;
+  if (c.includes('kulkas') || c.includes('freezer') || c.includes('showcase')) return <Refrigerator className="w-4 h-4" />;
+  if (c.includes('tv')) return <Tv className="w-4 h-4" />;
+  if (c.includes('speaker')) return <Speaker className="w-4 h-4" />;
+  if (c.includes('handphone') || c.includes('hp')) return <Smartphone className="w-4 h-4" />;
+  if (c.includes('mesin cuci')) return <WashingMachine className="w-4 h-4" />;
+  if (c.includes('magicom') || c.includes('blender') || c.includes('oven') || c.includes('kompor') || c.includes('dispenser')) return <ChefHat className="w-4 h-4" />;
+  return <Package className="w-4 h-4" />;
 };
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
@@ -70,14 +81,16 @@ const AgentKnowledgePage: React.FC = () => {
   const { products, isLoading, fetchProducts } = useProductStore();
   const { addNotification } = useNotificationStore();
 
+  const dynamicCategories = ['Semua', ...Array.from(new Set(products.map(p => p.category))).filter(Boolean)];
+
   useEffect(() => {
     fetchProducts();
     loadCreditData().then(setCreditData);
   }, [fetchProducts]);
+
   const filtered = products.filter((k) => {
-    const mappedCat = mapCategory(k.category);
     const matchSearch   = (k.name?.toLowerCase() || '').includes(search.toLowerCase());
-    const matchCategory = category === 'Semua' || mappedCat === category;
+    const matchCategory = category === 'Semua' || k.category === category;
     return matchSearch && matchCategory;
   });
 
@@ -177,12 +190,30 @@ const AgentKnowledgePage: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Filter className="w-4 h-4 text-on-surface-variant mr-1" />
-          {categories.map((c) => (
+          {dynamicCategories.slice(0, 8).map((c) => (
             <button key={c} type="button" onClick={() => setCategory(c)}
               className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${category === c ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-surface-high border border-outline-variant/10 text-on-surface-variant hover:text-on-surface'}`}>
-              {c}
+              <span className="flex items-center gap-1.5">
+                {c === 'Semua' ? <Package className="w-3.5 h-3.5" /> : getCategoryIcon(c)}
+                {c}
+              </span>
             </button>
           ))}
+          {dynamicCategories.length > 8 && (
+            <div className="relative group">
+              <button className="px-3 py-1.5 rounded-lg text-label-sm font-semibold bg-surface-high border border-outline-variant/10 text-on-surface-variant hover:text-on-surface flex items-center gap-1">
+                Lainnya <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              <div className="absolute top-full right-0 mt-2 w-48 glass-premium rounded-xl overflow-hidden hidden group-hover:block z-50 shadow-2xl">
+                {dynamicCategories.slice(8).map(c => (
+                   <button key={c} onClick={() => setCategory(c)} className="w-full text-left px-4 py-2.5 text-label-sm text-on-surface-variant hover:text-white hover:bg-surface-highest transition-colors flex items-center gap-2">
+                     {getCategoryIcon(c)}
+                     {c}
+                   </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -211,7 +242,6 @@ const AgentKnowledgePage: React.FC = () => {
           paginated.map((item) => {
             const isExpanded = expandedId === item.id;
             const currentTab = getTab(item.id);
-            const mappedCat = mapCategory(item.category);
             const mkt = getMarketingInfo(item);
 
           return (
@@ -231,7 +261,10 @@ const AgentKnowledgePage: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     {item.subcategory && <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold uppercase">{item.subcategory}</span>}
-                    <span className="px-2 py-0.5 rounded-md bg-surface-highest text-on-surface-variant text-[10px] uppercase">{mappedCat}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-surface-highest text-on-surface-variant text-[10px] uppercase flex items-center gap-1">
+                      {getCategoryIcon(item.category)}
+                      {item.category}
+                    </span>
                     {item.badge && <span className="px-2 py-0.5 rounded-md bg-secondary/10 text-secondary text-[10px] font-bold uppercase">{item.badgeText || item.badge}</span>}
                   </div>
                   <div className="font-display text-title-sm font-bold text-on-surface truncate">{item.name}</div>

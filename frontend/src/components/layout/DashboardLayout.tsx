@@ -99,6 +99,7 @@ const DashboardLayout: React.FC = () => {
         { label: 'Direktori Agen', icon: Users, path: '/dashboard/admin/agents/directory' },
         { label: 'Manajemen Prospek', icon: TrendingUp, path: '/dashboard/admin/leads' },
         { label: 'Katalog Produk', icon: Package, path: '/dashboard/admin/catalog' },
+        { label: 'Kategori Produk', icon: BookOpen, path: '/dashboard/admin/categories' },
         { label: 'Promo & Campaign', icon: Ticket, path: '/dashboard/admin/promo' },
         { label: 'Konten & Blog', icon: FileText, path: '/dashboard/admin/content' },
         { label: 'Partner Brand', icon: Handshake, path: '/dashboard/admin/partners' },

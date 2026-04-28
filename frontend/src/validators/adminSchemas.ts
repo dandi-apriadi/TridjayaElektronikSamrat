@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const adminProductSchema = z.object({
   name: z.string().trim().min(3, 'Nama produk minimal 3 karakter'),
   slug: z.string().trim().min(3, 'Slug minimal 3 karakter').regex(/^[a-z0-9-]+$/, 'Slug hanya boleh huruf kecil, angka, dan tanda minus'),
-  category: z.enum(['bike', 'electronics', 'furniture']),
+  category: z.string().min(1, 'Kategori wajib diisi'),
   subcategory: z.string().trim().optional(),
   price: z.number().nonnegative('Harga retail tidak boleh negatif'),
   priceInstallment: z.number().nonnegative('Harga cicilan tidak boleh negatif').optional(),

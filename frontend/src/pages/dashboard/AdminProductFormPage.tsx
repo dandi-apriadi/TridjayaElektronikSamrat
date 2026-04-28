@@ -22,16 +22,27 @@ const AdminProductFormPage: React.FC = () => {
   const { createProduct, updateProduct, products, fetchProducts, isLoading: isProductLoading } = useProductStore();
   const [customerType, setCustomerType] = useState<CustomerType>('NEW');
   const [creditData, setCreditData] = useState<CreditData | null>(null);
+  const [categories, setCategories] = useState<{id: string, name: string, slug: string}[]>([]);
 
   useEffect(() => {
     loadCreditData().then(setCreditData);
+
+    // Fetch categories
+    fetch('/api/product-categories')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setCategories(data.data.items);
+        }
+      })
+      .catch(err => console.error('Failed to fetch categories:', err));
   }, []);
   const isEditMode = !!id;
 
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '',
     slug: '',
-    category: 'bike',
+    category: '',
     subcategory: '',
     price: 0,
     priceInstallment: 0,
@@ -394,10 +405,11 @@ const AdminProductFormPage: React.FC = () => {
               </div>
               <div className="space-y-1.5">
                 <label className="text-label-sm font-semibold text-on-surface-variant">Kategori</label>
-                <select required name="category" value={formData.category || 'bike'} onChange={handleChange} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none">
-                  <option value="bike">Sepeda / Skuter Listrik</option>
-                  <option value="electronics">Elektronik</option>
-                  <option value="furniture">Furnitur</option>
+                <select required name="category" value={formData.category || ''} onChange={handleChange} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none">
+                  <option value="">Pilih Kategori</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.slug}>{cat.name}</option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-1.5">

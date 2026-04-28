@@ -7,15 +7,28 @@ import { useAuthStore } from '../../store/authStore';
 import logoHorizontal from '../../assets/images/logo-horizontal.webp';
 import logoTEM from '../../assets/images/logo-tem.webp';
 
-const navItems = [
+import { useProductStore } from '../../store/useProductStore';
+
+const getCategoryIcon = (cat: string) => {
+  const c = cat.toLowerCase();
+  if (c.includes('sepeda') || c.includes('motor')) return '⚡';
+  if (c.includes('kasur') || c.includes('springbed') || c.includes('comforta')) return '🛏️';
+  if (c.includes('sofa') || c.includes('meja') || c.includes('kursi') || c.includes('lemari') || c.includes('furniture')) return '🛋️';
+  if (c.includes('ac')) return '❄️';
+  if (c.includes('kulkas') || c.includes('freezer') || c.includes('showcase')) return '🧊';
+  if (c.includes('tv') || c.includes('speaker') || c.includes('handphone') || c.includes('hp')) return '📱';
+  if (c.includes('mesin cuci')) return '🧺';
+  if (c.includes('magicom') || c.includes('blender') || c.includes('oven') || c.includes('kompor') || c.includes('dispenser')) return '🍳';
+  if (c.includes('elektronik') || c.includes('home')) return '🏠';
+  return '📦';
+};
+
+const baseNavItems = [
   { label: 'Beranda', href: '/' },
   {
     label: 'Produk',
     href: '#',
-    children: [
-      { label: 'Sepeda Listrik', href: '/produk/bike', icon: '⚡' },
-      { label: 'Elektronik & Furnitur', href: '/produk/home', icon: '🏠' },
-    ],
+    children: [], // Populated dynamically
   },
   { label: 'Promo', href: '/promo' },
   { label: 'Blog', href: '/blog' },
@@ -29,6 +42,7 @@ const Navbar: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const { theme, toggleTheme } = useThemeStore();
   const { isAuthenticated, user } = useAuthStore();
+  const { products } = useProductStore();
   const location = useLocation();
 
   const dashboardPath = user?.role === 'admin' 
@@ -36,6 +50,28 @@ const Navbar: React.FC = () => {
     : user?.role === 'agent' 
       ? '/dashboard/agent' 
       : '/dashboard';
+
+  const uniqueCategories = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
+  
+  const navItems = baseNavItems.map(item => {
+    if (item.label === 'Produk') {
+      return {
+        ...item,
+        children: uniqueCategories.length > 0 
+          ? uniqueCategories.map(cat => ({
+              label: cat,
+              href: `/produk?kategori=${encodeURIComponent(cat)}`,
+              icon: getCategoryIcon(cat)
+            }))
+          : [
+              { label: 'Sepeda Listrik', href: '/produk?kategori=Sepeda+Listrik', icon: '⚡' },
+              { label: 'Motor Listrik', href: '/produk?kategori=Motor+Listrik', icon: '🏍️' },
+              { label: 'Elektronik', href: '/produk?kategori=Elektronik', icon: '🏠' },
+            ]
+      };
+    }
+    return item;
+  });
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);

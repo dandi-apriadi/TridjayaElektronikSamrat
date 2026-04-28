@@ -17,10 +17,11 @@ pub struct AppState {
     /// Dipakai untuk membatasi flooding email reset password.
     pub forgot_password_attempts: Arc<RwLock<HashMap<String, DateTime<Utc>>>>,
     pub mailer: Arc<crate::mail::Mailer>,
+    pub cache: Arc<crate::cache::CacheManager>,
 }
 
 impl AppState {
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: SqlitePool, cache: Arc<crate::cache::CacheManager>) -> Self {
         Self {
             pool,
             access_sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -31,6 +32,7 @@ impl AppState {
             blocked_login_subjects: Arc::new(RwLock::new(HashMap::new())),
             forgot_password_attempts: Arc::new(RwLock::new(HashMap::new())),
             mailer: Arc::new(crate::mail::Mailer::new()),
+            cache,
         }
     }
 

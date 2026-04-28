@@ -18,8 +18,7 @@ import { usePromoStore } from './store/usePromoStore';
 import { useBlogStore } from './store/useBlogStore';
 import { usePartnerStore } from './store/usePartnerStore';
 
-const BikesCatalogPage = lazy(() => import('./pages/BikesCatalogPage'));
-const HomeCatalogPage = lazy(() => import('./pages/HomeCatalogPage'));
+const CatalogPage = lazy(() => import('./pages/CatalogPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const ArticleDetailPage = lazy(() => import('./pages/ArticleDetailPage'));
@@ -61,6 +60,7 @@ const AgentSettingsPage = lazy(() => import('./pages/dashboard/AgentSettingsPage
 const AdminSupportTicketsPage = lazy(() => import('./pages/dashboard/AdminSupportTicketsPage'));
 const AdminLeadsPage = lazy(() => import('./pages/dashboard/AdminLeadsPage'));
 const AdminPartnersPage = lazy(() => import('./pages/dashboard/AdminPartnersPage'));
+const AdminProductCategoriesPage = lazy(() => import('./pages/dashboard/AdminProductCategoriesPage'));
 const NotificationsPage = lazy(() => import('./pages/dashboard/NotificationsPage'));
 
 const RouteLoading: React.FC = () => (
@@ -149,8 +149,7 @@ const App: React.FC = () => {
         <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="produk/bike" element={<BikesCatalogPage />} />
-          <Route path="produk/home" element={<HomeCatalogPage />} />
+          <Route path="produk" element={<CatalogPage />} />
           <Route path="produk/:slug" element={<ProductDetailPage />} />
           <Route path="promo" element={<PromoPage />} />
           <Route path="promo/:id" element={<PromoDetailPage />} />
@@ -200,6 +199,14 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="admin">
                 {lazyPage(AdminCatalogPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/categories"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminProductCategoriesPage)}
               </RoleGuard>
             }
           />

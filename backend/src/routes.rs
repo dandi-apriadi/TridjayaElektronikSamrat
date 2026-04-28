@@ -36,6 +36,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/admin/uploads/image", post(upload_admin_image))
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
         .route("/api/catalogs/{id}", get(get_catalog).patch(update_catalog).delete(delete_catalog))
+        .route("/api/product-categories", get(list_product_categories).post(create_product_category))
+        .route("/api/product-categories/{id}", patch(update_product_category).delete(delete_product_category))
         .route("/api/promotions", get(list_promotions).post(create_promotion))
         .route("/api/promotions/{id}", patch(update_promotion).delete(delete_promotion))
         .route("/api/referrals/generate", post(generate_referral))
@@ -2077,6 +2079,142 @@ async fn find_partner_by_id(state: &AppState, id: &str) -> Result<PartnerRecord,
     .ok_or(AppError::NotFound)
 }
 
+#[derive(Serialize, Deserialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+struct ProductCategoryRecord {
+    id: String,
+    name: String,
+    slug: String,
+    description: Option<String>,
+    created_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateProductCategoryRequest {
+    name: String,
+    description: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProductCategoryRequest {
+    name: Option<String>,
+    description: Option<String>,
+}
+
+async fn list_product_categories(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+    let categories = sqlx::query_as::<_, ProductCategoryRecord>(
+        "SELECT id, name, slug, description, created_at FROM product_categories ORDER BY name ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Categories fetched", json!({ "items": categories })))
+}
+
+async fn create_product_category(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateProductCategoryRequest>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    if payload.name.trim().is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Nama kategori wajib diisi".to_string()],
+        });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let slug = payload.name.to_lowercase().replace(' ', "-");
+
+    sqlx::query(
+        "INSERT INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(payload.name.trim())
+    .bind(&slug)
+    .bind(payload.description)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    Ok(json_ok("Category created", json!({ "id": id, "slug": slug })))
+}
+
+async fn update_product_category(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateProductCategoryRequest>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    if let Some(ref name) = payload.name {
+        if name.trim().is_empty() {
+            return Err(AppError::Validation {
+                errors: vec!["Nama kategori tidak boleh kosong".to_string()],
+            });
+        }
+    }
+
+    let mut query = String::from("UPDATE product_categories SET ");
+    let mut updates = Vec::new();
+
+    if let Some(ref name) = payload.name {
+        updates.push(format!("name = '{}', slug = '{}'", name.trim(), name.to_lowercase().replace(' ', "-")));
+    }
+    if let Some(ref desc) = payload.description {
+        updates.push(format!("description = '{}'", desc));
+    }
+
+    if updates.is_empty() {
+        return Ok(json_ok("No changes", json!({ "updated": false })));
+    }
+
+    query.push_str(&updates.join(", "));
+    query.push_str(" WHERE id = ?");
+
+    sqlx::query(&query)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    Ok(json_ok("Category updated", json!({ "updated": true })))
+}
+
+async fn delete_product_category(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    let result = sqlx::query("DELETE FROM product_categories WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Category deleted", json!({ "deleted": true })))
+}
+
 async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let products = sqlx::query_as::<_, ProductRecord>(
         "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors FROM products"
@@ -3400,6 +3538,9 @@ async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, P
         .await;
     }
 
+    // Invalidate leaderboard cache since lead status changes affect points/rankings
+    let _ = state.cache.invalidate("leaderboard").await;
+
     Ok(json_ok(format!("Lead {} status updated", id), json!({ "item": lead_to_json(updated) })))
 }
 
@@ -3605,7 +3746,7 @@ struct AgentRegistrationRow {
     submitted_at: Option<String>,
 }
 
-#[derive(sqlx::FromRow, serde::Serialize)]
+#[derive(sqlx::FromRow, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AgentDirectoryRow {
     id: String,
@@ -3659,6 +3800,11 @@ async fn list_agents(State(state): State<AppState>, headers: HeaderMap) -> Resul
 async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
 
+    // Try to get from cache first
+    if let Ok(Some(cached_items)) = state.cache.get::<Vec<AgentDirectoryRow>>("leaderboard").await {
+        return Ok(json_ok("Leaderboard fetched from cache", json!({ "items": cached_items })));
+    }
+
     let rows = sqlx::query_as::<_, AgentDirectoryRow>(
         r#"
         SELECT 
@@ -3687,6 +3833,9 @@ async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> 
         tracing::error!("DB error listing leaderboard: {}", e);
         AppError::Internal
     })?;
+
+    // Store in cache for 5 minutes (300 seconds)
+    let _ = state.cache.set("leaderboard", &rows, Some(300)).await;
 
     Ok(json_ok("Leaderboard fetched successfully", json!({ "items": rows })))
 }
@@ -4240,6 +4389,9 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
             .await;
         }
     }
+
+    // Invalidate leaderboard cache since rankings or agent status might change
+    let _ = state.cache.invalidate("leaderboard").await;
 
     Ok(json_ok(format!("Agent registration {} status updated", id), json!({ "updated": true, "status": status })))
 }

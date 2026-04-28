@@ -64,7 +64,21 @@ async fn main() {
         .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE])
         .allow_credentials(true);
 
-    let state = AppState::new(pool);
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_client = redis::Client::open(redis_url).expect("Invalid Redis URL");
+    let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+        .await
+        .expect("Failed to create Redis connection manager");
+
+    let cache = std::sync::Arc::new(tridjaya_backend::cache::CacheManager::new(redis_conn));
+    
+    // Start adaptive sync in background
+    let cache_clone = cache.clone();
+    tokio::spawn(async move {
+        cache_clone.start_adaptive_sync().await;
+    });
+
+    let state = AppState::new(pool, cache);
     let app = routes::router(state)
         .nest_service("/uploads", ServeDir::new("uploads"))
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))

@@ -9,6 +9,9 @@ import heroBike from '../assets/images/hero-bike.webp';
 import sofaImg from '../assets/images/sofa.webp';
 import tvImg from '../assets/images/tv.webp';
 import { recordTelemetry } from '../utils/telemetry';
+import { useProductStore } from '../store/useProductStore';
+import { useMemo } from 'react';
+import { ProductCard } from '../components/ui';
 
 /* ========================
    HERO SECTION
@@ -72,10 +75,10 @@ const HeroSection: React.FC = () => {
           {/* Premium CTAs */}
           <div className="flex flex-wrap items-center justify-center gap-6 mb-24">
             <Link
-              to="/produk/bike"
+              to="/produk?kategori=Sepeda+Listrik"
               onClick={() => {
                 recordTelemetry('click', {
-                  path: '/produk/bike',
+                  path: '/produk',
                   source: 'direct',
                   metadata: {
                     contentType: 'page',
@@ -156,7 +159,7 @@ const categories = [
     label: 'Electric Mobility',
     subtitle: 'Sepeda & Skuter Listrik',
     description: 'Goda, Winfly, Nuv — Merek terpercaya untuk mobilitas hijau',
-    href: '/produk/bike',
+    href: '/produk?kategori=Sepeda+Listrik',
     image: heroBike,
     accent: 'primary' as const,
     icon: Zap,
@@ -169,7 +172,7 @@ const categories = [
     label: 'Living Space',
     subtitle: 'Furnitur Premium',
     description: 'Sofa & furniture berkualitas untuk rumah impian',
-    href: '/produk/home',
+    href: '/produk?kategori=SOPA',
     image: sofaImg,
     accent: 'magenta' as const,
     icon: Shield,
@@ -182,7 +185,7 @@ const categories = [
     label: 'Home Entertainment',
     subtitle: 'TV, Kulkas, Elektronik',
     description: 'Perangkat elektronik premium untuk hunian modern',
-    href: '/produk/home',
+    href: '/produk?kategori=AC',
     image: tvImg,
     accent: 'lime' as const,
     icon: TrendingUp,
@@ -452,6 +455,40 @@ const CTASection: React.FC = () => (
 );
 
 /* ========================
+   TRENDING PRODUCTS
+======================== */
+const TrendingProducts: React.FC = () => {
+  const { products } = useProductStore();
+  const trending = useMemo(() => products.slice(0, 8), [products]);
+
+  return (
+    <section className="section-padding bg-surface-low/30 overflow-hidden">
+      <div className="container-custom">
+        <SectionHeader
+          eyebrow="Sedang Tren"
+          title="Pilihan Terfavorit Bulan Ini"
+          subtitle="Produk-produk yang paling banyak dicari oleh pelanggan kami di seluruh Sulawesi Utara."
+        />
+
+        <div className="flex gap-5 overflow-x-auto pb-8 hide-scrollbar snap-x snap-mandatory">
+          {trending.map((product, i) => (
+            <div key={product.id} className="min-w-[280px] md:min-w-[320px] snap-start">
+              <ProductCard product={product} index={i} />
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-8 flex justify-center">
+          <Link to="/produk" className="px-8 py-3 rounded-xl glass-premium border border-primary/20 text-on-surface font-display font-bold hover:bg-primary/10 transition-all flex items-center gap-2">
+            Lihat Semua Koleksi <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ========================
    HOME PAGE (MAIN)
 ======================== */
 const HomePage: React.FC = () => {
@@ -459,6 +496,7 @@ const HomePage: React.FC = () => {
     <>
       <HeroSection />
       <CategoryBentoGrid />
+      <TrendingProducts />
       <WhyUs />
       
       {/* Brand Partners */}

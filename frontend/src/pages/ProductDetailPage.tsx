@@ -42,7 +42,7 @@ const ProductDetailPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center pt-24">
         <div className="text-center">
           <p className="font-display text-headline-md text-on-surface-variant mb-4">Produk tidak ditemukan</p>
-          <Link to="/produk/bike" className="flex items-center gap-2 px-6 py-3 gradient-primary rounded-xl font-body text-body-md font-bold text-surface mx-auto w-fit">
+          <Link to="/produk" className="flex items-center gap-2 px-6 py-3 gradient-primary rounded-xl font-body text-body-md font-bold text-surface mx-auto w-fit">
             Kembali ke Katalog
           </Link>
         </div>
@@ -54,7 +54,7 @@ const ProductDetailPage: React.FC = () => {
     .filter((p) => p.category === product.category && p.id !== product.id)
     .slice(0, 3);
 
-  const productCatalogPath = `/produk/${product.category === 'bike' ? 'bike' : 'home'}`;
+  const productCatalogPath = `/produk?kategori=${encodeURIComponent(product.category)}`;
   const agentMessage = encodeURIComponent(`Halo Tridjaya, saya tertarik dengan produk ${product.name}. Mohon info stok dan simulasi kredit terbaru.`);
   const selectedTenorLabel = selectedCreditPlan ? tenorLabel(selectedCreditPlan.tenor) : 'belum dipilih';
   const selectedInstallmentLabel = selectedCreditPlan ? formatRupiah(selectedCreditPlan.monthlyInstallment) : 'akan saya pilih di simulator';

@@ -145,7 +145,7 @@ export async function apiJson<T = any>(
  * Helper for image URLs from backend
  */
 export function getImageUrl(path: string | undefined | null): string {
-  if (!path) return 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop';
+  if (!path) return `${API_BASE_URL}/uploads/default-product.png`;
   if (path.startsWith('http')) return path;
   if (path.startsWith('data:')) return path;
   

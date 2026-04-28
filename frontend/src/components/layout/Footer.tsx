@@ -101,12 +101,9 @@ const Footer: React.FC = () => {
             <h4 className="font-display text-title-sm font-semibold text-on-surface mb-4">Produk</h4>
             <ul className="space-y-2.5">
               {[
-                { label: 'Sepeda Listrik Goda', href: '/produk/bike' },
-                { label: 'Sepeda Listrik Winfly', href: '/produk/bike' },
-                { label: 'Skuter Nuv City', href: '/produk/bike' },
-                { label: 'Smart TV', href: '/produk/home' },
-                { label: 'Kulkas & Freezer', href: '/produk/home' },
-                { label: 'Sofa Premium', href: '/produk/home' },
+                { label: 'Sepeda Listrik', href: '/produk?kategori=Sepeda+Listrik' },
+                { label: 'Motor Listrik', href: '/produk?kategori=Motor+Listrik' },
+                { label: 'Elektronik & Furnitur', href: '/produk?kategori=Elektronik' },
               ].map(({ label, href }) => (
                 <li key={label}>
                   <Link

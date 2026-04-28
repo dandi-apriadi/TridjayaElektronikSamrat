@@ -15,7 +15,7 @@ const CircuitBackground: React.FC = () => {
       return;
     }
 
-    const monitorDurationMs = 2800;
+    const monitorDurationMs = 5000; // Increased to 5s for better averaging
     let frameCount = 0;
     let slowFrameCount = 0;
     let longTaskCount = 0;
@@ -48,17 +48,22 @@ const CircuitBackground: React.FC = () => {
       if (elapsed >= monitorDurationMs) {
         const averageFps = frameCount / (elapsed / 1000);
         const slowFrameRatio = slowFrameCount / Math.max(frameCount, 1);
-        const unstableDevice = averageFps < 50 || slowFrameRatio > 0.25 || longTaskCount >= 2;
+        const unstableDevice = averageFps < 40 || slowFrameRatio > 0.35 || longTaskCount >= 3;
         setIsStaticMode(unstableDevice);
         return;
       }
-
       rafId = window.requestAnimationFrame(assess);
     };
 
-    rafId = window.requestAnimationFrame(assess);
+    // Start monitoring after a 1s delay to skip initial mount jitter
+    const startupTimeout = setTimeout(() => {
+      animationStartedAt = performance.now();
+      lastFrameAt = animationStartedAt;
+      rafId = window.requestAnimationFrame(assess);
+    }, 1000);
 
     return () => {
+      clearTimeout(startupTimeout);
       window.cancelAnimationFrame(rafId);
       observer?.disconnect();
     };

@@ -28,6 +28,9 @@ import {
   Area,
   BarChart,
   Bar,
+  Cell,
+  PieChart,
+  Pie,
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useProductStore } from '../../store/useProductStore';
@@ -179,6 +182,20 @@ const AdminDashboard: React.FC = () => {
     () => trafficData.map((item) => ({ month: item.day, clicks: item.clicks, leads: item.leads })),
     [trafficData],
   );
+
+  const categoryData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const cat = p.category || 'Lainnya';
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8); // Top 8 categories
+  }, [products]);
+
+  const COLORS = ['#8FF5FF', '#A2F31F', '#F31F7B', '#FFD700', '#FF8C00', '#9932CC', '#00FA9A', '#FF4500'];
 
   const kpis = [
     {
@@ -438,6 +455,45 @@ const AdminDashboard: React.FC = () => {
             <div className="text-label-xs text-on-surface-variant">Registrasi agen bulan ini</div>
             <div className="font-display font-bold text-primary mt-0.5">{agentGrowthData.at(-1)?.new ?? 0} Agen</div>
             <div className="text-label-xs text-secondary">{agentGrowthData.at(-1)?.active ?? 0} di antaranya approved</div>
+          </div>
+        </motion.div>
+
+        {/* Category Distribution Chart */}
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden flex flex-col">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-tertiary/40 to-transparent" />
+          <div className="mb-4">
+            <h3 className="font-display text-title-md font-bold text-on-surface">Distribusi Katalog</h3>
+            <p className="text-label-sm text-on-surface-variant mt-0.5">Top 8 kategori produk</p>
+          </div>
+          <div className="h-[250px] w-full min-h-[250px] flex-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {categoryData.map((_entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {categoryData.slice(0, 4).map((cat, i) => (
+              <div key={cat.name} className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i] }} />
+                <span className="text-label-xs text-on-surface-variant truncate">{cat.name}: {cat.value}</span>
+              </div>
+            ))}
           </div>
         </motion.div>
       </div>

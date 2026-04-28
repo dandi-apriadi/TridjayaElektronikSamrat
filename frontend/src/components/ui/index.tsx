@@ -62,11 +62,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) 
           <div className="absolute inset-0 bg-gradient-to-t dark:from-surface/90 from-surface/30 via-transparent to-transparent" />
 
           {/* Badge */}
-          {product.badge && (
-            <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-label-md font-bold uppercase tracking-wider backdrop-blur-sm ${badgeConfig[product.badge].className}`}>
-              {product.badgeText || badgeConfig[product.badge].label}
+          {product.badge && badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig] ? (
+            <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-label-md font-bold uppercase tracking-wider backdrop-blur-sm ${badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig].className}`}>
+              {product.badgeText || badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig].label}
             </div>
-          )}
+          ) : product.badge ? (
+            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-label-md font-bold uppercase tracking-wider backdrop-blur-sm bg-surface/50 text-white border border-white/20">
+              {product.badgeText || product.badge}
+            </div>
+          ) : null}
 
           {/* Stock status */}
           {product.stock === 'indent' && (
