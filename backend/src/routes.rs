@@ -68,6 +68,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/admin/telemetry-stats", get(get_telemetry_stats))
         .route("/api/admin/agents", get(list_agents))
         .route("/api/admin/agents/{id}/performance", get(get_agent_performance))
+        .route("/api/admin/leads", get(list_leads))
+        .route("/api/admin/leads/{id}/status", patch(update_lead_status))
         .with_state(state)
 }
 
