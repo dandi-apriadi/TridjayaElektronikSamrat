@@ -26,14 +26,17 @@ applyThemeClasses(getInitialTheme());
 
 interface ThemeStore {
   theme: Theme;
+  showImages: boolean;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  toggleImages: () => void;
 }
 
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set) => ({
       theme: getInitialTheme(),
+      showImages: true,
       toggleTheme: () =>
         set((state) => {
           const newTheme = state.theme === 'dark' ? 'light' : 'dark';
@@ -44,6 +47,7 @@ export const useThemeStore = create<ThemeStore>()(
         applyThemeClasses(theme);
         set({ theme });
       },
+      toggleImages: () => set((state) => ({ showImages: !state.showImages })),
     }),
     { name: 'tridjaya-theme' }
   )

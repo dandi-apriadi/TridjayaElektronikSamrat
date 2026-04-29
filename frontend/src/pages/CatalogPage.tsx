@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Filter, SlidersHorizontal, Battery, Zap, Leaf, Search, X, ChevronDown } from 'lucide-react';
+import { Filter, SlidersHorizontal, Battery, Zap, Leaf, Search, X, ChevronDown, Image as ImageIcon, ImageOff } from 'lucide-react';
 import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
+import { useThemeStore } from '../store/themeStore';
 
 const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
 
@@ -17,6 +18,8 @@ const specs = [
 const CatalogPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const activeCategory = searchParams.get('kategori');
+  const { showImages: globalShowImages } = useThemeStore();
+  const [isLiteMode, setIsLiteMode] = useState(!globalShowImages);
 
   const [activeFilter, setActiveFilter] = useState('Semua');
   const [activeSort, setActiveSort] = useState('Terpopuler');
@@ -26,7 +29,11 @@ const CatalogPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(9);
 
-  const { products, isLoading } = useProductStore();
+  const { products, isLoading, fetchProducts } = useProductStore();
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
   
   // Filter by URL category parameter
   const categoryProducts = activeCategory 
@@ -39,12 +46,21 @@ const CatalogPage: React.FC = () => {
     (p.subcategory || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  // Extract dynamic brand filters from the current category's products
-  const dynamicFilters = ['Semua', ...Array.from(new Set(categoryProducts.map(p => p.name?.split(' ')[0]).filter(Boolean)))].slice(0, 10);
+  // Define popular categories for the quick filter bar
+  const popularFilters = ['Semua', 'Sepeda Listrik', 'AC', 'Kulkas', 'TV', 'Mesin Cuci', 'KASUR', 'SOFA', 'Dispenser'];
+
+  // Use popular filters if in "All Products", otherwise show subcategories for the specific category
+  const dynamicFilters = activeCategory 
+    ? ['Semua', ...Array.from(new Set(categoryProducts.map(p => p.subcategory || p.category))).filter(Boolean)].slice(0, 12)
+    : popularFilters;
 
   const filteredByBrand = activeFilter === 'Semua'
     ? searchedProducts
-    : searchedProducts.filter((b) => (b.name?.toLowerCase() || '').includes(activeFilter.toLowerCase()));
+    : searchedProducts.filter((b) => 
+        (b.subcategory?.toLowerCase() === activeFilter.toLowerCase()) ||
+        (b.category?.toLowerCase() === activeFilter.toLowerCase()) ||
+        (b.name?.toLowerCase() || '').includes(activeFilter.toLowerCase())
+      );
 
   const filteredByStock = stockFilter === 'all'
     ? filteredByBrand
@@ -86,7 +102,7 @@ const CatalogPage: React.FC = () => {
       {/* Hero */}
       <section className="relative pt-28 pb-16 overflow-hidden">
         <div className="absolute inset-0">
-          <img src={heroBike} alt="Sepeda Listrik" className="w-full h-full object-cover opacity-20" />
+          {!isLiteMode && <img src={heroBike} alt="Sepeda Listrik" className="w-full h-full object-cover opacity-20" />}
           <div className="absolute inset-0 bg-gradient-to-b from-surface/80 via-surface/60 to-surface" />
         </div>
         <div className="relative z-10 container-custom">
@@ -137,8 +153,31 @@ const CatalogPage: React.FC = () => {
       <section className="pb-20 bg-surface/90">
         <div className="container-custom">
           
+          {/* Category Cards Navigation */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 -mt-12 z-20 relative">
+            {[
+              { label: 'Kendaraan Listrik', icon: '🏍️', href: '/produk?kategori=Sepeda+Listrik', color: 'from-cyan-500/10 to-blue-500/10' },
+              { label: 'Furnitur & Kasur', icon: '🛏️', href: '/produk?kategori=KASUR', color: 'from-purple-500/10 to-pink-500/10' },
+              { label: 'Elektronik & Gadget', icon: '📱', href: '/produk?kategori=AC', color: 'from-orange-500/10 to-yellow-500/10' },
+              { label: 'Semua Produk', icon: '📦', href: '/produk', color: 'from-green-500/10 to-emerald-500/10' },
+            ].map((cat) => (
+              <Link
+                key={cat.label}
+                to={cat.href}
+                className={`group relative overflow-hidden rounded-2xl glass-card p-5 border border-white/5 transition-all duration-300 hover:shadow-neon-cyan-sm hover:-translate-y-1 bg-gradient-to-br ${cat.color}`}
+              >
+                <div className="flex flex-col items-center text-center gap-3">
+                  <span className="text-3xl group-hover:scale-110 transition-transform duration-300">{cat.icon}</span>
+                  <span className="font-display text-title-sm font-bold text-on-surface group-hover:text-primary transition-colors">
+                    {cat.label}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+
           {/* Search Bar */}
-          <div className="relative -mt-8 mb-8 z-20">
+          <div className="relative mb-8 z-20">
             <div className="glass-card rounded-2xl p-2 flex items-center gap-2 shadow-2xl border border-white/10">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
@@ -175,7 +214,17 @@ const CatalogPage: React.FC = () => {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setIsLiteMode(!isLiteMode)}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl glass-card border border-white/5 font-body text-body-md font-bold transition-all duration-300 ${
+                  isLiteMode ? 'text-primary border-primary/30' : 'text-on-surface-variant hover:text-white'
+                }`}
+                title={isLiteMode ? "Matikan Lite Mode" : "Aktifkan Lite Mode"}
+              >
+                {!isLiteMode ? <ImageIcon className="w-4 h-4" /> : <ImageOff className="w-4 h-4" />}
+                <span className="hidden md:inline">{!isLiteMode ? 'Tampilkan Gambar' : 'Lite Mode Aktif'}</span>
+              </button>
               <select
                 value={activeSort}
                 onChange={(e) => setActiveSort(e.target.value)}
@@ -262,12 +311,16 @@ const CatalogPage: React.FC = () => {
 
           {/* Product grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className={`grid gap-5 ${
+              !isLiteMode 
+                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
+                : 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'
+            }`}>
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="glass-card rounded-2xl h-96 animate-pulse">
-                  <div className="h-48 bg-surface-highest rounded-t-2xl"></div>
+                <div key={i} className="glass-card rounded-2xl h-64 animate-pulse">
+                  <div className="h-32 bg-surface-highest rounded-t-2xl"></div>
                   <div className="p-4 space-y-4">
-                    <div className="h-6 bg-surface-highest rounded w-3/4"></div>
+                    <div className="h-4 bg-surface-highest rounded w-3/4"></div>
                     <div className="h-4 bg-surface-highest rounded w-1/2"></div>
                     <div className="h-10 bg-surface-highest rounded mt-4"></div>
                   </div>
@@ -275,9 +328,13 @@ const CatalogPage: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className={`grid gap-3 md:gap-4 ${
+              !isLiteMode 
+                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
+                : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'
+            }`}>
               {visibleProducts.map((product, i) => (
-                <ProductCard key={product.id} product={product} index={i % 9} />
+                <ProductCard key={product.id} product={product} index={i % 9} isCompact={isLiteMode} />
               ))}
             </div>
           )}

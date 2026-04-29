@@ -146,7 +146,7 @@ const AdminTelemetryPage: React.FC = () => {
               </div>
             ))}
           </div>
-          <div className="h-[240px] w-full min-h-[240px]">
+          <div className="h-[240px] w-full min-h-[240px] relative">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <LineChart data={trafficData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
@@ -168,7 +168,7 @@ const AdminTelemetryPage: React.FC = () => {
             <h3 className="font-display text-title-md font-bold text-on-surface">Page Views Bulanan</h3>
             <p className="text-label-sm text-on-surface-variant mt-0.5">Tren 6 bulan terakhir</p>
           </div>
-          <div className="h-[200px] w-full min-h-[200px] flex-1">
+          <div className="h-[200px] w-full min-h-[200px] flex-1 relative">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={monthlyPageViews}>
                 <defs>

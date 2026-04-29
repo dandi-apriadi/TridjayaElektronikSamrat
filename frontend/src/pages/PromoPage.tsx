@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ticket, ArrowRight, Zap, Clock, Info, Share2 } from 'lucide-react';
@@ -8,14 +8,37 @@ import { usePromoStore } from '../store/usePromoStore';
 import { recordTelemetry } from '../utils/telemetry';
 
 const PromoPage: React.FC = () => {
-  const { promos, isLoading } = usePromoStore();
+  const { promos, isLoading, fetchPromos } = usePromoStore();
 
-  if (isLoading || promos.length === 0) {
+  useEffect(() => {
+    fetchPromos();
+  }, [fetchPromos]);
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface/50">
         <div className="animate-pulse flex flex-col items-center">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
           <p className="text-on-surface-variant font-body">Memuat Penawaran Spesial...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (promos.length === 0) {
+    return (
+      <div className="min-h-screen pt-32 pb-20 bg-surface">
+        <div className="container-custom text-center">
+          <div className="max-w-md mx-auto glass-card rounded-3xl p-12">
+            <Ticket className="w-16 h-16 text-on-surface-variant mx-auto mb-6 opacity-20" />
+            <h2 className="font-display text-headline-sm font-bold text-white mb-4">Belum Ada Promo Aktif</h2>
+            <p className="font-body text-body-md text-on-surface-variant mb-8">
+              Saat ini belum ada penawaran spesial yang tersedia. Silakan cek kembali dalam beberapa waktu kedepan.
+            </p>
+            <Link to="/" className="inline-block px-8 py-3 gradient-primary rounded-xl font-display text-title-sm font-bold text-surface shadow-neon-cyan-sm">
+              Kembali ke Beranda
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -37,9 +60,9 @@ const PromoPage: React.FC = () => {
 
         <div className="container-custom relative z-10">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col items-center text-center max-w-3xl mx-auto mb-16"
           >
             <nav className="flex items-center gap-2 font-body text-label-sm text-on-surface-variant mb-8 px-4 py-1.5 rounded-full glass-card border-outline-variant/30">
@@ -49,9 +72,9 @@ const PromoPage: React.FC = () => {
             </nav>
 
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.15, duration: 0.3 }}
             >
               <Badge label="Exclusive Rewards 2025" variant="secondary" size="md" />
             </motion.div>
@@ -68,9 +91,9 @@ const PromoPage: React.FC = () => {
 
           {/* FEATURED PROMO - MEGA CARD */}
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
+            transition={{ duration: 0.45, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
             className="relative group"
           >
             <div className="relative glass-card rounded-[2.5rem] overflow-hidden border-primary/20 hover:border-primary/40 transition-all duration-700 shadow-neon-cyan-sm hover:shadow-neon-cyan-md">
@@ -171,10 +194,10 @@ const PromoPage: React.FC = () => {
               {standardPromos.map((promo, i) => (
                 <motion.div
                   key={promo.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.35, delay: Math.min(i * 0.07, 0.35), ease: [0.22, 1, 0.36, 1] }}
                   className="group relative cursor-pointer"
                 >
                   <div className="glass-card rounded-[2rem] overflow-hidden flex flex-col h-full hover:shadow-neon-cyan-sm transition-all duration-500 border-outline-variant/20 hover:border-primary/30">
@@ -238,9 +261,10 @@ const PromoPage: React.FC = () => {
 
           {/* Info Banner - Help Center */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="mt-24 p-1 rounded-[2rem] bg-gradient-to-r from-primary/20 via-outline-variant/20 to-secondary/20"
           >
             <div className="glass-premium rounded-[1.9rem] p-10 lg:p-16 flex flex-col lg:flex-row items-center gap-10 text-center lg:text-left">

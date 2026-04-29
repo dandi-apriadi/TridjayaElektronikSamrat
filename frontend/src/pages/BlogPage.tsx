@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, Tag, ArrowRight, Search } from 'lucide-react';
@@ -15,9 +15,9 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
   if (featured) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         className="lg:col-span-2"
       >
         <Link
@@ -66,10 +66,10 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.08 }}
+      viewport={{ once: true, margin: '-40px' }}
+      transition={{ duration: 0.3, delay: Math.min(index * 0.07, 0.35), ease: [0.22, 1, 0.36, 1] }}
     >
       <Link
         to={`/blog/${post.slug}`}
@@ -121,7 +121,12 @@ const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> 
 };
 
 const BlogPage: React.FC = () => {
-  const { posts, isLoading } = useBlogStore();
+  const { posts, isLoading, fetchPosts } = useBlogStore();
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -160,7 +165,7 @@ const BlogPage: React.FC = () => {
           <div className="absolute inset-0 bg-surface" />
         </div>
         <div className="relative z-10 container-custom text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
             <Badge label="Blog & Tips" variant="primary" />
             <h1 className="font-display text-display-sm font-bold text-white mt-4 mb-4">
               Insight & Inspirasi <span className="gradient-text-primary">Tridjaya</span>

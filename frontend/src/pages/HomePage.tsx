@@ -12,6 +12,7 @@ import { recordTelemetry } from '../utils/telemetry';
 import { useProductStore } from '../store/useProductStore';
 import { useMemo } from 'react';
 import { ProductCard } from '../components/ui';
+import { useThemeStore } from '../store/themeStore';
 
 /* ========================
    HERO SECTION
@@ -196,8 +197,10 @@ const categories = [
   },
 ];
 
-const CategoryBentoGrid: React.FC = () => (
-  <section className="section-padding">
+const CategoryBentoGrid: React.FC = () => {
+  const { showImages } = useThemeStore();
+  return (
+    <section className="section-padding">
     <div className="container-custom">
       <SectionHeader
         eyebrow="Kategori Produk"
@@ -238,7 +241,7 @@ const CategoryBentoGrid: React.FC = () => (
                 >
                   <div className={`relative overflow-hidden rounded-2xl glass-card ${cat.height} flex items-center`}>
                     <div className="absolute inset-0">
-                      <img src={cat.image} alt={cat.label} className="w-full h-full object-cover opacity-90 dark:opacity-40 group-hover:opacity-100 dark:group-hover:opacity-60 transition-opacity duration-500" />
+                      {showImages && <img src={cat.image} alt={cat.label} className="w-full h-full object-cover opacity-90 dark:opacity-40 group-hover:opacity-100 dark:group-hover:opacity-60 transition-opacity duration-500" />}
                       <div className="absolute inset-0 bg-gradient-to-r dark:from-surface/90 from-surface/40 via-surface/10 dark:via-surface/60 to-transparent" />
                     </div>
                     <div className="relative z-10 p-5 mx-6 flex items-center justify-between w-full glass-premium dark:bg-transparent dark:backdrop-blur-0 dark:border-0 rounded-2xl">
@@ -275,11 +278,13 @@ const CategoryBentoGrid: React.FC = () => (
             >
               <Link to={cat.href} className="group block">
                 <div className={`relative overflow-hidden rounded-2xl glass-card ${cat.height}`}>
-                  <img
-                    src={cat.image}
-                    alt={cat.label}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
+                  {showImages && (
+                    <img
+                      src={cat.image}
+                      alt={cat.label}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  )}
                     <div className="absolute inset-0 bg-gradient-to-t dark:from-surface from-surface/50 via-surface/10 dark:via-surface/40 to-transparent" />
                   <div className="absolute inset-0 flex flex-col justify-end p-5">
                     <div className="glass-premium p-5 rounded-2xl dark:bg-transparent dark:backdrop-blur-0 dark:border-0">
@@ -302,7 +307,8 @@ const CategoryBentoGrid: React.FC = () => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 
 

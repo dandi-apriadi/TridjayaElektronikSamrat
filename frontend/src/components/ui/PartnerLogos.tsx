@@ -4,10 +4,10 @@ import { usePartnerStore } from '../../store/usePartnerStore';
 import { getImageUrl } from '../../utils/apiClient';
 
 const shadowPalette = [
-  'hover:shadow-neon-cyan/40',
-  'hover:shadow-indigo-500/40',
-  'hover:shadow-white/20',
-  'hover:shadow-secondary/40',
+  'hover:shadow-[0_0_16px_rgba(143,245,255,0.3)]',
+  'hover:shadow-[0_0_16px_rgba(99,102,241,0.3)]',
+  'hover:shadow-[0_0_16px_rgba(255,255,255,0.15)]',
+  'hover:shadow-[0_0_16px_rgba(162,243,31,0.3)]',
 ];
 
 export const PartnerLogos: React.FC = () => {
@@ -25,7 +25,6 @@ export const PartnerLogos: React.FC = () => {
     const seen = new Set<string>();
 
     return sortedPartners.filter((partner) => {
-      // Normalize name: remove special chars, trim, and lowercase
       const normalizedName = partner.name.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
       
       if (!normalizedName || seen.has(normalizedName)) {
@@ -60,26 +59,25 @@ export const PartnerLogos: React.FC = () => {
       {uniquePartners.map((partner, i) => (
         <motion.div
           key={partner.id}
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: i * 0.1 }}
-          whileHover={{ y: -5, scale: 1.02 }}
-          className={`glass-card rounded-2xl p-8 flex items-center justify-center transition-all duration-300 group ${shadowPalette[i % shadowPalette.length]} border-outline-variant/10 hover:border-primary/20`}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: Math.min(i * 0.05, 0.4) }}
+          className={`glass-card rounded-2xl p-8 flex items-center justify-center group border-outline-variant/10 hover:border-primary/20 hover:-translate-y-1 ${shadowPalette[i % shadowPalette.length]}`}
+          style={{ transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease' }}
         >
           {partner.websiteUrl ? (
             <a href={partner.websiteUrl} target="_blank" rel="noreferrer" className="block">
               <img
                 src={getImageUrl(partner.logoUrl)}
                 alt={partner.name}
-                className="h-10 md:h-14 w-auto object-contain opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-500"
+                className="h-10 md:h-14 w-auto object-contain opacity-90 grayscale-[0.3] group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-300"
               />
             </a>
           ) : (
             <img
               src={getImageUrl(partner.logoUrl)}
               alt={partner.name}
-              className="h-10 md:h-14 w-auto object-contain opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-500"
+              className="h-10 md:h-14 w-auto object-contain opacity-90 grayscale-[0.3] group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-300"
             />
           )}
         </motion.div>

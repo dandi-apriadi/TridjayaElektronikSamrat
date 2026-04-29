@@ -23,7 +23,11 @@ import {
   FileText,
   ExternalLink,
   TrendingUp,
-  Handshake
+  Handshake,
+  Briefcase,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -92,33 +96,86 @@ const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const navItems = user?.role === 'admin' 
-    ? [
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const activeItemPath = location.pathname;
+
+  const adminSections = React.useMemo(() => [
+    {
+      title: 'Utama',
+      items: [
         { label: 'Overview', icon: LayoutDashboard, path: '/dashboard/admin' },
+        { label: 'Telemetri', icon: BarChart3, path: '/dashboard/admin/telemetry' },
+      ]
+    },
+    {
+      title: 'Agen & Jaringan',
+      items: [
         { label: 'Registrasi Agen', icon: UserCheck, path: '/dashboard/admin/agents' },
         { label: 'Direktori Agen', icon: Users, path: '/dashboard/admin/agents/directory' },
+        { label: 'Leaderboard', icon: Trophy, path: '/dashboard/admin/leaderboard' },
+      ]
+    },
+    {
+      title: 'Operasional',
+      items: [
         { label: 'Manajemen Prospek', icon: TrendingUp, path: '/dashboard/admin/leads' },
+        { label: 'Manajemen Karier', icon: Briefcase, path: '/dashboard/admin/careers' },
+        { label: 'Support Ticket', icon: Headphones, path: '/dashboard/admin/support' },
+      ]
+    },
+    {
+      title: 'Katalog & Konten',
+      items: [
         { label: 'Katalog Produk', icon: Package, path: '/dashboard/admin/catalog' },
         { label: 'Kategori Produk', icon: BookOpen, path: '/dashboard/admin/categories' },
         { label: 'Promo & Campaign', icon: Ticket, path: '/dashboard/admin/promo' },
         { label: 'Konten & Blog', icon: FileText, path: '/dashboard/admin/content' },
         { label: 'Partner Brand', icon: Handshake, path: '/dashboard/admin/partners' },
-        { label: 'Telemetri', icon: BarChart3, path: '/dashboard/admin/telemetry' },
-        { label: 'Support Ticket', icon: Headphones, path: '/dashboard/admin/support' },
-        { label: 'Leaderboard', icon: Trophy, path: '/dashboard/admin/leaderboard' },
+      ]
+    },
+    {
+      title: 'Sistem',
+      items: [
         { label: 'Keuangan', icon: Wallet, path: '/dashboard/admin/finance' },
         { label: 'User & Akses', icon: Shield, path: '/dashboard/admin/users' },
       ]
-    : [
+    }
+  ], []);
+
+  const agentSections = React.useMemo(() => [
+    {
+      title: 'Dashboard',
+      items: [
         { label: 'Command Center', icon: LayoutDashboard, path: '/dashboard/agent' },
+        { label: 'Leaderboard', icon: Trophy, path: '/dashboard/agent/leaderboard' },
+      ]
+    },
+    {
+      title: 'Penjualan',
+      items: [
         { label: 'Product Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge' },
         { label: 'Pipeline Prospek', icon: Users, path: '/dashboard/agent/leads' },
-        { label: 'Push Prospek', icon: Send, path: '/dashboard/agent/push' },
-        { label: 'Leaderboard', icon: Trophy, path: '/dashboard/agent/leaderboard' },
+        { label: 'Push Prospek', icon: Send, path: '/dashboard/agent/push-prospek' },
+      ]
+    },
+    {
+      title: 'Akun & Bantuan',
+      items: [
         { label: 'Komisi & Penarikan', icon: Wallet, path: '/dashboard/agent/earnings' },
         { label: 'Support', icon: Headphones, path: '/dashboard/agent/support' },
         { label: 'Pengaturan', icon: Shield, path: '/dashboard/agent/settings' },
-      ];
+      ]
+    }
+  ], []);
+
+  const navSections = user?.role === 'admin' ? adminSections : agentSections;
+
+  const toggleSection = (title: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [title]: !prev[title]
+    }));
+  };
 
   const quickActions = user?.role === 'admin'
     ? [
@@ -128,11 +185,34 @@ const DashboardLayout: React.FC = () => {
       ]
     : [
         { label: 'Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge', color: 'text-primary' },
-        { label: 'Push', icon: Send, path: '/dashboard/agent/push', color: 'text-secondary' },
+        { label: 'Push', icon: Send, path: '/dashboard/agent/push-prospek', color: 'text-secondary' },
       ];
 
-  const activeItem = navItems.find((item) => location.pathname === item.path);
+  const allNavItems = navSections.flatMap(s => s.items);
+  const activeItem = allNavItems.find((item) => activeItemPath === item.path);
   const notificationsPath = user?.role === 'admin' ? '/dashboard/admin/notifications' : '/dashboard/agent/notifications';
+
+  // Initialize and auto-expand sections based on current path
+  React.useEffect(() => {
+    const newCollapsed: Record<string, boolean> = { ...collapsedSections };
+    let changed = false;
+
+    navSections.forEach(section => {
+      const hasActiveItem = section.items.some(item => location.pathname === item.path);
+      if (hasActiveItem && collapsedSections[section.title] === undefined) {
+        newCollapsed[section.title] = false;
+        changed = true;
+      } else if (collapsedSections[section.title] === undefined) {
+        // Default other sections to expanded or collapsed? Let's keep them expanded for now unless there are many
+        newCollapsed[section.title] = false; 
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      setCollapsedSections(newCollapsed);
+    }
+  }, [location.pathname, navSections]);
 
   return (
     <div className="min-h-screen bg-surface flex text-on-surface relative overflow-hidden page-shell">
@@ -178,28 +258,70 @@ const DashboardLayout: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto overflow-x-hidden custom-scrollbar">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            const Icon = item.icon;
-            
+        <nav className="flex-1 py-6 px-4 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar">
+          {navSections.map((section) => {
+            const isCollapsed = collapsedSections[section.title];
+
             return (
-              <Link 
-                key={item.path} 
-                to={item.path}
-                title={!isSidebarOpen && !isMobile ? item.label : undefined}
-                className={`flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group relative ${
-                  isActive 
-                    ? 'bg-primary/10 border border-primary/40 text-primary shadow-sm shadow-primary/5' 
-                    : 'text-on-surface-variant hover:bg-surface-high/50 hover:text-on-surface border border-transparent'
-                }`}
-              >
-                <Icon className={`w-5 h-5 flex-shrink-0 transition-transform ${isActive ? 'text-primary' : 'group-hover:scale-110'}`} />
+              <div key={section.title} className="space-y-1">
                 {(isSidebarOpen || isMobile) && (
-                  <span className="font-body text-body-md font-semibold truncate">{item.label}</span>
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSection(section.title); }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest hover:text-on-surface transition-colors group"
+                  >
+                    <span>{section.title}</span>
+                    {isCollapsed ? <ChevronRight className="w-3 h-3 transition-transform" /> : <ChevronDown className="w-3 h-3 transition-transform" />}
+                  </button>
                 )}
-              </Link>
-            )
+                
+                <AnimatePresence initial={false}>
+                  {!isCollapsed && (
+                    <motion.div
+                      initial={ (isSidebarOpen || isMobile) ? { height: 0, opacity: 0 } : false}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className="space-y-1 overflow-hidden"
+                    >
+                      {section.items.map((item) => {
+                        const isActive = location.pathname === item.path;
+                        const Icon = item.icon;
+                        
+                        return (
+                          <Link 
+                            key={item.path} 
+                            to={item.path}
+                            title={!isSidebarOpen && !isMobile ? item.label : undefined}
+                            className={`flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group relative ${
+                              isActive 
+                                ? 'bg-primary/10 border border-primary/40 text-primary shadow-sm shadow-primary/5' 
+                                : 'text-on-surface-variant hover:bg-surface-high/50 hover:text-on-surface border border-transparent'
+                            }`}
+                          >
+                            <Icon className={`w-5 h-5 flex-shrink-0 transition-transform ${isActive ? 'text-primary' : 'group-hover:scale-110'}`} />
+                            {(isSidebarOpen || isMobile) && (
+                              <span className="font-body text-body-md font-semibold truncate">{item.label}</span>
+                            )}
+                            {isActive && (isSidebarOpen || isMobile) && (
+                              <motion.div 
+                                layoutId="active-nav-indicator"
+                                className="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
+                              />
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                {/* Visual separator if sidebar is collapsed (compact mode) */}
+                {!isSidebarOpen && !isMobile && (
+                  <div className="h-px bg-outline-variant/10 mx-2 my-4" />
+                )}
+              </div>
+            );
           })}
         </nav>
 
@@ -207,7 +329,8 @@ const DashboardLayout: React.FC = () => {
         <div className="p-4 border-t border-outline-variant/10 space-y-2">
           {!isMobile && (
             <button
-              onClick={() => setSidebarOpen(!isSidebarOpen)}
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSidebarOpen(!isSidebarOpen); }}
               className="w-full items-center gap-4 p-3 rounded-lg text-on-surface-variant hover:bg-surface-high hover:text-on-surface transition-all hidden lg:flex"
             >
               {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -216,7 +339,8 @@ const DashboardLayout: React.FC = () => {
           )}
           
           <button 
-            onClick={handleLogout}
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleLogout(); }}
             className="w-full flex items-center gap-4 p-3 rounded-lg text-error hover:bg-error/10 transition-all font-body text-body-md font-bold"
           >
             <LogOut className="w-5 h-5" />

@@ -52,7 +52,7 @@ const baseNavItems: NavItem[] = [
   { label: 'Beranda', href: '/' },
   {
     label: 'Produk',
-    href: '#',
+    href: '/produk',
     children: [], // Populated dynamically
   },
   { label: 'Promo', href: '/promo' },
@@ -91,12 +91,41 @@ const Navbar: React.FC = () => {
     return acc;
   }, {} as Record<string, NavItemChild[]>);
 
+  // Sort groups and items by popularity
+  const groupPriority = ["Kendaraan Listrik", "Elektronik & Gadget", "Furnitur & Kasur", "Aksesoris & Lainnya"];
+  const itemPriority: Record<string, number> = {
+    "Sepeda Listrik": 1,
+    "Motor Listrik": 2,
+    "AC": 3,
+    "KULKAS": 4,
+    "TV": 5,
+    "SPRINGBED": 6,
+    "SOFA": 7
+  };
+
+  // Sort items within groups
+  Object.keys(categoriesByGroup).forEach(group => {
+    categoriesByGroup[group].sort((a, b) => {
+      const pA = itemPriority[a.label] || 99;
+      const pB = itemPriority[b.label] || 99;
+      return pA - pB || a.label.localeCompare(b.label);
+    });
+  });
+
+  // Sort the groups themselves in a specific order
+  const sortedCategoriesByGroup = Object.keys(categoriesByGroup)
+    .sort((a, b) => groupPriority.indexOf(a) - groupPriority.indexOf(b))
+    .reduce((acc, key) => {
+      acc[key] = categoriesByGroup[key];
+      return acc;
+    }, {} as Record<string, NavItemChild[]>);
+
   const navItems: NavItem[] = baseNavItems.map(item => {
     if (item.label === 'Produk') {
       return {
         ...item,
         isMega: true,
-        groups: categoriesByGroup
+        groups: sortedCategoriesByGroup
       };
     }
     return item;
@@ -146,15 +175,8 @@ const Navbar: React.FC = () => {
               >
                 {(item.children || item.isMega) ? (
                   <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setActiveDropdown((current) =>
-                          current === item.label ? null : item.label
-                        )
-                      }
-                      aria-expanded={activeDropdown === item.label}
-                      aria-haspopup="menu"
+                    <Link
+                      to={item.href}
                       className={`flex items-center gap-1 px-4 py-2 rounded-lg font-body text-body-md font-semibold transition-all duration-300 ${
                         location.pathname.startsWith('/produk')
                           ? 'text-primary'
@@ -169,7 +191,7 @@ const Navbar: React.FC = () => {
                           activeDropdown === item.label ? 'rotate-180' : ''
                         }`}
                       />
-                    </button>
+                    </Link>
                     <AnimatePresence>
                       {activeDropdown === item.label && (
                           <motion.div

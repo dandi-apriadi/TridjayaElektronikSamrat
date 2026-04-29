@@ -175,7 +175,7 @@ const Footer: React.FC = () => {
                   <div className="flex flex-col gap-2">
                     <span className="font-body text-body-md text-on-surface-variant">
                       <strong>Cabang Samrat:</strong><br />
-                      Jl. Sam Ratulangi No. 7, Wenang Utara,<br />Manado, Sulawesi Utara
+                      Jl. Sam Ratulangi No. 147, Wenang Utara,<br />Manado, Sulawesi Utara
                     </span>
                     <span className="font-body text-body-md text-on-surface-variant">
                       <strong>Cabang Bahu:</strong><br />

@@ -62,6 +62,7 @@ const AdminLeadsPage = lazy(() => import('./pages/dashboard/AdminLeadsPage'));
 const AdminPartnersPage = lazy(() => import('./pages/dashboard/AdminPartnersPage'));
 const AdminProductCategoriesPage = lazy(() => import('./pages/dashboard/AdminProductCategoriesPage'));
 const NotificationsPage = lazy(() => import('./pages/dashboard/NotificationsPage'));
+const AdminCareersPage = lazy(() => import('./pages/dashboard/AdminCareersPage'));
 
 const RouteLoading: React.FC = () => (
   <div className="min-h-[40vh] w-full grid place-items-center px-4">
@@ -155,10 +156,12 @@ const App: React.FC = () => {
           <Route path="promo/:id" element={<PromoDetailPage />} />
           <Route path="blog" element={<BlogPage />} />
           <Route path="blog/:slug" element={<ArticleDetailPage />} />
-          <Route path="karier" element={<CareerPage />} />
-          <Route path="tentang" element={<TentangPage />} />
-          <Route path="daftar-agen" element={<AgencyRegistrationPage />} />
-          <Route path="kebijakan-privasi" element={<PrivacyPolicyPage />} />
+          <Route path="tentang" element={lazyPage(TentangPage)} />
+          <Route path="karier" element={lazyPage(CareerPage)} />
+          <Route path="career" element={<Navigate to="/karier" replace />} />
+          <Route path="careers" element={<Navigate to="/karier" replace />} />
+          <Route path="daftar-agen" element={lazyPage(AgencyRegistrationPage)} />
+          <Route path="kebijakan-privasi" element={lazyPage(PrivacyPolicyPage)} />
           <Route path="syarat-layanan" element={<TermsOfServicePage />} />
         </Route>
 
@@ -351,6 +354,14 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="admin">
                 {lazyPage(AdminLeadsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/careers"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminCareersPage)}
               </RoleGuard>
             }
           />

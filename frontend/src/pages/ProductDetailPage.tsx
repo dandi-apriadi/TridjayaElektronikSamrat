@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Shield, CreditCard, Phone, Share2
 } from 'lucide-react';
+import { useThemeStore } from '../store/themeStore';
 import { toast } from '../store/useNotificationStore';
 import { formatPrice } from '../data';
 import { useProductStore } from '../store/useProductStore';

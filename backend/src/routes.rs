@@ -50,6 +50,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/telemetry/pixel-event", post(pixel_event))
         .route("/api/jobs", get(list_jobs).post(create_job))
         .route("/api/jobs/{id}", patch(update_job).delete(delete_job))
+        .route("/api/job-applications", get(list_job_applications).post(create_job_application))
+        .route("/api/job-applications/{id}/status", patch(update_job_application_status))
         .route("/api/articles", get(list_articles).post(create_article))
         .route("/api/articles/{id}", patch(update_article).delete(delete_article))
         .route("/api/leads", get(list_leads).post(create_lead))
@@ -2686,6 +2688,9 @@ struct JobRecord {
     requirements: Option<String>,
     benefits: Option<String>,
     posted_at: Option<String>,
+    is_active: bool,
+    deadline: Option<String>,
+    applicants_count: i64,
 }
 
 #[derive(Deserialize)]
@@ -2701,6 +2706,8 @@ struct JobCreateRequest {
     requirements: Option<Value>,
     benefits: Option<Value>,
     posted_at: Option<String>,
+    is_active: Option<bool>,
+    deadline: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -2715,6 +2722,8 @@ struct JobUpdateRequest {
     requirements: Option<Value>,
     benefits: Option<Value>,
     posted_at: Option<String>,
+    is_active: Option<bool>,
+    deadline: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -2798,6 +2807,71 @@ fn job_to_json(row: JobRecord) -> Value {
         "requirements": parse_json_or_default(row.requirements.as_deref(), json!([])),
         "benefits": parse_json_or_default(row.benefits.as_deref(), json!([])),
         "postedAt": row.posted_at,
+        "isActive": row.is_active,
+        "deadline": row.deadline,
+        "applicantsCount": row.applicants_count,
+    })
+}
+
+#[derive(sqlx::FromRow)]
+struct JobApplicationRecord {
+    id: String,
+    job_id: String,
+    job_title: String,
+    full_name: String,
+    email: String,
+    phone: String,
+    address: Option<String>,
+    education: Option<String>,
+    major: Option<String>,
+    experience: Option<String>,
+    cover_letter: Option<String>,
+    linked_in: Option<String>,
+    portfolio_url: Option<String>,
+    status: String,
+    applied_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JobApplicationCreateRequest {
+    job_id: String,
+    job_title: String,
+    full_name: String,
+    email: String,
+    phone: String,
+    address: Option<String>,
+    education: Option<String>,
+    major: Option<String>,
+    experience: Option<String>,
+    cover_letter: Option<String>,
+    linked_in: Option<String>,
+    portfolio_url: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JobApplicationStatusUpdateRequest {
+    status: String,
+}
+
+fn job_application_to_json(row: JobApplicationRecord) -> Value {
+    json!({
+        "id": row.id,
+        "jobId": row.job_id,
+        "jobTitle": row.job_title,
+        "fullName": row.full_name,
+        "email": row.email,
+        "phone": row.phone,
+        "address": row.address,
+        "education": row.education,
+        "major": row.major,
+        "experience": row.experience,
+        "coverLetter": row.cover_letter,
+        "linkedIn": row.linked_in,
+        "portfolioUrl": row.portfolio_url,
+        "status": row.status,
+        "appliedAt": row.applied_at,
     })
 }
 
@@ -3045,7 +3119,7 @@ async fn pixel_event(State(state): State<AppState>, Json(payload): Json<Value>) 
 
 async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let jobs = sqlx::query_as::<_, JobRecord>(
-        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings ORDER BY created_at DESC"
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline, (SELECT COUNT(*) FROM job_applications WHERE job_id = job_listings.id) as applicants_count FROM job_listings ORDER BY created_at DESC"
     )
         .fetch_all(&state.pool)
         .await
@@ -3074,7 +3148,7 @@ async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payl
     let benefits = serde_json::to_string(&payload.benefits.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
 
     sqlx::query(
-        "INSERT INTO job_listings (id, title, department, location, type, level, description, requirements, benefits, posted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO job_listings (id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(payload.title.trim())
@@ -3086,12 +3160,14 @@ async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payl
     .bind(requirements)
     .bind(benefits)
     .bind(payload.posted_at)
+    .bind(payload.is_active.unwrap_or(true))
+    .bind(payload.deadline)
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
 
     let created = sqlx::query_as::<_, JobRecord>(
-        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings WHERE id = ? LIMIT 1"
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline, 0 as applicants_count FROM job_listings WHERE id = ? LIMIT 1"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -3110,7 +3186,7 @@ async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
     validate_job_update(&payload)?;
 
     let current = sqlx::query_as::<_, JobRecord>(
-        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings WHERE id = ? LIMIT 1"
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline, (SELECT COUNT(*) FROM job_applications WHERE job_id = job_listings.id) as applicants_count FROM job_listings WHERE id = ? LIMIT 1"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -3131,7 +3207,7 @@ async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
     .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
-        "UPDATE job_listings SET title = ?, department = ?, location = ?, type = ?, level = ?, description = ?, requirements = ?, benefits = ?, posted_at = ? WHERE id = ?"
+        "UPDATE job_listings SET title = ?, department = ?, location = ?, type = ?, level = ?, description = ?, requirements = ?, benefits = ?, posted_at = ?, is_active = ?, deadline = ? WHERE id = ?"
     )
     .bind(payload.title.unwrap_or(current.title))
     .bind(payload.department.or(current.department))
@@ -3142,13 +3218,15 @@ async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
     .bind(next_requirements)
     .bind(next_benefits)
     .bind(payload.posted_at.or(current.posted_at))
+    .bind(payload.is_active.unwrap_or(current.is_active))
+    .bind(payload.deadline.or(current.deadline))
     .bind(&id)
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
 
     let updated = sqlx::query_as::<_, JobRecord>(
-        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at FROM job_listings WHERE id = ? LIMIT 1"
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline, (SELECT COUNT(*) FROM job_applications WHERE job_id = job_listings.id) as applicants_count FROM job_listings WHERE id = ? LIMIT 1"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -4572,14 +4650,19 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let traffic_rows = sqlx::query(
-        "SELECT strftime('%Y-%m-%d', created_at) AS day,
-                COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) AS clicks,
-                COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
-                COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
-         FROM telemetry_events
-         WHERE created_at >= datetime('now', '-6 days')
-         GROUP BY strftime('%Y-%m-%d', created_at)
-         ORDER BY day ASC"
+        "WITH RECURSIVE days(day) AS (
+            SELECT date('now', '-6 days')
+            UNION ALL
+            SELECT date(day, '+1 day') FROM days WHERE day < date('now')
+         )
+         SELECT d.day,
+                COALESCE(SUM(CASE WHEN e.event_type = 'click' THEN 1 ELSE 0 END), 0) AS clicks,
+                COALESCE(SUM(CASE WHEN e.event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
+                COALESCE(SUM(CASE WHEN e.event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
+         FROM days d
+         LEFT JOIN telemetry_events e ON strftime('%Y-%m-%d', e.created_at) = d.day
+         GROUP BY d.day
+         ORDER BY d.day ASC"
     )
     .fetch_all(&state.pool)
     .await
@@ -4589,12 +4672,17 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
     })?;
 
     let monthly_rows = sqlx::query(
-        "SELECT strftime('%Y-%m', created_at) AS month,
-                COALESCE(COUNT(DISTINCT session_id || path), 0) AS views
-         FROM telemetry_events
-         WHERE event_type = 'page_view' AND created_at >= datetime('now', '-180 days')
-         GROUP BY month
-         ORDER BY month ASC"
+        "WITH RECURSIVE months(month) AS (
+            SELECT strftime('%Y-%m', date('now', '-150 days'))
+            UNION ALL
+            SELECT strftime('%Y-%m', date(month || '-01', '+1 month')) FROM months WHERE month < strftime('%Y-%m', 'now')
+         )
+         SELECT m.month,
+                COALESCE(COUNT(DISTINCT e.session_id || e.path), 0) AS views
+         FROM months m
+         LEFT JOIN telemetry_events e ON strftime('%Y-%m', e.created_at) = m.month AND e.event_type = 'page_view'
+         GROUP BY m.month
+         ORDER BY m.month ASC"
     )
     .fetch_all(&state.pool)
     .await
@@ -4769,5 +4857,80 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
     });
 
     Ok(json_ok("Telemetry stats fetched", data))
+}
+
+async fn list_job_applications(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+    let applications = sqlx::query_as::<_, JobApplicationRecord>(
+        "SELECT id, job_id, job_title, full_name, email, phone, address, education, major, experience, cover_letter, linked_in, portfolio_url, status, applied_at FROM job_applications ORDER BY created_at DESC"
+    )
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .into_iter()
+        .map(job_application_to_json)
+        .collect::<Vec<_>>();
+    Ok(json_ok("Job applications fetched", json!({ "items": applications })))
+}
+
+async fn create_job_application(State(state): State<AppState>, Json(payload): Json<JobApplicationCreateRequest>) -> Result<ResponseBody, AppError> {
+    let id = format!("app-{}", uuid::Uuid::new_v4().simple());
+    let applied_at = Utc::now().naive_local().date().format("%Y-%m-%d").to_string();
+
+    sqlx::query(
+        "INSERT INTO job_applications (id, job_id, job_title, full_name, email, phone, address, education, major, experience, cover_letter, linked_in, portfolio_url, status, applied_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(payload.job_id)
+    .bind(payload.job_title.clone())
+    .bind(payload.full_name.trim().to_string())
+    .bind(payload.email.trim().to_string())
+    .bind(payload.phone.trim())
+    .bind(payload.address)
+    .bind(payload.education)
+    .bind(payload.major)
+    .bind(payload.experience)
+    .bind(payload.cover_letter)
+    .bind(payload.linked_in)
+    .bind(payload.portfolio_url)
+    .bind("pending")
+    .bind(&applied_at)
+    .execute(&state.pool)
+    .await
+    .map_err(map_conflict_if_needed)?;
+
+    // Send a notification to admins about a new application
+    if let Err(e) = sqlx::query("INSERT INTO notifications (id, type, title, message, url, recipient_role) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(uuid::Uuid::new_v4().to_string())
+        .bind("new_lead")
+        .bind("Lamaran Baru")
+        .bind(format!("Ada lamaran baru dari {} untuk posisi {}.", payload.full_name, payload.job_title))
+        .bind("/dashboard/admin/careers")
+        .bind("admin")
+        .execute(&state.pool).await {
+        tracing::error!("Failed to create notification for new job application: {}", e);
+    }
+
+    Ok(json_ok("Application submitted successfully", json!({ "id": id })))
+}
+
+async fn update_job_application_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<JobApplicationStatusUpdateRequest>) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+    
+    let res = sqlx::query("UPDATE job_applications SET status = ? WHERE id = ?")
+        .bind(payload.status)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    if res.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    
+    Ok(json_ok("Application status updated", json!({ "id": id, "updated": true })))
 }
 
