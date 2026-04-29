@@ -15,6 +15,7 @@ import { useAgentStore } from '../../store/useAgentStore';
 import { useAuthStore } from '../../store/authStore';
 import { getClaimRewardValue } from '../../utils/claimRewards';
 import { useSearchParams } from 'react-router-dom';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
@@ -28,8 +29,8 @@ const AgentEarningsPage: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState('Semua');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [filterType, setFilterType] = usePersistedState('agentEarnings:filterType', 'Semua');
+  const [currentPage, setCurrentPage] = usePersistedState('agentEarnings:currentPage', 1);
   const itemsPerPage = 8;
 
   useEffect(() => {

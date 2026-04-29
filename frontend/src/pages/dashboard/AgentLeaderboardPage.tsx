@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useAgentStore } from '../../store/useAgentStore';
 import Pagination from '../../components/ui/Pagination';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 // Data will be fetched from the backend via useAgentStore. No static fallback data.
 // Fallback data removed; we will rely on fetched leaderboard data.
@@ -61,9 +62,9 @@ const itemVariants = {
 const AgentLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const { stats, fetchStats, leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers, isLoading } = useAgentStore();
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'rewards'>('leaderboard');
-  const [search, setSearch] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = usePersistedState<'leaderboard' | 'rewards'>('agentLeaderboard:activeTab', 'leaderboard');
+  const [search, setSearch] = usePersistedState('agentLeaderboard:search', '');
+  const [currentPage, setCurrentPage] = usePersistedState('agentLeaderboard:currentPage', 1);
   const itemsPerPage = 8;
 
   useEffect(() => {

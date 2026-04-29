@@ -8,6 +8,17 @@ use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 use std::str::FromStr;
 
+fn mask_email_for_log(email: &str) -> String {
+    match email.split_once('@') {
+        Some((local, domain)) => {
+            let mut chars = local.chars();
+            let first = chars.next().unwrap_or('*');
+            format!("{}***@{}", first, domain)
+        }
+        None => "***".to_string(),
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
@@ -110,6 +121,8 @@ pub async fn login_with_request(
         });
     }
 
+    let email_log = mask_email_for_log(&email);
+
     tracing::info!("Login attempt for email: {}", email);
     let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE LOWER(email) = ?")
         .bind(&email)
@@ -120,24 +133,24 @@ pub async fn login_with_request(
             AppError::Internal
         })?
         .ok_or_else(|| {
-            tracing::warn!("Login failed: user not found for email '{}'", email);
+            tracing::warn!("Login failed: user not found for email '{}'", email_log);
             AppError::Unauthorized
         })?;
 
     tracing::debug!("User record retrieved: email={}, is_active={}, is_verified={}", user.email, user.is_active, user.is_verified);
 
     if !user.is_active {
-        tracing::warn!("Login failed: account is suspended for email '{}'", email);
+        tracing::warn!("Login failed: account is suspended for email '{}'", email_log);
         return Err(AppError::Unauthorized);
     }
 
     if !verify_password(&password, &user.password_hash) {
-        tracing::warn!("Login failed: incorrect password for email '{}'", email);
+        tracing::warn!("Login failed: incorrect password for email '{}'", email_log);
         return Err(AppError::Unauthorized);
     }
 
     if !user.is_verified {
-        tracing::warn!("Login failed: email not verified for email '{}'", email);
+        tracing::warn!("Login failed: email not verified for email '{}'", email_log);
         return Err(AppError::EmailUnverified);
     }
 
@@ -208,6 +221,13 @@ pub async fn refresh_with_request(
         })?
         .ok_or(AppError::Unauthorized)?;
 
+    if !user.is_active || !user.is_verified {
+        state.invalidate_user_sessions(&user.id).await;
+        return Err(AppError::Unauthorized);
+    }
+
+    let current_role = Role::from_str(&user.role).unwrap_or(Role::Agent);
+
     let access_token = Uuid::new_v4().to_string();
     let refresh_token = Uuid::new_v4().to_string();
 
@@ -217,7 +237,7 @@ pub async fn refresh_with_request(
             token: access_token.clone(),
             refresh_token: refresh_token.clone(),
             user_id: user.id.clone(),
-            role: session.role.clone(),
+            role: current_role.clone(),
             expires_at: Utc::now() + Duration::minutes(15),
         },
     );
@@ -226,7 +246,7 @@ pub async fn refresh_with_request(
         RefreshSession {
             token: refresh_token.clone(),
             user_id: user.id.clone(),
-            role: session.role.clone(),
+            role: current_role,
             expires_at: Utc::now() + Duration::days(7),
         },
     );
@@ -279,10 +299,6 @@ pub async fn authorize(
         return Err(AppError::Unauthorized);
     }
 
-    if !allowed.is_empty() && !allowed.iter().any(|role| role == &session.role) {
-        return Err(AppError::Forbidden);
-    }
-
     let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
         .bind(&session.user_id)
         .fetch_optional(&state.pool)
@@ -292,6 +308,17 @@ pub async fn authorize(
             AppError::Internal
         })?
         .ok_or(AppError::Unauthorized)?;
+
+    if !user.is_active || !user.is_verified {
+        state.invalidate_user_sessions(&user.id).await;
+        return Err(AppError::Unauthorized);
+    }
+
+    let db_role = Role::from_str(&user.role).unwrap_or(Role::Agent);
+
+    if !allowed.is_empty() && !allowed.iter().any(|role| role == &db_role) {
+        return Err(AppError::Forbidden);
+    }
 
     Ok(user)
 }

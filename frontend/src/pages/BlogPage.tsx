@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, Tag, ArrowRight, Search } from 'lucide-react';
@@ -8,6 +8,7 @@ import type { BlogPost } from '../types';
 import blogHeroImg from '../assets/images/blog-hero.webp';
 import { getImageUrl } from '../utils/apiClient';
 import { recordTelemetry } from '../utils/telemetry';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const categories = ['Semua', 'Review', 'Tips & Trik', 'Edukasi', 'Home Styling'];
 
@@ -128,8 +129,8 @@ const BlogPage: React.FC = () => {
   }, [fetchPosts]);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeCategory, setActiveCategory] = useState('Semua');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = usePersistedState('blog:activeCategory', 'Semua');
+  const [searchQuery, setSearchQuery] = usePersistedState('blog:searchQuery', '');
   const activeTag = searchParams.get('tag');
 
   const featured = posts.find((p) => p.featured);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Activity, TrendingUp, MousePointerClick, Target,
@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { TelemetryStats } from '../../store/useAdminNetworkStore';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const sourceConfig: Record<string, { icon: typeof Share2; color: string }> = {
   'Referral Link Agen': { icon: Share2,          color: 'text-primary' },
@@ -45,7 +46,7 @@ const AdminTelemetryPage: React.FC = () => {
     fetchTelemetryStats();
   }, [fetchTelemetryStats]);
 
-  const [logFilter, setLogFilter] = useState('Semua');
+  const [logFilter, setLogFilter] = usePersistedState('adminTelemetry:logFilter', 'Semua');
 
   // Always API-driven; show empty state while data has not arrived.
   const data: TelemetryStats = telemetryStats || {

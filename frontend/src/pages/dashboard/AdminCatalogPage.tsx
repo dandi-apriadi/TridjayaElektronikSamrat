@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -9,6 +9,7 @@ import {
 import { useProductStore } from '../../store/useProductStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const categories = ['Semua', 'bike', 'electronics', 'furniture'];
 const statuses   = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
@@ -24,11 +25,11 @@ const itemVariants = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 
 
 const AdminCatalogPage: React.FC = () => {
   const { products, isLoading, error, deleteProduct, fetchProducts } = useProductStore();
-  const [search, setSearch]     = useState('');
-  const [category, setCategory] = useState('Semua');
-  const [status, setStatus]     = useState('Semua');
-  const [sortBy, setSortBy]     = useState('views');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [search, setSearch]     = usePersistedState('adminCatalog:search', '');
+  const [category, setCategory] = usePersistedState('adminCatalog:category', 'Semua');
+  const [status, setStatus]     = usePersistedState('adminCatalog:status', 'Semua');
+  const [sortBy, setSortBy]     = usePersistedState('adminCatalog:sortBy', 'views');
+  const [currentPage, setCurrentPage] = usePersistedState('adminCatalog:currentPage', 1);
   const itemsPerPage = 8;
 
   React.useEffect(() => {

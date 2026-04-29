@@ -11,6 +11,7 @@ import { useUserStore } from '../../store/useUserStore';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const roleConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
@@ -47,10 +48,10 @@ const formatDateTime = (value?: string) => {
 const AdminUsersPage: React.FC = () => {
   const { users, isLoading, error, fetchUsers, updateUserStatus, resetUserPassword, verifyUser, resendVerification, deleteUser } = useUserStore();
   const { user: currentUser } = useAuthStore();
-  const [search, setSearch]           = useState('');
-  const [roleFilter, setRoleFilter]   = useState('Semua');
-  const [statusFilter, setStatusFilter] = useState('Semua');
-  const [showPerms, setShowPerms]       = useState(false);
+  const [search, setSearch]           = usePersistedState('adminUsers:search', '');
+  const [roleFilter, setRoleFilter]   = usePersistedState('adminUsers:roleFilter', 'Semua');
+  const [statusFilter, setStatusFilter] = usePersistedState('adminUsers:statusFilter', 'Semua');
+  const [showPerms, setShowPerms]       = usePersistedState('adminUsers:showPerms', false);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
@@ -58,7 +59,7 @@ const AdminUsersPage: React.FC = () => {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistedState('adminUsers:currentPage', 1);
   const itemsPerPage = 8;
 
   useEffect(() => {

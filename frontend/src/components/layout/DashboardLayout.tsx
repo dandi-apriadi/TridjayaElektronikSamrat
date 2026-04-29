@@ -26,8 +26,7 @@ import {
   Handshake,
   Briefcase,
   ChevronDown,
-  ChevronRight,
-  ChevronUp
+  ChevronRight
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';

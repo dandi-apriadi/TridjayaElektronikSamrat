@@ -20,29 +20,44 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
 
     let seeds_raw = fs::read_to_string("seeds.json")?;
     let seeds: Value = serde_json::from_str(&seeds_raw)?;
+    let is_full_seed_object = seeds.is_object();
+
+    if !is_full_seed_object {
+        println!(
+            "Seed file format is not an object; skipping destructive cleanup and applying safe product-only seed mode."
+        );
+    }
+
+    let products_seed = if is_full_seed_object {
+        seeds["products"].as_array()
+    } else {
+        seeds.as_array()
+    };
 
     // Clear existing data for a clean simulation
-    println!("Wiping existing data for clean simulation...");
     let mut conn = pool.acquire().await?;
-    sqlx::query("PRAGMA foreign_keys = OFF").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM notifications").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM support_tickets").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM telemetry_events").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM leads").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM agent_registrations").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM reward_claims").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM agent_achievements").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM agent_stats").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM users WHERE email NOT LIKE '%dandi%' AND email NOT LIKE '%admin%'").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM promos").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM products").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM blog_posts").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM job_listings").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM partners").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM reward_tiers").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM achievements").execute(&mut *conn).await?;
-    sqlx::query("DELETE FROM product_categories").execute(&mut *conn).await?;
-    // We leave foreign_keys OFF for the duration of the seeding to prevent REPLACE INTO constraint issues
+    if is_full_seed_object {
+        println!("Wiping existing data for clean simulation...");
+        sqlx::query("PRAGMA foreign_keys = OFF").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM notifications").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM support_tickets").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM telemetry_events").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM leads").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM agent_registrations").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM reward_claims").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM agent_achievements").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM agent_stats").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM users WHERE email NOT LIKE '%dandi%' AND email NOT LIKE '%admin%'").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM promos").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM products").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM blog_posts").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM job_listings").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM partners").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM reward_tiers").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM achievements").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM product_categories").execute(&mut *conn).await?;
+        // We leave foreign_keys OFF for the duration of the seeding to prevent REPLACE INTO constraint issues
+    }
 
     // Seed Users
     if let Some(users) = seeds["users"].as_array() {
@@ -177,7 +192,7 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     }
 
     // Seed Products
-    if let Some(products) = seeds["products"].as_array() {
+    if let Some(products) = products_seed {
         for p in products {
             let specs_json = serde_json::to_string(&p["specs"]).unwrap_or_else(|_| "{}".to_string());
             let images_json = serde_json::to_string(&p["images"]).unwrap_or_else(|_| "[]".to_string());
@@ -396,7 +411,9 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         }
     }
     
-    sqlx::query("PRAGMA foreign_keys = ON").execute(&mut *conn).await?;
+    if is_full_seed_object {
+        sqlx::query("PRAGMA foreign_keys = ON").execute(&mut *conn).await?;
+    }
 
     println!("Database seeding completed successfully!");
     Ok(())

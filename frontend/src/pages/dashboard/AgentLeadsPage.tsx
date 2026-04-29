@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, Search, Filter, MessageCircle, Phone,
@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 
 import { useAgentStore } from '../../store/useAgentStore';
 import type { Lead } from '../../store/useAgentStore';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
   'Follow Up':      { cls: 'bg-primary/15 text-primary',      dot: 'bg-primary' },
@@ -27,9 +28,9 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transit
 
 const AgentLeadsPage: React.FC = () => {
   const { leads, fetchLeads, isLoading } = useAgentStore();
-  const [search, setSearch]       = useState('');
-  const [filterStatus, setFilter] = useState('Semua');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [search, setSearch]       = usePersistedState('agentLeads:search', '');
+  const [filterStatus, setFilter] = usePersistedState('agentLeads:filterStatus', 'Semua');
+  const [currentPage, setCurrentPage] = usePersistedState('agentLeads:currentPage', 1);
   const itemsPerPage = 6;
 
   React.useEffect(() => {

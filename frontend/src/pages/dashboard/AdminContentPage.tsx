@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Eye, Archive, Plus, Tag, Clock, CheckCircle2 } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
 
 import { useBlogStore } from '../../store/useBlogStore';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 
 
@@ -15,8 +16,8 @@ const statusConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
 
 const AdminContentPage: React.FC = () => {
   const { posts, isLoading, error } = useBlogStore();
-  const [filterStatus, setFilterStatus] = useState('Semua');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [filterStatus, setFilterStatus] = usePersistedState('adminContent:filterStatus', 'Semua');
+  const [currentPage, setCurrentPage] = usePersistedState('adminContent:currentPage', 1);
   const itemsPerPage = 8;
 
   if (isLoading) {

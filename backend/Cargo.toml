@@ -2,6 +2,55 @@
 name = "tridjaya-backend"
 version = "0.1.0"
 edition = "2021"
+autobins = false
+
+[features]
+default = []
+dev-tools = []
+
+[[bin]]
+name = "tridjaya-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "clear_db"
+path = "src/bin/clear_db.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "clear_non_admin"
+path = "src/bin/clear_non_admin.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "clear_products"
+path = "src/bin/clear_products.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "debug_db"
+path = "src/bin/debug_db.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "reset_passwords"
+path = "src/bin/reset_passwords.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "seed_db"
+path = "src/bin/seed_db.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "strict_cleanup"
+path = "src/bin/strict_cleanup.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "test_smtp"
+path = "src/bin/test_smtp.rs"
+required-features = ["dev-tools"]
 
 [dependencies]
 axum = { version = "0.8", features = ["macros", "multipart"] }

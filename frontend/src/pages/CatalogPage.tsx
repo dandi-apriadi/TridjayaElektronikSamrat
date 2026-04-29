@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Filter, SlidersHorizontal, Battery, Zap, Leaf, Search, X, ChevronDown, Image as ImageIcon, ImageOff } from 'lucide-react';
@@ -6,6 +6,7 @@ import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
 import { useThemeStore } from '../store/themeStore';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
 
@@ -19,15 +20,15 @@ const CatalogPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const activeCategory = searchParams.get('kategori');
   const { showImages: globalShowImages } = useThemeStore();
-  const [isLiteMode, setIsLiteMode] = useState(!globalShowImages);
+  const [isLiteMode, setIsLiteMode] = usePersistedState('catalog:isLiteMode', !globalShowImages);
 
-  const [activeFilter, setActiveFilter] = useState('Semua');
-  const [activeSort, setActiveSort] = useState('Terpopuler');
-  const [showFilters, setShowFilters] = useState(false);
-  const [stockFilter, setStockFilter] = useState<'all' | 'available' | 'indent'>('all');
-  const [priceFilter, setPriceFilter] = useState<'all' | 'under20' | 'above20'>('all');
-  const [search, setSearch] = useState('');
-  const [visibleCount, setVisibleCount] = useState(9);
+  const [activeFilter, setActiveFilter] = usePersistedState('catalog:activeFilter', 'Semua');
+  const [activeSort, setActiveSort] = usePersistedState('catalog:activeSort', 'Terpopuler');
+  const [showFilters, setShowFilters] = usePersistedState('catalog:showFilters', false);
+  const [stockFilter, setStockFilter] = usePersistedState<'all' | 'available' | 'indent'>('catalog:stockFilter', 'all');
+  const [priceFilter, setPriceFilter] = usePersistedState<'all' | 'under20' | 'above20'>('catalog:priceFilter', 'all');
+  const [search, setSearch] = usePersistedState('catalog:search', '');
+  const [visibleCount, setVisibleCount] = usePersistedState('catalog:visibleCount', 9);
 
   const { products, isLoading, fetchProducts } = useProductStore();
 

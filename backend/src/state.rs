@@ -44,6 +44,17 @@ impl AppState {
             created_at: Utc::now(),
         });
     }
+
+    pub async fn invalidate_user_sessions(&self, user_id: &str) {
+        {
+            let mut access = self.access_sessions.write().await;
+            access.retain(|_, session| session.user_id != user_id);
+        }
+        {
+            let mut refresh = self.refresh_sessions.write().await;
+            refresh.retain(|_, session| session.user_id != user_id);
+        }
+    }
 }
 
 #[derive(Clone, serde::Serialize, sqlx::FromRow)]

@@ -28,6 +28,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { AgentRegistration } from '../../store/useAdminNetworkStore';
 import { API_BASE_URL } from '../../utils/apiClient';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 /* ─── Variants ───────────────────────────────────────── */
 const containerVariants = {
@@ -49,15 +50,15 @@ const AdminAgentsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [approvedIds, setApprovedIds]   = useState<string[]>([]);
   const [rejectedIds, setRejectedIds]   = useState<string[]>([]);
-  const [expandedId, setExpandedId]     = useState<string | null>(null);
-  const [searchQuery, setSearchQuery]   = useState('');
+  const [expandedId, setExpandedId]     = usePersistedState<string | null>('adminAgents:expandedId', null);
+  const [searchQuery, setSearchQuery]   = usePersistedState('adminAgents:searchQuery', '');
   const [selectedAgent, setSelectedAgent] = useState<AgentRegistration | null>(null);
 
   const { users, fetchUsers, resetUserPassword } = useUserStore();
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistedState('adminAgents:currentPage', 1);
   const itemsPerPage = 8;
 
   React.useEffect(() => {

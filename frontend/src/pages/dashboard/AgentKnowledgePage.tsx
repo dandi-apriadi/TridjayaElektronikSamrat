@@ -13,6 +13,7 @@ import { formatPrice } from '../../data';
 import type { Product } from '../../types';
 import { useNotificationStore } from '../../store/useNotificationStore';
 import { useProductStore } from '../../store/useProductStore';
+import { usePersistedState } from '../../hooks/usePersistedState';
 import { 
   loadCreditData, 
   calculateInstallments, 
@@ -69,13 +70,13 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
 /* ─── Component ─────────────────────────────────────── */
 const AgentKnowledgePage: React.FC = () => {
-  const [search, setSearch]       = useState('');
-  const [category, setCategory]   = useState('Semua');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [activeTabs, setActiveTabs] = useState<Record<string, 'sales' | 'specs' | 'gallery' | 'installments'>>({});
-  const [customerType, setCustomerType] = useState<CustomerType>('NEW');
+  const [search, setSearch]       = usePersistedState('agentKnowledge:search', '');
+  const [category, setCategory]   = usePersistedState('agentKnowledge:category', 'Semua');
+  const [expandedId, setExpandedId] = usePersistedState<string | null>('agentKnowledge:expandedId', null);
+  const [activeTabs, setActiveTabs] = usePersistedState<Record<string, 'sales' | 'specs' | 'gallery' | 'installments'>>('agentKnowledge:activeTabs', {});
+  const [customerType, setCustomerType] = usePersistedState<CustomerType>('agentKnowledge:customerType', 'NEW');
   const [creditData, setCreditData] = useState<CreditData | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistedState('agentKnowledge:currentPage', 1);
   const itemsPerPage = 5;
 
   const { products, isLoading, fetchProducts } = useProductStore();

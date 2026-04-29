@@ -9,8 +9,6 @@ import { getImageUrl } from '../../utils/apiClient';
 import { useMinInstallment } from '../../hooks/useMinInstallment';
 import { recordTelemetry } from '../../utils/telemetry';
 
-import { useThemeStore } from '../../store/themeStore';
-
 interface ProductCardProps {
   product: Product;
   index?: number;
@@ -27,10 +25,8 @@ const badgeConfig = {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isCompact }) => {
   const minInstallment = useMinInstallment(product);
-  const { showImages: globalShowImages } = useThemeStore();
   
   // By default show images, unless explicitly told to be compact (Lite Mode)
-  // We keep globalShowImages as a fallback if needed, but default to true for isolation
   const effectiveShowImages = isCompact !== undefined ? !isCompact : true;
 
   const handleShare = (e: React.MouseEvent) => {

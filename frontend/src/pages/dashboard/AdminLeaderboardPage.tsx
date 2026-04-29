@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
@@ -28,6 +28,7 @@ import {
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useAgentStore } from '../../store/useAgentStore';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 // Fallback data for reward tiers if backend returns empty
 const fallbackRewardTiers = [
@@ -50,8 +51,8 @@ const itemVariants = {
 const AdminLeaderboardPage: React.FC = () => {
    const { registrations, claims, fetchRegistrations, fetchClaims, updateClaimStatus } = useAdminNetworkStore();
    const { leaderboard, fetchLeaderboard, rewardTiers, fetchRewardTiers } = useAgentStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'manage' | 'claims'>('overview');
-  const [currentPage, setCurrentPage] = useState(1);
+   const [activeTab, setActiveTab] = usePersistedState<'overview' | 'manage' | 'claims'>('adminLeaderboard:activeTab', 'overview');
+   const [currentPage, setCurrentPage] = usePersistedState('adminLeaderboard:currentPage', 1);
   const itemsPerPage = 8;
 
    useEffect(() => {

@@ -84,7 +84,17 @@ const LOGIN_IP_MAX_PER_MINUTE: usize = 20;
 const LOGIN_IP_MAX_PER_10_MINUTES: usize = 100;
 const LOGIN_BLOCK_MINUTES: i64 = 15;
 
+fn trust_proxy_headers_enabled() -> bool {
+    std::env::var("TRUST_PROXY_HEADERS")
+        .map(|value| value.eq_ignore_ascii_case("true") || value == "1")
+        .unwrap_or(false)
+}
+
 fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    if !trust_proxy_headers_enabled() {
+        return None;
+    }
+
     let forwarded = headers
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())
@@ -1315,22 +1325,38 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     })?
     .ok_or(AppError::NotFound)?;
 
-    let next_email = payload.email.unwrap_or(current.0);
-    let next_name = payload.name.unwrap_or(current.1);
+    let (
+        current_email,
+        current_name,
+        current_role,
+        current_password_hash,
+        current_avatar,
+        current_bank_account,
+        current_is_active,
+        current_is_verified,
+    ) = current;
+
+    let next_email = payload.email.unwrap_or(current_email);
+    let next_name = payload.name.unwrap_or(current_name);
     let next_role = payload
         .role
         .as_deref()
         .and_then(normalize_role)
-        .unwrap_or(current.2);
+        .unwrap_or_else(|| current_role.clone());
     let next_password_hash = payload
         .password
         .as_deref()
         .map(hash_password)
-        .unwrap_or(current.3);
-    let next_avatar = payload.avatar.unwrap_or(current.4);
-    let next_bank_account = payload.bank_account.unwrap_or(current.5);
-    let next_is_active = payload.is_active.unwrap_or(current.6);
-    let next_is_verified = payload.is_verified.unwrap_or(current.7);
+        .unwrap_or_else(|| current_password_hash.clone());
+    let next_avatar = payload.avatar.unwrap_or(current_avatar);
+    let next_bank_account = payload.bank_account.unwrap_or(current_bank_account);
+    let next_is_active = payload.is_active.unwrap_or(current_is_active);
+    let next_is_verified = payload.is_verified.unwrap_or(current_is_verified);
+
+    let should_invalidate_sessions = next_role != current_role
+        || next_password_hash != current_password_hash
+        || next_is_active != current_is_active
+        || next_is_verified != current_is_verified;
 
     sqlx::query(
         "UPDATE users SET email = ?, name = ?, role = ?, password_hash = ?, avatar = ?, bank_account = ?, is_active = ?, is_verified = ? WHERE id = ?",
@@ -1347,6 +1373,10 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
+
+    if should_invalidate_sessions {
+        state.invalidate_user_sessions(&id).await;
+    }
 
     let updated = find_user_public_by_id(&state, &id).await?;
     Ok(json_ok(
@@ -1397,14 +1427,7 @@ async fn reset_user_password(
     }
 
     // Invalidate any existing sessions for this user.
-    {
-        let mut access = state.access_sessions.write().await;
-        access.retain(|_, session| session.user_id != id);
-    }
-    {
-        let mut refresh = state.refresh_sessions.write().await;
-        refresh.retain(|_, session| session.user_id != id);
-    }
+    state.invalidate_user_sessions(&id).await;
 
     if state.mailer.is_enabled() {
         if let Err(e) = state
@@ -1638,6 +1661,8 @@ async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
+
+    state.invalidate_user_sessions(&id).await;
 
     Ok(json_ok(format!("User {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
 }
@@ -3876,11 +3901,38 @@ async fn list_agents(State(state): State<AppState>, headers: HeaderMap) -> Resul
 }
 
 async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+
+    let is_admin = user.role.eq_ignore_ascii_case("admin");
+
+    let to_agent_safe_items = |items: &[AgentDirectoryRow]| {
+        items
+            .iter()
+            .map(|row| {
+                json!({
+                    "id": row.id.clone(),
+                    "name": row.name.clone(),
+                    "city": row.city.clone(),
+                    "province": row.province.clone(),
+                    "totalSales": row.total_sales,
+                    "points": row.points,
+                    "tierName": row.tier_name.clone(),
+                    "isActive": row.is_active,
+                    "joinedAt": row.joined_at.clone(),
+                })
+            })
+            .collect::<Vec<_>>()
+    };
 
     // Try to get from cache first
     if let Ok(Some(cached_items)) = state.cache.get::<Vec<AgentDirectoryRow>>("leaderboard").await {
-        return Ok(json_ok("Leaderboard fetched from cache", json!({ "items": cached_items })));
+        if is_admin {
+            return Ok(json_ok("Leaderboard fetched from cache", json!({ "items": cached_items })));
+        }
+        return Ok(json_ok(
+            "Leaderboard fetched from cache",
+            json!({ "items": to_agent_safe_items(&cached_items) }),
+        ));
     }
 
     let rows = sqlx::query_as::<_, AgentDirectoryRow>(
@@ -3915,7 +3967,14 @@ async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> 
     // Store in cache for 5 minutes (300 seconds)
     let _ = state.cache.set("leaderboard", &rows, Some(300)).await;
 
-    Ok(json_ok("Leaderboard fetched successfully", json!({ "items": rows })))
+    if is_admin {
+        return Ok(json_ok("Leaderboard fetched successfully", json!({ "items": rows })));
+    }
+
+    Ok(json_ok(
+        "Leaderboard fetched successfully",
+        json!({ "items": to_agent_safe_items(&rows) }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -3943,6 +4002,10 @@ fn is_valid_registration_status(status: &str) -> bool {
 
 fn is_valid_claim_status(status: &str) -> bool {
     matches!(status, "pending" | "processing" | "completed" | "cancelled")
+}
+
+fn is_valid_job_application_status(status: &str) -> bool {
+    matches!(status, "pending" | "reviewed" | "accepted" | "rejected" | "hired")
 }
 
 fn default_reward_value_for_tier(tier_id: &str) -> i64 {
@@ -4919,9 +4982,16 @@ async fn create_job_application(State(state): State<AppState>, Json(payload): Js
 
 async fn update_job_application_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<JobApplicationStatusUpdateRequest>) -> Result<ResponseBody, AppError> {
     authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+
+    let next_status = payload.status.trim().to_lowercase();
+    if !is_valid_job_application_status(&next_status) {
+        return Err(AppError::Validation {
+            errors: vec!["Status lamaran tidak valid".to_string()],
+        });
+    }
     
     let res = sqlx::query("UPDATE job_applications SET status = ? WHERE id = ?")
-        .bind(payload.status)
+        .bind(next_status)
         .bind(&id)
         .execute(&state.pool)
         .await

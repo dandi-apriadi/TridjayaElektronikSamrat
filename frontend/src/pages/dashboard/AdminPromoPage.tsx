@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -9,6 +9,7 @@ import {
 import { usePromoStore } from '../../store/usePromoStore';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import Pagination from '../../components/ui/Pagination';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const statusConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   'Active': { cls: 'bg-secondary/15 text-secondary', label: 'Aktif', icon: <CheckCircle2 className="w-3 h-3" /> },
@@ -30,8 +31,8 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transit
 const AdminPromoPage: React.FC = () => {
   const { promos, isLoading, error } = usePromoStore();
   const { telemetryStats, fetchTelemetryStats } = useAdminNetworkStore();
-  const [filterStatus, setFilterStatus] = useState('Semua');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [filterStatus, setFilterStatus] = usePersistedState('adminPromo:filterStatus', 'Semua');
+  const [currentPage, setCurrentPage] = usePersistedState('adminPromo:currentPage', 1);
   const itemsPerPage = 6;
 
   React.useEffect(() => {

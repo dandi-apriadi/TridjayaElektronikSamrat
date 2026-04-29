@@ -33,6 +33,7 @@ import {
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useProductStore } from '../../store/useProductStore';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const formatRelativeTime = (isoDate: string): string => {
   const value = new Date(isoDate).getTime();
@@ -68,7 +69,7 @@ const itemVariants = {
 
 /* ─── Component ─────────────────────────────────────── */
 const AdminDashboard: React.FC = () => {
-  const [chartRange, setChartRange] = useState('6M');
+  const [chartRange, setChartRange] = usePersistedState('adminDashboard:chartRange', '6M');
   const [pendingClaimActionId, setPendingClaimActionId] = useState<string | null>(null);
 
   const {

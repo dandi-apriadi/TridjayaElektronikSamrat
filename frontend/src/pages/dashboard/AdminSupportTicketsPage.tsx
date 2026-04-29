@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, AlertCircle, MessageSquare, User, Mail } from 'luc
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -42,8 +43,8 @@ const priorityMeta: Record<string, { label: string; cls: string }> = {
 const AdminSupportTicketsPage: React.FC = () => {
   const { supportTickets, isLoading, fetchSupportTickets, updateSupportTicketStatus } = useAdminNetworkStore();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = usePersistedState<'all' | 'open' | 'in_progress' | 'resolved'>('adminSupportTickets:statusFilter', 'all');
+  const [currentPage, setCurrentPage] = usePersistedState('adminSupportTickets:currentPage', 1);
   const itemsPerPage = 5;
 
   useEffect(() => {

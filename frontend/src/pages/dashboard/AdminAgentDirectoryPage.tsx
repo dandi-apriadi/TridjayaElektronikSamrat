@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Search, 
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import Pagination from '../../components/ui/Pagination';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const formatDate = (dateStr: string) => {
   try {
@@ -29,9 +30,9 @@ const statusColor: Record<string, string> = {
 
 const AdminAgentDirectoryPage: React.FC = () => {
   const { agents, isLoading, fetchAgents } = useAdminNetworkStore();
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('Semua');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [search, setSearch] = usePersistedState('adminAgentDirectory:search', '');
+  const [filterStatus, setFilterStatus] = usePersistedState('adminAgentDirectory:filterStatus', 'Semua');
+  const [currentPage, setCurrentPage] = usePersistedState('adminAgentDirectory:currentPage', 1);
   const itemsPerPage = 8;
 
   useEffect(() => {

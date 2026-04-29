@@ -4,6 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { getClaimRewardValue } from '../../utils/claimRewards';
 import { useAuthStore } from '../../store/authStore';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const statusStyle: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   Pending: { label: 'Menunggu', cls: 'bg-tertiary/15 text-tertiary', icon: <Clock className="w-3.5 h-3.5" /> },
@@ -23,7 +24,7 @@ const AdminFinancePage: React.FC = () => {
     error 
   } = useAdminNetworkStore();
   const { isAuthenticated, accessToken, isInitializing } = useAuthStore();
-  const [filter, setFilter] = useState('Semua');
+  const [filter, setFilter] = usePersistedState('adminFinance:filter', 'Semua');
   const [chartReady, setChartReady] = useState(false);
 
   useEffect(() => {

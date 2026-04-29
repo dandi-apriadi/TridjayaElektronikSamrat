@@ -11,6 +11,7 @@ import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
 import { useSearchParams } from 'react-router-dom';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
   'Follow Up':      { cls: 'bg-primary/15 text-primary',      dot: 'bg-primary' },
@@ -29,10 +30,10 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 const AdminLeadsPage: React.FC = () => {
   const { leads, fetchLeads, updateLeadStatus, isLoading } = useAdminNetworkStore();
   const [searchParams]            = useSearchParams();
-  const [search, setSearch]       = useState('');
-  const [filterStatus, setFilter] = useState('Semua');
+  const [search, setSearch]       = usePersistedState('adminLeads:search', '');
+  const [filterStatus, setFilter] = usePersistedState('adminLeads:filterStatus', 'Semua');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistedState('adminLeads:currentPage', 1);
   const itemsPerPage = 10;
 
   useEffect(() => {
