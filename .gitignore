@@ -13,9 +13,25 @@ dist/
 .env
 *.db
 *.db-journal
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Build & Runtime
+target/
+node_modules/
+dist/
+.env
+*.db
+*.db-journal
 *.exe
 
 # Local Tests & Backups
 backend/login_test.json
 backend/server_pid.txt
 backup_images/
+security_reports/

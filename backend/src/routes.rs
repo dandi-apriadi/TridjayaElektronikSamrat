@@ -2893,12 +2893,19 @@ struct JobApplicationCreateRequest {
     full_name: String,
     email: String,
     phone: String,
+    #[serde(default)]
     address: Option<String>,
+    #[serde(default)]
     education: Option<String>,
+    #[serde(default)]
     major: Option<String>,
+    #[serde(default)]
     experience: Option<String>,
+    #[serde(default)]
     cover_letter: Option<String>,
+    #[serde(default)]
     linked_in: Option<String>,
+    #[serde(default)]
     portfolio_url: Option<String>,
 }
 
@@ -3170,13 +3177,24 @@ async fn insert_telemetry(state: &AppState, headers: &HeaderMap, event_type: &st
 
     // Update referral counters only if source is an actual referral slug.
     let is_referral_slug = if source != "direct" && source != "anonymous" && source != "internal" && source != "" {
-        sqlx::query_scalar::<_, String>("SELECT slug FROM referrals WHERE slug = ? LIMIT 1")
-            .bind(source)
-            .fetch_optional(&state.pool)
-            .await
-            .ok()
-            .flatten()
-            .is_some()
+        let cache_key = format!("referral_slug:{}", source);
+        let cached_exists: Option<bool> = state.cache.get(&cache_key).await.unwrap_or(None);
+        
+        if let Some(exists) = cached_exists {
+            exists
+        } else {
+            let exists = sqlx::query_scalar::<_, String>("SELECT slug FROM referrals WHERE slug = ? LIMIT 1")
+                .bind(source)
+                .fetch_optional(&state.pool)
+                .await
+                .ok()
+                .flatten()
+                .is_some();
+            
+            // Cache with 5 minutes TTL
+            let _ = state.cache.set(&cache_key, &exists, Some(300)).await;
+            exists
+        }
     } else {
         false
     };

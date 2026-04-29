@@ -70,6 +70,20 @@ impl AppState {
             let mut refresh = self.refresh_sessions.write().await;
             refresh.retain(|_, session| session.expires_at > now);
         }
+        {
+            let mut tel = self.telemetry_attempts.write().await;
+            tel.retain(|_, attempts| {
+                attempts.retain(|ts| now.signed_duration_since(*ts).num_seconds() < 60);
+                !attempts.is_empty()
+            });
+        }
+        {
+            let mut pub_sub = self.public_submission_attempts.write().await;
+            pub_sub.retain(|_, attempts| {
+                attempts.retain(|ts| now.signed_duration_since(*ts).num_hours() < 1);
+                !attempts.is_empty()
+            });
+        }
     }
 }
 
