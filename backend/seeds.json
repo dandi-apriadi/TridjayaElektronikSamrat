@@ -7,22 +7,6 @@
       "role": "Admin",
       "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin1"
-    },
-    {
-      "id": "adm-002",
-      "email": "admin2@tridjaya.com",
-      "name": "Admin 2",
-      "role": "Admin",
-      "password": "123",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin2"
-    },
-    {
-      "id": "adm-003",
-      "email": "admin3@tridjaya.com",
-      "name": "Admin 3",
-      "role": "Admin",
-      "password": "123",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin3"
     }
   ],
   "reward_tiers": [
@@ -301,15 +285,13 @@
       ],
       "slug": "comforta-set-kasur-+-divan-super-one-180",
       "subcategory": "KASUR",
-      "priceInstallment": 266666.6666666667,
+      "priceInstallment": 518000,
       "dpMin": 320000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -345,15 +327,13 @@
       ],
       "slug": "set-sofa-minimalis-+-meja-abu-corak",
       "subcategory": "SOFA",
-      "priceInstallment": 233333.33333333334,
+      "priceInstallment": 465000,
       "dpMin": 280000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -390,15 +370,13 @@
       ],
       "slug": "ac-lg-standard-1/2-pk-k05nsa",
       "subcategory": "AC",
-      "priceInstallment": 229166.66666666666,
+      "priceInstallment": 432000,
       "dpMin": 275000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -435,15 +413,13 @@
       ],
       "slug": "ac-sharp-1-pk-ah-a9zcy+au-a9zcy",
       "subcategory": "AC",
-      "priceInstallment": 279166.6666666667,
+      "priceInstallment": 507000,
       "dpMin": 335000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -480,15 +456,13 @@
       ],
       "slug": "ac-sharp-1/2-pk-ah-a5zcy+au-a5zcy",
       "subcategory": "AC",
-      "priceInstallment": 237500,
+      "priceInstallment": 445000,
       "dpMin": 285000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -524,15 +498,13 @@
       ],
       "slug": "aqua-kulkas-aqr-dtm245cbp",
       "subcategory": "KULKAS",
-      "priceInstallment": 237500,
+      "priceInstallment": 445000,
       "dpMin": 285000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -568,15 +540,13 @@
       ],
       "slug": "ban-aurora",
       "subcategory": "BAN",
-      "priceInstallment": 16666.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 20000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -612,15 +582,13 @@
       ],
       "slug": "ban-luar-saige-ego-plus",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 12500,
+      "priceInstallment": 188000,
       "dpMin": 15000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -656,15 +624,13 @@
       ],
       "slug": "ban-polaris",
       "subcategory": "BAN",
-      "priceInstallment": 16666.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 20000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -700,15 +666,13 @@
       ],
       "slug": "baterai-goda-48v/12ah",
       "subcategory": "BATERAI",
-      "priceInstallment": 0,
+      "priceInstallment": 188000,
       "dpMin": 0,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -744,15 +708,13 @@
       ],
       "slug": "baterai-goda-48v/20ah",
       "subcategory": "BATERAI",
-      "priceInstallment": 0,
+      "priceInstallment": 188000,
       "dpMin": 0,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -788,15 +750,13 @@
       ],
       "slug": "baterai-saige-48v/20ah",
       "subcategory": "BATERAI",
-      "priceInstallment": 0,
+      "priceInstallment": 188000,
       "dpMin": 0,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -832,15 +792,13 @@
       ],
       "slug": "baterai-saige-lithium-48v/20ah",
       "subcategory": "BATERAI",
-      "priceInstallment": 0,
+      "priceInstallment": 188000,
       "dpMin": 0,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -876,15 +834,13 @@
       ],
       "slug": "baterai-u-winfly-48v/12ah",
       "subcategory": "BATERAI",
-      "priceInstallment": 0,
+      "priceInstallment": 188000,
       "dpMin": 0,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -920,15 +876,13 @@
       ],
       "slug": "blender-cosmos-cb-171-ap",
       "subcategory": "BLENDER",
-      "priceInstallment": 21666.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 26000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -964,15 +918,13 @@
       ],
       "slug": "bracket-ac-1-pk",
       "subcategory": "BRAKET",
-      "priceInstallment": 5833.333333333333,
+      "priceInstallment": 188000,
       "dpMin": 7000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1008,15 +960,13 @@
       ],
       "slug": "bracket-tv-quality-50-100",
       "subcategory": "BRAKET",
-      "priceInstallment": 32083.333333333332,
+      "priceInstallment": 188000,
       "dpMin": 38500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1052,15 +1002,13 @@
       ],
       "slug": "braket-tv-bervin-bwba-1940m",
       "subcategory": "BRAKET",
-      "priceInstallment": 9166.666666666666,
+      "priceInstallment": 188000,
       "dpMin": 11000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1096,15 +1044,13 @@
       ],
       "slug": "charger-saige-48v-12ah",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 13333.333333333334,
+      "priceInstallment": 188000,
       "dpMin": 16000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1140,15 +1086,13 @@
       ],
       "slug": "charger-saige-48v-20ah",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 19166.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 23000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1185,15 +1129,13 @@
       ],
       "slug": "cosmos-air-cooler-cac-005-abw",
       "subcategory": "AC",
-      "priceInstallment": 112500,
+      "priceInstallment": 258000,
       "dpMin": 135000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1230,15 +1172,13 @@
       ],
       "slug": "denpo-pipa-economy-1/4-+-3/8",
       "subcategory": "AC",
-      "priceInstallment": 0,
+      "priceInstallment": 188000,
       "dpMin": 0,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1275,15 +1215,13 @@
       ],
       "slug": "denpoo-pipa-ac-platinum-1/4+1/2-x-0.6",
       "subcategory": "AC",
-      "priceInstallment": 10833.333333333334,
+      "priceInstallment": 188000,
       "dpMin": 13000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1319,15 +1257,13 @@
       ],
       "slug": "dispenser-cosmos-cwd-113",
       "subcategory": "DISPENSER",
-      "priceInstallment": 16666.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 20000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1363,15 +1299,13 @@
       ],
       "slug": "dispenser-cosmos-cwd-115",
       "subcategory": "DISPENSER",
-      "priceInstallment": 20833.333333333332,
+      "priceInstallment": 188000,
       "dpMin": 25000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1407,15 +1341,13 @@
       ],
       "slug": "dispenser-cosmos-cwd-1170",
       "subcategory": "DISPENSER",
-      "priceInstallment": 16666.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 20000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1451,15 +1383,13 @@
       ],
       "slug": "electric-oven-cosmos-co-9919-r",
       "subcategory": "OVEN",
-      "priceInstallment": 57500,
+      "priceInstallment": 188000,
       "dpMin": 69000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1495,15 +1425,13 @@
       ],
       "slug": "fan-cosmos-16-sdb",
       "subcategory": "KIPAS ANGIN",
-      "priceInstallment": 22083.333333333332,
+      "priceInstallment": 188000,
       "dpMin": 26500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1539,15 +1467,13 @@
       ],
       "slug": "freezer-box-gea-ab-108-r",
       "subcategory": "FREEZER",
-      "priceInstallment": 191666.66666666666,
+      "priceInstallment": 376000,
       "dpMin": 230000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1583,15 +1509,13 @@
       ],
       "slug": "freezer-box-gea-ab-208-r",
       "subcategory": "FREEZER",
-      "priceInstallment": 250000,
+      "priceInstallment": 463000,
       "dpMin": 300000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1627,15 +1551,13 @@
       ],
       "slug": "freezer-box-rsa-cf-210",
       "subcategory": "FREEZER",
-      "priceInstallment": 216666.66666666666,
+      "priceInstallment": 413000,
       "dpMin": 260000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1671,15 +1593,13 @@
       ],
       "slug": "freezer-box-rsa-cf-310q",
       "subcategory": "FREEZER",
-      "priceInstallment": 275000,
+      "priceInstallment": 501000,
       "dpMin": 330000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1715,15 +1635,13 @@
       ],
       "slug": "frezeer-aqua-aqf-460mg",
       "subcategory": "FREEZER",
-      "priceInstallment": 383333.3333333333,
+      "priceInstallment": 663000,
       "dpMin": 460000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1759,15 +1677,13 @@
       ],
       "slug": "frezer-aqua-aqf-120mc",
       "subcategory": "FREEZER",
-      "priceInstallment": 170833.33333333334,
+      "priceInstallment": 345000,
       "dpMin": 205000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1803,15 +1719,13 @@
       ],
       "slug": "frezer-rsa-cf-110",
       "subcategory": "FREEZER",
-      "priceInstallment": 166666.66666666666,
+      "priceInstallment": 338000,
       "dpMin": 200000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1847,15 +1761,13 @@
       ],
       "slug": "frezer-rsa-cf-310",
       "subcategory": "KULKAS",
-      "priceInstallment": 291666.6666666667,
+      "priceInstallment": 525000,
       "dpMin": 350000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1891,15 +1803,13 @@
       ],
       "slug": "frizer-box-rsa-xs-110",
       "subcategory": "KULKAS",
-      "priceInstallment": 229166.66666666666,
+      "priceInstallment": 432000,
       "dpMin": 275000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1935,15 +1845,13 @@
       ],
       "slug": "handle-rem-kanan-saige-m35",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 2500,
+      "priceInstallment": 188000,
       "dpMin": 3000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -1979,15 +1887,13 @@
       ],
       "slug": "handle-rem-kiri-saige-luna",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 7083.333333333333,
+      "priceInstallment": 188000,
       "dpMin": 8500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2023,15 +1929,13 @@
       ],
       "slug": "handle-rem-kiri-saige-m35",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 2500,
+      "priceInstallment": 188000,
       "dpMin": 3000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2067,15 +1971,13 @@
       ],
       "slug": "handphone-samsung-a56-5g-8/256gb-pink",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 516666.6666666667,
+      "priceInstallment": 862000,
       "dpMin": 620000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2112,15 +2014,13 @@
       ],
       "slug": "hisense-ac-split-1-pk-an09cdg",
       "subcategory": "AC",
-      "priceInstallment": 250000,
+      "priceInstallment": 463000,
       "dpMin": 300000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2157,15 +2057,13 @@
       ],
       "slug": "hisense-ac-split-1/2-pk-an05cdg",
       "subcategory": "AC",
-      "priceInstallment": 225000,
+      "priceInstallment": 425000,
       "dpMin": 270000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2201,15 +2099,13 @@
       ],
       "slug": "hisense-smart-tv-32a4200g",
       "subcategory": "TV",
-      "priceInstallment": 166583.33333333334,
+      "priceInstallment": 335000,
       "dpMin": 199900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2245,15 +2141,13 @@
       ],
       "slug": "hisense-smart-tv-43e6k",
       "subcategory": "TV",
-      "priceInstallment": 275000,
+      "priceInstallment": 501000,
       "dpMin": 330000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2289,15 +2183,13 @@
       ],
       "slug": "hp-samsung-galaxy-a56-5g-8/256-light-gray",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 516666.6666666667,
+      "priceInstallment": 862000,
       "dpMin": 620000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2333,15 +2225,13 @@
       ],
       "slug": "imp-tv-cabinet-120-motif-l04",
       "subcategory": "MEJA",
-      "priceInstallment": 91666.66666666667,
+      "priceInstallment": 240000,
       "dpMin": 110000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2377,15 +2267,13 @@
       ],
       "slug": "imp-zw-m03-c01-dm-lemari-besi-3-pintu-120-cm",
       "subcategory": "LEMARI",
-      "priceInstallment": 241666.66666666666,
+      "priceInstallment": 480000,
       "dpMin": 290000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2421,15 +2309,13 @@
       ],
       "slug": "imp-zw-m03-c11-dm-lemari-besi-3-pintu-120-cm",
       "subcategory": "LEMARI",
-      "priceInstallment": 241666.66666666666,
+      "priceInstallment": 480000,
       "dpMin": 290000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2465,15 +2351,13 @@
       ],
       "slug": "imp-zw-m03-c21-dm-lemari-besi-3-pintu-120-cm",
       "subcategory": "LEMARI",
-      "priceInstallment": 241666.66666666666,
+      "priceInstallment": 480000,
       "dpMin": 290000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2509,15 +2393,13 @@
       ],
       "slug": "isi-kampas-rem-depan-/-belakang-m35",
       "subcategory": "AKSESORIS",
-      "priceInstallment": 12500,
+      "priceInstallment": 188000,
       "dpMin": 15000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2553,15 +2435,13 @@
       ],
       "slug": "kabel-aki-saige",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 1083.3333333333333,
+      "priceInstallment": 188000,
       "dpMin": 1300,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2597,15 +2477,13 @@
       ],
       "slug": "kabel-federal-nym-2x1.5-mm-@30m",
       "subcategory": "AKSESORIS",
-      "priceInstallment": 1250,
+      "priceInstallment": 188000,
       "dpMin": 1500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2641,15 +2519,13 @@
       ],
       "slug": "kabel-supreme-nym-2x1.5",
       "subcategory": "AKSESORIS",
-      "priceInstallment": 1250,
+      "priceInstallment": 188000,
       "dpMin": 1500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2685,15 +2561,13 @@
       ],
       "slug": "kampas-rem-aurora",
       "subcategory": "AKSESORIS",
-      "priceInstallment": 12500,
+      "priceInstallment": 188000,
       "dpMin": 15000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2729,15 +2603,13 @@
       ],
       "slug": "kampas-rem-belakang-saige-m35",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 5833.333333333333,
+      "priceInstallment": 188000,
       "dpMin": 7000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2773,15 +2645,13 @@
       ],
       "slug": "kampas-rem-depan-saige-m35",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 3333.3333333333335,
+      "priceInstallment": 188000,
       "dpMin": 4000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2817,15 +2687,13 @@
       ],
       "slug": "kampas-rem-polaris",
       "subcategory": "AKSESORIS",
-      "priceInstallment": 12500,
+      "priceInstallment": 188000,
       "dpMin": 15000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2861,15 +2729,13 @@
       ],
       "slug": "kasur-busa-royal-foam-mediacare-ortho-120-x-200",
       "subcategory": "KASUR",
-      "priceInstallment": 125000,
+      "priceInstallment": 293000,
       "dpMin": 150000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2905,15 +2771,13 @@
       ],
       "slug": "kasur-gadjah-bali-23-cm-120-x-200",
       "subcategory": "SOFA",
-      "priceInstallment": 87500,
+      "priceInstallment": 234000,
       "dpMin": 105000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2949,15 +2813,13 @@
       ],
       "slug": "kasur-gadjah-bali-superbed-160x200-23-cm",
       "subcategory": "KASUR",
-      "priceInstallment": 112500,
+      "priceInstallment": 274000,
       "dpMin": 135000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -2993,15 +2855,13 @@
       ],
       "slug": "kettle-cosmos-ctl-618n",
       "subcategory": "BLENDER",
-      "priceInstallment": 15000,
+      "priceInstallment": 188000,
       "dpMin": 18000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3037,15 +2897,13 @@
       ],
       "slug": "kipas-angin-cosmos-12-lda",
       "subcategory": "KIPAS ANGIN",
-      "priceInstallment": 17500,
+      "priceInstallment": 188000,
       "dpMin": 21000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3081,15 +2939,13 @@
       ],
       "slug": "kipas-angin-cosmos-16-sn",
       "subcategory": "KIPAS ANGIN",
-      "priceInstallment": 26250,
+      "priceInstallment": 188000,
       "dpMin": 31500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3125,15 +2981,13 @@
       ],
       "slug": "kipas-angin-cosmos-16-wfc",
       "subcategory": "KIPAS ANGIN",
-      "priceInstallment": 22916.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 27500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3169,15 +3023,13 @@
       ],
       "slug": "kirin-air-fryer-4.5l-kaf---745",
       "subcategory": "AIR FRYER",
-      "priceInstallment": 83250,
+      "priceInstallment": 211000,
       "dpMin": 99900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3213,15 +3065,13 @@
       ],
       "slug": "kirin-knife-set-06-pp-kus-ks06",
       "subcategory": "PISAU",
-      "priceInstallment": 14583.333333333334,
+      "priceInstallment": 188000,
       "dpMin": 17500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3257,15 +3107,13 @@
       ],
       "slug": "kirin-rice-cooker-2.0-lt-krc-238-grey",
       "subcategory": "MAGIC COM",
-      "priceInstallment": 27500,
+      "priceInstallment": 188000,
       "dpMin": 33000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3301,15 +3149,13 @@
       ],
       "slug": "klakson-ego-plus",
       "subcategory": "AKSESORIS",
-      "priceInstallment": 4166.666666666667,
+      "priceInstallment": 188000,
       "dpMin": 5000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3345,15 +3191,13 @@
       ],
       "slug": "klakson-m35",
       "subcategory": "AKSESORIS",
-      "priceInstallment": 4166.666666666667,
+      "priceInstallment": 188000,
       "dpMin": 5000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3389,15 +3233,13 @@
       ],
       "slug": "kompor-gas-rinnai-ri-522-ce",
       "subcategory": "KOMPOR",
-      "priceInstallment": 35416.666666666664,
+      "priceInstallment": 188000,
       "dpMin": 42500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3433,15 +3275,13 @@
       ],
       "slug": "kulkas-1p-sharp-sj-n192d-vb",
       "subcategory": "KULKAS",
-      "priceInstallment": 179166.66666666666,
+      "priceInstallment": 357000,
       "dpMin": 215000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3477,15 +3317,13 @@
       ],
       "slug": "kulkas-aqua-aqr-d185-(mme)",
       "subcategory": "KULKAS",
-      "priceInstallment": 150000,
+      "priceInstallment": 314000,
       "dpMin": 180000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3521,15 +3359,13 @@
       ],
       "slug": "kulkas-aqua-aqr-d185-(mpe)",
       "subcategory": "KULKAS",
-      "priceInstallment": 154166.66666666666,
+      "priceInstallment": 320000,
       "dpMin": 185000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3565,15 +3401,13 @@
       ],
       "slug": "kulkas-changhong-cbc-100",
       "subcategory": "KULKAS",
-      "priceInstallment": 133333.33333333334,
+      "priceInstallment": 288000,
       "dpMin": 160000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3609,15 +3443,13 @@
       ],
       "slug": "kulkas-gea-mini-bar-inox-gmb-50",
       "subcategory": "KULKAS",
-      "priceInstallment": 108250,
+      "priceInstallment": 249000,
       "dpMin": 129900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3653,15 +3485,13 @@
       ],
       "slug": "kulkas-hisense-2-pintu-rt218n4ibn",
       "subcategory": "KULKAS",
-      "priceInstallment": 241666.66666666666,
+      "priceInstallment": 451000,
       "dpMin": 290000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3697,15 +3527,13 @@
       ],
       "slug": "kulkas-hisense-rr125d4ibn",
       "subcategory": "KULKAS",
-      "priceInstallment": 129166.66666666667,
+      "priceInstallment": 282000,
       "dpMin": 155000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3741,15 +3569,13 @@
       ],
       "slug": "kulkas-hisense-rr198d4ibn",
       "subcategory": "KULKAS",
-      "priceInstallment": 158333.33333333334,
+      "priceInstallment": 326000,
       "dpMin": 190000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3785,15 +3611,13 @@
       ],
       "slug": "kulkas-hisense-rt469n4iwu",
       "subcategory": "KULKAS",
-      "priceInstallment": 458333.3333333333,
+      "priceInstallment": 774000,
       "dpMin": 550000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3829,15 +3653,13 @@
       ],
       "slug": "kulkas-lg-gn-y201clar",
       "subcategory": "KULKAS",
-      "priceInstallment": 195833.33333333334,
+      "priceInstallment": 382000,
       "dpMin": 235000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3873,15 +3695,13 @@
       ],
       "slug": "kulkas-lg-gn-b202sqir",
       "subcategory": "KULKAS",
-      "priceInstallment": 291666.6666666667,
+      "priceInstallment": 525000,
       "dpMin": 350000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3918,15 +3738,13 @@
       ],
       "slug": "kulkas-mini-bar-hisense-rr68d4ign-43l-silver",
       "subcategory": "KULKAS",
-      "priceInstallment": 104166.66666666667,
+      "priceInstallment": 244000,
       "dpMin": 125000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -3962,15 +3780,13 @@
       ],
       "slug": "kulkas-sharp-sj-197nd-vb",
       "subcategory": "KULKAS",
-      "priceInstallment": 241666.66666666666,
+      "priceInstallment": 451000,
       "dpMin": 290000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4006,15 +3822,13 @@
       ],
       "slug": "kulkas-sharp-sj-237mg-dp",
       "subcategory": "KULKAS",
-      "priceInstallment": 262500,
+      "priceInstallment": 481000,
       "dpMin": 315000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4050,15 +3864,13 @@
       ],
       "slug": "kulkas-sharp-sj-n162d-sh/sb/sp",
       "subcategory": "KULKAS",
-      "priceInstallment": 154166.66666666666,
+      "priceInstallment": 320000,
       "dpMin": 185000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4094,15 +3906,13 @@
       ],
       "slug": "kulkas-sharp-sj-n192d-ab/ap",
       "subcategory": "KULKAS",
-      "priceInstallment": 179166.66666666666,
+      "priceInstallment": 357000,
       "dpMin": 215000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4138,15 +3948,13 @@
       ],
       "slug": "kulkas-sharp-sj-x165mg",
       "subcategory": "KULKAS",
-      "priceInstallment": 154166.66666666666,
+      "priceInstallment": 320000,
       "dpMin": 185000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4182,15 +3990,13 @@
       ],
       "slug": "kursi-teras-af-001",
       "subcategory": "KURSI",
-      "priceInstallment": 95833.33333333333,
+      "priceInstallment": 232000,
       "dpMin": 115000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4226,15 +4032,13 @@
       ],
       "slug": "lampu-sein-saige-m35-belakang",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 5000,
+      "priceInstallment": 188000,
       "dpMin": 6000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4270,15 +4074,13 @@
       ],
       "slug": "lampu-sein-saige-m35-depan",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 5000,
+      "priceInstallment": 188000,
       "dpMin": 6000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4314,15 +4116,13 @@
       ],
       "slug": "lem-duct-tape-lem-adhesive-du",
       "subcategory": "AC",
-      "priceInstallment": 1250,
+      "priceInstallment": 188000,
       "dpMin": 1500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4358,15 +4158,13 @@
       ],
       "slug": "lem-duct-tape-non-adhesive-du",
       "subcategory": "AC",
-      "priceInstallment": 833.3333333333334,
+      "priceInstallment": 188000,
       "dpMin": 1000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4402,15 +4200,13 @@
       ],
       "slug": "lemari-arsip-kabinet-importa-sc-04ms",
       "subcategory": "LEMARI",
-      "priceInstallment": 154166.66666666666,
+      "priceInstallment": 340000,
       "dpMin": 185000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4446,15 +4242,13 @@
       ],
       "slug": "lemari-besi-anak-2p-importa-lcs-s02-b56-fm-90-cm",
       "subcategory": "LEMARI",
-      "priceInstallment": 158333.33333333334,
+      "priceInstallment": 346000,
       "dpMin": 190000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4490,15 +4284,13 @@
       ],
       "slug": "magicom-cosmos-crj-3307",
       "subcategory": "MAGIC COM",
-      "priceInstallment": 24166.666666666668,
+      "priceInstallment": 188000,
       "dpMin": 29000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4534,15 +4326,13 @@
       ],
       "slug": "megan-coffee-table-black-set",
       "subcategory": "MEJA",
-      "priceInstallment": 83250,
+      "priceInstallment": 224000,
       "dpMin": 99900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4578,15 +4368,13 @@
       ],
       "slug": "meja-makan-bulat-miami-4p",
       "subcategory": "MEJA",
-      "priceInstallment": 208250,
+      "priceInstallment": 423000,
       "dpMin": 249900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4622,15 +4410,13 @@
       ],
       "slug": "meja-tamu-306-b",
       "subcategory": "MEJA",
-      "priceInstallment": 50000,
+      "priceInstallment": 200000,
       "dpMin": 60000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4666,15 +4452,13 @@
       ],
       "slug": "mesin-cuci-aqua-qw-8031-ht",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 133333.33333333334,
+      "priceInstallment": 288000,
       "dpMin": 160000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4711,15 +4495,13 @@
       ],
       "slug": "mesin-cuci-aqua-qw-9031ht",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 150000,
+      "priceInstallment": 314000,
       "dpMin": 180000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4756,15 +4538,13 @@
       ],
       "slug": "mesin-cuci-hisense-ws80sk10",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 125000,
+      "priceInstallment": 276000,
       "dpMin": 150000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4801,15 +4581,13 @@
       ],
       "slug": "mesin-cuci-hisense-ws90sk10",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 141666.66666666666,
+      "priceInstallment": 302000,
       "dpMin": 170000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4846,15 +4624,13 @@
       ],
       "slug": "mesin-cuci-hisense-wshs1013ub",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 162500,
+      "priceInstallment": 332000,
       "dpMin": 195000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4891,15 +4667,13 @@
       ],
       "slug": "mesin-cuci-hisense-wshs1213ub",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 187500,
+      "priceInstallment": 370000,
       "dpMin": 225000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4936,15 +4710,13 @@
       ],
       "slug": "mesin-cuci-lg-p1000rt",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 241666.66666666666,
+      "priceInstallment": 451000,
       "dpMin": 290000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -4981,15 +4753,13 @@
       ],
       "slug": "mesin-cuci-lg-p-1200rt",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 270833.3333333333,
+      "priceInstallment": 495000,
       "dpMin": 325000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5026,15 +4796,13 @@
       ],
       "slug": "mesin-cuci-lg-p7000n",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 208333.33333333334,
+      "priceInstallment": 401000,
       "dpMin": 250000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5071,15 +4839,13 @@
       ],
       "slug": "mesin-cuci-lg-p8000n",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 225000,
+      "priceInstallment": 425000,
       "dpMin": 270000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5116,15 +4882,13 @@
       ],
       "slug": "mesin-cuci-lg-p9050rtb",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 233333.33333333334,
+      "priceInstallment": 438000,
       "dpMin": 280000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5161,15 +4925,13 @@
       ],
       "slug": "mesin-cuci-polytron-pwm-1076",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 179166.66666666666,
+      "priceInstallment": 357000,
       "dpMin": 215000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5206,15 +4968,13 @@
       ],
       "slug": "mesin-cuci-polytron-pwm-7073-p",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 133333.33333333334,
+      "priceInstallment": 288000,
       "dpMin": 160000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5251,15 +5011,13 @@
       ],
       "slug": "mesin-cuci-polytron-pwm-8072",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 141666.66666666666,
+      "priceInstallment": 302000,
       "dpMin": 170000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5296,15 +5054,13 @@
       ],
       "slug": "mesin-cuci-polytron-pwm-9076",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 158333.33333333334,
+      "priceInstallment": 326000,
       "dpMin": 190000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5341,15 +5097,13 @@
       ],
       "slug": "mesin-cuci-rsa-10kg-wm-tt100",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 141666.66666666666,
+      "priceInstallment": 302000,
       "dpMin": 170000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5386,15 +5140,13 @@
       ],
       "slug": "mesin-cuci-rsa-7kg-wm-tt70",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 108333.33333333333,
+      "priceInstallment": 252000,
       "dpMin": 130000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5431,15 +5183,13 @@
       ],
       "slug": "mesin-cuci-rsa-8kg-wm-tt80",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 116666.66666666667,
+      "priceInstallment": 264000,
       "dpMin": 140000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5476,15 +5226,13 @@
       ],
       "slug": "mesin-cuci-sharp-es-t1090-vk/pk",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 208250,
+      "priceInstallment": 398000,
       "dpMin": 249900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5521,15 +5269,13 @@
       ],
       "slug": "mesin-cuci-sharp-es-t1290wa",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 254166.66666666666,
+      "priceInstallment": 469000,
       "dpMin": 305000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5566,15 +5312,13 @@
       ],
       "slug": "mesin-cuci-sharp-es-t70mw-bl",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 125000,
+      "priceInstallment": 276000,
       "dpMin": 150000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5611,15 +5355,13 @@
       ],
       "slug": "mesin-cuci-sharp-es-t80mw",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 137500,
+      "priceInstallment": 294000,
       "dpMin": 165000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5656,15 +5398,13 @@
       ],
       "slug": "mesin-cuci-sharp-es-t90mw",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 164583.33333333334,
+      "priceInstallment": 335000,
       "dpMin": 197500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5701,15 +5441,13 @@
       ],
       "slug": "mesin-cuci-sharp-es-t90mw-pk",
       "subcategory": "MESIN CUCI",
-      "priceInstallment": 164583.33333333334,
+      "priceInstallment": 335000,
       "dpMin": 197500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5745,15 +5483,13 @@
       ],
       "slug": "rem-kanan-saige-luna",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 18333.333333333332,
+      "priceInstallment": 188000,
       "dpMin": 22000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5789,15 +5525,13 @@
       ],
       "slug": "rsa-showcase-ruby-200",
       "subcategory": "SHOWCASE",
-      "priceInstallment": 275000,
+      "priceInstallment": 501000,
       "dpMin": 330000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5833,15 +5567,13 @@
       ],
       "slug": "sadle-depan-saige-ego-plus",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 5416.666666666667,
+      "priceInstallment": 188000,
       "dpMin": 6500,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5877,15 +5609,13 @@
       ],
       "slug": "samsung-galaxy-a17-5g-8/256-black",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 308250,
+      "priceInstallment": 548000,
       "dpMin": 369900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5921,15 +5651,13 @@
       ],
       "slug": "samsung-galaxy-a17-lte-8/256-gb-black",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 283250,
+      "priceInstallment": 510000,
       "dpMin": 339900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -5965,15 +5693,13 @@
       ],
       "slug": "samsung-galaxy-a36-5g-8/256-gb-awesome-black",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 433333.3333333333,
+      "priceInstallment": 738000,
       "dpMin": 520000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6009,15 +5735,13 @@
       ],
       "slug": "samsung-galaxy-a36-5g-8/256-gb-awesome-lavender",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 433333.3333333333,
+      "priceInstallment": 738000,
       "dpMin": 520000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6053,15 +5777,13 @@
       ],
       "slug": "samsung-galaxy-a36-5g-8/256-gb-awesome-white",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 475000,
+      "priceInstallment": 800000,
       "dpMin": 570000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6097,15 +5819,13 @@
       ],
       "slug": "samsung-galaxy-a56-5g-8/256-gb-awesome-graphite",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 516666.6666666667,
+      "priceInstallment": 862000,
       "dpMin": 620000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6141,15 +5861,13 @@
       ],
       "slug": "samsung-galaxy-a56-5g-8/256-gb-awesome-olive",
       "subcategory": "HANDPHONE",
-      "priceInstallment": 525000,
+      "priceInstallment": 874000,
       "dpMin": 630000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6185,15 +5903,13 @@
       ],
       "slug": "samsung-smart-tv-ua32h5000fklxd",
       "subcategory": "TV",
-      "priceInstallment": 204166.66666666666,
+      "priceInstallment": 395000,
       "dpMin": 245000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6229,15 +5945,13 @@
       ],
       "slug": "selis-grobak-pujasera3-fiber-c",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 1416666.6666666667,
+      "priceInstallment": 2209000,
       "dpMin": 1700000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6273,15 +5987,13 @@
       ],
       "slug": "sepeda-listrik-goda-118-hitam",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 333333.3333333333,
+      "priceInstallment": 587000,
       "dpMin": 400000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6317,15 +6029,13 @@
       ],
       "slug": "sepeda-listrik-goda-118-merah",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 333333.3333333333,
+      "priceInstallment": 587000,
       "dpMin": 400000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6361,15 +6071,13 @@
       ],
       "slug": "sepeda-listrik-goda-118-putih",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 333333.3333333333,
+      "priceInstallment": 587000,
       "dpMin": 400000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6405,15 +6113,13 @@
       ],
       "slug": "sepeda-listrik-goda-122-abu",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 375000,
+      "priceInstallment": 650000,
       "dpMin": 450000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6449,15 +6155,13 @@
       ],
       "slug": "sepeda-listrik-goda-150a-abu",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 375000,
+      "priceInstallment": 650000,
       "dpMin": 450000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6493,15 +6197,13 @@
       ],
       "slug": "sepeda-listrik-goda-199-max-c-rrq",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 1100000,
+      "priceInstallment": 1735000,
       "dpMin": 1320000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6537,15 +6239,13 @@
       ],
       "slug": "sepeda-listrik-nuv-f1-spiva-biru",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 350000,
+      "priceInstallment": 613000,
       "dpMin": 420000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6581,15 +6281,13 @@
       ],
       "slug": "sepeda-listrik-nuv-f1-spiva-hijau",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 350000,
+      "priceInstallment": 613000,
       "dpMin": 420000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6625,15 +6323,13 @@
       ],
       "slug": "sepeda-listrik-nuv-f1-spiva-ungu",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 350000,
+      "priceInstallment": 613000,
       "dpMin": 420000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6669,15 +6365,13 @@
       ],
       "slug": "sepeda-listrik-saige-luna",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 566666.6666666666,
+      "priceInstallment": 937000,
       "dpMin": 680000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6713,15 +6407,13 @@
       ],
       "slug": "sepeda-listrik-selis-retro-coklat",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 1650000,
+      "priceInstallment": 2558000,
       "dpMin": 1980000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6757,15 +6449,13 @@
       ],
       "slug": "sepeda-listrik-soloz-g-l18-hijau",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 474916.6666666667,
+      "priceInstallment": 797000,
       "dpMin": 569900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6801,15 +6491,13 @@
       ],
       "slug": "sepeda-listrik-u-winfly-d65-pink",
       "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 383333.3333333333,
+      "priceInstallment": 663000,
       "dpMin": 460000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6845,15 +6533,13 @@
       ],
       "slug": "setrika-cosmos-ci-3110cm",
       "subcategory": "SETRIKA",
-      "priceInstallment": 13333.333333333334,
+      "priceInstallment": 188000,
       "dpMin": 16000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6889,15 +6575,13 @@
       ],
       "slug": "setrika-cosmos-cis-318",
       "subcategory": "SETRIKA",
-      "priceInstallment": 12500,
+      "priceInstallment": 188000,
       "dpMin": 15000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6933,15 +6617,13 @@
       ],
       "slug": "sharp-led-tv-2t-c32gh3000i",
       "subcategory": "TV",
-      "priceInstallment": 208333.33333333334,
+      "priceInstallment": 401000,
       "dpMin": 250000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -6977,15 +6659,13 @@
       ],
       "slug": "sharp-led-tv-2t-c32gh3000i",
       "subcategory": "TV",
-      "priceInstallment": 208333.33333333334,
+      "priceInstallment": 401000,
       "dpMin": 250000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7021,15 +6701,13 @@
       ],
       "slug": "showcase-rsa-agate-200",
       "subcategory": "SHOWCASE",
-      "priceInstallment": 266666.6666666667,
+      "priceInstallment": 487000,
       "dpMin": 320000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7065,15 +6743,13 @@
       ],
       "slug": "showcase-rsa-agate-240r",
       "subcategory": "SHOWCASE",
-      "priceInstallment": 291666.6666666667,
+      "priceInstallment": 525000,
       "dpMin": 350000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7109,15 +6785,13 @@
       ],
       "slug": "showcase-rsa-agate-300r",
       "subcategory": "SHOWCASE",
-      "priceInstallment": 333250,
+      "priceInstallment": 584000,
       "dpMin": 399900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7153,15 +6827,13 @@
       ],
       "slug": "showcase-rsa-ruby240",
       "subcategory": "SHOWCASE",
-      "priceInstallment": 300000,
+      "priceInstallment": 537000,
       "dpMin": 360000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7197,15 +6869,13 @@
       ],
       "slug": "sofa-minimalis-221-+-meja-coklat-corak",
       "subcategory": "SOFA",
-      "priceInstallment": 250000,
+      "priceInstallment": 492000,
       "dpMin": 300000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7241,15 +6911,13 @@
       ],
       "slug": "soundbar-jbl-cinema-550",
       "subcategory": "SPEAKER",
-      "priceInstallment": 262500,
+      "priceInstallment": 481000,
       "dpMin": 315000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7285,15 +6953,13 @@
       ],
       "slug": "speaker-aktiv-sharp-cbox-d1280cb",
       "subcategory": "SPEAKER",
-      "priceInstallment": 200000,
+      "priceInstallment": 388000,
       "dpMin": 240000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7329,15 +6995,13 @@
       ],
       "slug": "speaker-hardwell-12-pro",
       "subcategory": "SPEAKER",
-      "priceInstallment": 333250,
+      "priceInstallment": 584000,
       "dpMin": 399900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7373,15 +7037,13 @@
       ],
       "slug": "speaker-niko-megabox-12",
       "subcategory": "SPEAKER",
-      "priceInstallment": 287500,
+      "priceInstallment": 519000,
       "dpMin": 345000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7417,15 +7079,13 @@
       ],
       "slug": "speaker-niko-oxxo-8",
       "subcategory": "SPEAKER",
-      "priceInstallment": 129166.66666666667,
+      "priceInstallment": 282000,
       "dpMin": 155000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7461,15 +7121,13 @@
       ],
       "slug": "speaker-niko-pt-1202",
       "subcategory": "SPEAKER",
-      "priceInstallment": 104166.66666666667,
+      "priceInstallment": 244000,
       "dpMin": 125000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7505,15 +7163,13 @@
       ],
       "slug": "speaker-niko-wt10b",
       "subcategory": "SPEAKER",
-      "priceInstallment": 104166.66666666667,
+      "priceInstallment": 244000,
       "dpMin": 125000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7549,15 +7205,13 @@
       ],
       "slug": "speaker-niko-wt6a",
       "subcategory": "SPEAKER",
-      "priceInstallment": 91583.33333333333,
+      "priceInstallment": 223000,
       "dpMin": 109900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7593,15 +7247,13 @@
       ],
       "slug": "speaker-niko-wtd-10a",
       "subcategory": "SPEAKER",
-      "priceInstallment": 133250,
+      "priceInstallment": 285000,
       "dpMin": 159900,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7637,15 +7289,13 @@
       ],
       "slug": "speaker-polytron-pas-10df22",
       "subcategory": "SPEAKER",
-      "priceInstallment": 258333.33333333334,
+      "priceInstallment": 475000,
       "dpMin": 310000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7681,15 +7331,13 @@
       ],
       "slug": "speaker-polytron-pas-pr012f3",
       "subcategory": "SPEAKER",
-      "priceInstallment": 250000,
+      "priceInstallment": 463000,
       "dpMin": 300000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7725,15 +7373,13 @@
       ],
       "slug": "speaker-polytron-pas-pro15f3",
       "subcategory": "SPEAKER",
-      "priceInstallment": 275000,
+      "priceInstallment": 501000,
       "dpMin": 330000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7769,15 +7415,13 @@
       ],
       "slug": "speaker-wireless-hupper-jl-10",
       "subcategory": "SPEAKER",
-      "priceInstallment": 300000,
+      "priceInstallment": 537000,
       "dpMin": 360000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7813,15 +7457,13 @@
       ],
       "slug": "speaker-wireless-hupper-jl-15",
       "subcategory": "SPEAKER",
-      "priceInstallment": 458333.3333333333,
+      "priceInstallment": 774000,
       "dpMin": 550000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7857,15 +7499,13 @@
       ],
       "slug": "stop-kontak-saige",
       "subcategory": "SPAREPART SELIS",
-      "priceInstallment": 1666.6666666666667,
+      "priceInstallment": 188000,
       "dpMin": 2000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7901,15 +7541,13 @@
       ],
       "slug": "tv-hisense-32e4h",
       "subcategory": "TV",
-      "priceInstallment": 158333.33333333334,
+      "priceInstallment": 326000,
       "dpMin": 190000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7945,15 +7583,13 @@
       ],
       "slug": "tv-hisense-65a6q",
       "subcategory": "TV",
-      "priceInstallment": 650000,
+      "priceInstallment": 1061000,
       "dpMin": 780000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -7989,15 +7625,13 @@
       ],
       "slug": "tv-hisense-75a65n",
       "subcategory": "TV",
-      "priceInstallment": 958333.3333333334,
+      "priceInstallment": 1523000,
       "dpMin": 1150000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -8033,15 +7667,13 @@
       ],
       "slug": "tv-hisense-samrt-tv-50a65n",
       "subcategory": "TV",
-      "priceInstallment": 366666.6666666667,
+      "priceInstallment": 638000,
       "dpMin": 440000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -8077,15 +7709,13 @@
       ],
       "slug": "tv-lg-32lr600bpsb",
       "subcategory": "TV",
-      "priceInstallment": 191666.66666666666,
+      "priceInstallment": 376000,
       "dpMin": 230000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -8121,15 +7751,13 @@
       ],
       "slug": "tv-lg-smart-tv-43ua7500psa",
       "subcategory": "TV",
-      "priceInstallment": 316666.6666666667,
+      "priceInstallment": 563000,
       "dpMin": 380000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -8165,15 +7793,13 @@
       ],
       "slug": "tv-toshiba-32s25kp",
       "subcategory": "TV",
-      "priceInstallment": 150000,
+      "priceInstallment": 314000,
       "dpMin": 180000,
       "images": [
         ""
       ],
       "badge": "New",
       "badgeText": "Produk Terlaris",
-      "rating": 4.8,
-      "reviewCount": 120,
       "stock": "available",
       "colors": [
         "Hitam",
@@ -8182,46 +7808,8 @@
       ]
     }
   ],
-  "promos": [
-    {
-      "id": "promo-lebaran",
-      "title": "Promo Lebaran",
-      "subtitle": "Diskon hingga 50%",
-      "description": "Rayakan lebaran dengan produk baru",
-      "discount": 20,
-      "originalPrice": 5000000,
-      "promoPrice": 4000000,
-      "image": "https://api.dicebear.com/7.x/shapes/svg?seed=lebaran",
-      "badge": "Terbatas",
-      "validUntil": "2026-05-30",
-      "category": "Elektronik",
-      "variant": "Special",
-      "productIds": [
-        "p1",
-        "p3"
-      ]
-    }
-  ],
-  "blogPosts": [
-    {
-      "id": "blog-1",
-      "slug": "tips-merawat-sepeda-listrik",
-      "title": "Tips Merawat Sepeda Listrik",
-      "excerpt": "Cara agar baterai awet...",
-      "author": "Admin Tridjaya",
-      "author_role": "Editor",
-      "author_image": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin",
-      "hero_image": "https://api.dicebear.com/7.x/shapes/svg?seed=blog1",
-      "category": "Tips",
-      "tags": [
-        "Sepeda Listrik",
-        "Maintenance"
-      ],
-      "publishedAt": "2025-04-28T00:00:00.000Z",
-      "readTime": 5,
-      "featured": true
-    }
-  ],
+  "promos": [],
+  "blogPosts": [],
   "jobListings": [
     {
       "id": "job-1",
@@ -23124,68 +22712,6 @@
       "leads": 0,
       "is_active": true,
       "created_at": "2025-04-28T00:00:00.000Z"
-    }
-  ],
-  "support_tickets": [
-    {
-      "id": "ticket-agt-001",
-      "agent_id": "agt-001",
-      "subject": "Kendala Pencairan Komisi",
-      "message": "Halo admin, saya ingin menanyakan status komisi saya.",
-      "priority": "medium",
-      "status": "closed",
-      "created_at": "2025-11-13T12:55:28.409Z",
-      "updated_at": "2026-04-28T00:00:00.000Z"
-    },
-    {
-      "id": "ticket-agt-003",
-      "agent_id": "agt-003",
-      "subject": "Kendala Pencairan Komisi",
-      "message": "Halo admin, saya ingin menanyakan status komisi saya.",
-      "priority": "medium",
-      "status": "closed",
-      "created_at": "2025-09-05T14:43:12.491Z",
-      "updated_at": "2026-04-28T00:00:00.000Z"
-    },
-    {
-      "id": "ticket-agt-005",
-      "agent_id": "agt-005",
-      "subject": "Kendala Pencairan Komisi",
-      "message": "Halo admin, saya ingin menanyakan status komisi saya.",
-      "priority": "medium",
-      "status": "closed",
-      "created_at": "2025-11-13T22:28:10.250Z",
-      "updated_at": "2026-04-28T00:00:00.000Z"
-    },
-    {
-      "id": "ticket-agt-006",
-      "agent_id": "agt-006",
-      "subject": "Kendala Pencairan Komisi",
-      "message": "Halo admin, saya ingin menanyakan status komisi saya.",
-      "priority": "medium",
-      "status": "open",
-      "created_at": "2025-11-26T16:04:28.560Z",
-      "updated_at": "2026-04-28T00:00:00.000Z"
-    },
-    {
-      "id": "ticket-agt-009",
-      "agent_id": "agt-009",
-      "subject": "Kendala Pencairan Komisi",
-      "message": "Halo admin, saya ingin menanyakan status komisi saya.",
-      "priority": "medium",
-      "status": "open",
-      "created_at": "2025-10-17T06:05:27.103Z",
-      "updated_at": "2026-04-28T00:00:00.000Z"
-    },
-    {
-      "id": "ticket-agt-013",
-      "agent_id": "agt-013",
-      "subject": "Kendala Pencairan Komisi",
-      "message": "Halo admin, saya ingin menanyakan status komisi saya.",
-      "priority": "medium",
-      "status": "closed",
-      "created_at": "2025-06-01T13:35:53.374Z",
-      "updated_at": "2026-04-28T00:00:00.000Z"
     }
   ],
   "notifications": [

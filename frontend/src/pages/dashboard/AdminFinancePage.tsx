@@ -249,7 +249,7 @@ const AdminFinancePage: React.FC = () => {
           </div>
           <div className="h-56 min-h-[224px] min-w-0">
             {chartReady && commissionByArea.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={commissionByArea} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#484847" horizontal={false} />
                   <XAxis type="number" stroke="#ADAAAA" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />

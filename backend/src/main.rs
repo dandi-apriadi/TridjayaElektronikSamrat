@@ -31,12 +31,10 @@ async fn main() {
         .await
         .expect("Failed to run migrations");
 
-    // Seed Data (Commented out to prevent re-seeding after cleanup)
-    /*
+    // Seed Data
     if let Err(e) = seed_database(&pool).await {
         tracing::error!("Failed to seed database: {}", e);
     }
-    */
 
     // Diagnostic: Check if columns exist
     match sqlx::query("PRAGMA table_info(agent_registrations)").fetch_all(&pool).await {

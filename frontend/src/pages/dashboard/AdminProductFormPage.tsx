@@ -42,7 +42,7 @@ const AdminProductFormPage: React.FC = () => {
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '',
     slug: '',
-    category: '',
+    category: undefined,
     subcategory: '',
     price: 0,
     priceInstallment: 0,
@@ -343,7 +343,7 @@ const AdminProductFormPage: React.FC = () => {
       const payload = parsed.data;
       if (isEditMode) {
         const success = await updateProduct(id!, {
-          ...formData, // Keep existing fields like rating, reviewCount
+          ...formData,
           ...payload,
           subcategory: payload.subcategory || 'Umum'
         } as Product);
@@ -356,9 +356,7 @@ const AdminProductFormPage: React.FC = () => {
         const success = await createProduct({ 
           ...payload, 
           id: newId,
-          subcategory: payload.subcategory || 'Umum',
-          rating: 5,
-          reviewCount: 0 
+          subcategory: payload.subcategory || 'Umum'
         } as Product);
         if (success) {
           toast.success('Produk berhasil ditambahkan');

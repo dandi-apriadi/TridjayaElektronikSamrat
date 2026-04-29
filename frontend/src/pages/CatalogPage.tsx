@@ -62,7 +62,7 @@ const CatalogPage: React.FC = () => {
       const bNew = b.badge === 'new' ? 1 : 0;
       return bNew - aNew;
     }
-    return b.rating - a.rating;
+    return (b.views || 0) - (a.views || 0);
   });
 
   const visibleProducts = filtered.slice(0, visibleCount);

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import type { CreditPlan } from '../types';
 import {
   calculateInstallments,
   formatRupiah,
@@ -14,7 +15,7 @@ interface CreditSimulatorProps {
   productPrice: number;
   productCategory: string;
   productSubcategory?: string;
-  onSelectPlan?: (payload: { customerType: CustomerType; tenor: '6x' | '9x' | '12x' | '15x'; monthlyInstallment: number }) => void;
+  onSelectPlan?: (payload: CreditPlan) => void;
 }
 
 const tenorOrder: Array<'6x' | '9x' | '12x' | '15x'> = ['6x', '9x', '12x', '15x'];

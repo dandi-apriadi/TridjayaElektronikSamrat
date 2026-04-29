@@ -14,12 +14,14 @@ import Pagination from '../../components/ui/Pagination';
 import { useAgentStore } from '../../store/useAgentStore';
 import { useAuthStore } from '../../store/authStore';
 import { getClaimRewardValue } from '../../utils/claimRewards';
+import { useSearchParams } from 'react-router-dom';
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AgentEarningsPage: React.FC = () => {
   const { claims, fetchClaims, createClaim } = useAgentStore();
+  const [searchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -33,6 +35,15 @@ const AgentEarningsPage: React.FC = () => {
   useEffect(() => {
     fetchClaims();
   }, [fetchClaims]);
+
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) {
+      // If we have an ID, we could automatically search for it or filter
+      // For now let's just make sure it's visible if possible
+      // (The transaction ID in this page is formatted CLM-000x)
+    }
+  }, [searchParams]);
 
   const completedClaims = claims.filter((claim) => claim.status === 'completed').length;
   const pendingClaims = claims.filter((claim) => claim.status === 'pending' || claim.status === 'processing').length;
@@ -321,7 +332,7 @@ const AgentEarningsPage: React.FC = () => {
           </div>
         </div>
         <div className="h-[220px] mt-4">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart data={earningHistory}>
               <defs>
                 <linearGradient id="gradKomisi" x1="0" y1="0" x2="0" y2="1">

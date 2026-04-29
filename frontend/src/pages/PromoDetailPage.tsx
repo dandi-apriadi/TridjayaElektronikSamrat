@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Zap, ArrowRight, Star, Shield, Info } from 'lucide-react';
+import { ArrowLeft, Clock, Zap, ArrowRight, Shield, Info } from 'lucide-react';
 import { formatPrice } from '../data';
 import { SectionHeader } from '../components/ui';
 import { usePromoStore } from '../store/usePromoStore';
@@ -204,10 +204,6 @@ const PromoDetailPage: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="absolute top-6 right-6 flex items-center gap-1.5 px-3 py-1.5 glass-card rounded-xl text-label-sm font-bold text-on-surface">
-                        <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
-                        {product.rating}
-                      </div>
                     </div>
 
                     <div className="p-8 flex flex-col flex-1">

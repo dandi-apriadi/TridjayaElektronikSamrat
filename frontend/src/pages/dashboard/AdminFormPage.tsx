@@ -31,7 +31,7 @@ const AdminFormPage: React.FC = () => {
   const { promos, fetchPromos } = usePromoStore();
   const { posts, fetchPosts } = useBlogStore();
   const { users, fetchUsers, createUser, updateUser, resendVerification, verifyUser } = useUserStore();
-  const { agents, fetchAgents, leads: adminLeads, fetchLeads } = useAdminNetworkStore();
+  const { agents, fetchAgents, leads: adminLeads, fetchLeads, agentPerformance, fetchAgentPerformance } = useAdminNetworkStore();
   const currentUser = useMemo(() => users.find((item) => item.id === id), [id, users]);
 
   useEffect(() => {
@@ -49,6 +49,7 @@ const AdminFormPage: React.FC = () => {
       fetchUsers();
       fetchAgents();
       fetchLeads();
+      if (id) fetchAgentPerformance(id);
     }
   }, [fetchPosts, fetchProducts, fetchPromos, fetchUsers, type]);
   const [activeTab, setActiveTab] = useState<string>('details');
@@ -112,15 +113,17 @@ const AdminFormPage: React.FC = () => {
 
       // For users/agents, try to show real lead activity if it's an agent
       if (type === 'user' && currentUser?.role === 'agent') {
-        const userLeads = adminLeads.filter(l => l.agentId === id);
-        const dailyLeads = userLeads.filter(l => l.createdAt?.split('T')[0] === dateStr).length;
-        // Mocking some views for visual effect, but leads are real
-        return { day, views: dailyLeads * 15 + (age % 3) * 5, clicks: dailyLeads };
+        const perf = agentPerformance.find(p => p.date === dateStr);
+        return { 
+          day, 
+          views: perf ? perf.activity : 0, 
+          clicks: perf ? perf.leads : 0 
+        };
       }
 
       return { day, views: userCount * 12 + age * 5, clicks: users.filter((item) => item.is_active).length * 8 + age * 2 };
     });
-  }, [posts, products, promos, type, users, currentUser, adminLeads, id]);
+  }, [posts, products, promos, type, users, currentUser, adminLeads, id, agentPerformance]);
 
   useEffect(() => {
     if (type !== 'user') return;
@@ -240,7 +243,7 @@ const AdminFormPage: React.FC = () => {
 
 
   return (
-    <motion.div variants={cv} initial="hidden" animate="visible" className="max-w-4xl mx-auto space-y-6">
+    <motion.div variants={cv} initial="hidden" animate="visible" className="w-full space-y-6">
       {/* Header */}
       <motion.div variants={iv} className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -404,8 +407,8 @@ const AdminFormPage: React.FC = () => {
                   Informasi Utama
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-1.5 md:col-span-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
                     <label className="text-label-sm text-on-surface-variant font-semibold">Nama {config.title} *</label>
                     <input
                       required
@@ -450,7 +453,7 @@ const AdminFormPage: React.FC = () => {
                     Varian & Media
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     <div className="space-y-1.5">
                       <label className="text-label-sm text-on-surface-variant font-semibold">Pilih Warna / Varian</label>
                       <div className="flex gap-2 mb-2 flex-wrap">
@@ -577,7 +580,7 @@ const AdminFormPage: React.FC = () => {
                   Harga & Simulasi Kredit
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   <div className="space-y-1.5">
                     <label className="text-label-sm text-on-surface-variant font-semibold">Harga OTR (Cash) *</label>
                     <div className="relative">
@@ -642,7 +645,7 @@ const AdminFormPage: React.FC = () => {
 
           {/* User / Promo specific details if needed (shown when tab is details and type matches) */}
           {activeTab === 'details' && type === 'user' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-outline-variant/10 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 border-t border-outline-variant/10 pt-6">
               <div className="space-y-1.5">
                 <label className="text-label-sm text-on-surface-variant font-semibold">Email Pengguna *</label>
                 <input
@@ -702,7 +705,7 @@ const AdminFormPage: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-1.5 md:col-span-2">
+              <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
                 <label className="text-label-sm text-on-surface-variant font-semibold">Status Akun</label>
                 <div className="flex gap-3">
                   <select
@@ -724,7 +727,7 @@ const AdminFormPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1.5 md:col-span-2">
+              <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
                 <label className="text-label-sm text-on-surface-variant font-semibold">Verifikasi Email</label>
                 <div className="flex items-center gap-3 p-4 bg-surface-high border border-outline-variant/20 rounded-xl">
                   {isVerified ? (
@@ -827,7 +830,7 @@ const AdminFormPage: React.FC = () => {
             </div>
             
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <AreaChart data={insightData}>
                   <defs>
                     <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">

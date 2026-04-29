@@ -45,6 +45,7 @@ interface UserStoreState {
   resendVerification: (id: string) => Promise<boolean>;
   updateUserStatus: (id: string, isActive: boolean) => Promise<boolean>;
   resetUserPassword: (id: string, password: string) => Promise<boolean>;
+  deleteUser: (id: string) => Promise<boolean>;
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
@@ -185,6 +186,25 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         throw new Error('Gagal mereset kata sandi user');
       }
 
+      return true;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });
+      return false;
+    }
+  },
+  deleteUser: async (id) => {
+    try {
+      const response = await apiFetch(`/api/users/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const errorMsg = errorData?.message || errorData?.errors?.[0] || 'Gagal menghapus user';
+        throw new Error(errorMsg);
+      }
+
+      await useUserStore.getState().fetchUsers(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' });

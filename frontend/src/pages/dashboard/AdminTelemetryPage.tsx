@@ -147,7 +147,7 @@ const AdminTelemetryPage: React.FC = () => {
             ))}
           </div>
           <div className="h-[240px] w-full min-h-[240px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <LineChart data={trafficData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
@@ -169,7 +169,7 @@ const AdminTelemetryPage: React.FC = () => {
             <p className="text-label-sm text-on-surface-variant mt-0.5">Tren 6 bulan terakhir</p>
           </div>
           <div className="h-[200px] w-full min-h-[200px] flex-1">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={monthlyPageViews}>
                 <defs>
                   <linearGradient id="pvGrad" x1="0" y1="0" x2="0" y2="1">
@@ -276,8 +276,16 @@ const AdminTelemetryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {topContentRows.map((row) => {
-                const conf = contentTypeConfig[row.contentType] || contentTypeConfig.page;
+              {topContentRows.map((row: {
+                contentType?: string;
+                contentKey: string;
+                contentTitle: string;
+                views: number;
+                clicks: number;
+                leads: number;
+              }) => {
+                const contentType = row.contentType ?? 'page';
+                const conf = contentTypeConfig[contentType] || contentTypeConfig.page;
                 return (
                   <tr key={row.contentKey} className="border-b border-outline-variant/5 last:border-0 hover:bg-surface-high/30 transition-colors">
                     <td className="py-3 pr-4">

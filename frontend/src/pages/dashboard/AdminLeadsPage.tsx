@@ -10,6 +10,7 @@ import {
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
+import { useSearchParams } from 'react-router-dom';
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
   'Follow Up':      { cls: 'bg-primary/15 text-primary',      dot: 'bg-primary' },
@@ -27,6 +28,7 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
 const AdminLeadsPage: React.FC = () => {
   const { leads, fetchLeads, updateLeadStatus, isLoading } = useAdminNetworkStore();
+  const [searchParams]            = useSearchParams();
   const [search, setSearch]       = useState('');
   const [filterStatus, setFilter] = useState('Semua');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -36,6 +38,13 @@ const AdminLeadsPage: React.FC = () => {
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) {
+      setSearch(id);
+    }
+  }, [searchParams]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

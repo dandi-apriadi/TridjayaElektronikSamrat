@@ -24,8 +24,6 @@ CREATE TABLE IF NOT EXISTS products (
     images TEXT, -- JSON array of strings
     badge TEXT,
     badge_text TEXT,
-    rating REAL DEFAULT 4.5,
-    review_count INTEGER DEFAULT 0,
     short_desc TEXT,
     description TEXT,
     specs TEXT, -- JSON object

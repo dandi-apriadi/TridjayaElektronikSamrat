@@ -36,8 +36,6 @@ export const products: Product[] = [
     images: [bikeGoda],
     badge: 'popular',
     badgeText: 'Terlaris',
-    rating: 4.8,
-    reviewCount: 124,
     shortDesc: 'Sepeda listrik performa tinggi dengan jangkauan 120 km per charge.',
     description: 'Goda GD120 adalah sepeda listrik unggulan dengan motor bantuan listrik 750W yang menghasilkan akselerasi responsif dan kendali tinggi. Dilengkapi baterai Lithium 72V 32Ah yang mampu menempuh jarak hingga 120 km dalam sekali pengisian. Desain ergonomis dengan material rangka aluminium alloy ringan namun kuat.',
     specs: {
@@ -70,8 +68,6 @@ export const products: Product[] = [
     images: [bikeWinfly],
     badge: 'new',
     badgeText: 'Baru',
-    rating: 4.7,
-    reviewCount: 89,
     shortDesc: 'Sepeda listrik elegan dengan desain futuristik dan jangkauan 100 km.',
     description: 'Winfly W200 hadir dengan desain yang simpel namun memukau. Motor 500W dengan baterai 60V 30Ah memastikan perjalanan urban Anda efisien dan menyenangkan. Sistem pedal-assist memaksimalkan jangkauan hingga 100 km.',
     specs: {
@@ -101,8 +97,6 @@ export const products: Product[] = [
     images: [bikeNuv],
     badge: 'eco',
     badgeText: 'Eco Friendly',
-    rating: 4.6,
-    reviewCount: 67,
     shortDesc: 'Pilihan urban terbaik, ringan, lincah, dan ramah lingkungan.',
     description: 'Nuv City dirancang khusus untuk mobilitas perkotaan yang cerdas. Bodinya kompak hanya 62 kg membuatnya mudah bermanuver di jalanan padat. Baterai 48V 24Ah cukup untuk perjalanan harian hingga 80 km.',
     specs: {
@@ -132,8 +126,6 @@ export const products: Product[] = [
     images: [uwinflyD7s],
     badge: 'popular',
     badgeText: 'Favorit',
-    rating: 4.5,
-    reviewCount: 245,
     shortDesc: 'Solusi transportasi harian yang hemat dan bergaya.',
     description: 'Uwinfly DragonFly D7S adalah moped listrik yang paling digemari di Indonesia. Dengan desain yang kokoh dan keranjang depan yang luas, moped ini sangat cocok untuk aktivitas harian seperti berbelanja atau mengantar sekolah.',
     specs: {
@@ -159,8 +151,6 @@ export const products: Product[] = [
     images: [uwinflyD8d],
     badge: 'new',
     badgeText: 'Baru',
-    rating: 4.6,
-    reviewCount: 112,
     shortDesc: 'Generasi terbaru dengan dek kaki lebih luas dan baterai lebih awet.',
     description: 'Penyempurnaan dari seri sebelumnya, D8D menawarkan kenyamanan ekstra dengan dek kaki yang lebih lebar dan lampu LED yang lebih terang untuk keamanan berkendara di malam hari.',
     specs: {
@@ -185,8 +175,6 @@ export const products: Product[] = [
     images: [selisWalet],
     badge: 'popular',
     badgeText: 'Populer',
-    rating: 4.4,
-    reviewCount: 312,
     shortDesc: 'Si gesit yang lincah dengan daya tahan baterai terukur.',
     description: 'Selis Walet adalah ikon sepeda listrik di Indonesia. Dengan layanan purna jual Selis yang luas, Walet menjadi pilihan terpopuler bagi keluarga di Sulawesi.',
     specs: {
@@ -211,8 +199,6 @@ export const products: Product[] = [
     images: [selisMandalika],
     badge: 'popular',
     badgeText: 'Terlaris',
-    rating: 4.5,
-    reviewCount: 189,
     shortDesc: 'Desain modern dengan rangka yang lebih kuat.',
     description: 'Selis Mandalika hadir dengan visual yang lebih bold dan rangka yang dirancang untuk beban lebih berat, sangat ideal untuk mobilitas komuter urban.',
     specs: {
@@ -237,8 +223,6 @@ export const products: Product[] = [
     images: [voxaLiberty],
     badge: 'sale',
     badgeText: 'Promo',
-    rating: 4.3,
-    reviewCount: 56,
     shortDesc: 'Moped listrik termurah dengan kualitas bersaing.',
     description: 'Voxa Liberty menawarkan nilai terbaik di kelasnya. Meskipun ekonomis, ia dilengkapi dengan fitur port USB charging dan lampu sein LED.',
     specs: {
@@ -263,8 +247,6 @@ export const products: Product[] = [
     images: [genioEaston],
     badge: 'popular',
     badgeText: 'Populer',
-    rating: 4.6,
-    reviewCount: 142,
     shortDesc: 'Akselerasi responsif dari motor bertenaga 750W.',
     description: 'Genio Easton S2 mengunggulkan torsi yang besar. Sangat nyaman untuk tanjakan ringan di area perumahan dengan stabilitas yang terjaga.',
     specs: {
@@ -289,8 +271,6 @@ export const products: Product[] = [
     images: [genioX2],
     badge: 'new',
     badgeText: 'Baru',
-    rating: 4.7,
-    reviewCount: 94,
     shortDesc: 'Desain kontemporer dengan performa mumpuni.',
     description: 'Genio X2 adalah kasta tertinggi dari seri Genio. Menampilkan finishing cat yang lebih premium dan ketahanan baterai yang lebih stabil.',
     specs: {
@@ -315,8 +295,6 @@ export const products: Product[] = [
     images: [polygonKalosi],
     badge: 'popular',
     badgeText: 'Premium',
-    rating: 4.9,
-    reviewCount: 42,
     shortDesc: 'Hybrid e-bike premium untuk pecinta gowes yang butuh bantuan elektrik.',
     description: 'Polygon Kalosi Cruise menggabungkan kenyamanan sepeda urban dengan bantuan motor elektrik yang halus. Sangat cocok untuk komuter jarak jauh atau olahraga santai.',
     specs: {
@@ -341,8 +319,6 @@ export const products: Product[] = [
     images: [viarAkasha],
     badge: 'popular',
     badgeText: 'Hot Deal',
-    rating: 4.7,
-    reviewCount: 156,
     shortDesc: 'Power besar dan jangkauan terjauh di kelas moped.',
     description: 'Viar Akasha 3 menggunakan baterai VRLA yang lebih besar untuk mendukung jangkauan hingga 75 km. Pilihan tepat bagi Anda yang memiliki rute perjalanan lebih panjang.',
     specs: {
@@ -367,8 +343,6 @@ export const products: Product[] = [
     images: [bikeNuv],
     badge: 'new',
     badgeText: 'Baru',
-    rating: 4.5,
-    reviewCount: 38,
     shortDesc: 'Sepeda lipat elektrik ringkas untuk mobilitas yang dinamis.',
     description: 'Lankeleisi G660 dapat dilipat menjadi ukuran kecil, sangat praktis untuk dibawa di dalam bagasi mobil atau transportasi publik.',
     specs: {
@@ -393,8 +367,6 @@ export const products: Product[] = [
     images: [uwinflyD7s],
     badge: 'sale',
     badgeText: 'Sale',
-    rating: 4.4,
-    reviewCount: 204,
     shortDesc: 'Gaya sporty dengan ketangguhan khas Exotic.',
     description: 'Groza X3 menampilkan desain yang lebih dinamis dan modern dengan pilihan warna yang vibrant.',
     specs: {
@@ -419,8 +391,6 @@ export const products: Product[] = [
     images: [bikeWinfly],
     badge: 'popular',
     badgeText: 'Populer',
-    rating: 4.6,
-    reviewCount: 127,
     shortDesc: 'Frame kokoh degan performa stabil untuk jalanan bergelombang.',
     description: 'Pacific Skeleton memiliki sispensi yang lebih mumpuni di kelasnya, memberikan kenyamanan ekstra di jalanan yang tidak rata.',
     specs: {
@@ -449,8 +419,6 @@ export const products: Product[] = [
     images: [tvImg],
     badge: 'new',
     badgeText: 'Baru',
-    rating: 4.9,
-    reviewCount: 45,
     shortDesc: 'Layar OLED 65 inci 4K dengan audio Dolby Atmos dan Smart OS terbaru.',
     description: 'Smart TV OLED 65 inci dengan resolusi 4K Ultra HD memberikan kualitas gambar yang memukau dengan kontras tak terbatas. Didukung teknologi Dolby Vision dan Dolby Atmos untuk pengalaman sinema di rumah.',
     specs: {
@@ -477,8 +445,6 @@ export const products: Product[] = [
     images: [tvImg],
     badge: 'new',
     badgeText: 'Premium',
-    rating: 5.0,
-    reviewCount: 12,
     shortDesc: 'Puncak teknologi visual dengan resolusi 8K yang tak tertandingi.',
     description: 'Samsung Neo QLED 75 inci memberikan detail yang sangat tajam dengan teknologi Quantum Matrix Pro.',
     specs: {
@@ -502,8 +468,6 @@ export const products: Product[] = [
     images: [fridgeImg],
     badge: 'popular',
     badgeText: 'Populer',
-    rating: 4.7,
-    reviewCount: 38,
     shortDesc: 'Kulkas French Door 520L dengan teknologi inverter dan water dispenser.',
     description: 'Kulkas French Door modern dengan kapasitas 520 liter, teknologi inverter hemat energi, dan dilengkapi water dispenser internal. Cocok untuk keluarga besar dengan kebutuhan penyimpanan premium.',
     specs: {
@@ -530,8 +494,6 @@ export const products: Product[] = [
     images: [lgFridge],
     badge: 'popular',
     badgeText: 'Populer',
-    rating: 4.8,
-    reviewCount: 22,
     shortDesc: 'InstaView Door-in-Door yang mewah dan fungsional.',
     description: 'Ketuk dua kali untuk melihat isi kulkas tanpa membuka pintu, menjaga kesegaran makanan lebih lama.',
     specs: {
@@ -555,8 +517,6 @@ export const products: Product[] = [
     images: [sharpAc],
     badge: 'popular',
     badgeText: 'Terlaris',
-    rating: 4.7,
-    reviewCount: 112,
     shortDesc: 'Teknologi Plasmacluster untuk udara yang lebih bersih dan sehat.',
     description: 'AC Sharp dengan sistem ion plasmacluster menonaktifkan bakteri dan virus di udara ruangan Anda.',
     specs: {
@@ -580,8 +540,6 @@ export const products: Product[] = [
     images: [polytronWasher],
     badge: 'new',
     badgeText: 'Baru',
-    rating: 4.6,
-    reviewCount: 54,
     shortDesc: 'Wonder Wash dengan efisiensi air dan deterjen tinggi.',
     description: 'Mesin cuci front load Polytron yang hemat listrik dan lembut pada serat kain pakaian Anda.',
     specs: {
@@ -605,8 +563,6 @@ export const products: Product[] = [
     images: [blogHeroImg],
     badge: 'popular',
     badgeText: 'Hot Deal',
-    rating: 4.9,
-    reviewCount: 342,
     shortDesc: 'Goreng tanpa minyak dengan kapasitas besar untuk keluarga.',
     description: 'Teknologi Rapid Air dari Philips memastikan masakan matang merata dengan lemak 90% lebih sedikit.',
     specs: {
@@ -630,8 +586,6 @@ export const products: Product[] = [
     images: [blogHeroImg],
     badge: 'new',
     badgeText: 'Hi-Tech',
-    rating: 4.9,
-    reviewCount: 15,
     shortDesc: 'Penyedot debu nirkabel tercanggih dengan sensor laser.',
     description: 'Laser mendeteksi debu mikroskopis yang tidak terlihat mata pada lantai keras, memberikan pembersihan yang presisi.',
     specs: {
@@ -655,8 +609,6 @@ export const products: Product[] = [
     images: [tvImg],
     badge: 'popular',
     badgeText: 'Terlaris',
-    rating: 4.8,
-    reviewCount: 512,
     shortDesc: 'Konsol game tercanggih dengan SSD ultra-cepat.',
     description: 'PS5 Slim menghadirkan performa gaming yang luar biasa dalam desain yang lebih ringkas dan ringan.',
     specs: {
@@ -680,8 +632,6 @@ export const products: Product[] = [
     images: [blogHeroImg],
     badge: 'new',
     badgeText: 'Pro Power',
-    rating: 4.9,
-    reviewCount: 31,
     shortDesc: 'Performa tak tertandingi dengan Chip M3 terbaru.',
     description: 'Laptop pro terbaik untuk kreator profesional dan pengguna dengan beban kerja berat.',
     specs: {
@@ -705,8 +655,6 @@ export const products: Product[] = [
     images: [blogHeroImg],
     badge: 'new',
     badgeText: 'Ultra Big',
-    rating: 4.8,
-    reviewCount: 42,
     shortDesc: 'Tablet Android termegah dengan layar Dynamic AMOLED 2X.',
     description: 'Ganti laptop Anda dengan tablet yang sangat kuat, dilengkapi S Pen yang sangat responsif.',
     specs: {
@@ -730,8 +678,6 @@ export const products: Product[] = [
     images: [blogHeroImg],
     badge: 'popular',
     badgeText: 'Populer',
-    rating: 4.8,
-    reviewCount: 88,
     shortDesc: 'Speaker Bluetooth retro dengan kualitas audio legendaris.',
     description: 'Speaker medium dari jajaran Marshall yang memberikan audio jernih dan bertenaga untuk ruangan Anda.',
     specs: {
@@ -755,8 +701,6 @@ export const products: Product[] = [
     images: [blogHeroImg],
     badge: 'popular',
     badgeText: 'Hot Deal',
-    rating: 4.7,
-    reviewCount: 64,
     shortDesc: 'Mesin kopi kapsul dengan sistem susu otomatis.',
     description: 'Buat Cappuccino atau Latte Macchiato favorit Anda di rumah hanya dengan satu sentuhan tombol.',
     specs: {
@@ -780,8 +724,6 @@ export const products: Product[] = [
     images: [blogHeroImg],
     badge: 'popular',
     badgeText: 'Populer',
-    rating: 4.6,
-    reviewCount: 178,
     shortDesc: 'Penyapu dan pel lantai otomatis dengan pemetaan laser.',
     description: 'Robot vacuum cerdas yang mampu memetakan rumah Anda dengan presisi 360 derajat untuk pembersihan maksimal.',
     specs: {
@@ -808,8 +750,6 @@ export const products: Product[] = [
     images: [sofaImg],
     badge: 'popular',
     badgeText: 'Terlaris',
-    rating: 4.8,
-    reviewCount: 92,
     shortDesc: 'Sofa sectional premium dengan material fabric berkualitas dan kaki metal emas.',
     description: 'Sofa Sectional Premium L hadir dengan desain kontemporer yang elegan. Material fabric grade-A anti-noda dengan kaki metal stainless gold memberikan kesan mewah di ruang tamu Anda.',
     specs: {
@@ -1021,3 +961,4 @@ export const getProductsByCategory = (category: Product['category']) =>
 
 export const getProductBySlug = (slug: string) =>
   products.find((p) => p.slug === slug);
+

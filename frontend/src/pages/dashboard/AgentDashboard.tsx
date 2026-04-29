@@ -212,7 +212,7 @@ const AgentDashboard: React.FC = () => {
             </div>
           </div>
           <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={weeklyData} barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
@@ -241,7 +241,7 @@ const AgentDashboard: React.FC = () => {
             <p className="text-label-sm text-on-surface-variant mt-0.5">Pertumbuhan lead bulanan</p>
           </div>
           <div className="h-[180px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={monthlyTrend}>
                 <defs>
                   <linearGradient id="agGrad" x1="0" y1="0" x2="0" y2="1">

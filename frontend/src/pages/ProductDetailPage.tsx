@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Star, Shield, CreditCard, Phone, Share2
+  Shield, CreditCard, Phone, Share2
 } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
 import { formatPrice } from '../data';
 import { useProductStore } from '../store/useProductStore';
 import CreditSimulator from '../components/CreditSimulator';
-import { formatRupiah, tenorLabel, type CustomerType } from '../utils/creditCalculator';
+import type { CreditPlan } from '../types';
+import { formatRupiah, tenorLabel } from '../utils/creditCalculator';
 import { Badge, ProductCard, SectionHeader } from '../components/ui';
 import { recordTelemetry } from '../utils/telemetry';
 import { getImageUrl } from '../utils/apiClient';
@@ -23,11 +24,7 @@ const ProductDetailPage: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState(0);
   const [showCreditForm, setShowCreditForm] = useState(false);
   const minInstallment = useMinInstallment(product || null);
-  const [selectedCreditPlan, setSelectedCreditPlan] = useState<{
-    customerType: CustomerType;
-    tenor: '6x' | '9x' | '12x' | '15x';
-    monthlyInstallment: number;
-  } | null>(null);
+  const [selectedCreditPlan, setSelectedCreditPlan] = useState<CreditPlan | null>(null);
 
   if (isLoading) {
     return (
@@ -166,16 +163,6 @@ const ProductDetailPage: React.FC = () => {
             >
               <div className="font-body text-label-md text-primary uppercase tracking-widest font-bold mb-2">{product.subcategory}</div>
               <h1 className="font-display text-display-sm font-bold text-white mb-4">{product.name}</h1>
-
-              {/* Rating */}
-              <div className="flex items-center gap-2 mb-5">
-                <div className="flex items-center gap-0.5">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'text-yellow-400 fill-yellow-400' : 'text-outline-variant'}`} />
-                  ))}
-                </div>
-                <span className="font-body text-body-md text-on-surface-variant">{product.rating} dari {product.reviewCount} ulasan</span>
-              </div>
 
               <p className="font-body text-body-lg text-on-surface-variant leading-relaxed mb-6">{product.description}</p>
 

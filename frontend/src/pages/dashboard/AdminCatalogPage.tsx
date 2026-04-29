@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Package, Plus, Search, Filter, TrendingUp, AlertTriangle,
-  Eye, Edit3, ArrowUpRight, Tag, Star, ChevronDown, Trash2
+  Eye, Edit3, ArrowUpRight, Tag, ChevronDown, Trash2
 } from 'lucide-react';
 
 import { useProductStore } from '../../store/useProductStore';
@@ -32,7 +32,7 @@ const AdminCatalogPage: React.FC = () => {
   const itemsPerPage = 8;
 
   React.useEffect(() => {
-    fetchProducts();
+    fetchProducts(true);
   }, [fetchProducts]);
 
   const handleDelete = async (id: string, name: string) => {
@@ -70,8 +70,6 @@ const AdminCatalogPage: React.FC = () => {
       if (sortBy === 'views') return (b.views || 0) - (a.views || 0);
       if (sortBy === 'leads') return (b.leads || 0) - (a.leads || 0);
       if (sortBy === 'conversionRate') return (b.conversionRate || 0) - (a.conversionRate || 0);
-      if (sortBy === 'reviews')      return (b.reviewCount || 0) - (a.reviewCount || 0);
-      if (sortBy === 'rating')       return (b.rating || 0) - (a.rating || 0);
       return 0;
     });
 
@@ -205,11 +203,9 @@ const AdminCatalogPage: React.FC = () => {
             <div className="relative">
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
                 className="appearance-none pl-3 pr-8 py-1.5 bg-surface-high border border-outline-variant/20 rounded-lg text-label-sm text-on-surface outline-none">
-                <option value="reviews">Sort: Reviews</option>
                 <option value="views">Sort: Views</option>
                 <option value="leads">Sort: Leads</option>
                 <option value="conversionRate">Sort: Conversion</option>
-                <option value="rating">Sort: Rating</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-on-surface-variant pointer-events-none" />
             </div>
@@ -225,9 +221,7 @@ const AdminCatalogPage: React.FC = () => {
                 <th className="py-3 pr-4">Kategori</th>
                 <th className="py-3 pr-4">Harga</th>
                 <th className="py-3 pr-4">Stok</th>
-                <th className="py-3 pr-4">Reviews</th>
                 <th className="py-3 pr-4">Popularitas</th>
-                <th className="py-3 pr-4">Rating</th>
                 <th className="py-3 pr-4">Status</th>
                 <th className="py-3">Aksi</th>
               </tr>
@@ -252,16 +246,10 @@ const AdminCatalogPage: React.FC = () => {
                       {p.stock === 'hidden' ? 'Habis' : p.stock === 'indent' ? 'Pre-Order' : 'Tersedia'}
                     </div>
                   </td>
-                  <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">{p.reviewCount?.toLocaleString('id-ID') || 0}</td>
                   <td className="py-3.5 pr-4">
                     <div className="font-bold text-secondary text-body-sm">{Math.round(p.conversionRate || 0)}%</div>
                     <div className="text-label-xs text-on-surface-variant mt-0.5">
                       {p.leads || 0} lead / {p.views || 0} views
-                    </div>
-                  </td>
-                  <td className="py-3.5 pr-4">
-                    <div className="inline-flex items-center gap-1 font-bold text-on-surface text-body-sm">
-                      <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />{p.rating || 0}
                     </div>
                   </td>
                   <td className="py-3.5 pr-4">

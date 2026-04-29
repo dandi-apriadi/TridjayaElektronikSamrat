@@ -38,7 +38,7 @@ const AdminPartnersPage: React.FC = () => {
   const sortedPartners = useMemo(() => {
     return [...partners].sort((a, b) => {
       if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
     });
   }, [partners]);
 

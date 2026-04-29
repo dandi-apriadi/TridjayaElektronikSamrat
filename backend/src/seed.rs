@@ -4,14 +4,15 @@ use std::fs;
 use crate::auth::hash_password;
 
 pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
-    // Check if users table is empty
-    let user_count: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+    // Keep existing catalog data intact; only seed on an empty database.
+    let product_count: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM products")
         .fetch_one(pool)
         .await?;
 
-    let partner_count: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM partners")
-        .fetch_one(pool)
-        .await?;
+    if product_count.0 > 0 {
+        println!("Skipping seed: products already exist in database.");
+        return Ok(());
+    }
 
     println!("Checking seed data from seeds.json...");
 
@@ -186,8 +187,8 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             let objections_json = serde_json::to_string(&p["objections"]).unwrap_or_else(|_| "[]".to_string());
 
             sqlx::query(
-                "REPLACE INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors, highlights, selling_points, objections) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 "REPLACE INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, highlights, selling_points, objections) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(p["id"].as_str())
             .bind(p["slug"].as_str())
@@ -201,8 +202,6 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
             .bind(images_json)
             .bind(p["badge"].as_str())
             .bind(p["badgeText"].as_str())
-            .bind(p["rating"].as_f64())
-            .bind(p["reviewCount"].as_i64())
             .bind(p["shortDesc"].as_str())
             .bind(p["description"].as_str())
             .bind(specs_json)
@@ -373,23 +372,6 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .bind(r["leads"].as_i64())
                 .bind(r["is_active"].as_bool())
                 .bind(r["created_at"].as_str())
-                .execute(&mut *conn)
-                .await?;
-        }
-    }
-
-    // Seed Support Tickets
-    if let Some(tickets) = seeds["support_tickets"].as_array() {
-        for t in tickets {
-            sqlx::query("REPLACE INTO support_tickets (id, agent_id, subject, message, priority, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(t["id"].as_str())
-                .bind(t["agent_id"].as_str())
-                .bind(t["subject"].as_str())
-                .bind(t["message"].as_str())
-                .bind(t["priority"].as_str())
-                .bind(t["status"].as_str())
-                .bind(t["created_at"].as_str())
-                .bind(t["updated_at"].as_str())
                 .execute(&mut *conn)
                 .await?;
         }

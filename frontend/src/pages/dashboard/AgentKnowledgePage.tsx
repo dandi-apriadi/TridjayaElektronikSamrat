@@ -131,10 +131,8 @@ const AgentKnowledgePage: React.FC = () => {
 
   // Stats calculation
   const totalProducts = products.length;
-  const avgRating = totalProducts > 0 
-    ? (products.reduce((acc, p) => acc + (p.rating || 4.5), 0) / totalProducts).toFixed(1) 
-    : '0.0';
-  const totalReviews = products.reduce((acc, p) => acc + (p.reviewCount || 0), 0).toLocaleString('id-ID');
+  const totalViews = products.reduce((acc, p) => acc + (p.views || 0), 0).toLocaleString('id-ID');
+  const totalLeads = products.reduce((acc, p) => acc + (p.leads || 0), 0).toLocaleString('id-ID');
   const criticalStock = products.filter((product) => product.stock !== 'available').length;
 
   return (
@@ -165,8 +163,8 @@ const AgentKnowledgePage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Produk', value: totalProducts, color: 'text-primary', bg: 'bg-primary/10', icon: Package },
-          { label: 'Avg Rating', value: avgRating, color: 'text-secondary', bg: 'bg-secondary/10', icon: Star },
-          { label: 'Total Ulasan', value: totalReviews, color: 'text-tertiary', bg: 'bg-tertiary/10', icon: Eye },
+          { label: 'Total Views', value: totalViews, color: 'text-secondary', bg: 'bg-secondary/10', icon: Eye },
+          { label: 'Total Leads', value: totalLeads, color: 'text-tertiary', bg: 'bg-tertiary/10', icon: Share2 },
           { label: 'Warning Stok', value: criticalStock, color: 'text-error', bg: 'bg-error/10', icon: ShoppingCart },
         ].map((k) => (
           <motion.div key={k.label} variants={iv} className="glass-card rounded-xl p-5 relative overflow-hidden">
@@ -274,12 +272,6 @@ const AgentKnowledgePage: React.FC = () => {
                   <div className="text-right w-32">
                     <div className="font-bold text-on-surface text-body-sm gradient-text-primary">{formatPrice(item.price)}</div>
                     <div className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Harga Cash</div>
-                  </div>
-                  <div className="text-center w-24">
-                    <div className="font-bold text-on-surface text-body-sm flex items-center justify-center gap-1">
-                      <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />{item.rating}
-                    </div>
-                    <div className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">{item.reviewCount} Ulasan</div>
                   </div>
                 </div>
                 

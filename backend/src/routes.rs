@@ -67,6 +67,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/admin/support-tickets/{id}/status", patch(update_admin_support_ticket_status))
         .route("/api/admin/telemetry-stats", get(get_telemetry_stats))
         .route("/api/admin/agents", get(list_agents))
+        .route("/api/admin/agents/{id}/performance", get(get_agent_performance))
         .with_state(state)
 }
 
@@ -1613,6 +1614,14 @@ async fn issue_verification_token(state: &AppState, user_id: &str) -> Result<Str
 
 async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    
+    // Prevent admin dari menghapus dirinya sendiri
+    if user.id == id {
+        return Err(AppError::Validation {
+            errors: vec!["Anda tidak dapat menghapus akun Anda sendiri".to_string()]
+        });
+    }
+    
     let result = sqlx::query("DELETE FROM users WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -1643,8 +1652,6 @@ struct ProductRecord {
     images: Option<String>,
     badge: Option<String>,
     badge_text: Option<String>,
-    rating: f64,
-    review_count: i64,
     short_desc: Option<String>,
     description: Option<String>,
     specs: Option<String>,
@@ -1674,8 +1681,6 @@ struct CatalogCreateRequest {
     images: Option<Value>,
     badge: Option<String>,
     badge_text: Option<String>,
-    rating: Option<f64>,
-    review_count: Option<i64>,
     short_desc: Option<String>,
     description: Option<String>,
     specs: Option<Value>,
@@ -1697,8 +1702,6 @@ struct CatalogUpdateRequest {
     images: Option<Value>,
     badge: Option<String>,
     badge_text: Option<String>,
-    rating: Option<f64>,
-    review_count: Option<i64>,
     short_desc: Option<String>,
     description: Option<String>,
     specs: Option<Value>,
@@ -1732,8 +1735,6 @@ fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSum
         "images": parse_json_or_default(record.images.as_deref(), json!([])),
         "badge": record.badge,
         "badgeText": record.badge_text,
-        "rating": record.rating,
-        "reviewCount": record.review_count,
         "shortDesc": record.short_desc,
         "description": record.description,
         "specs": parse_json_or_default(record.specs.as_deref(), json!({})),
@@ -1772,12 +1773,6 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
     if payload.dp_min.is_some_and(|value| value < 0.0) {
         errors.push("dpMin tidak boleh negatif".to_string());
     }
-    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
-        errors.push("rating harus di antara 0 sampai 5".to_string());
-    }
-    if payload.review_count.is_some_and(|value| value < 0) {
-        errors.push("reviewCount tidak boleh negatif".to_string());
-    }
     if let Some(stock) = &payload.stock {
         if !validate_stock(stock) {
             errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
@@ -1813,12 +1808,6 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
     if payload.dp_min.is_some_and(|value| value < 0.0) {
         errors.push("dpMin tidak boleh negatif".to_string());
     }
-    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
-        errors.push("rating harus di antara 0 sampai 5".to_string());
-    }
-    if payload.review_count.is_some_and(|value| value < 0) {
-        errors.push("reviewCount tidak boleh negatif".to_string());
-    }
     if payload.stock.as_ref().is_some_and(|value| !validate_stock(value)) {
         errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
     }
@@ -1832,7 +1821,7 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
 
 async fn find_catalog_by_id_or_slug(state: &AppState, id_or_slug: &str) -> Result<ProductRecord, AppError> {
     sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors FROM products WHERE id = ? OR slug = ? LIMIT 1"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors FROM products WHERE id = ? OR slug = ? LIMIT 1"
     )
     .bind(id_or_slug)
     .bind(id_or_slug)
@@ -2230,7 +2219,7 @@ async fn delete_product_category(
 
 async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let products = sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors FROM products"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors FROM products"
     )
         .fetch_all(&state.pool)
         .await
@@ -2302,7 +2291,7 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     let stock = payload.stock.unwrap_or_else(|| "available".to_string());
 
     sqlx::query(
-        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, rating, review_count, short_desc, description, specs, stock, colors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(payload.slug.trim())
@@ -2316,8 +2305,6 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     .bind(images)
     .bind(payload.badge)
     .bind(payload.badge_text)
-    .bind(payload.rating.unwrap_or(4.5))
-    .bind(payload.review_count.unwrap_or(0))
     .bind(payload.short_desc)
     .bind(payload.description)
     .bind(specs)
@@ -2357,7 +2344,7 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
         .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
-        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, rating = ?, review_count = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ? WHERE id = ?"
+        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ? WHERE id = ?"
     )
     .bind(next_slug)
     .bind(next_name)
@@ -2370,8 +2357,6 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
     .bind(next_images)
     .bind(payload.badge.or(current.badge))
     .bind(payload.badge_text.or(current.badge_text))
-    .bind(payload.rating.unwrap_or(current.rating))
-    .bind(payload.review_count.unwrap_or(current.review_count))
     .bind(payload.short_desc.or(current.short_desc))
     .bind(payload.description.or(current.description))
     .bind(next_specs)
@@ -3505,7 +3490,7 @@ async fn create_lead(State(state): State<AppState>, headers: HeaderMap, Json(pay
         "lead_created",
         "Lead baru masuk",
         Some(&format!("Lead dari {} untuk produk {}", created.customer_name, created.interested_product)),
-        Some("/dashboard/admin/leads"),
+        Some(&format!("/dashboard/admin/leads?id={}", created.id)),
         Some(&created.id),
     )
     .await;
@@ -3715,7 +3700,7 @@ async fn update_admin_support_ticket_status(
         "support_ticket_updated",
         "Update ticket support",
         Some(&format!("Ticket '{}' berubah ke status {}", updated_ticket.subject, updated_ticket.status)),
-        Some("/dashboard/agent/support"),
+        Some(&format!("/dashboard/agent/support?id={}", updated_ticket.id)),
         Some(&updated_ticket.id),
     )
     .await;
@@ -3924,6 +3909,106 @@ fn registration_to_json(row: AgentRegistrationRow) -> Value {
     })
 }
 
+async fn get_agent_performance(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(target_id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    
+    // Authorization check: Only admin or the agent themselves
+    if !user.role.eq_ignore_ascii_case("admin") && user.id != target_id {
+        return Err(AppError::Forbidden);
+    }
+
+    // 1. Get referral slugs for this agent
+    let slugs: Vec<String> = sqlx::query_scalar("SELECT slug FROM referrals WHERE owner_user_id = ?")
+        .bind(&target_id)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?;
+
+    // 2. Get daily activity (views/clicks) from telemetry
+    let activity_rows = if slugs.is_empty() {
+        Vec::new()
+    } else {
+        // Build placeholders for IN clause
+        let placeholders = slugs.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect::<Vec<_>>().join(",");
+        let query = format!(
+            "SELECT strftime('%Y-%m-%d', created_at) AS day, COUNT(*) AS count 
+             FROM telemetry_events 
+             WHERE source IN ({}) 
+               AND created_at >= datetime('now', '-6 days') 
+             GROUP BY day",
+            placeholders
+        );
+        
+        let mut sql = sqlx::query(&query);
+        for slug in &slugs {
+            sql = sql.bind(slug);
+        }
+        
+        sql.fetch_all(&state.pool).await.map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+    };
+
+    // 3. Get daily leads
+    let lead_rows = sqlx::query(
+        "SELECT strftime('%Y-%m-%d', created_at) AS day, COUNT(*) AS count 
+         FROM leads 
+         WHERE agent_id = ? 
+           AND created_at >= datetime('now', '-6 days') 
+         GROUP BY day"
+    )
+    .bind(&target_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
+
+    // 4. Map to response (last 7 days)
+    let mut stats = HashMap::new();
+    let days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+    let now = Utc::now();
+    
+    for i in 0..7 {
+        let d = now - Duration::days(6 - i);
+        let date_str = d.format("%Y-%m-%d").to_string();
+        let day_idx = d.format("%w").to_string().parse::<usize>().unwrap_or(0) % 7;
+        let day_name = days[day_idx];
+        stats.insert(date_str.clone(), json!({ "day": day_name, "date": date_str, "activity": 0, "leads": 0 }));
+    }
+
+    use sqlx::Row;
+    for row in activity_rows {
+        let day: String = row.get("day");
+        let count: i64 = row.get("count");
+        if let Some(entry) = stats.get_mut(&day) {
+            entry["activity"] = json!(count);
+        }
+    }
+
+    for row in lead_rows {
+        let day: String = row.get("day");
+        let count: i64 = row.get("count");
+        if let Some(entry) = stats.get_mut(&day) {
+            entry["leads"] = json!(count);
+        }
+    }
+
+    let mut result: Vec<Value> = stats.into_values().collect();
+    result.sort_by_key(|v| v["date"].as_str().unwrap_or("").to_string());
+
+    Ok(json_ok("Agent performance fetched", json!({ "items": result })))
+}
+
 async fn get_agent_stats(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Agent]).await?;
 
@@ -4042,7 +4127,7 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
         "claim_created",
         "Klaim reward baru",
         Some(&format!("{} mengajukan klaim {}", user.name, created.reward_name)),
-        Some("/dashboard/admin/finance"),
+        Some(&format!("/dashboard/admin/finance?id={}", created.id)),
         Some(&created.id),
     )
     .await;
@@ -4163,7 +4248,7 @@ async fn submit_agent_registration(State(state): State<AppState>, mut multipart:
         "agent_registration_submitted",
         "Pendaftar agen baru",
         Some(&format!("{} mendaftar sebagai agen", full_name.trim())),
-        Some("/dashboard/admin/registrations"),
+        Some(&format!("/dashboard/admin/agents?id={}", id)),
         Some(&id),
     )
     .await;
@@ -4473,7 +4558,7 @@ async fn update_claim_status(State(state): State<AppState>, headers: HeaderMap, 
         "claim_status_updated",
         "Update status klaim reward",
         Some(&format!("Klaim '{}' berubah ke status {}", updated_claim.reward_name, updated_claim.status)),
-        Some("/dashboard/agent/claims"),
+        Some(&format!("/dashboard/agent/earnings?id={}", updated_claim.id)),
         Some(&updated_claim.id),
     )
     .await;

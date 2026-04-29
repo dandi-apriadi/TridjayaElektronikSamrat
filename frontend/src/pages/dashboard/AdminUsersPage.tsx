@@ -5,9 +5,10 @@ import {
   ShieldCheck, UserCog, Search, Plus,
   CheckCircle2, XCircle, Clock, Shield,
   Users, Lock, Unlock, Eye, EyeOff,
-  AlertTriangle, ArrowUpRight, Filter, Megaphone
+  AlertTriangle, ArrowUpRight, Filter, Megaphone, Trash2
 } from 'lucide-react';
 import { useUserStore } from '../../store/useUserStore';
+import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
 
@@ -44,7 +45,8 @@ const formatDateTime = (value?: string) => {
 };
 
 const AdminUsersPage: React.FC = () => {
-  const { users, isLoading, error, fetchUsers, updateUserStatus, resetUserPassword, verifyUser, resendVerification } = useUserStore();
+  const { users, isLoading, error, fetchUsers, updateUserStatus, resetUserPassword, verifyUser, resendVerification, deleteUser } = useUserStore();
+  const { user: currentUser } = useAuthStore();
   const [search, setSearch]           = useState('');
   const [roleFilter, setRoleFilter]   = useState('Semua');
   const [statusFilter, setStatusFilter] = useState('Semua');
@@ -52,6 +54,9 @@ const AdminUsersPage: React.FC = () => {
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -95,6 +100,20 @@ const AdminUsersPage: React.FC = () => {
       setNewPassword('');
     }
     setIsResetting(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingUserId) return;
+    setIsDeleting(true);
+    const success = await deleteUser(deletingUserId);
+    if (success) {
+      toast.success('Berhasil', 'User telah dihapus dari sistem.');
+      setDeletingUserId(null);
+    } else {
+      const errorMsg = useUserStore.getState().error;
+      toast.error('Gagal menghapus user', errorMsg || 'Terjadi kesalahan saat menghapus user.');
+    }
+    setIsDeleting(false);
   };
 
   const handleExportCsv = () => {
@@ -345,6 +364,12 @@ const AdminUsersPage: React.FC = () => {
                             <Megaphone className="w-4 h-4" />
                           </button>
                         )}
+                        <button type="button" onClick={() => setDeletingUserId(user.id)} 
+                          disabled={currentUser?.id === user.id}
+                          className={`p-1.5 rounded-md transition-colors ${currentUser?.id === user.id ? 'opacity-40 cursor-not-allowed bg-surface-highest text-on-surface-variant' : 'bg-error/10 text-error hover:bg-error/20'}`}
+                          title={currentUser?.id === user.id ? "Tidak bisa menghapus akun sendiri" : "Hapus User"}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -386,6 +411,7 @@ const AdminUsersPage: React.FC = () => {
           </button>
         </motion.div>
       )}
+      
       {/* Reset Password Modal */}
       {resettingUserId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -430,6 +456,43 @@ const AdminUsersPage: React.FC = () => {
                   {isResetting ? 'Memproses...' : 'Reset Password'}
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete User Modal */}
+      {deletingUserId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isDeleting && setDeletingUserId(null)} />
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative w-full max-w-md glass-card rounded-2xl p-6 shadow-2xl">
+            <h3 className="font-display text-title-md font-bold text-on-surface mb-2 inline-flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-error" /> Hapus User
+            </h3>
+            <p className="text-body-sm text-on-surface-variant mb-2">
+              Anda akan menghapus user <strong>{users.find(u => u.id === deletingUserId)?.name}</strong> secara permanen dari sistem.
+            </p>
+            <p className="text-body-sm text-error/80 mb-6 p-3 rounded-lg bg-error/8">
+              <strong>Perhatian:</strong> Tindakan ini tidak dapat dibatalkan. Semua data terkait user akan dihapus.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeletingUserId(null)}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-lg bg-surface-highest text-on-surface font-semibold text-label-sm hover:bg-surface-highest/80 transition-colors disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-lg bg-error text-on-error font-bold text-label-sm hover:bg-error-light shadow-lg shadow-error/20 transition-all disabled:opacity-50"
+              >
+                {isDeleting ? 'Menghapus...' : 'Hapus User'}
+              </button>
             </div>
           </motion.div>
         </div>

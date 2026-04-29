@@ -379,7 +379,7 @@ const AgentLeaderboardPage: React.FC = () => {
                       </div>
 
                       <div className="flex flex-wrap gap-2 pt-2">
-                        {tier.meta.benefits.map((benefit, i) => (
+                        {tier.meta.benefits.map((benefit: string, i: number) => (
                            <div key={i} className="px-3 py-1 rounded-md bg-surface-highest text-on-surface-variant text-label-xs font-bold flex items-center gap-1.5">
                              <div className={`w-1.5 h-1.5 rounded-full ${tier.meta.color.replace('text-', 'bg-')}`} />
                              {benefit}
@@ -412,7 +412,7 @@ const AgentLeaderboardPage: React.FC = () => {
                     { label: 'Quick Start', icon: Zap, color: 'text-yellow-400' },
                     { label: 'Area Master', icon: MapPin, icon2: TrendingUp, color: 'text-green-400' },
                     { label: 'Referral Pro', icon: Users, color: 'text-purple-400' },
-                  ].map((ach, i) => (
+                  ].map((ach: { label: string; icon: typeof Star; icon2?: typeof TrendingUp; color: string }, i: number) => (
                     <div key={i} className="flex flex-col items-center gap-3 p-4 rounded-xl bg-surface-high/60 border border-outline-variant/10 group cursor-help">
                       <div className={`w-12 h-12 rounded-full bg-surface shadow-inner flex items-center justify-center ${ach.color} group-hover:scale-110 transition-transform`}>
                         <ach.icon className="w-6 h-6" />
@@ -435,7 +435,7 @@ const AgentLeaderboardPage: React.FC = () => {
                     { label: 'Penjualan Elektronik', pts: '100 pts / item', color: 'bg-secondary' },
                     { label: 'Penjualan Furnitur', pts: '150 pts / item', color: 'bg-tertiary' },
                     { label: 'Daily Knowledge Check', pts: '25 pts / day', color: 'bg-slate-400' },
-                  ].map((rule, i) => (
+                  ].map((rule: { label: string; pts: string; color: string }, i: number) => (
                     <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-high transition-colors">
                       <div className="flex items-center gap-3">
                          <div className={`w-2 h-2 rounded-full ${rule.color}`} />

@@ -9,19 +9,19 @@ Daftar tugas untuk mengintegrasikan data Excel Pricelist ke dalam aplikasi Tridj
 - [x] Buat file panduan `docs/kredit/credit_guide.md` - **Selesai**
 
 ## 💻 Pengembangan Frontend
-- [ ] **Data Placement**: Pindahkan `credit_calculations.json` ke `frontend/public/data/` agar bisa di-fetch secara dinamis.
-- [ ] **Utility Function**: Buat `frontend/src/utils/creditUtils.ts` untuk:
+- [x] **Data Placement**: Pindahkan `credit_calculations.json` ke `frontend/public/data/` agar bisa di-fetch secara dinamis.
+- [x] **Utility Function**: Buat `frontend/src/utils/creditUtils.ts` untuk:
     - Logika `price + 700.000`.
     - Logika pembulatan ke 25.000 terdekat.
     - Fungsi pencarian data berdasarkan tipe nasabah (NEW/RO) dan kategori (Furniture/Elektronik/Gadget).
-- [ ] **Component Development**: Buat komponen `CreditCalculatorCard.tsx` yang interaktif.
-- [ ] **Page Integration**:
+- [x] **Component Development**: Buat komponen `CreditCalculatorCard.tsx` yang interaktif.
+- [x] **Page Integration**:
     - Update `ProductDetailPage.tsx` untuk menampilkan simulasi cicilan di bawah harga produk.
     - Tambahkan toggle/switch "Nasabah Baru" vs "Nasabah Lama (RO)".
     - Integrasikan pengiriman pilihan tenor ke WhatsApp Agen saat user klik "Ajukan Kredit".
 
 ## 🛡️ Backend & Type Safety
-- [ ] Tambahkan tipe data `CreditPlan` di `frontend/src/types/index.ts`.
+- [x] Tambahkan tipe data `CreditPlan` di `frontend/src/types/index.ts`.
 - [ ] (Opsional) Buat endpoint di Rust `/api/kredit/calculate` jika ingin perhitungan dilakukan di sisi server untuk keamanan ekstra.
 
 ## 🧪 Pengujian

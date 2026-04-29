@@ -13,8 +13,6 @@ export interface Product {
   images?: string[];
   badge?: 'eco' | 'new' | 'sale' | 'popular' | 'limited';
   badgeText?: string;
-  rating: number;
-  reviewCount: number;
   views?: number;
   leads?: number;
   conversions?: number;
@@ -27,6 +25,12 @@ export interface Product {
   highlights?: string[];
   sellingPoints?: string[];
   objections?: string[];
+}
+
+export interface CreditPlan {
+  customerType: 'NEW' | 'RO';
+  tenor: '6x' | '9x' | '12x' | '15x';
+  monthlyInstallment: number;
 }
 
 export interface PromoItem {

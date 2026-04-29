@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { useAuthStore } from './authStore';
-import { API_BASE_URL, apiFetch } from '../utils/apiClient';
+import { apiFetch } from '../utils/apiClient';
 
 export interface AgentRegistration {
   id: string;
@@ -64,12 +63,20 @@ export interface AdminSupportTicket {
   updatedAt?: string;
 }
 
+export interface DailyPerformance {
+  day: string;
+  date: string;
+  activity: number;
+  leads: number;
+}
+
 interface AdminNetworkState {
   registrations: AgentRegistration[];
   claims: AdminClaim[];
   agents: Agent[];
   supportTickets: AdminSupportTicket[];
   leads: any[];
+  agentPerformance: DailyPerformance[];
   isLoading: boolean;
   error: string | null;
 
@@ -80,6 +87,7 @@ interface AdminNetworkState {
   updateClaimStatus: (id: string, status: AdminClaim['status']) => Promise<boolean>;
 
   fetchAgents: () => Promise<void>;
+  fetchAgentPerformance: (id: string) => Promise<void>;
 
   fetchLeads: () => Promise<void>;
   updateLeadStatus: (id: string, status: string) => Promise<boolean>;
@@ -91,15 +99,13 @@ interface AdminNetworkState {
   fetchTelemetryStats: () => Promise<void>;
 }
 
-const API_ROOT = API_BASE_URL.replace(/\/$/, '');
-const API_ADMIN_URL = `${API_ROOT}/api/admin`;
-
 export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   registrations: [],
   claims: [],
   agents: [],
   supportTickets: [],
   leads: [],
+  agentPerformance: [],
   telemetryStats: null,
   isLoading: false,
   error: null,
@@ -194,6 +200,18 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
       if (!res.ok) throw new Error('Failed to fetch agents');
       const data = await res.json();
       set({ agents: data.data.items, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+    }
+  },
+  
+  fetchAgentPerformance: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await apiFetch(`/api/admin/agents/${id}/performance`);
+      if (!res.ok) throw new Error('Failed to fetch agent performance');
+      const data = await res.json();
+      set({ agentPerformance: data.data.items || [], isLoading: false });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
     }

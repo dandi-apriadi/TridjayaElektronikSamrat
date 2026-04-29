@@ -15,7 +15,6 @@ import {
   XCircle,
   BarChart3,
   ExternalLink,
-  Star,
   MapPin,
 } from 'lucide-react';
 import {
@@ -122,11 +121,10 @@ const AdminDashboard: React.FC = () => {
     return [...summary.values()]
       .sort((a, b) => b.sales - a.sales)
       .slice(0, 4)
-      .map((agent, i) => ({
+      .map((agent) => ({
         ...agent,
         earnings: `${agent.sales} klaim selesai`,
-        rating: Math.max(4.0, 4.9 - i * 0.2),
-        delta: `+${Math.max(1, agent.sales * 3)}%`,
+        delta: "0%",
       }));
   }, [claims]);
 
@@ -388,7 +386,7 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
           <div className="h-[260px] w-full min-h-[260px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="gradBruto" x1="0" y1="0" x2="0" y2="1">
@@ -438,7 +436,7 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
           <div className="h-[220px] w-full min-h-[220px] flex-1">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={agentGrowthData} barSize={8} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="month" stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
@@ -466,7 +464,7 @@ const AdminDashboard: React.FC = () => {
             <p className="text-label-sm text-on-surface-variant mt-0.5">Top 8 kategori produk</p>
           </div>
           <div className="h-[250px] w-full min-h-[250px] flex-1">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <PieChart>
                 <Pie
                   data={categoryData}
@@ -520,7 +518,6 @@ const AdminDashboard: React.FC = () => {
                   <th className="pb-3 pr-4">Agen</th>
                   <th className="pb-3 pr-4">Penjualan</th>
                   <th className="pb-3 pr-4">Komisi</th>
-                  <th className="pb-3 pr-4">Rating</th>
                   <th className="pb-3">Growth</th>
                 </tr>
               </thead>
@@ -545,12 +542,6 @@ const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3 pr-4 font-semibold text-on-surface text-body-sm">{agent.sales} Unit</td>
                     <td className="py-3 pr-4 font-semibold text-primary text-body-sm">{agent.earnings}</td>
-                    <td className="py-3 pr-4">
-                      <div className="inline-flex items-center gap-1 font-bold text-on-surface text-body-sm">
-                        <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                        {agent.rating}
-                      </div>
-                    </td>
                     <td className="py-3">
                       <span className="px-2 py-0.5 rounded-md text-label-xs font-bold bg-secondary/10 text-secondary">
                         {agent.delta}

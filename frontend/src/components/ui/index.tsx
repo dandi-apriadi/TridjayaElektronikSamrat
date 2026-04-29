@@ -2,7 +2,7 @@ import React from 'react';
 export * from './PartnerLogos';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Star, Zap, Shield, Award, Clock } from 'lucide-react';
+import { ArrowRight, Zap, Shield, Award, Clock } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../data';
 import { getImageUrl } from '../../utils/apiClient';
@@ -91,21 +91,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) 
           <p className="font-body text-body-sm text-on-surface-variant line-clamp-2 mb-3">
             {product.shortDesc}
           </p>
-
-          {/* Rating */}
-          <div className="flex items-center gap-1.5 mb-3">
-            <div className="flex items-center gap-0.5">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className={`w-3.5 h-3.5 ${i < Math.floor(product.rating) ? 'text-yellow-400 fill-yellow-400' : 'text-outline-variant'}`}
-                />
-              ))}
-            </div>
-            <span className="font-body text-body-sm text-on-surface-variant">
-              {product.rating} ({product.reviewCount})
-            </span>
-          </div>
 
           {/* Price */}
           <div className="flex items-end justify-between">
@@ -256,7 +241,6 @@ const stats = [
   { icon: Award, value: '15+', label: 'Tahun Berpengalaman', color: 'text-primary' },
   { icon: Zap, value: '500+', label: 'Unit Terjual / Bulan', color: 'text-secondary' },
   { icon: Shield, value: '10.000+', label: 'Pelanggan Aktif', color: 'text-tertiary' },
-  { icon: Star, value: '4.8/5', label: 'Rating Kepuasan', color: 'text-yellow-400' },
 ];
 
 export const StatsRow: React.FC = () => (

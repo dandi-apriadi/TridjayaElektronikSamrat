@@ -23,6 +23,7 @@ import {
 
 import { useUserStore } from '../../store/useUserStore';
 import Pagination from '../../components/ui/Pagination';
+import { useSearchParams } from 'react-router-dom';
 
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { AgentRegistration } from '../../store/useAdminNetworkStore';
@@ -45,6 +46,7 @@ const AdminAgentsPage: React.FC = () => {
     fetchRegistrations,
     updateRegistrationStatus,
   } = useAdminNetworkStore();
+  const [searchParams] = useSearchParams();
   const [approvedIds, setApprovedIds]   = useState<string[]>([]);
   const [rejectedIds, setRejectedIds]   = useState<string[]>([]);
   const [expandedId, setExpandedId]     = useState<string | null>(null);
@@ -62,6 +64,14 @@ const AdminAgentsPage: React.FC = () => {
     fetchRegistrations();
     fetchUsers();
   }, [fetchRegistrations, fetchUsers]);
+
+  React.useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) {
+      setExpandedId(id);
+      setSearchQuery(id);
+    }
+  }, [searchParams]);
 
   const handleApprove = (id: string) => {
     setApprovedIds((p) => (p.includes(id) ? p : [...p, id]));
