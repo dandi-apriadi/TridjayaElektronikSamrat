@@ -16,6 +16,8 @@ pub struct AppState {
     /// Timestamp permintaan forgot-password terakhir per kunci (email / ip).
     /// Dipakai untuk membatasi flooding email reset password.
     pub forgot_password_attempts: Arc<RwLock<HashMap<String, DateTime<Utc>>>>,
+    pub public_submission_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    pub telemetry_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     pub mailer: Arc<crate::mail::Mailer>,
     pub cache: Arc<crate::cache::CacheManager>,
 }
@@ -31,6 +33,8 @@ impl AppState {
             login_ip_attempts: Arc::new(RwLock::new(HashMap::new())),
             blocked_login_subjects: Arc::new(RwLock::new(HashMap::new())),
             forgot_password_attempts: Arc::new(RwLock::new(HashMap::new())),
+            public_submission_attempts: Arc::new(RwLock::new(HashMap::new())),
+            telemetry_attempts: Arc::new(RwLock::new(HashMap::new())),
             mailer: Arc::new(crate::mail::Mailer::new()),
             cache,
         }
@@ -53,6 +57,18 @@ impl AppState {
         {
             let mut refresh = self.refresh_sessions.write().await;
             refresh.retain(|_, session| session.user_id != user_id);
+        }
+    }
+
+    pub async fn cleanup_expired_sessions(&self) {
+        let now = Utc::now();
+        {
+            let mut access = self.access_sessions.write().await;
+            access.retain(|_, session| session.expires_at > now);
+        }
+        {
+            let mut refresh = self.refresh_sessions.write().await;
+            refresh.retain(|_, session| session.expires_at > now);
         }
     }
 }

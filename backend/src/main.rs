@@ -8,6 +8,11 @@ use dotenvy::dotenv;
 
 use tridjaya_backend::{routes, state::AppState, seed::seed_database};
 
+fn is_production_runtime() -> bool {
+    matches!(std::env::var("APP_ENV").ok().as_deref(), Some("production") | Some("prod"))
+        || matches!(std::env::var("RUST_ENV").ok().as_deref(), Some("production") | Some("prod"))
+}
+
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -52,12 +57,21 @@ async fn main() {
         Err(e) => tracing::error!("Failed to check agent_registrations table: {}", e),
     }
 
-    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,http://localhost:5176,http://127.0.0.1:5176,http://localhost:5177,http://127.0.0.1:5177,http://localhost:5178,http://127.0.0.1:5178".to_string());
-    let origins: Vec<HeaderValue> = allowed_origins
+    let allowed_origins = std::env::var("ALLOWED_ORIGINS").ok();
+    let origin_list = allowed_origins.unwrap_or_else(|| {
+        if is_production_runtime() {
+            panic!("ALLOWED_ORIGINS must be set in production");
+        }
+
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,http://localhost:5176,http://127.0.0.1:5176,http://localhost:5177,http://127.0.0.1:5177,http://localhost:5178,http://127.0.0.1:5178".to_string()
+    });
+    let origins: Vec<HeaderValue> = origin_list
         .split(',')
         .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
         .collect();
+    if is_production_runtime() && origins.is_empty() {
+        panic!("ALLOWED_ORIGINS is empty or invalid in production");
+    }
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE, Method::OPTIONS])
@@ -79,6 +93,15 @@ async fn main() {
     });
 
     let state = AppState::new(pool, cache);
+    let janitor_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            janitor_state.cleanup_expired_sessions().await;
+        }
+    });
+
     let app = routes::router(state)
         .nest_service("/uploads", ServeDir::new("uploads"))
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))

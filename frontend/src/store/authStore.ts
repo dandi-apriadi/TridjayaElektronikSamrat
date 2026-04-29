@@ -242,7 +242,6 @@ export const useAuthStore = create<AuthState>()(
       // oleh backend dan dipulihkan via restoreSession() saat aplikasi mount.
       partialize: (state) => ({
         user: state.user,
-        isAuthenticated: state.isAuthenticated,
       }),
     }
   )

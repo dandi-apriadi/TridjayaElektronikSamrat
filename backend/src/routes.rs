@@ -115,6 +115,34 @@ fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
         .map(ToString::to_string)
 }
 
+async fn enforce_rate_limit_bucket(
+    buckets: &mut HashMap<String, Vec<chrono::DateTime<Utc>>>,
+    key: &str,
+    limit: usize,
+    window: Duration,
+) -> Result<(), AppError> {
+    let now = Utc::now();
+    let threshold = now - window;
+    let entry = buckets.entry(key.to_string()).or_default();
+    entry.retain(|ts| *ts > threshold);
+
+    if entry.len() >= limit {
+        return Err(AppError::TooManyRequests);
+    }
+
+    entry.push(now);
+    Ok(())
+}
+
+fn is_allowed_public_url(value: &str) -> bool {
+    let lower = value.trim().to_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+fn validate_text_length(value: &str, max: usize) -> bool {
+    value.trim().len() <= max
+}
+
 async fn enforce_login_rate_limit(state: &AppState, email: &str, client_ip: Option<&str>) -> Result<(), AppError> {
     let key = email.trim().to_lowercase();
     if key.is_empty() {
@@ -3086,12 +3114,47 @@ async fn get_referral_stats(State(state): State<AppState>, headers: HeaderMap, P
     ))
 }
 
-async fn insert_telemetry(state: &AppState, event_type: &str, payload: &Value) {
+async fn insert_telemetry(state: &AppState, headers: &HeaderMap, event_type: &str, payload: &Value) -> Result<(), AppError> {
     let id = uuid::Uuid::new_v4().to_string();
-    let path = payload.get("path").and_then(|v| v.as_str()).unwrap_or("/");
-    let source = payload.get("source").and_then(|v| v.as_str()).unwrap_or("direct");
-    let session_id = payload.get("sessionId").and_then(|v| v.as_str()).unwrap_or("anonymous");
+    let path = payload.get("path").and_then(|v| v.as_str()).unwrap_or("/").trim();
+    let source = payload.get("source").and_then(|v| v.as_str()).unwrap_or("direct").trim();
+    let session_id = payload.get("sessionId").and_then(|v| v.as_str()).unwrap_or("anonymous").trim();
     let metadata_str = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
+
+    if !path.starts_with('/') || !validate_text_length(path, 2048) {
+        return Err(AppError::Validation { errors: vec!["path telemetry tidak valid".to_string()] });
+    }
+    if !validate_text_length(source, 128) {
+        return Err(AppError::Validation { errors: vec!["source telemetry terlalu panjang".to_string()] });
+    }
+    if !validate_text_length(session_id, 128) {
+        return Err(AppError::Validation { errors: vec!["sessionId telemetry terlalu panjang".to_string()] });
+    }
+    if metadata_str.len() > 8 * 1024 {
+        return Err(AppError::Validation { errors: vec!["metadata telemetry terlalu besar".to_string()] });
+    }
+
+    let client_ip = extract_client_ip(headers);
+    {
+        let mut buckets = state.telemetry_attempts.write().await;
+        enforce_rate_limit_bucket(
+            &mut buckets,
+            &format!("telemetry:{}:session:{}", event_type, session_id),
+            60,
+            Duration::minutes(1),
+        )
+        .await?;
+
+        if let Some(ip) = client_ip.as_deref() {
+            enforce_rate_limit_bucket(
+                &mut buckets,
+                &format!("telemetry:{}:ip:{}", event_type, ip),
+                120,
+                Duration::minutes(1),
+            )
+            .await?;
+        }
+    }
 
     let _ = sqlx::query(
         "INSERT INTO telemetry_events (id, event_type, path, source, session_id, metadata) VALUES (?, ?, ?, ?, ?, ?)"
@@ -3105,8 +3168,20 @@ async fn insert_telemetry(state: &AppState, event_type: &str, payload: &Value) {
     .execute(&state.pool)
     .await;
 
-    // Update referral counters if source matches a referral slug
-    if source != "direct" && source != "anonymous" && !source.is_empty() {
+    // Update referral counters only if source is an actual referral slug.
+    let is_referral_slug = if source != "direct" && source != "anonymous" && source != "internal" && source != "" {
+        sqlx::query_scalar::<_, String>("SELECT slug FROM referrals WHERE slug = ? LIMIT 1")
+            .bind(source)
+            .fetch_optional(&state.pool)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+    } else {
+        false
+    };
+
+    if is_referral_slug {
         let update_query = match event_type {
             "whatsapp_click" | "pixel_event" => "UPDATE referrals SET leads = leads + 1 WHERE slug = ?",
             "click" | "page_view" => "UPDATE referrals SET clicks = clicks + 1 WHERE slug = ?",
@@ -3120,26 +3195,28 @@ async fn insert_telemetry(state: &AppState, event_type: &str, payload: &Value) {
                 .await;
         }
     }
+
+    Ok(())
 }
 
-async fn page_view(State(state): State<AppState>, Json(payload): Json<Value>) -> ResponseBody {
-    insert_telemetry(&state, "page_view", &payload).await;
-    json_ok("Page view recorded", json!({ "received": payload }))
+async fn page_view(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+    insert_telemetry(&state, &headers, "page_view", &payload).await?;
+    Ok(json_ok("Page view recorded", json!({ "received": payload })))
 }
 
-async fn click(State(state): State<AppState>, Json(payload): Json<Value>) -> ResponseBody {
-    insert_telemetry(&state, "click", &payload).await;
-    json_ok("Click recorded", json!({ "received": payload }))
+async fn click(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+    insert_telemetry(&state, &headers, "click", &payload).await?;
+    Ok(json_ok("Click recorded", json!({ "received": payload })))
 }
 
-async fn whatsapp_click(State(state): State<AppState>, Json(payload): Json<Value>) -> ResponseBody {
-    insert_telemetry(&state, "whatsapp_click", &payload).await;
-    json_ok("WhatsApp click recorded", json!({ "received": payload }))
+async fn whatsapp_click(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+    insert_telemetry(&state, &headers, "whatsapp_click", &payload).await?;
+    Ok(json_ok("WhatsApp click recorded", json!({ "received": payload })))
 }
 
-async fn pixel_event(State(state): State<AppState>, Json(payload): Json<Value>) -> ResponseBody {
-    insert_telemetry(&state, "pixel_event", &payload).await;
-    json_ok("Pixel event recorded", json!({ "received": payload }))
+async fn pixel_event(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+    insert_telemetry(&state, &headers, "pixel_event", &payload).await?;
+    Ok(json_ok("Pixel event recorded", json!({ "received": payload })))
 }
 
 async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
@@ -4216,14 +4293,11 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
     if payload.tier_id.trim().is_empty() {
         errors.push("tierId wajib diisi".to_string());
     }
-    if payload.reward_name.trim().is_empty() {
-        errors.push("rewardName wajib diisi".to_string());
-    }
     if !errors.is_empty() {
         return Err(AppError::Validation { errors });
     }
 
-    let tier_exists: Option<String> = sqlx::query_scalar("SELECT id FROM reward_tiers WHERE id = ? AND is_active = 1 LIMIT 1")
+    let tier_name: Option<String> = sqlx::query_scalar("SELECT name FROM reward_tiers WHERE id = ? AND is_active = 1 LIMIT 1")
         .bind(payload.tier_id.trim())
         .fetch_optional(&state.pool)
         .await
@@ -4232,9 +4306,13 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
             AppError::Internal
         })?;
 
-    if tier_exists.is_none() {
+    let tier_name = tier_name.ok_or_else(|| AppError::Validation {
+        errors: vec!["tierId tidak ditemukan atau tidak aktif".to_string()],
+    })?;
+
+    if !validate_text_length(payload.reward_name.trim(), 120) {
         return Err(AppError::Validation {
-            errors: vec!["tierId tidak ditemukan atau tidak aktif".to_string()],
+            errors: vec!["rewardName terlalu panjang".to_string()],
         });
     }
 
@@ -4245,7 +4323,7 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
     .bind(&id)
     .bind(&user.id)
     .bind(payload.tier_id.trim())
-    .bind(payload.reward_name.trim())
+    .bind(tier_name)
     .execute(&state.pool)
     .await
     .map_err(|e| {
@@ -4278,7 +4356,7 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
     Ok(json_ok("Reward claimed successfully", json!({ "item": claim_to_json(created) })))
 }
 
-async fn submit_agent_registration(State(state): State<AppState>, mut multipart: Multipart) -> Result<ResponseBody, AppError> {
+async fn submit_agent_registration(State(state): State<AppState>, headers: HeaderMap, mut multipart: Multipart) -> Result<ResponseBody, AppError> {
     let mut full_name = String::new();
     let mut email = String::new();
     let mut whatsapp = String::new();
@@ -4360,9 +4438,38 @@ async fn submit_agent_registration(State(state): State<AppState>, mut multipart:
     if whatsapp.trim().is_empty() { errors.push("Nomor WhatsApp wajib diisi".to_string()); }
     if province.trim().is_empty() { errors.push("Provinsi wajib diisi".to_string()); }
     if city.trim().is_empty() { errors.push("Kota wajib diisi".to_string()); }
+    if !validate_text_length(&full_name, 120) { errors.push("Nama lengkap terlalu panjang".to_string()); }
+    if !validate_text_length(&email, 254) { errors.push("Email terlalu panjang".to_string()); }
+    if !validate_text_length(&whatsapp, 32) { errors.push("Nomor WhatsApp terlalu panjang".to_string()); }
+    if !validate_text_length(&province, 80) { errors.push("Provinsi terlalu panjang".to_string()); }
+    if !validate_text_length(&city, 80) { errors.push("Kota terlalu panjang".to_string()); }
+    if !validate_text_length(&address, 1000) { errors.push("Alamat terlalu panjang".to_string()); }
+    if !validate_text_length(&preferred_products, 1000) { errors.push("Preferensi produk terlalu panjang".to_string()); }
     
     if !errors.is_empty() {
         return Err(AppError::Validation { errors });
+    }
+
+    let client_ip = extract_client_ip(&headers);
+    {
+        let mut buckets = state.public_submission_attempts.write().await;
+        enforce_rate_limit_bucket(
+            &mut buckets,
+            &format!("agent_registration:email:{}", email.trim().to_lowercase()),
+            3,
+            Duration::hours(1),
+        )
+        .await?;
+
+        if let Some(ip) = client_ip.as_deref() {
+            enforce_rate_limit_bucket(
+                &mut buckets,
+                &format!("agent_registration:ip:{}", ip),
+                6,
+                Duration::hours(1),
+            )
+            .await?;
+        }
     }
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -4939,9 +5046,72 @@ async fn list_job_applications(State(state): State<AppState>, headers: HeaderMap
     Ok(json_ok("Job applications fetched", json!({ "items": applications })))
 }
 
-async fn create_job_application(State(state): State<AppState>, Json(payload): Json<JobApplicationCreateRequest>) -> Result<ResponseBody, AppError> {
+async fn create_job_application(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<JobApplicationCreateRequest>) -> Result<ResponseBody, AppError> {
     let id = format!("app-{}", uuid::Uuid::new_v4().simple());
     let applied_at = Utc::now().naive_local().date().format("%Y-%m-%d").to_string();
+
+    let mut errors = Vec::new();
+    if payload.job_id.trim().is_empty() { errors.push("jobId wajib diisi".to_string()); }
+    if payload.job_title.trim().is_empty() { errors.push("jobTitle wajib diisi".to_string()); }
+    if payload.full_name.trim().is_empty() { errors.push("fullName wajib diisi".to_string()); }
+    if payload.email.trim().is_empty() || !payload.email.contains('@') { errors.push("Email tidak valid".to_string()); }
+    if payload.phone.trim().is_empty() { errors.push("phone wajib diisi".to_string()); }
+    if !validate_text_length(&payload.job_id, 80) { errors.push("jobId terlalu panjang".to_string()); }
+    if !validate_text_length(&payload.job_title, 150) { errors.push("jobTitle terlalu panjang".to_string()); }
+    if !validate_text_length(&payload.full_name, 120) { errors.push("fullName terlalu panjang".to_string()); }
+    if !validate_text_length(&payload.email, 254) { errors.push("Email terlalu panjang".to_string()); }
+    if !validate_text_length(&payload.phone, 32) { errors.push("phone terlalu panjang".to_string()); }
+    if let Some(address) = payload.address.as_deref() {
+        if !validate_text_length(address, 1000) { errors.push("address terlalu panjang".to_string()); }
+    }
+    if let Some(education) = payload.education.as_deref() {
+        if !validate_text_length(education, 255) { errors.push("education terlalu panjang".to_string()); }
+    }
+    if let Some(major) = payload.major.as_deref() {
+        if !validate_text_length(major, 255) { errors.push("major terlalu panjang".to_string()); }
+    }
+    if let Some(experience) = payload.experience.as_deref() {
+        if !validate_text_length(experience, 2000) { errors.push("experience terlalu panjang".to_string()); }
+    }
+    if let Some(cover_letter) = payload.cover_letter.as_deref() {
+        if !validate_text_length(cover_letter, 5000) { errors.push("coverLetter terlalu panjang".to_string()); }
+    }
+    if let Some(linked_in) = payload.linked_in.as_deref() {
+        if !linked_in.trim().is_empty() && (!is_allowed_public_url(linked_in) || !validate_text_length(linked_in, 2048)) {
+            errors.push("linkedIn harus berupa URL http/https yang valid".to_string());
+        }
+    }
+    if let Some(portfolio_url) = payload.portfolio_url.as_deref() {
+        if !portfolio_url.trim().is_empty() && (!is_allowed_public_url(portfolio_url) || !validate_text_length(portfolio_url, 2048)) {
+            errors.push("portfolioUrl harus berupa URL http/https yang valid".to_string());
+        }
+    }
+
+    if !errors.is_empty() {
+        return Err(AppError::Validation { errors });
+    }
+
+    let client_ip = extract_client_ip(&headers);
+    {
+        let mut buckets = state.public_submission_attempts.write().await;
+        enforce_rate_limit_bucket(
+            &mut buckets,
+            &format!("job_application:email:{}", payload.email.trim().to_lowercase()),
+            5,
+            Duration::hours(1),
+        )
+        .await?;
+
+        if let Some(ip) = client_ip.as_deref() {
+            enforce_rate_limit_bucket(
+                &mut buckets,
+                &format!("job_application:ip:{}", ip),
+                10,
+                Duration::hours(1),
+            )
+            .await?;
+        }
+    }
 
     sqlx::query(
         "INSERT INTO job_applications (id, job_id, job_title, full_name, email, phone, address, education, major, experience, cover_letter, linked_in, portfolio_url, status, applied_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"

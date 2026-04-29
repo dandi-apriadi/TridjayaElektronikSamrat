@@ -65,6 +65,8 @@ pub enum AppError {
     NotFound,
     #[error("conflict")]
     Conflict,
+    #[error("too many requests")]
+    TooManyRequests,
     #[error("internal server error")]
     Internal,
     #[error("email not verified")]
@@ -79,6 +81,7 @@ impl AppError {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict => StatusCode::CONFLICT,
+            Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
             Self::EmailUnverified => StatusCode::FORBIDDEN,
         }
@@ -91,6 +94,7 @@ impl AppError {
             Self::Forbidden => "Access denied".to_string(),
             Self::NotFound => "Resource not found".to_string(),
             Self::Conflict => "Conflict detected".to_string(),
+            Self::TooManyRequests => "Too many requests".to_string(),
             Self::Internal => "Unexpected internal error".to_string(),
             Self::EmailUnverified => "Email belum terverifikasi. Silakan cek inbox Anda atau hubungi admin.".to_string(),
         }
