@@ -15,6 +15,7 @@ import { recordTelemetry } from '../utils/telemetry';
 import { getImageUrl } from '../utils/apiClient';
 
 import { useMinInstallment } from '../hooks/useMinInstallment';
+import { ShippingCalculator } from '../components/ShippingCalculator';
 
 const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -153,6 +154,11 @@ const ProductDetailPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Shipping Calculator – placed in the empty space below colors */}
+              <div className="mt-8 hidden lg:block">
+                <ShippingCalculator />
+              </div>
             </motion.div>
 
             {/* Info */}
@@ -307,6 +313,11 @@ const ProductDetailPage: React.FC = () => {
                   ))}
                 </div>
               </motion.div>
+
+              {/* Mobile Shipping Calculator (shown below info on mobile) */}
+              <div className="mt-6 lg:hidden">
+                <ShippingCalculator />
+              </div>
             </motion.div>
           </div>
         </div>

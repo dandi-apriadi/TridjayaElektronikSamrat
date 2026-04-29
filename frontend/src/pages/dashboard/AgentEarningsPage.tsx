@@ -332,8 +332,8 @@ const AgentEarningsPage: React.FC = () => {
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary" />Payout</span>
           </div>
         </div>
-        <div className="h-[220px] mt-4">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+        <div className="relative h-[220px] w-full min-h-[220px] mt-4">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
             <AreaChart data={earningHistory}>
               <defs>
                 <linearGradient id="gradKomisi" x1="0" y1="0" x2="0" y2="1">

@@ -27,12 +27,14 @@ const AdminFormPage: React.FC = () => {
   // Determine form type from path
   const [type, setType] = useState<FormType>('catalog');
   const isEdit = !!id;
-  const { products, fetchProducts } = useProductStore();
+  const { products, fetchProducts, updateProduct, createProduct } = useProductStore();
   const { promos, fetchPromos } = usePromoStore();
   const { posts, fetchPosts } = useBlogStore();
   const { users, fetchUsers, createUser, updateUser, resendVerification, verifyUser } = useUserStore();
   const { agents, fetchAgents, leads: adminLeads, fetchLeads, agentPerformance, fetchAgentPerformance } = useAdminNetworkStore();
+  
   const currentUser = useMemo(() => users.find((item) => item.id === id), [id, users]);
+  const currentProduct = useMemo(() => products.find((item) => item.id === id), [id, products]);
 
   useEffect(() => {
     if (path.includes('catalog')) setType('catalog');
@@ -58,6 +60,15 @@ const AdminFormPage: React.FC = () => {
   const [colors, setColors] = useState(['Red', 'Blue', 'Black']);
   const [newColor, setNewColor] = useState('');
   const [name, setName] = useState('');
+  
+  // Catalog specific states
+  const [image, setImage] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [dpMin, setDpMin] = useState('');
+  const [category, setCategory] = useState<'bike' | 'electronics' | 'furniture'>('bike');
+  const [subcategory, setSubcategory] = useState('');
+
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'admin' | 'agent' | 'editor' | 'operator'>('agent');
   const [password, setPassword] = useState('');
@@ -126,6 +137,33 @@ const AdminFormPage: React.FC = () => {
   }, [posts, products, promos, type, users, currentUser, adminLeads, id, agentPerformance]);
 
   useEffect(() => {
+    if (type === 'catalog') {
+      if (currentProduct) {
+        setName(currentProduct.name || '');
+        setImage(currentProduct.image || '');
+        setDescription(currentProduct.description || '');
+        setCategory(currentProduct.category as any || 'bike');
+        setSubcategory(currentProduct.subcategory || '');
+        setPrice(currentProduct.price.toString());
+        setDpMin(currentProduct.dpMin?.toString() || '');
+        setColors(currentProduct.colors || []);
+        
+        const specsArr = Object.entries(currentProduct.specs || {}).map(([key, value]) => ({ key, value }));
+        setSpecs(specsArr.length > 0 ? specsArr : [{ key: 'Motor Power', value: '500W' }]);
+      } else {
+        setName('');
+        setImage('');
+        setDescription('');
+        setCategory('bike');
+        setSubcategory('');
+        setPrice('');
+        setDpMin('');
+        setColors(['Red', 'Blue', 'Black']);
+        setSpecs([{ key: 'Motor Power', value: '500W' }, { key: 'Top Speed', value: '45 km/h' }]);
+      }
+      return;
+    }
+
     if (type !== 'user') return;
 
     if (currentUser) {
@@ -160,7 +198,7 @@ const AdminFormPage: React.FC = () => {
       setProvince('');
       setIsVerified(false);
     }
-  }, [currentUser, type, agentDetails]);
+  }, [currentUser, currentProduct, type, agentDetails]);
 
   const handleVerify = async () => {
     if (!id) return;
@@ -185,6 +223,40 @@ const AdminFormPage: React.FC = () => {
     setIsSaving(true);
 
     try {
+      if (type === 'catalog') {
+        if (!name.trim()) throw new Error('Nama produk wajib diisi.');
+        if (!price) throw new Error('Harga wajib diisi.');
+        
+        const specObj = specs.reduce((acc, curr) => {
+          if (curr.key.trim()) acc[curr.key.trim()] = curr.value;
+          return acc;
+        }, {} as Record<string, string>);
+
+        const payload = {
+          name: name.trim(),
+          image: image.trim(),
+          description: description.trim(),
+          category,
+          subcategory: subcategory.trim(),
+          price: Number(price),
+          dpMin: dpMin ? Number(dpMin) : undefined,
+          colors,
+          specs: specObj
+        };
+
+        if (isEdit && id) {
+           const success = await updateProduct(id, payload);
+           if (!success) throw new Error('Gagal memperbarui produk.');
+        } else {
+           const success = await createProduct(payload);
+           if (!success) throw new Error('Gagal membuat produk baru.');
+        }
+        
+        toast.success(`${config.title} Berhasil Disimpan`, 'Data produk telah tersinkron ke backend.');
+        navigate('/dashboard/admin/catalog');
+        return;
+      }
+
       if (type === 'user') {
         if (!name.trim() || !email.trim()) {
           throw new Error('Nama dan email wajib diisi.');
@@ -423,11 +495,14 @@ const AdminFormPage: React.FC = () => {
                   {type === 'catalog' && (
                     <div className="space-y-1.5">
                       <label className="text-label-sm text-on-surface-variant font-semibold">Kategori Produk</label>
-                      <select className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none">
-                        <option>Sepeda Listrik</option>
-                        <option>Motor Listrik</option>
-                        <option>Elektronik</option>
-                        <option>Furnitur</option>
+                      <select 
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value as any)}
+                        className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                      >
+                        <option value="bike">Sepeda Listrik</option>
+                        <option value="electronics">Elektronik</option>
+                        <option value="furniture">Furnitur</option>
                       </select>
                     </div>
                   )}
@@ -437,6 +512,8 @@ const AdminFormPage: React.FC = () => {
                       <label className="text-label-sm text-on-surface-variant font-semibold">Sub-Kategori / Model</label>
                       <input
                         type="text"
+                        value={subcategory}
+                        onChange={(e) => setSubcategory(e.target.value)}
                         placeholder="Contoh: Premium Series, Eco Hub..."
                         className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
                       />
@@ -489,6 +566,8 @@ const AdminFormPage: React.FC = () => {
                       <div className="flex gap-3">
                         <input
                           type="text"
+                          value={image}
+                          onChange={(e) => setImage(e.target.value)}
                           placeholder="https://..."
                           className="flex-1 px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-sm"
                         />
@@ -505,6 +584,8 @@ const AdminFormPage: React.FC = () => {
                 <label className="text-label-sm text-on-surface-variant font-semibold">Deskripsi Produk (Landing Page)</label>
                 <textarea
                   rows={4}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="Masukkan deskripsi lengkap yang akan tampil di halaman detail produk..."
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md resize-none transition-all"
                 />
@@ -587,7 +668,9 @@ const AdminFormPage: React.FC = () => {
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">Rp</span>
                       <input
                         required
-                        type="text"
+                        type="number"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
                         placeholder="0"
                         className="w-full pl-12 pr-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md font-bold"
                       />
@@ -598,7 +681,9 @@ const AdminFormPage: React.FC = () => {
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">Rp</span>
                       <input
-                        type="text"
+                        type="number"
+                        value={dpMin}
+                        onChange={(e) => setDpMin(e.target.value)}
                         placeholder="0"
                         className="w-full pl-12 pr-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md"
                       />
@@ -829,8 +914,8 @@ const AdminFormPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <div className="relative h-[300px] w-full min-h-[300px]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                 <AreaChart data={insightData}>
                   <defs>
                     <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">

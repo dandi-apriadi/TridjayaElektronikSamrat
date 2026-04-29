@@ -248,9 +248,9 @@ const AdminFinancePage: React.FC = () => {
             <TrendingUp className="w-4 h-4 text-primary" />
             <h4 className="font-display text-title-sm font-bold text-on-surface">Komisi per Area</h4>
           </div>
-          <div className="h-56 min-h-[224px] min-w-0">
+          <div className="relative h-56 min-h-[224px] w-full">
             {chartReady && commissionByArea.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                 <BarChart data={commissionByArea} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#484847" horizontal={false} />
                   <XAxis type="number" stroke="#ADAAAA" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />

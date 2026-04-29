@@ -10,15 +10,15 @@ export const adminProductSchema = z.object({
   dpMin: z.number().nonnegative('DP minimum tidak boleh negatif').optional(),
   stock: z.enum(['available', 'indent', 'hidden']),
   image: z.string().trim().optional().default(''), 
-  images: z.array(z.string().trim()).optional().default([]),
+  images: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
   description: z.string().trim().optional().default(''),
   shortDesc: z.string().trim().optional().default(''),
-  badge: z.enum(['eco', 'new', 'sale', 'popular', 'limited', '']).optional().transform(v => v === '' ? undefined : v),
+  badge: z.preprocess((val) => typeof val === 'string' ? val.toLowerCase() : val, z.enum(['eco', 'new', 'sale', 'popular', 'limited', '']).nullish().transform(v => (v === '' || v === null) ? undefined : v)),
   specs: z.record(z.string(), z.string()).optional().default({}),
-  colors: z.array(z.string()).optional().default([]),
-  highlights: z.array(z.string()).optional().default([]),
-  sellingPoints: z.array(z.string()).optional().default([]),
-  objections: z.array(z.string()).optional().default([]),
+  colors: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
+  highlights: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
+  sellingPoints: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
+  objections: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
 });
 
 export const adminPromoSchema = z.object({

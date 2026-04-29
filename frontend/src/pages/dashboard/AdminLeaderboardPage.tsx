@@ -222,8 +222,8 @@ const AdminLeaderboardPage: React.FC = () => {
                       <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-cyan-400" /> <span className="text-[10px] text-on-surface-variant font-bold">Diamond</span></div>
                    </div>
                 </div>
-                <div className="h-[300px]">
-                   <ResponsiveContainer width="100%" height="100%">
+                <div className="relative h-[300px] w-full min-h-[300px]">
+                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                       <AreaChart data={networkGrowthData}>
                         <defs>
                           <linearGradient id="gradSilver" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#94a3b8" stopOpacity={0.1}/><stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/></linearGradient>

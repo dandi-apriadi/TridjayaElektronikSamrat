@@ -222,7 +222,7 @@ const AdminProductFormPage: React.FC = () => {
         ...prev,
         images: [...(prev.images || []), ...uploadedUrls]
       }));
-      toast.success(`Berhasil mengunggah ${uploadedUrls.length} gambar`);
+      toast.success(`Berhasil mengunggah ${uploadedUrls.length} gambar`, 'Penting: Klik "Simpan Perubahan" di bawah untuk menyimpan!');
     }
 
     if (errorCount > 0) {
@@ -284,7 +284,7 @@ const AdminProductFormPage: React.FC = () => {
       if (!uploadedUrl) throw new Error('Respons tidak valid');
 
       setFormData((prev) => ({ ...prev, image: uploadedUrl }));
-      toast.success('Thumbnail berhasil diunggah');
+      toast.success('Thumbnail berhasil diunggah', 'Penting: Klik "Simpan Perubahan" di bawah untuk menyimpan!');
     } catch (error) {
       toast.error('Upload Gagal', error instanceof Error ? error.message : 'Terjadi kesalahan');
     } finally {
@@ -408,6 +408,9 @@ const AdminProductFormPage: React.FC = () => {
                   {categories.map(cat => (
                     <option key={cat.id} value={cat.slug}>{cat.name}</option>
                   ))}
+                  {formData.category && !categories.some(c => c.slug === formData.category) && (
+                    <option value={formData.category}>{formData.category.toUpperCase()} (Legacy)</option>
+                  )}
                 </select>
               </div>
               <div className="space-y-1.5">

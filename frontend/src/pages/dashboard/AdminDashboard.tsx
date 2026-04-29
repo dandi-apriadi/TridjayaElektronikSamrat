@@ -386,8 +386,8 @@ const AdminDashboard: React.FC = () => {
               <span className="text-label-xs text-on-surface-variant">Lead</span>
             </div>
           </div>
-          <div className="h-[260px] w-full min-h-[260px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="relative h-[260px] w-full min-h-[260px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="gradBruto" x1="0" y1="0" x2="0" y2="1">
@@ -436,8 +436,8 @@ const AdminDashboard: React.FC = () => {
               <span className="text-label-xs text-on-surface-variant">Baru</span>
             </div>
           </div>
-          <div className="h-[220px] w-full min-h-[220px] flex-1">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="relative h-[220px] w-full min-h-[220px] flex-1">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
               <BarChart data={agentGrowthData} barSize={8} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="month" stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
@@ -464,8 +464,8 @@ const AdminDashboard: React.FC = () => {
             <h3 className="font-display text-title-md font-bold text-on-surface">Distribusi Katalog</h3>
             <p className="text-label-sm text-on-surface-variant mt-0.5">Top 8 kategori produk</p>
           </div>
-          <div className="h-[250px] w-full min-h-[250px] flex-1">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="relative h-[250px] w-full min-h-[250px] flex-1">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
               <PieChart>
                 <Pie
                   data={categoryData}
