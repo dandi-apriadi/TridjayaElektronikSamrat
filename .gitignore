@@ -11,8 +11,6 @@ target/
 node_modules/
 dist/
 .env
-*.db
-*.db-journal
 # Editor / OS
 .DS_Store
 .idea/

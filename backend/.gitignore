@@ -4,9 +4,9 @@ target
 .DS_Store
 
 # SQLite database (jangan commit data produksi/dev).
-tridjaya.db
-tridjaya.db-shm
-tridjaya.db-wal
+#tridjaya.db
+#tridjaya.db-shm
+#tridjaya.db-wal
 
 # User-uploaded PII / konten pengguna. Berkas brand & partner statis (mis.
 # uploads/partners/*, uploads/logo.png) tetap boleh di-commit.

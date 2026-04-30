@@ -52,6 +52,11 @@ name = "test_smtp"
 path = "src/bin/test_smtp.rs"
 required-features = ["dev-tools"]
 
+[[bin]]
+name = "verify_admin"
+path = "src/bin/verify_admin.rs"
+required-features = ["dev-tools"]
+
 [dependencies]
 axum = { version = "0.8", features = ["macros", "multipart"] }
 chrono = { version = "0.4", features = ["serde"] }

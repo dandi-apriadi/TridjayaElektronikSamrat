@@ -172,7 +172,7 @@ export const ShippingCalculator: React.FC = () => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute z-50 w-full mt-2 bg-surface-container border border-outline-variant/20 rounded-xl shadow-2xl overflow-hidden backdrop-blur-md"
+                className="absolute z-50 w-full mt-2 bg-surface-container border border-outline-variant/20 rounded-xl shadow-2xl max-h-60 overflow-y-auto backdrop-blur-md"
               >
                 {searchResults.map((result, idx) => (
                   <button
