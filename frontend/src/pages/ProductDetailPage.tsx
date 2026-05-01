@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Shield, CreditCard, Phone, Share2
+  Shield, CreditCard, Phone, Share2, Star
 } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
 import { formatPrice } from '../data';
@@ -171,6 +171,25 @@ const ProductDetailPage: React.FC = () => {
               <h1 className="font-display text-display-sm font-bold text-white mb-4">{product.name}</h1>
 
               <p className="font-body text-body-lg text-on-surface-variant leading-relaxed mb-6">{product.description}</p>
+
+              {(typeof product.rating === 'number' && product.rating > 0) || product.review ? (
+                <div className="glass-card rounded-2xl p-5 mb-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-lg bg-yellow-500/15 border border-yellow-500/20 flex items-center justify-center text-yellow-300">
+                      <Star className="w-4 h-4 fill-current" />
+                    </div>
+                    <div>
+                      <div className="font-display text-title-sm font-bold text-white">Rating & Ulasan Admin</div>
+                      {typeof product.rating === 'number' && product.rating > 0 && (
+                        <div className="font-body text-body-sm text-on-surface-variant">Nilai: <span className="text-white font-semibold">{product.rating.toFixed(1)}/5</span></div>
+                      )}
+                    </div>
+                  </div>
+                  {product.review && (
+                    <p className="font-body text-body-md text-on-surface-variant leading-relaxed">{product.review}</p>
+                  )}
+                </div>
+              ) : null}
 
               {/* Price card */}
               <div className="glass-card rounded-2xl p-5 mb-6">

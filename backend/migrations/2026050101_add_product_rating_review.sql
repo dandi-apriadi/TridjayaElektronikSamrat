@@ -1,0 +1,2 @@
+ALTER TABLE products ADD COLUMN rating REAL;
+ALTER TABLE products ADD COLUMN review TEXT;

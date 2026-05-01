@@ -52,6 +52,8 @@ const AdminProductFormPage: React.FC = () => {
     images: [],
     description: '',
     shortDesc: '',
+    rating: undefined,
+    review: '',
     specs: {},
     colors: [],
     highlights: [],
@@ -93,7 +95,9 @@ const AdminProductFormPage: React.FC = () => {
           colors: product.colors || [],
           highlights: product.highlights || [],
           sellingPoints: product.sellingPoints || [],
-          objections: product.objections || []
+          objections: product.objections || [],
+          rating: product.rating ?? undefined,
+          review: product.review || ''
         });
       } else {
         toast.error('Produk tidak ditemukan');
@@ -153,9 +157,12 @@ const AdminProductFormPage: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    const numericFields = new Set(['price', 'priceInstallment', 'dpMin', 'rating']);
     setFormData(prev => ({
       ...prev,
-      [name]: (name === 'price' || name === 'priceInstallment' || name === 'dpMin') ? Number(value) : value
+      [name]: numericFields.has(name)
+        ? (name === 'rating' && value === '' ? undefined : Number(value))
+        : value
     }));
   };
 
@@ -427,6 +434,17 @@ const AdminProductFormPage: React.FC = () => {
             <div className="space-y-1.5 mt-4">
               <label className="text-label-sm font-semibold text-on-surface-variant">Deskripsi Lengkap (Product Knowledge)</label>
               <textarea name="description" value={formData.description || ''} onChange={handleChange} rows={6} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Masukkan detail lengkap produk untuk referensi agen..." />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="space-y-1.5">
+                <label className="text-label-sm font-semibold text-on-surface-variant">Rating Produk (0 - 5)</label>
+                <input name="rating" value={formData.rating ?? ''} onChange={handleChange} type="number" min="0" max="5" step="0.1" className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none" placeholder="Contoh: 4.8" />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-label-sm font-semibold text-on-surface-variant">Ulasan Admin</label>
+                <textarea name="review" value={formData.review || ''} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Tulis ulasan singkat yang akan tampil di halaman publik produk..." />
+              </div>
             </div>
           </div>
 

@@ -2,7 +2,7 @@ import React from 'react';
 export * from './PartnerLogos';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Zap, Shield, Award, Clock, Share2 } from 'lucide-react';
+import { ArrowRight, Zap, Shield, Award, Clock, Share2, Star } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../data';
 import { getImageUrl } from '../../utils/apiClient';
@@ -131,8 +131,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
                 {product.shortDesc}
               </p>
 
-              <div className="flex items-end justify-between">
-                <div>
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  {(typeof product.rating === 'number' && product.rating > 0) || product.review ? (
+                    <div className="flex items-center gap-2 mb-2 text-label-sm">
+                      {typeof product.rating === 'number' && product.rating > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-500/15 text-yellow-300 border border-yellow-500/20 font-semibold">
+                          <Star className="w-3.5 h-3.5 fill-current" />
+                          {product.rating.toFixed(1)}/5
+                        </span>
+                      )}
+                      {product.review && <span className="text-on-surface-variant line-clamp-1">{product.review}</span>}
+                    </div>
+                  ) : null}
                   <div className="font-display text-headline-sm font-bold gradient-text-primary">
                     {formatPrice(product.price)}
                   </div>
@@ -182,6 +193,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
             </div>
 
             <div className="pt-3 border-t border-white/10 mt-auto">
+              {(typeof product.rating === 'number' && product.rating > 0) || product.review ? (
+                <div className="flex items-start gap-2 mb-3 text-label-sm">
+                  {typeof product.rating === 'number' && product.rating > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-500/15 text-yellow-300 border border-yellow-500/20 font-semibold shrink-0">
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                      {product.rating.toFixed(1)}
+                    </span>
+                  )}
+                  {product.review && <span className="text-on-surface-variant line-clamp-2 leading-relaxed">{product.review}</span>}
+                </div>
+              ) : null}
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-display text-title-md font-bold text-primary">

@@ -1714,6 +1714,8 @@ struct ProductRecord {
     specs: Option<String>,
     stock: String,
     colors: Option<String>,
+    rating: Option<f64>,
+    review: Option<String>,
 }
 
 #[derive(Default, Clone)]
@@ -1743,6 +1745,8 @@ struct CatalogCreateRequest {
     specs: Option<Value>,
     stock: Option<String>,
     colors: Option<Value>,
+    rating: Option<f64>,
+    review: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1764,6 +1768,8 @@ struct CatalogUpdateRequest {
     specs: Option<Value>,
     stock: Option<String>,
     colors: Option<Value>,
+    rating: Option<f64>,
+    review: Option<String>,
 }
 
 fn parse_json_or_default(raw: Option<&str>, fallback: Value) -> Value {
@@ -1797,6 +1803,8 @@ fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSum
         "specs": parse_json_or_default(record.specs.as_deref(), json!({})),
         "stock": record.stock,
         "colors": parse_json_or_default(record.colors.as_deref(), json!([])),
+        "rating": record.rating,
+        "review": record.review,
         "views": analytics.views,
         "leads": analytics.leads,
         "conversions": analytics.conversions,
@@ -1829,6 +1837,9 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
     }
     if payload.dp_min.is_some_and(|value| value < 0.0) {
         errors.push("dpMin tidak boleh negatif".to_string());
+    }
+    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+        errors.push("rating harus di antara 0 sampai 5".to_string());
     }
     if let Some(stock) = &payload.stock {
         if !validate_stock(stock) {
@@ -1865,6 +1876,9 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
     if payload.dp_min.is_some_and(|value| value < 0.0) {
         errors.push("dpMin tidak boleh negatif".to_string());
     }
+    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+        errors.push("rating harus di antara 0 sampai 5".to_string());
+    }
     if payload.stock.as_ref().is_some_and(|value| !validate_stock(value)) {
         errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
     }
@@ -1878,7 +1892,7 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
 
 async fn find_catalog_by_id_or_slug(state: &AppState, id_or_slug: &str) -> Result<ProductRecord, AppError> {
     sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors FROM products WHERE id = ? OR slug = ? LIMIT 1"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
     )
     .bind(id_or_slug)
     .bind(id_or_slug)
@@ -2346,9 +2360,15 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     let specs = serde_json::to_string(&payload.specs.unwrap_or_else(|| json!({}))).map_err(|_| AppError::Internal)?;
     let colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
     let stock = payload.stock.unwrap_or_else(|| "available".to_string());
+    let review = payload
+        .review
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
 
     sqlx::query(
-        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(payload.slug.trim())
@@ -2367,6 +2387,8 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     .bind(specs)
     .bind(stock)
     .bind(colors)
+    .bind(payload.rating)
+    .bind(review)
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
@@ -2399,9 +2421,17 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
         .map_err(|_| AppError::Internal)?;
     let next_colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| parse_json_or_default(current.colors.as_deref(), json!([]))))
         .map_err(|_| AppError::Internal)?;
+    let next_review = payload
+        .review
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| current.review.clone());
+    let next_rating = payload.rating.or(current.rating);
 
     sqlx::query(
-        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ? WHERE id = ?"
+        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ?, rating = ?, review = ? WHERE id = ?"
     )
     .bind(next_slug)
     .bind(next_name)
@@ -2419,6 +2449,8 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
     .bind(next_specs)
     .bind(next_stock)
     .bind(next_colors)
+    .bind(next_rating)
+    .bind(next_review)
     .bind(&current.id)
     .execute(&state.pool)
     .await

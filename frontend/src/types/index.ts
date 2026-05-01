@@ -17,6 +17,8 @@ export interface Product {
   leads?: number;
   conversions?: number;
   conversionRate?: number;
+  rating?: number | null;
+  review?: string | null;
   specs: Record<string, string>;
   description: string;
   shortDesc: string;
