@@ -23,17 +23,28 @@ async fn main() {
         .compact()
         .init();
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
+    tracing::info!("Connecting to database...");
+    
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
         .await
-        .expect("Failed to connect to SQLite");
+        .map_err(|e| {
+            tracing::error!("Failed to connect to SQLite at {}: {}", database_url, e);
+            e
+        })
+        .expect("Failed to connect to SQLite. Check if DATABASE_URL is correct and file permissions are okay.");
 
     // Run Migrations
+    tracing::info!("Running database migrations...");
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
+        .map_err(|e| {
+            tracing::error!("Migration error: {}", e);
+            e
+        })
         .expect("Failed to run migrations");
 
     // Seed Data
@@ -60,6 +71,7 @@ async fn main() {
     let allowed_origins = std::env::var("ALLOWED_ORIGINS").ok();
     let origin_list = allowed_origins.unwrap_or_else(|| {
         if is_production_runtime() {
+            tracing::error!("FATAL: ALLOWED_ORIGINS must be set in production mode!");
             panic!("ALLOWED_ORIGINS must be set in production");
         }
 
@@ -70,6 +82,7 @@ async fn main() {
         .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
         .collect();
     if is_production_runtime() && origins.is_empty() {
+        tracing::error!("FATAL: ALLOWED_ORIGINS is empty or contains invalid URLs!");
         panic!("ALLOWED_ORIGINS is empty or invalid in production");
     }
     let cors = CorsLayer::new()
@@ -79,9 +92,19 @@ async fn main() {
         .allow_credentials(true);
 
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    let redis_client = redis::Client::open(redis_url).expect("Invalid Redis URL");
+    tracing::info!("Connecting to Redis at {}...", redis_url);
+    
+    let redis_client = redis::Client::open(redis_url.clone()).map_err(|e| {
+        tracing::error!("Invalid Redis URL {}: {}", redis_url, e);
+        e
+    }).expect("Invalid Redis URL");
+
     let redis_conn = redis::aio::ConnectionManager::new(redis_client)
         .await
+        .map_err(|e| {
+            tracing::error!("CRITICAL: Failed to connect to Redis at {}. Is redis-server running? Error: {}", redis_url, e);
+            e
+        })
         .expect("Failed to create Redis connection manager");
 
     let cache = std::sync::Arc::new(tridjaya_backend::cache::CacheManager::new(redis_conn));

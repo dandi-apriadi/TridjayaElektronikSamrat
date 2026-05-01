@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (email, id) in admins {
         println!("Verifying and resetting password for account: {}", email);
-        let hash = hash_password("123");
+        let hash = hash_password("Admin123!");
         
         let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = ?")
             .bind(email)

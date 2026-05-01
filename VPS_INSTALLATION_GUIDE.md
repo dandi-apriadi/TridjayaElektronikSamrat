@@ -1,4 +1,4 @@
-# Panduan Instalasi VPS - Tridjaya Samrat (elektropolimdo.com)
+# Panduan Instalasi VPS - Tridjaya Samrat (polimdogreenacc.com)
 
 Panduan ini menjelaskan langkah-langkah untuk melakukan deployment aplikasi Tridjaya Samrat ke server VPS (Ubuntu 22.04) menggunakan data dari repositori GitHub.
 
@@ -48,7 +48,7 @@ Edit `.env` menggunakan `nano .env`:
 ```env
 DATABASE_URL="sqlite:tridjaya.db"
 APP_ENV="production"
-ALLOWED_ORIGINS="https://elektropolimdo.com,https://www.elektropolimdo.com"
+ALLOWED_ORIGINS="https://polimdogreenacc.com,https://www.polimdogreenacc.com"
 # Masukkan konfigurasi SMTP Anda jika diperlukan
 ```
 
@@ -66,7 +66,7 @@ cp .env.example .env
 
 Edit `.env` (Frontend):
 ```env
-VITE_API_BASE_URL="https://elektropolimdo.com"
+VITE_API_BASE_URL="https://polimdogreenacc.com"
 ```
 
 ### Build Frontend
@@ -79,13 +79,14 @@ npm run build
 
 Buat file konfigurasi Nginx:
 ```bash
-sudo nano /etc/nginx/sites-available/elektropolimdo
+sudo nano /etc/nginx/sites-available/polimdogreenacc
 ```
 
 Isi dengan:
 ```nginx
 server {
-    server_name elektropolimdo.com www.elektropolimdo.com;
+    server_name polimdogreenacc.com www.polimdogreenacc.com;
+    client_max_body_size 20M;
 
     # Frontend (Vite Static Files)
     location / {
@@ -112,14 +113,14 @@ server {
 
 Aktifkan konfigurasi:
 ```bash
-sudo ln -s /etc/nginx/sites-available/elektropolimdo /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/polimdogreenacc /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```
 
 ### Setup SSL (HTTPS)
 ```bash
-sudo certbot --nginx -d elektropolimdo.com -d www.elektropolimdo.com
+sudo certbot --nginx -d polimdogreenacc.com -d www.polimdogreenacc.com
 ```
 
 ## 6. Menjalankan Aplikasi dengan PM2
@@ -145,8 +146,8 @@ pm2 startup
 ```
 
 ## 7. Verifikasi
-Akses domain Anda di `https://elektropolimdo.com`.
-Coba login ke admin di `https://elektropolimdo.com/login` menggunakan akun yang sudah kita buat tadi.
+Akses domain Anda di `https://polimdogreenacc.com`.
+Coba login ke admin di `https://polimdogreenacc.com/login` menggunakan akun yang sudah kita buat tadi.
 
 ---
 **Catatan Database**: Repositori ini sudah menyertakan `tridjaya.db` yang berisi data produk dan akun admin terverifikasi. Pastikan permissions file database benar:
