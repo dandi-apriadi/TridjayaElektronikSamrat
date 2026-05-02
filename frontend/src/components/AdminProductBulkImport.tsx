@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, CheckCircle2, XCircle, Download, Play, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Upload, CheckCircle2, XCircle, Download, Play, Trash2, Eye, EyeOff, History, Trash } from 'lucide-react';
 import { useProductStore } from '../store/useProductStore';
 import { toast } from '../store/useNotificationStore';
 import {
@@ -11,19 +12,32 @@ import {
   type ImportPreviewItem
 } from '../utils/productImportHandler';
 import { formatRupiah } from '../utils/creditCalculator';
+import { apiFetch } from '../utils/apiClient';
+
+interface BulkImportHistory {
+  id: string;
+  timestamp: number;
+  fileName: string;
+  successCount: number;
+  errorCount: number;
+  results: string[];
+  totalItems: number;
+}
 
 const AdminProductBulkImport: React.FC = () => {
-  const { products, updateProduct, createProduct } = useProductStore();
+  const { products } = useProductStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
-  const [step, setStep] = useState<'upload' | 'preview' | 'processing' | 'done'>('upload');
+  const [step, setStep] = useState<'upload' | 'preview' | 'processing' | 'done' | 'history'>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewItem[]>([]);
   const [processing, setProcessing] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'new' | 'error'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'similar' | 'new' | 'error'>('all');
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [processSummary, setProcessSummary] = useState<{ successCount: number; errorCount: number; results: string[] } | null>(null);
   const [importProgress, setImportProgress] = useState(0);
+  const [bulkHistory, setBulkHistory] = useState<BulkImportHistory[]>([]);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   // Pagination & advanced filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,6 +51,25 @@ const AdminProductBulkImport: React.FC = () => {
   const [maxPrice, setMaxPrice] = useState<string>('');
   const [showOnlyChanges, setShowOnlyChanges] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Load history from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('bulkImportHistory');
+    if (saved) {
+      try {
+        setBulkHistory(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load history:', e);
+      }
+    }
+  }, []);
+
+  // Save history to localStorage
+  const saveHistory = (entry: BulkImportHistory) => {
+    const updated = [entry, ...bulkHistory].slice(0, 50); // Keep last 50 imports
+    setBulkHistory(updated);
+    localStorage.setItem('bulkImportHistory', JSON.stringify(updated));
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -131,93 +164,114 @@ const AdminProductBulkImport: React.FC = () => {
   const summary = getImportSummary(preview);
 
   const handleProcessImport = async () => {
-    if (preview.length === 0) {
-      toast.error('Tidak ada data untuk diimport');
+    // Filter out items that shouldn't be processed
+    const validItems = preview.filter(item => item.status === 'matched' || item.status === 'new');
+    
+    if (validItems.length === 0) {
+      toast.error('Tidak ada data valid untuk diimport. Pastikan semua produk Serupa sudah ditangani.');
       return;
     }
 
     setProcessing(true);
     setStep('processing');
+    setImportProgress(0);
     
-    let successCount = 0;
-    let errorCount = 0;
     const results: string[] = [];
+    let totalSuccess = 0;
+    let totalError = 0;
 
     try {
-      setImportProgress(0);
-      for (let i = 0; i < preview.length; i++) {
-        const item = preview[i];
+      // Chunking for large datasets (max 50 per request to stay within limits)
+      const chunkSize = 50;
+      for (let i = 0; i < validItems.length; i += chunkSize) {
+        const chunk = validItems.slice(i, i + chunkSize);
         
-        try {
-          // Skip error items
-          if (item.status === 'error') {
-            errorCount++;
-            results.push(`❌ Row ${item.rowNumber}: ${item.error}`);
-            continue;
-          }
-
+        const operations = chunk.map(item => {
           const updateData = prepareUpdateData(item.newData);
-
           if (item.status === 'matched' && item.matchedProduct) {
-            // Update existing product
-            const success = await updateProduct(item.matchedProduct.id, updateData);
-            if (success) {
-              successCount++;
-              const priceInfo = item.priceChange 
-                ? ` (Harga: ${formatRupiah(item.priceChange.old)} → ${formatRupiah(item.priceChange.new)})`
-                : '';
-              results.push(`✅ Updated: ${item.name}${priceInfo}`);
-            } else {
-              errorCount++;
-              results.push(`❌ Row ${item.rowNumber}: Gagal update ${item.name}`);
-            }
-          } else if (item.status === 'new') {
-            // Create new product
-            const productName = item.newData.name || '';
-            const createData = {
-              ...updateData,
-              name: productName,
-              slug: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-              stock: updateData.stock || 'available'
+            return {
+              type: 'update',
+              data: {
+                id: item.matchedProduct.id,
+                data: updateData
+              }
             };
-            
-            const success = await createProduct(createData);
-            if (success) {
-              successCount++;
-              results.push(`✅ Created: ${item.name}`);
-            } else {
-              errorCount++;
-              results.push(`❌ Row ${item.rowNumber}: Gagal create ${item.name}`);
-            }
+          } else {
+            const productName = item.newData.name || '';
+            return {
+              type: 'create',
+              data: {
+                ...updateData,
+                name: productName,
+                slug: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                stock: updateData.stock || 'available',
+                image: item.newData.image || 'https://placehold.co/600x400?text=No+Image'
+              }
+            };
           }
-          
-          // Update progress
-          setImportProgress(Math.round(((i + 1) / preview.length) * 100));
-        } catch (error) {
-          errorCount++;
-          results.push(`❌ Row ${item.rowNumber}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        });
+
+        const response = await apiFetch('/api/admin/catalogs/bulk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ operations }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const msg = errorData.message || errorData.error || 'Gagal memproses bulk import';
+          throw new Error(msg);
+        }
+        
+        const payload = await response.json();
+        const { successCount, errors } = payload.data || { successCount: 0, errors: [] };
+        
+        totalSuccess += successCount;
+        totalError += errors.length;
+        results.push(...errors.map((err: string) => `❌ Error: ${err}`));
+        
+        // Add specific success messages for small imports, or generic for large ones
+        if (chunk.length <= 5) {
+          chunk.forEach(item => results.push(`✅ Selesai: ${item.name}`));
+        } else {
+          results.push(`✅ Berhasil memproses ${successCount} produk di batch ini`);
         }
 
-        // Small delay for UI update
-        if ((i + 1) % 5 === 0 || i === preview.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
+        setImportProgress(Math.min(100, Math.round(((i + chunk.length) / validItems.length) * 100)));
       }
 
-      // Show summary
       setProcessing(false);
-      setProcessSummary({ successCount, errorCount, results });
-      setStep('done');
-      toast.success(`Import selesai: ${successCount} berhasil, ${errorCount} gagal`);
+      const summary = { 
+        successCount: totalSuccess, 
+        errorCount: totalError + (preview.length - validItems.length), 
+        results: [
+          ...results,
+          `ℹ️ ${preview.length - validItems.length} baris dilewati (Error/Serupa)`
+        ] 
+      };
+      setProcessSummary(summary);
       
-      // Log results
-      console.log('Import Results:', results);
+      // Save to history
+      saveHistory({
+        id: `bulk_${Date.now()}`,
+        timestamp: Date.now(),
+        fileName: selectedFile?.name || 'Import',
+        successCount: totalSuccess,
+        errorCount: totalError + (preview.length - validItems.length),
+        results: summary.results,
+        totalItems: preview.length
+      });
+      
+      setStep('done');
+      toast.success(`Import selesai: ${totalSuccess} berhasil`);
       
     } catch (error) {
       setProcessing(false);
       setStep('preview');
-      toast.error('Terjadi error saat processing');
-      console.error('Import error:', error);
+      toast.error('Terjadi error saat bulk processing');
+      console.error('Bulk import error:', error);
     }
   };
 
@@ -246,12 +300,87 @@ const AdminProductBulkImport: React.FC = () => {
     setExpandedRows(newExpanded);
   };
 
+  const handleDeleteRow = (rowNumber: number) => {
+    setPreview(prev => {
+      const next = prev.filter(item => item.rowNumber !== rowNumber);
+      const nextPageCount = Math.max(1, Math.ceil(next.length / pageSize));
+      setCurrentPage(current => Math.min(current, nextPageCount));
+      return next;
+    });
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      next.delete(rowNumber);
+      return next;
+    });
+    toast.success(`Baris ${rowNumber} dihapus dari antrean`);
+  };
+
+  const handleDismissSimilarity = (rowNumber: number) => {
+    setPreview(prev => prev.map(item => {
+      if (item.rowNumber === rowNumber) {
+        return { ...item, status: 'new', similarProducts: undefined };
+      }
+      return item;
+    }));
+    toast.success(`Peringatan baris ${rowNumber} diabaikan. Akan diproses sebagai produk baru.`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="glass-premium rounded-lg p-6">
         <h2 className="text-2xl font-bold text-on-surface mb-2">📊 Bulk Import/Update Produk</h2>
         <p className="text-on-surface-variant">Upload Excel untuk mengupdate harga dan data produk secara massal. Produk akan dicocokkan berdasarkan nama.</p>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setStep('upload')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            step === 'upload'
+              ? 'bg-primary text-on-primary'
+              : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+          }`}
+        >
+          📤 Upload
+        </button>
+        {preview.length > 0 && (
+          <button
+            onClick={() => setStep('preview')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              step === 'preview'
+                ? 'bg-primary text-on-primary'
+                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            👁️ Preview ({preview.length})
+          </button>
+        )}
+        {processSummary && (
+          <button
+            onClick={() => setStep('done')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              step === 'done'
+                ? 'bg-primary text-on-primary'
+                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            ✓ Hasil ({processSummary.successCount + processSummary.errorCount})
+          </button>
+        )}
+        {bulkHistory.length > 0 && (
+          <button
+            onClick={() => setStep('history')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+              step === 'history'
+                ? 'bg-primary text-on-primary'
+                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <History className="w-4 h-4" /> History ({bulkHistory.length})
+          </button>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -348,6 +477,10 @@ const AdminProductBulkImport: React.FC = () => {
               <div className="glass-card p-4">
                 <div className="text-3xl font-bold text-tertiary">{summary.new}</div>
                 <div className="text-sm text-on-surface-variant">Produk Baru</div>
+              </div>
+              <div className="glass-card p-4">
+                <div className="text-3xl font-bold text-yellow-500">{summary.similar}</div>
+                <div className="text-sm text-on-surface-variant">Serupa (Cek Manual)</div>
               </div>
               <div className="glass-card p-4">
                 <div className="text-3xl font-bold text-orange-500">{summary.priceChanges}</div>
@@ -487,7 +620,7 @@ const AdminProductBulkImport: React.FC = () => {
 
               {/* Status Pills */}
               <div className="flex flex-wrap gap-2 pt-2">
-                {(['all', 'matched', 'new', 'error'] as const).map(status => (
+                {(['all', 'matched', 'similar', 'new', 'error'] as const).map(status => (
                   <button
                     key={status}
                     onClick={() => setFilterStatus(status)}
@@ -499,6 +632,7 @@ const AdminProductBulkImport: React.FC = () => {
                   >
                     {status === 'all' && `Semua (${summary.total})`}
                     {status === 'matched' && <><CheckCircle2 className="w-3 h-3" /> Cocok ({summary.matched})</>}
+                    {status === 'similar' && <><Eye className="w-3 h-3" /> Serupa ({summary.similar})</>}
                     {status === 'new' && <><Upload className="w-3 h-3" /> Baru ({summary.new})</>}
                     {status === 'error' && <><XCircle className="w-3 h-3" /> Error ({summary.errors})</>}
                   </button>
@@ -549,6 +683,11 @@ const AdminProductBulkImport: React.FC = () => {
                                 <CheckCircle2 className="w-3 h-3" /> Cocok
                               </span>
                             )}
+                            {item.status === 'similar' && (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-500/10 text-yellow-600 rounded-full text-xs font-medium border border-yellow-500/20">
+                                <Eye className="w-3 h-3" /> Serupa
+                              </span>
+                            )}
                             {item.status === 'new' && (
                               <span className="inline-flex items-center gap-1 px-3 py-1 bg-tertiary/10 text-tertiary rounded-full text-xs font-medium">
                                 <Upload className="w-3 h-3" /> Baru
@@ -579,8 +718,18 @@ const AdminProductBulkImport: React.FC = () => {
                               {!item.priceChange && !item.fieldChanges && !item.error && item.status === 'matched' && (
                                 <span className="text-on-surface-variant">Tidak ada perubahan data</span>
                               )}
-                              {item.status === 'new' && (
+                              {item.status === 'similar' && (
+                                <span className="text-yellow-600 font-medium">
+                                  ⚠️ Ditemukan {item.similarProducts?.length} produk dengan nama serupa
+                                </span>
+                              )}
+                              {item.status === 'new' && !item.similarProducts && (
                                 <span className="text-tertiary">Siap ditambahkan sebagai produk baru</span>
+                              )}
+                              {item.status === 'new' && item.similarProducts && (
+                                <span className="text-orange-400">
+                                  💡 Produk baru, tapi ada {item.similarProducts.length} yang mirip
+                                </span>
                               )}
                             </div>
                           </td>
@@ -594,6 +743,13 @@ const AdminProductBulkImport: React.FC = () => {
                               ) : (
                                 <Eye className="w-4 h-4" />
                               )}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRow(item.rowNumber)}
+                              className="text-error/60 hover:text-error ml-2"
+                              title="Hapus dari antrean import"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         </tr>
@@ -657,6 +813,52 @@ const AdminProductBulkImport: React.FC = () => {
                                     </table>
                                   </div>
                                 </div>
+                                {item.similarProducts && (
+                                  <div className="mt-4 p-4 bg-yellow-500/5 rounded-lg border border-yellow-500/20">
+                                    <p className="text-xs font-bold text-yellow-700 uppercase mb-3 flex items-center gap-2">
+                                      <Eye className="w-3.5 h-3.5" /> Produk Serupa (Mohon Cek Manual)
+                                    </p>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {item.similarProducts.map(p => (
+                                        <div key={p.id} className="flex items-center justify-between p-2 bg-surface-container/50 rounded border border-outline/10 text-xs">
+                                          <div className="flex flex-col">
+                                            <span className="font-bold text-on-surface">{p.name}</span>
+                                            <span className="text-on-surface-variant text-[10px]">{p.category} • {formatRupiah(p.price)}</span>
+                                          </div>
+                                          <Link 
+                                            to={`/dashboard/admin/catalog?search=${encodeURIComponent(p.name)}`}
+                                            target="_blank"
+                                            className="px-2 py-1 bg-surface-high hover:bg-surface-highest rounded text-primary transition-colors font-medium"
+                                          >
+                                            Lihat di Katalog
+                                          </Link>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="mt-4 flex items-center justify-between border-t border-yellow-500/10 pt-3">
+                                      <p className="text-[10px] text-yellow-700/70 italic">
+                                        * Jika ini adalah produk yang sama, harap samakan namanya di file Excel dengan nama di database untuk melakukan Update otomatis.
+                                      </p>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleDismissSimilarity(item.rowNumber)}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 bg-neon-lime/10 hover:bg-neon-lime/20 text-neon-lime rounded-lg text-xs font-bold transition-colors border border-neon-lime/20"
+                                          title="Gunakan data ini sebagai produk baru"
+                                        >
+                                          <CheckCircle2 className="w-3.5 h-3.5" />
+                                          Abaikan & Jadikan Baru
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteRow(item.rowNumber)}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                          Hapus Baris Ini
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               
                               {item.fieldChanges && (
@@ -843,9 +1045,9 @@ const AdminProductBulkImport: React.FC = () => {
                 Ringkasan hasil per baris
               </div>
               <div className="max-h-80 overflow-auto divide-y divide-outline/20">
-                {processSummary.results.map((line) => (
-                  <div key={line} className="px-4 py-3 text-sm text-on-surface-variant">
-                    {line}
+                {processSummary.results.map((line, index) => (
+                  <div key={`${line}-${index}`} className="px-4 py-3 text-sm text-on-surface-variant flex items-center gap-2">
+                    <span>{line}</span>
                   </div>
                 ))}
               </div>
@@ -872,6 +1074,120 @@ const AdminProductBulkImport: React.FC = () => {
                 Lihat preview lagi
               </button>
             </div>
+          </motion.div>
+        )}
+
+        {/* Step 5: History */}
+        {step === 'history' && (
+          <motion.div
+            key="history"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-4"
+          >
+            <div className="glass-card rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-title-md font-bold text-on-surface">📋 Riwayat Bulk Import</h3>
+                {bulkHistory.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setBulkHistory([]);
+                      localStorage.removeItem('bulkImportHistory');
+                      toast.success('Riwayat dihapus');
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-error/10 text-error text-sm font-medium hover:bg-error/20 transition-colors flex items-center gap-1"
+                  >
+                    <Trash className="w-3.5 h-3.5" />
+                    Hapus Semua
+                  </button>
+                )}
+              </div>
+
+              {bulkHistory.length === 0 ? (
+                <div className="text-center py-8 text-on-surface-variant">
+                  Belum ada riwayat import
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                  {bulkHistory.map((entry) => (
+                    <motion.div
+                      key={entry.id}
+                      layout
+                      className="border border-outline/20 rounded-lg p-4 hover:bg-surface-container/50 transition-colors"
+                    >
+                      <button
+                        onClick={() => setExpandedHistoryId(expandedHistoryId === entry.id ? null : entry.id)}
+                        className="w-full text-left flex items-center justify-between gap-3 cursor-pointer"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="font-semibold text-on-surface">{entry.fileName}</span>
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              entry.errorCount === 0
+                                ? 'bg-green-500/20 text-green-600'
+                                : 'bg-yellow-500/20 text-yellow-600'
+                            }`}>
+                              ✓ {entry.successCount} | ✕ {entry.errorCount}
+                            </span>
+                          </div>
+                          <div className="text-xs text-on-surface-variant">
+                            {new Date(entry.timestamp).toLocaleString('id-ID')} • {entry.totalItems} item
+                          </div>
+                        </div>
+                        <Eye className={`w-4 h-4 transition-transform ${expandedHistoryId === entry.id ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {/* Expanded details */}
+                      <AnimatePresence>
+                        {expandedHistoryId === entry.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="mt-3 pt-3 border-t border-outline/20 space-y-2"
+                          >
+                            <div className="text-xs space-y-1 max-h-[200px] overflow-y-auto">
+                              {entry.results.map((result, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`px-2 py-1 rounded text-xs ${
+                                    result.startsWith('✅')
+                                      ? 'bg-green-500/10 text-green-600'
+                                      : result.startsWith('❌')
+                                      ? 'bg-red-500/10 text-red-600'
+                                      : 'bg-blue-500/10 text-blue-600'
+                                  }`}
+                                >
+                                  {result}
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => {
+                                const text = entry.results.join('\n');
+                                navigator.clipboard.writeText(text);
+                                toast.success('Hasil dikopi ke clipboard');
+                              }}
+                              className="w-full mt-2 px-3 py-1.5 bg-surface-highest text-on-surface text-xs rounded font-medium hover:bg-surface-bright transition-colors"
+                            >
+                              📋 Salin Hasil
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setStep('upload')}
+              className="px-6 py-3 bg-primary hover:opacity-95 text-on-primary rounded-lg font-medium transition-colors"
+            >
+              ← Kembali ke Upload
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

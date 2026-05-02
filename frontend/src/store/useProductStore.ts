@@ -12,6 +12,7 @@ interface ProductState {
   createProduct: (data: Partial<Product>) => Promise<boolean>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<boolean>;
   deleteProduct: (id: string) => Promise<boolean>;
+  bulkProductOperations: (operations: any[]) => Promise<{ successCount: number; errors: string[] }>;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -101,6 +102,39 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return true;
     } catch (error) {
       return false;
+    }
+  },
+  bulkProductOperations: async (operations) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await apiFetch('/api/admin/catalogs/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ operations }),
+      });
+      
+      if (!response.ok) throw new Error('Gagal memproses bulk import');
+      
+      const payload = await response.json();
+      const result = payload.data || { successCount: 0, errors: [] };
+      
+      // Refresh products after bulk update
+      await get().fetchProducts(true);
+      set({ isLoading: false });
+      
+      return result;
+    } catch (error) {
+      console.error('Bulk import error:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Error bulk import', 
+        isLoading: false 
+      });
+      return { 
+        successCount: 0, 
+        errors: [error instanceof Error ? `❌ Error: ${error.message}` : '❌ Error: Terjadi kesalahan saat memproses bulk import'] 
+      };
     }
   }
 }));

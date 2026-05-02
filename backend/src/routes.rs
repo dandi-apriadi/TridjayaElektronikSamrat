@@ -45,6 +45,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/reward-tiers", get(list_reward_tiers))
         .route("/api/admin/uploads/image", post(upload_admin_image))
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
+        .route("/api/admin/catalogs/bulk", post(bulk_products))
         .route("/api/catalogs/{id}", get(get_catalog).patch(update_catalog).delete(delete_catalog))
         .route("/api/product-categories", get(list_product_categories).post(create_product_category))
         .route("/api/product-categories/{id}", patch(update_product_category).delete(delete_product_category))
@@ -2458,14 +2459,14 @@ struct ProductAnalyticsSummary {
 #[serde(rename_all = "camelCase")]
 struct CatalogCreateRequest {
     id: Option<String>,
-    slug: String,
+    slug: Option<String>,
     name: String,
-    category: String,
-    subcategory: Option<String>,
-    price: f64,
+    category: Option<String>,
+    subcategory: Option<Option<String>>,
+    price: Option<f64>,
     price_installment: Option<f64>,
     dp_min: Option<f64>,
-    image: String,
+    image: Option<String>,
     images: Option<Value>,
     badge: Option<String>,
     badge_text: Option<String>,
@@ -2501,6 +2502,18 @@ struct CatalogUpdateRequest {
     ratings: Option<Vec<ProductRatingEntry>>,
     rating: Option<f64>,
     review: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "camelCase")]
+enum BulkOperation {
+    Create(CatalogCreateRequest),
+    Update { id: String, data: CatalogUpdateRequest },
+}
+
+#[derive(Deserialize)]
+struct BulkCatalogRequest {
+    operations: Vec<BulkOperation>,
 }
 
 fn parse_json_or_default(raw: Option<&str>, fallback: Value) -> Value {
@@ -2630,18 +2643,23 @@ fn validate_stock(stock: &str) -> bool {
 fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
 
-    if payload.slug.trim().is_empty() {
-        errors.push("slug wajib diisi".to_string());
+    if let Some(ref slug) = payload.slug {
+        if slug.trim().is_empty() {
+            errors.push("slug tidak boleh kosong jika diisi".to_string());
+        }
     }
     if payload.name.trim().is_empty() {
         errors.push("name wajib diisi".to_string());
     }
-    if payload.category.trim().is_empty() {
-        errors.push("category wajib diisi".to_string());
+    if let Some(ref category) = payload.category {
+        if category.trim().is_empty() {
+            errors.push("category tidak boleh kosong jika diisi".to_string());
+        }
     }
-    // image is now optional
-    if payload.price < 0.0 {
-        errors.push("price tidak boleh negatif".to_string());
+    if let Some(price) = payload.price {
+        if price < 0.0 {
+            errors.push("price tidak boleh negatif".to_string());
+        }
     }
     if payload.price_installment.is_some_and(|value| value < 0.0) {
         errors.push("priceInstallment tidak boleh negatif".to_string());
@@ -3168,6 +3186,15 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
     validate_catalog_create(&payload)?;
 
+    let name = payload.name.trim().to_string();
+    let slug = payload.slug.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+        .unwrap_or_else(|| name.to_lowercase().replace(' ', "-"));
+    let category = payload.category.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+        .unwrap_or_else(|| "Uncategorized".to_string());
+    let price = payload.price.unwrap_or(0.0);
+    let image = payload.image.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+        .unwrap_or_else(|| "https://placehold.co/600x400?text=No+Image".to_string());
+
     let id = payload
         .id
         .as_deref()
@@ -3181,20 +3208,21 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     let ratings = normalize_ratings_for_storage(payload.ratings.clone(), payload.rating, payload.review.clone())?;
     let ratings_json = serde_json::to_string(&ratings).map_err(|_| AppError::Internal)?;
     let (next_rating, next_review, _) = summarize_ratings(&ratings, payload.rating, payload.review.clone());
-    let stock = payload.stock.unwrap_or_else(|| "available".to_string());
+    let stock = payload.stock.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+        .unwrap_or_else(|| "available".to_string());
 
     sqlx::query(
         "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
-    .bind(payload.slug.trim())
-    .bind(payload.name.trim())
-    .bind(payload.category.trim())
-    .bind(payload.subcategory)
-    .bind(payload.price)
+    .bind(&slug)
+    .bind(&name)
+    .bind(&category)
+    .bind(payload.subcategory.as_ref().and_then(|s| s.clone()))
+    .bind(price)
     .bind(payload.price_installment)
     .bind(payload.dp_min)
-    .bind(payload.image.trim())
+    .bind(&image)
     .bind(images)
     .bind(payload.badge)
     .bind(payload.badge_text)
@@ -3301,6 +3329,145 @@ async fn delete_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
     }
 
     Ok(json_ok(format!("Catalog {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
+}
+
+async fn bulk_products(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<BulkCatalogRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+    tracing::info!("Starting bulk import for {} operations by {}", payload.operations.len(), user.email);
+    
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to start transaction: {}", e);
+        AppError::Internal
+    })?;
+
+    let mut success_count = 0;
+    let mut errors = Vec::new();
+
+    for (index, op) in payload.operations.into_iter().enumerate() {
+        match op {
+            BulkOperation::Create(data) => {
+                // Mandatory fields check for Create
+                let name = data.name.trim();
+                if name.is_empty() {
+                    errors.push(format!("Baris {}: Nama produk wajib diisi", index + 1));
+                    continue;
+                }
+                
+                let category = data.category.unwrap_or_else(|| "Uncategorized".to_string());
+                let price = data.price.unwrap_or(0.0);
+                let image = data.image.unwrap_or_else(|| "https://placehold.co/600x400?text=No+Image".to_string());
+                let slug = data.slug.unwrap_or_else(|| name.to_lowercase().replace(' ', "-"));
+
+                let id = data.id.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+                    .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+                
+                let images = serde_json::to_string(&data.images.unwrap_or_else(|| json!([]))).unwrap_or_else(|_| "[]".to_string());
+                let specs = serde_json::to_string(&data.specs.unwrap_or_else(|| json!({}))).unwrap_or_else(|_| "{}".to_string());
+                let colors = serde_json::to_string(&data.colors.unwrap_or_else(|| json!([]))).unwrap_or_else(|_| "[]".to_string());
+                let ratings = match normalize_ratings_for_storage(data.ratings.clone(), data.rating, data.review.clone()) {
+                    Ok(r) => r,
+                    Err(_) => Vec::new(),
+                };
+                let ratings_json = serde_json::to_string(&ratings).unwrap_or_else(|_| "[]".to_string());
+                let (next_rating, next_review, _) = summarize_ratings(&ratings, data.rating, data.review.clone());
+                let stock = data.stock.unwrap_or_else(|| "available".to_string());
+
+                let result = sqlx::query(
+                    "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                )
+                .bind(&id)
+                .bind(slug.trim())
+                .bind(name)
+                .bind(category.trim())
+                .bind(data.subcategory.flatten())
+                .bind(price)
+                .bind(data.price_installment)
+                .bind(data.dp_min)
+                .bind(image.trim())
+                .bind(images)
+                .bind(data.badge)
+                .bind(data.badge_text)
+                .bind(data.short_desc)
+                .bind(data.description)
+                .bind(specs)
+                .bind(stock)
+                .bind(colors)
+                .bind(ratings_json)
+                .bind(next_rating)
+                .bind(next_review)
+                .execute(&mut *tx)
+                .await;
+
+                match result {
+                    Ok(_) => success_count += 1,
+                    Err(e) => {
+                        tracing::error!("Bulk Create Error at index {}: {}", index, e);
+                        errors.push(format!("Baris {}: Database Error - {}", index + 1, e));
+                    }
+                }
+            }
+            BulkOperation::Update { id, data } => {
+                let mut query = String::from("UPDATE products SET ");
+                let mut updates = Vec::new();
+                
+                // Using proper parameter binding for safety
+                if data.slug.is_some() { updates.push("slug = ?"); }
+                if data.name.is_some() { updates.push("name = ?"); }
+                if data.category.is_some() { updates.push("category = ?"); }
+                if data.subcategory.is_some() { updates.push("subcategory = ?"); }
+                if data.price.is_some() { updates.push("price = ?"); }
+                if data.price_installment.is_some() { updates.push("price_installment = ?"); }
+                if data.dp_min.is_some() { updates.push("dp_min = ?"); }
+                if data.image.is_some() { updates.push("image = ?"); }
+                if data.stock.is_some() { updates.push("stock = ?"); }
+                if data.short_desc.is_some() { updates.push("short_desc = ?"); }
+                if data.description.is_some() { updates.push("description = ?"); }
+
+                if updates.is_empty() {
+                    success_count += 1;
+                    continue;
+                }
+
+                query.push_str(&updates.join(", "));
+                query.push_str(" WHERE id = ?");
+
+                let mut q = sqlx::query(&query);
+                if let Some(ref val) = data.slug { q = q.bind(val.trim()); }
+                if let Some(ref val) = data.name { q = q.bind(val.trim()); }
+                if let Some(ref val) = data.category { q = q.bind(val.trim()); }
+                if let Some(ref val) = data.subcategory { q = q.bind(val); }
+                if let Some(val) = data.price { q = q.bind(val); }
+                if let Some(val) = data.price_installment { q = q.bind(val); }
+                if let Some(val) = data.dp_min { q = q.bind(val); }
+                if let Some(ref val) = data.image { q = q.bind(val.trim()); }
+                if let Some(ref val) = data.stock { q = q.bind(val); }
+                if let Some(ref val) = data.short_desc { q = q.bind(val); }
+                if let Some(ref val) = data.description { q = q.bind(val); }
+                
+                q = q.bind(&id);
+
+                match q.execute(&mut *tx).await {
+                    Ok(_) => success_count += 1,
+                    Err(e) => {
+                        tracing::error!("Bulk Update Error for ID {}: {}", id, e);
+                        errors.push(format!("Baris {}: Database Error - {}", index + 1, e));
+                    }
+                }
+            }
+        }
+    }
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit bulk transaction: {}", e);
+        AppError::Internal
+    })?;
+
+    tracing::info!("Bulk import finished. Success: {}, Errors: {}", success_count, errors.len());
+    Ok(json_ok("Bulk operations completed", json!({ "successCount": success_count, "errors": errors })))
 }
 
 async fn list_promotions(State(state): State<AppState>) -> Result<ResponseBody, AppError> {

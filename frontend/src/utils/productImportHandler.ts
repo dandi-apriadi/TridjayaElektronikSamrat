@@ -15,7 +15,8 @@ export interface ProductImportRow {
 export interface ImportPreviewItem {
   rowNumber: number;
   name: string;
-  status: 'matched' | 'new' | 'error';
+  status: 'matched' | 'new' | 'similar' | 'error';
+  similarProducts?: Product[];
   matchedProduct?: Product;
   newData: Partial<ProductImportRow>;
   priceChange?: {
@@ -120,43 +121,72 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
  * Match products dari Excel dengan existing products berdasarkan nama
  * Melakukan pengecekan case-insensitive dan fuzzy matching
  */
-export function matchProductByName(
+export function findSimilarProducts(
   importedName: string,
-  existingProducts: Product[]
-): Product | undefined {
+  existingProducts: Product[],
+  threshold: number = 0.9
+): { match?: Product; similar: Product[] } {
   if (!importedName || !importedName.trim()) {
-    return undefined;
+    return { similar: [] };
   }
 
   const searchName = importedName.toLowerCase().trim();
+  const importedWords = searchName.split(/\s+/).filter(w => w.length > 1);
+  const firstWord = importedWords[0];
 
-  // First, try exact match (case-insensitive)
-  let match = existingProducts.find(
+  // 1. Exact Match (100% confidence)
+  const exactMatch = existingProducts.find(
     p => p.name.toLowerCase().trim() === searchName
   );
+  if (exactMatch) return { match: exactMatch, similar: [] };
 
-  if (match) return match;
+  // 2. Extremely Strict Analysis
+  const results = existingProducts.map(p => {
+    const productName = p.name.toLowerCase().trim();
+    const productWords = productName.split(/\s+/).filter(w => w.length > 1);
+    const productFirstWord = productWords[0];
 
-  // Try partial match - check if one contains the other
-  match = existingProducts.find(p => {
-    const pName = p.name.toLowerCase().trim();
-    return pName.includes(searchName) || searchName.includes(pName);
-  });
-
-  if (match) return match;
-
-  // Fuzzy match - check similarity (simple word-based approach)
-  const importedWords = searchName.split(/\s+/);
-  const matches = existingProducts.filter(p => {
-    const productWords = p.name.toLowerCase().split(/\s+/);
+    // BRAND CHECK: First word must match exactly (e.g., Polytron vs Samsung)
+    if (firstWord.toLowerCase() !== productFirstWord.toLowerCase()) {
+      return { product: p, score: 0 };
+    }
+    
+    // Calculate word overlap
     const matchedWords = importedWords.filter(w => 
-      productWords.some(pw => pw.includes(w) || w.includes(pw))
+      productWords.some(pw => pw === w)
     );
-    // If at least 60% of words match, consider it a match
-    return matchedWords.length >= Math.ceil(importedWords.length * 0.6);
-  });
+    
+    // Strict word score (Intersection over Union)
+    const union = new Set([...importedWords, ...productWords]);
+    const wordScore = matchedWords.length / union.size;
+    
+    // Character similarity (check for very small differences at the end)
+    let charScore = 0;
+    if (searchName.length > 8 && productName.length > 8) {
+      const minLen = Math.min(searchName.length, productName.length);
+      const diffLen = Math.abs(searchName.length - productName.length);
+      
+      // Names must be identical for at least 90% of their length from the start
+      const prefixLen = Math.floor(minLen * 0.9);
+      if (searchName.substring(0, prefixLen) === productName.substring(0, prefixLen) && diffLen <= 3) {
+        charScore = (minLen - diffLen) / minLen;
+      }
+    }
 
-  return matches[0]; // Return first fuzzy match if any
+    const finalScore = Math.max(wordScore, charScore);
+    return { product: p, score: finalScore };
+  }).filter(r => r.score >= threshold)
+    .sort((a, b) => b.score - a.score);
+
+  // If we have an extremely high score (0.97+), treat it as a match
+  if (results.length > 0 && results[0].score >= 0.97) {
+    return { match: results[0].product, similar: results.slice(1, 2).map(r => r.product) };
+  }
+
+  // Otherwise, return as similar
+  return { 
+    similar: results.slice(0, 2).map(r => r.product) 
+  };
 }
 
 /**
@@ -166,6 +196,8 @@ export function generateImportPreview(
   importedRows: ProductImportRow[],
   existingProducts: Product[]
 ): ImportPreviewItem[] {
+  const seenImportedNames = new Set<string>();
+
   return importedRows.map((row, index) => {
     const rowNumber = index + 2; // +2 because Excel is 1-indexed + header row
 
@@ -180,40 +212,64 @@ export function generateImportPreview(
       };
     }
 
-    // Try to match with existing product
-    const matchedProduct = matchProductByName(row.name, existingProducts);
+    const normalizedName = row.name.trim().toLowerCase();
+    if (seenImportedNames.has(normalizedName)) {
+      return {
+        rowNumber,
+        name: row.name,
+        status: 'error',
+        newData: row,
+        error: 'Nama produk duplikat di file import'
+      };
+    }
+    seenImportedNames.add(normalizedName);
 
-    if (matchedProduct) {
+    // Try to match or find similar
+    const { match, similar } = findSimilarProducts(row.name, existingProducts);
+
+    if (match) {
       const priceChange = 
-        row.price !== undefined && row.price !== null && row.price !== matchedProduct.price
+        row.price !== undefined && row.price !== null && row.price !== match.price
           ? {
-              old: matchedProduct.price,
+              old: match.price,
               new: parseFloat(String(row.price)),
-              difference: parseFloat(String(row.price)) - matchedProduct.price
+              difference: parseFloat(String(row.price)) - match.price
             }
           : undefined;
 
       // Detect other field changes
       const fieldChanges: { field: string; old: any; new: any }[] = [];
       
-      if (row.category && row.category !== matchedProduct.category) {
-        fieldChanges.push({ field: 'Kategori', old: matchedProduct.category, new: row.category });
+      if (row.category && row.category !== match.category) {
+        fieldChanges.push({ field: 'Kategori', old: match.category, new: row.category });
       }
-      if (row.subcategory && row.subcategory !== matchedProduct.subcategory) {
-        fieldChanges.push({ field: 'Subkategori', old: matchedProduct.subcategory || '(kosong)', new: row.subcategory });
+      if (row.subcategory && row.subcategory !== match.subcategory) {
+        fieldChanges.push({ field: 'Subkategori', old: match.subcategory || '(kosong)', new: row.subcategory });
       }
-      if (row.stock && row.stock !== matchedProduct.stock) {
-        fieldChanges.push({ field: 'Stok', old: matchedProduct.stock, new: row.stock });
+      if (row.stock && row.stock !== match.stock) {
+        fieldChanges.push({ field: 'Stok', old: match.stock, new: row.stock });
       }
 
       return {
         rowNumber,
         name: row.name,
         status: 'matched',
-        matchedProduct,
+        matchedProduct: match,
         newData: row,
         priceChange,
-        fieldChanges: fieldChanges.length > 0 ? fieldChanges : undefined
+        fieldChanges: fieldChanges.length > 0 ? fieldChanges : undefined,
+        similarProducts: similar.length > 0 ? similar : undefined
+      };
+    }
+
+    // Similar but not high enough to auto-match
+    if (similar.length > 0) {
+      return {
+        rowNumber,
+        name: row.name,
+        status: 'similar',
+        similarProducts: similar,
+        newData: row
       };
     }
 
@@ -243,7 +299,7 @@ export function prepareUpdateData(
   }
 
   if (importRow.stock) {
-    const validStocks = ['available', 'limited', 'out_of_stock', 'discontinued'];
+    const validStocks = ['available', 'indent', 'hidden', 'limited', 'out_of_stock', 'discontinued'];
     const stock = importRow.stock.toLowerCase().trim();
     if (validStocks.includes(stock)) {
       updateData.stock = stock as any;
@@ -276,6 +332,7 @@ export function getImportSummary(preview: ImportPreviewItem[]): {
   total: number;
   matched: number;
   new: number;
+  similar: number;
   errors: number;
   priceChanges: number;
 } {
@@ -283,6 +340,7 @@ export function getImportSummary(preview: ImportPreviewItem[]): {
     total: preview.length,
     matched: preview.filter(p => p.status === 'matched').length,
     new: preview.filter(p => p.status === 'new').length,
+    similar: preview.filter(p => p.status === 'similar').length,
     errors: preview.filter(p => p.status === 'error').length,
     priceChanges: preview.filter(p => p.priceChange).length
   };

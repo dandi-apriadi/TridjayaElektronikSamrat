@@ -528,8 +528,7 @@ const AdminAgentsPage: React.FC = () => {
                 </div>
                 <button 
                   onClick={() => setSelectedAgent(null)}
-                  className="w-12 h-12 rounded-full bg-white/5 text-on-surface-variant flex items-center justify-center hover:bg-white/10 hover:text-on-surface transition-all border border-white/10"
-                    className="w-12 h-12 rounded-full bg-surface-highest text-on-surface-variant flex items-center justify-center hover:bg-surface-high hover:text-on-surface transition-all border border-outline-variant/10"
+                  className="w-12 h-12 rounded-full bg-surface-highest text-on-surface-variant flex items-center justify-center hover:bg-surface-high hover:text-on-surface transition-all border border-outline-variant/10"
                 >
                   <XCircle className="w-7 h-7" />
                 </button>
