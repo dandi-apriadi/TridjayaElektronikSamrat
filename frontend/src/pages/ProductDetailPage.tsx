@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -23,9 +23,40 @@ const ProductDetailPage: React.FC = () => {
   
   const product = getProductBySlug(slug || '');
   const [selectedColor, setSelectedColor] = useState(0);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showCreditForm, setShowCreditForm] = useState(false);
   const minInstallment = useMinInstallment(product || null);
   const [selectedCreditPlan, setSelectedCreditPlan] = useState<CreditPlan | null>(null);
+  const ratingEntries = useMemo(() => {
+    if (!product) return [];
+
+    if (product.ratings && product.ratings.length > 0) {
+      return product.ratings;
+    }
+
+    if (typeof product.rating === 'number') {
+      return [{ score: product.rating, review: product.review || '' }];
+    }
+
+    return [];
+  }, [product]);
+
+  const ratingAverage = product?.ratingAverage ?? product?.rating ?? null;
+  const ratingCount = product?.ratingCount ?? ratingEntries.length;
+
+  const galleryImages = useMemo(() => {
+    if (!product) return [];
+
+    const images = [product.image, ...(product.images || [])]
+      .map((image) => image?.trim())
+      .filter((image): image is string => Boolean(image));
+
+    return Array.from(new Set(images));
+  }, [product]);
+
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [slug]);
 
   if (isLoading) {
     return (
@@ -112,25 +143,54 @@ const ProductDetailPage: React.FC = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <div className="relative overflow-hidden rounded-2xl bg-surface-container aspect-[4/3] mb-4">
-                <img
-                  src={getImageUrl(product.image)}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-                {product.badge && (
-                  <div className="absolute top-4 left-4">
-                    <Badge label={product.badgeText || product.badge} variant="primary" />
+              <div className="space-y-4 mb-4">
+                <div className="relative overflow-hidden rounded-2xl bg-surface-container aspect-[4/3] lg:min-h-[520px]">
+                  <img
+                    src={getImageUrl(galleryImages[selectedImageIndex] || product.image)}
+                    alt={`${product.name} - gambar ${selectedImageIndex + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {product.badge && (
+                    <div className="absolute top-4 left-4">
+                      <Badge label={product.badgeText || product.badge} variant="primary" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleShareProduct}
+                    className="absolute top-4 right-4 w-9 h-9 glass-dark rounded-lg flex items-center justify-center text-on-surface-variant hover:text-white transition-colors"
+                    aria-label="Bagikan produk"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {galleryImages.length > 1 && (
+                  <div
+                    className="flex gap-2 overflow-x-auto overflow-y-hidden pb-2 pr-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
+                    {galleryImages.map((image, index) => (
+                      <button
+                        key={`${image}-${index}`}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(index)}
+                        className={`relative shrink-0 w-[84px] sm:w-[92px] aspect-square overflow-hidden rounded-xl border bg-surface-container transition-all snap-start ${
+                          selectedImageIndex === index
+                            ? 'border-primary shadow-neon-cyan-sm scale-[1.02]'
+                            : 'border-outline-variant/20 opacity-80 hover:opacity-100 hover:border-primary/50'
+                        }`}
+                        aria-label={`Lihat gambar produk ${index + 1}`}
+                      >
+                        <img
+                          src={getImageUrl(image)}
+                          alt={`${product.name} thumbnail ${index + 1}`}
+                          className="w-full h-full object-contain p-1"
+                        />
+                      </button>
+                    ))}
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={handleShareProduct}
-                  className="absolute top-4 right-4 w-9 h-9 glass-dark rounded-lg flex items-center justify-center text-on-surface-variant hover:text-white transition-colors"
-                  aria-label="Bagikan produk"
-                >
-                  <Share2 className="w-4 h-4" />
-                </button>
               </div>
 
               {/* Color selector */}
@@ -172,7 +232,7 @@ const ProductDetailPage: React.FC = () => {
 
               <p className="font-body text-body-lg text-on-surface-variant leading-relaxed mb-6">{product.description}</p>
 
-              {(typeof product.rating === 'number' && product.rating > 0) || product.review ? (
+              {ratingEntries.length > 0 ? (
                 <div className="glass-card rounded-2xl p-5 mb-6">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-9 h-9 rounded-lg bg-yellow-500/15 border border-yellow-500/20 flex items-center justify-center text-yellow-300">
@@ -180,13 +240,33 @@ const ProductDetailPage: React.FC = () => {
                     </div>
                     <div>
                       <div className="font-display text-title-sm font-bold text-white">Rating & Ulasan Admin</div>
-                      {typeof product.rating === 'number' && product.rating > 0 && (
-                        <div className="font-body text-body-sm text-on-surface-variant">Nilai: <span className="text-white font-semibold">{product.rating.toFixed(1)}/5</span></div>
+                      {typeof ratingAverage === 'number' && ratingAverage > 0 && (
+                        <div className="font-body text-body-sm text-on-surface-variant">
+                          Nilai: <span className="text-white font-semibold">{ratingAverage.toFixed(1)}/5</span>
+                          <span className="ml-2 text-on-surface-variant">({ratingCount} rating)</span>
+                        </div>
                       )}
                     </div>
                   </div>
                   {product.review && (
-                    <p className="font-body text-body-md text-on-surface-variant leading-relaxed">{product.review}</p>
+                    <p className="font-body text-body-md text-on-surface-variant leading-relaxed mb-4">{product.review}</p>
+                  )}
+                  {ratingEntries.length > 1 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {ratingEntries.map((entry, index) => (
+                        <div key={`${entry.score}-${index}`} className="rounded-xl border border-outline-variant/10 bg-surface-high/30 p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-1 rounded-lg bg-yellow-500/15 text-yellow-300 border border-yellow-500/20 text-label-sm font-semibold">
+                              {entry.score.toFixed(1)}/5
+                            </span>
+                            <span className="text-[11px] uppercase tracking-wider text-on-surface-variant">Rating #{index + 1}</span>
+                          </div>
+                          <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
+                            {entry.review || 'Tidak ada ulasan tambahan.'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               ) : null}

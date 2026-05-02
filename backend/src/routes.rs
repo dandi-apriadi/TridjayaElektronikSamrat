@@ -1714,7 +1714,15 @@ struct ProductRecord {
     specs: Option<String>,
     stock: String,
     colors: Option<String>,
+    ratings: Option<String>,
     rating: Option<f64>,
+    review: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProductRatingEntry {
+    score: f64,
     review: Option<String>,
 }
 
@@ -1745,6 +1753,7 @@ struct CatalogCreateRequest {
     specs: Option<Value>,
     stock: Option<String>,
     colors: Option<Value>,
+    ratings: Option<Vec<ProductRatingEntry>>,
     rating: Option<f64>,
     review: Option<String>,
 }
@@ -1768,6 +1777,7 @@ struct CatalogUpdateRequest {
     specs: Option<Value>,
     stock: Option<String>,
     colors: Option<Value>,
+    ratings: Option<Vec<ProductRatingEntry>>,
     rating: Option<f64>,
     review: Option<String>,
 }
@@ -1777,8 +1787,85 @@ fn parse_json_or_default(raw: Option<&str>, fallback: Value) -> Value {
         .unwrap_or(fallback)
 }
 
+fn parse_ratings_or_default(raw: Option<&str>) -> Vec<ProductRatingEntry> {
+    raw.and_then(|value| serde_json::from_str::<Vec<ProductRatingEntry>>(value).ok())
+        .unwrap_or_default()
+}
+
+fn normalize_review_text(review: Option<String>) -> Option<String> {
+    review
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn validate_rating_entries(ratings: &[ProductRatingEntry]) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+
+    for (index, rating) in ratings.iter().enumerate() {
+        if !(0.0..=5.0).contains(&rating.score) {
+            errors.push(format!("rating ke-{} harus di antara 0 sampai 5", index + 1));
+        }
+
+        if rating.review.as_ref().is_some_and(|value| value.trim().len() > 500) {
+            errors.push(format!("ulasan rating ke-{} maksimal 500 karakter", index + 1));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+fn normalize_ratings_for_storage(
+    ratings: Option<Vec<ProductRatingEntry>>,
+    legacy_rating: Option<f64>,
+    legacy_review: Option<String>,
+) -> Result<Vec<ProductRatingEntry>, AppError> {
+    let normalized = if let Some(ratings) = ratings {
+        ratings
+            .into_iter()
+            .map(|rating| ProductRatingEntry {
+                score: rating.score,
+                review: normalize_review_text(rating.review),
+            })
+            .collect::<Vec<_>>()
+    } else if let Some(score) = legacy_rating {
+        vec![ProductRatingEntry {
+            score,
+            review: normalize_review_text(legacy_review),
+        }]
+    } else {
+        Vec::new()
+    };
+
+    validate_rating_entries(&normalized)?;
+    Ok(normalized)
+}
+
+fn summarize_ratings(ratings: &[ProductRatingEntry], legacy_rating: Option<f64>, legacy_review: Option<String>) -> (Option<f64>, Option<String>, i64) {
+    if ratings.is_empty() {
+        return (legacy_rating, normalize_review_text(legacy_review), 0);
+    }
+
+    let count = ratings.len() as i64;
+    let sum: f64 = ratings.iter().map(|entry| entry.score).sum();
+    let average = Some((sum / count as f64 * 10.0).round() / 10.0);
+    let latest_review = ratings
+        .iter()
+        .rev()
+        .find_map(|entry| normalize_review_text(entry.review.clone()));
+
+    (average, latest_review, count)
+}
+
 fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSummary>) -> Value {
     let analytics = analytics.cloned().unwrap_or_default();
+    let ratings = parse_ratings_or_default(record.ratings.as_deref());
+    let (rating_average, latest_review, rating_count) = summarize_ratings(&ratings, record.rating, record.review);
     let conversion_rate = if analytics.views > 0 {
         (analytics.leads as f64 / analytics.views as f64) * 100.0
     } else {
@@ -1803,8 +1890,11 @@ fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSum
         "specs": parse_json_or_default(record.specs.as_deref(), json!({})),
         "stock": record.stock,
         "colors": parse_json_or_default(record.colors.as_deref(), json!([])),
-        "rating": record.rating,
-        "review": record.review,
+        "ratings": ratings,
+        "rating": rating_average,
+        "ratingAverage": rating_average,
+        "ratingCount": rating_count,
+        "review": latest_review,
         "views": analytics.views,
         "leads": analytics.leads,
         "conversions": analytics.conversions,
@@ -1838,7 +1928,11 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
     if payload.dp_min.is_some_and(|value| value < 0.0) {
         errors.push("dpMin tidak boleh negatif".to_string());
     }
-    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+    if let Some(ratings) = payload.ratings.as_ref() {
+        if let Err(AppError::Validation { errors: rating_errors }) = validate_rating_entries(ratings) {
+            errors.extend(rating_errors);
+        }
+    } else if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
         errors.push("rating harus di antara 0 sampai 5".to_string());
     }
     if let Some(stock) = &payload.stock {
@@ -1876,7 +1970,11 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
     if payload.dp_min.is_some_and(|value| value < 0.0) {
         errors.push("dpMin tidak boleh negatif".to_string());
     }
-    if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+    if let Some(ratings) = payload.ratings.as_ref() {
+        if let Err(AppError::Validation { errors: rating_errors }) = validate_rating_entries(ratings) {
+            errors.extend(rating_errors);
+        }
+    } else if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
         errors.push("rating harus di antara 0 sampai 5".to_string());
     }
     if payload.stock.as_ref().is_some_and(|value| !validate_stock(value)) {
@@ -2290,7 +2388,7 @@ async fn delete_product_category(
 
 async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let products = sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors FROM products"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review FROM products"
     )
         .fetch_all(&state.pool)
         .await
@@ -2359,16 +2457,13 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     let images = serde_json::to_string(&payload.images.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
     let specs = serde_json::to_string(&payload.specs.unwrap_or_else(|| json!({}))).map_err(|_| AppError::Internal)?;
     let colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+    let ratings = normalize_ratings_for_storage(payload.ratings.clone(), payload.rating, payload.review.clone())?;
+    let ratings_json = serde_json::to_string(&ratings).map_err(|_| AppError::Internal)?;
+    let (next_rating, next_review, _) = summarize_ratings(&ratings, payload.rating, payload.review.clone());
     let stock = payload.stock.unwrap_or_else(|| "available".to_string());
-    let review = payload
-        .review
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string);
 
     sqlx::query(
-        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(payload.slug.trim())
@@ -2387,8 +2482,9 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     .bind(specs)
     .bind(stock)
     .bind(colors)
-    .bind(payload.rating)
-    .bind(review)
+    .bind(ratings_json)
+    .bind(next_rating)
+    .bind(next_review)
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
@@ -2421,17 +2517,20 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
         .map_err(|_| AppError::Internal)?;
     let next_colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| parse_json_or_default(current.colors.as_deref(), json!([]))))
         .map_err(|_| AppError::Internal)?;
-    let next_review = payload
-        .review
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
-        .or_else(|| current.review.clone());
-    let next_rating = payload.rating.or(current.rating);
+    let next_ratings = if let Some(ratings) = payload.ratings.clone() {
+        normalize_ratings_for_storage(Some(ratings), None, None)?
+    } else {
+        parse_ratings_or_default(current.ratings.as_deref())
+    };
+    let next_ratings_json = serde_json::to_string(&next_ratings).map_err(|_| AppError::Internal)?;
+    let (next_rating, next_review, _) = summarize_ratings(
+        &next_ratings,
+        payload.rating.or(current.rating),
+        payload.review.or_else(|| current.review.clone()),
+    );
 
     sqlx::query(
-        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ?, rating = ?, review = ? WHERE id = ?"
+        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ?, ratings = ?, rating = ?, review = ? WHERE id = ?"
     )
     .bind(next_slug)
     .bind(next_name)
@@ -2449,6 +2548,7 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
     .bind(next_specs)
     .bind(next_stock)
     .bind(next_colors)
+    .bind(next_ratings_json)
     .bind(next_rating)
     .bind(next_review)
     .bind(&current.id)

@@ -133,12 +133,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
 
               <div className="flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  {(typeof product.rating === 'number' && product.rating > 0) || product.review ? (
+                  {(typeof (product.ratingAverage ?? product.rating) === 'number' && (product.ratingAverage ?? product.rating)! > 0) || product.review ? (
                     <div className="flex items-center gap-2 mb-2 text-label-sm">
-                      {typeof product.rating === 'number' && product.rating > 0 && (
+                      {typeof (product.ratingAverage ?? product.rating) === 'number' && (product.ratingAverage ?? product.rating)! > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-500/15 text-yellow-300 border border-yellow-500/20 font-semibold">
                           <Star className="w-3.5 h-3.5 fill-current" />
-                          {product.rating.toFixed(1)}/5
+                          {(product.ratingAverage ?? product.rating)!.toFixed(1)}/5
+                          {typeof product.ratingCount === 'number' && product.ratingCount > 0 && (
+                            <span className="ml-1 text-[10px] text-on-surface-variant">({product.ratingCount})</span>
+                          )}
                         </span>
                       )}
                       {product.review && <span className="text-on-surface-variant line-clamp-1">{product.review}</span>}
@@ -193,12 +196,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
             </div>
 
             <div className="pt-3 border-t border-white/10 mt-auto">
-              {(typeof product.rating === 'number' && product.rating > 0) || product.review ? (
+              {(typeof (product.ratingAverage ?? product.rating) === 'number' && (product.ratingAverage ?? product.rating)! > 0) || product.review ? (
                 <div className="flex items-start gap-2 mb-3 text-label-sm">
-                  {typeof product.rating === 'number' && product.rating > 0 && (
+                  {typeof (product.ratingAverage ?? product.rating) === 'number' && (product.ratingAverage ?? product.rating)! > 0 && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-500/15 text-yellow-300 border border-yellow-500/20 font-semibold shrink-0">
                       <Star className="w-3.5 h-3.5 fill-current" />
-                      {product.rating.toFixed(1)}
+                      {(product.ratingAverage ?? product.rating)!.toFixed(1)}
+                      {typeof product.ratingCount === 'number' && product.ratingCount > 0 && (
+                        <span className="ml-1 text-[10px] text-on-surface-variant">({product.ratingCount})</span>
+                      )}
                     </span>
                   )}
                   {product.review && <span className="text-on-surface-variant line-clamp-2 leading-relaxed">{product.review}</span>}

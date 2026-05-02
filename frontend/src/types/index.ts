@@ -17,8 +17,11 @@ export interface Product {
   leads?: number;
   conversions?: number;
   conversionRate?: number;
+  ratingAverage?: number | null;
+  ratingCount?: number | null;
   rating?: number | null;
   review?: string | null;
+  ratings?: ProductRating[];
   specs: Record<string, string>;
   description: string;
   shortDesc: string;
@@ -27,6 +30,11 @@ export interface Product {
   highlights?: string[];
   sellingPoints?: string[];
   objections?: string[];
+}
+
+export interface ProductRating {
+  score: number;
+  review?: string | null;
 }
 
 export interface CreditPlan {

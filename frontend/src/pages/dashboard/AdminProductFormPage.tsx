@@ -67,6 +67,8 @@ const AdminProductFormPage: React.FC = () => {
   const [newHighlight, setNewHighlight] = useState('');
   const [newSellingPoint, setNewSellingPoint] = useState('');
   const [newObjection, setNewObjection] = useState('');
+  const [newRatingScore, setNewRatingScore] = useState('');
+  const [newRatingReview, setNewRatingReview] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
@@ -96,8 +98,11 @@ const AdminProductFormPage: React.FC = () => {
           highlights: product.highlights || [],
           sellingPoints: product.sellingPoints || [],
           objections: product.objections || [],
-          rating: product.rating ?? undefined,
-          review: product.review || ''
+          ratings: product.ratings?.length
+            ? product.ratings
+            : (typeof product.rating === 'number'
+                ? [{ score: product.rating, review: product.review || '' }]
+                : [])
         });
       } else {
         toast.error('Produk tidak ditemukan');
@@ -165,6 +170,53 @@ const AdminProductFormPage: React.FC = () => {
         : value
     }));
   };
+
+  const addRatingEntry = () => {
+    const score = Number(newRatingScore);
+    const review = newRatingReview.trim();
+
+    if (!newRatingScore.trim() || Number.isNaN(score)) {
+      toast.warning('Rating harus berupa angka.');
+      return;
+    }
+
+    if (score < 0 || score > 5) {
+      toast.warning('Rating harus di antara 0 sampai 5.');
+      return;
+    }
+
+    if (!review) {
+      toast.warning('Isi ulasan sebelum menambahkan rating.');
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      ratings: [...(prev.ratings || []), { score, review }],
+    }));
+    setNewRatingScore('');
+    setNewRatingReview('');
+  };
+
+  const removeRatingEntry = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      ratings: (prev.ratings || []).filter((_, ratingIndex) => ratingIndex !== index),
+    }));
+  };
+
+  const ratingSummary = useMemo(() => {
+    const ratings = formData.ratings || [];
+    if (ratings.length === 0) {
+      return { average: 0, count: 0 };
+    }
+
+    const total = ratings.reduce((sum, item) => sum + item.score, 0);
+    return {
+      average: Math.round((total / ratings.length) * 10) / 10,
+      count: ratings.length,
+    };
+  }, [formData.ratings]);
 
   // Generic List Handlers
   const addListItem = (field: keyof Product, value: string, setter: (v: string) => void) => {
@@ -338,7 +390,14 @@ const AdminProductFormPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const parsed = adminProductSchema.safeParse(formData);
+    const payload = {
+      ...formData,
+      ratings: formData.ratings || [],
+      rating: undefined,
+      review: undefined,
+    };
+
+    const parsed = adminProductSchema.safeParse(payload);
     if (!parsed.success) {
       toast.error('Validasi form gagal', getFirstZodIssue(parsed.error));
       return;
@@ -350,7 +409,6 @@ const AdminProductFormPage: React.FC = () => {
       const payload = parsed.data;
       if (isEditMode) {
         const success = await updateProduct(id!, {
-          ...formData,
           ...payload,
           subcategory: payload.subcategory || 'Umum'
         } as Product);
@@ -436,16 +494,6 @@ const AdminProductFormPage: React.FC = () => {
               <textarea name="description" value={formData.description || ''} onChange={handleChange} rows={6} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Masukkan detail lengkap produk untuk referensi agen..." />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className="space-y-1.5">
-                <label className="text-label-sm font-semibold text-on-surface-variant">Rating Produk (0 - 5)</label>
-                <input name="rating" value={formData.rating ?? ''} onChange={handleChange} type="number" min="0" max="5" step="0.1" className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none" placeholder="Contoh: 4.8" />
-              </div>
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-label-sm font-semibold text-on-surface-variant">Ulasan Admin</label>
-                <textarea name="review" value={formData.review || ''} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none" placeholder="Tulis ulasan singkat yang akan tampil di halaman publik produk..." />
-              </div>
-            </div>
           </div>
 
           {/* Marketing & Sales Guide */}
@@ -753,6 +801,105 @@ const AdminProductFormPage: React.FC = () => {
                   <option value="indent">Pre-Order (Indent)</option>
                   <option value="hidden">Habis / Sembunyikan</option>
                 </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Rating & Review Publik */}
+          <div className="glass-card rounded-xl p-6 space-y-4 shadow-sm border border-outline-variant/10">
+            <h3 className="font-display text-title-md font-semibold text-on-surface border-b border-outline-variant/20 pb-2 flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500" /> Rating & Review Publik
+            </h3>
+            <p className="text-body-sm text-on-surface-variant">
+              Isi bagian ini untuk menampilkan lebih dari satu penilaian dan ulasan manual admin di halaman publik produk.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-label-sm font-semibold text-on-surface-variant">Rating Produk (0 - 5)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  value={newRatingScore}
+                  onChange={(e) => setNewRatingScore(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none"
+                  placeholder="Contoh: 4.8"
+                />
+              </div>
+              <div className="space-y-1.5 md:col-span-3">
+                <label className="text-label-sm font-semibold text-on-surface-variant">Ulasan Admin</label>
+                <textarea
+                  rows={4}
+                  value={newRatingReview}
+                  onChange={(e) => setNewRatingReview(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none"
+                  placeholder="Tulis ulasan singkat yang akan tampil di halaman publik produk..."
+                />
+              </div>
+              <div className="space-y-1.5 md:col-span-1">
+                <label className="text-label-sm font-semibold text-on-surface-variant invisible">Tambah</label>
+                <button
+                  type="button"
+                  onClick={addRatingEntry}
+                  className="w-full h-[44px] px-4 rounded-lg bg-primary/10 text-primary font-semibold hover:bg-primary/20 transition-colors"
+                >
+                  Tambah
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-surface-high/40 border border-outline-variant/10">
+              <div>
+                <div className="text-label-sm font-semibold text-on-surface">Ringkasan Rating</div>
+                <div className="text-body-sm text-on-surface-variant">
+                  {ratingSummary.count > 0 ? `${ratingSummary.count} rating tersimpan` : 'Belum ada rating tersimpan'}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-label-sm font-semibold text-yellow-400">Rata-rata</div>
+                <div className="text-title-sm font-bold text-white">
+                  {ratingSummary.count > 0 ? `${ratingSummary.average}/5` : '0/5'}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-label-sm font-semibold text-on-surface-variant uppercase tracking-wider">Daftar Rating</div>
+              <div className="space-y-3">
+                <AnimatePresence>
+                  {(formData.ratings || []).map((ratingEntry, index) => (
+                    <motion.div
+                      key={`${ratingEntry.score}-${index}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="p-4 rounded-xl border border-outline-variant/10 bg-surface-high/30"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-1 rounded-lg bg-yellow-500/15 text-yellow-300 border border-yellow-500/20 text-label-sm font-semibold">
+                              {ratingEntry.score.toFixed(1)}/5
+                            </span>
+                            <span className="text-[11px] uppercase tracking-wider text-on-surface-variant">Rating #{index + 1}</span>
+                          </div>
+                          <p className="text-body-sm text-on-surface-variant leading-relaxed break-words">
+                            {ratingEntry.review}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeRatingEntry(index)}
+                          className="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                          aria-label={`Hapus rating ${index + 1}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
             </div>
           </div>

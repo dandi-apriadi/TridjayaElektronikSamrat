@@ -13,8 +13,12 @@ export const adminProductSchema = z.object({
   images: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
   description: z.string().trim().optional().default(''),
   shortDesc: z.string().trim().optional().default(''),
+  ratings: z.array(z.object({
+    score: z.number().min(0, 'Rating tidak boleh kurang dari 0').max(5, 'Rating maksimal 5'),
+    review: z.string().trim().max(500, 'Ulasan maksimal 500 karakter').optional().default(''),
+  })).optional().default([]),
   rating: z.number().min(0, 'Rating tidak boleh kurang dari 0').max(5, 'Rating maksimal 5').optional(),
-  review: z.string().trim().optional().default(''),
+  review: z.string().trim().max(500, 'Ulasan maksimal 500 karakter').optional().default(''),
   badge: z.preprocess((val) => typeof val === 'string' ? val.toLowerCase() : val, z.enum(['eco', 'new', 'sale', 'popular', 'limited', '']).nullish().transform(v => (v === '' || v === null) ? undefined : v)),
   specs: z.record(z.string(), z.string()).optional().default({}),
   colors: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
