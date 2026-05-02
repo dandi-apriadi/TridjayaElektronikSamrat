@@ -26,6 +26,8 @@ pub enum Role {
     Agent,
     Editor,
     Operator,
+    WaAdmin,
+    WaOperator,
 }
 
 impl Display for Role {
@@ -35,6 +37,8 @@ impl Display for Role {
             Self::Agent => write!(f, "agent"),
             Self::Editor => write!(f, "editor"),
             Self::Operator => write!(f, "operator"),
+            Self::WaAdmin => write!(f, "wa_admin"),
+            Self::WaOperator => write!(f, "wa_operator"),
         }
     }
 }
@@ -47,6 +51,8 @@ impl FromStr for Role {
             "agent" => Ok(Self::Agent),
             "editor" => Ok(Self::Editor),
             "operator" => Ok(Self::Operator),
+            "wa_admin" | "wa-admin" | "waadmin" => Ok(Self::WaAdmin),
+            "wa_operator" | "wa-operator" | "waoperator" => Ok(Self::WaOperator),
             _ => Err(()),
         }
     }
