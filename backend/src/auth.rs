@@ -83,12 +83,14 @@ pub struct RefreshSession {
     pub user_id: String,
     pub role: Role,
     pub expires_at: chrono::DateTime<Utc>,
+    pub remember: bool,
 }
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
+    pub remember: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -103,6 +105,7 @@ pub struct AuthPayload {
     pub token_type: String,
     pub expires_in: i64,
     pub user: UserPublic,
+    pub remember: bool,
 }
 
 pub fn hash_password(password: &str) -> String {
@@ -182,7 +185,9 @@ pub async fn login_with_request(
     let access_token = Uuid::new_v4().to_string();
     let refresh_token = Uuid::new_v4().to_string();
     let expires_at = Utc::now() + Duration::minutes(15);
-    let refresh_expires_at = Utc::now() + Duration::days(7);
+    let remember = request.remember.unwrap_or(false);
+    let refresh_days = if remember { 30 } else { 7 };
+    let refresh_expires_at = Utc::now() + Duration::days(refresh_days);
 
     let role = Role::from_str(&user.role).unwrap_or(Role::Agent);
 
@@ -198,6 +203,7 @@ pub async fn login_with_request(
         user_id: user.id.clone(),
         role: role.clone(),
         expires_at: refresh_expires_at,
+        remember,
     };
 
     state.access_sessions.write().await.insert(access_token.clone(), access_session);
@@ -210,6 +216,7 @@ pub async fn login_with_request(
         token_type: "Bearer".to_string(),
         expires_in: 900,
         user: user.public(),
+        remember,
     })
 }
 
@@ -246,6 +253,7 @@ pub async fn refresh_with_request(
 
     let access_token = Uuid::new_v4().to_string();
     let refresh_token = Uuid::new_v4().to_string();
+    let refresh_days = if session.remember { 30 } else { 7 };
 
     state.access_sessions.write().await.insert(
         access_token.clone(),
@@ -263,7 +271,8 @@ pub async fn refresh_with_request(
             token: refresh_token.clone(),
             user_id: user.id.clone(),
             role: current_role,
-            expires_at: Utc::now() + Duration::days(7),
+            expires_at: Utc::now() + Duration::days(refresh_days),
+            remember: session.remember,
         },
     );
     state.refresh_sessions.write().await.remove(&request.refresh_token);
@@ -275,6 +284,7 @@ pub async fn refresh_with_request(
         token_type: "Bearer".to_string(),
         expires_in: 900,
         user: user.public(),
+        remember: session.remember,
     })
 }
 

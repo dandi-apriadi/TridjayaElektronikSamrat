@@ -8,6 +8,7 @@ import {
   parseExcelFile,
   generateImportPreview,
   prepareUpdateData,
+  getCategoryPlaceholder,
   getImportSummary,
   type ImportPreviewItem
 } from '../utils/productImportHandler';
@@ -21,6 +22,7 @@ interface BulkImportHistory {
   successCount: number;
   errorCount: number;
   results: string[];
+  details?: Array<{ rowNumber?: number; name?: string; status: string; reason?: string }>;
   totalItems: number;
 }
 
@@ -69,6 +71,59 @@ const AdminProductBulkImport: React.FC = () => {
     const updated = [entry, ...bulkHistory].slice(0, 50); // Keep last 50 imports
     setBulkHistory(updated);
     localStorage.setItem('bulkImportHistory', JSON.stringify(updated));
+  };
+
+  // Extract unique categories from preview items
+  const extractCategories = (items: ImportPreviewItem[]) => {
+    const categories = new Set<string>();
+    items.forEach(item => {
+      if (item.newData.category && item.newData.category.trim()) {
+        categories.add(item.newData.category.trim());
+      }
+    });
+    return Array.from(categories);
+  };
+
+  // Save new categories to database
+  const saveCategoriesToDatabase = async (categoryNames: string[]): Promise<{ saved: number; duplicates: number; errors: string[] }> => {
+    if (categoryNames.length === 0) {
+      return { saved: 0, duplicates: 0, errors: [] };
+    }
+
+    let saved = 0;
+    let duplicates = 0;
+    const errors: string[] = [];
+
+    for (const categoryName of categoryNames) {
+      try {
+        const response = await apiFetch('/api/product-categories', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: categoryName,
+            description: `Kategori: ${categoryName}`
+          })
+        });
+
+        if (response.ok) {
+          saved++;
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          // Check if it's a duplicate (UNIQUE constraint violation)
+          if (response.status === 409 || errorData.message?.includes('UNIQUE')) {
+            duplicates++;
+          } else {
+            errors.push(`${categoryName}: ${errorData.message || 'Unknown error'}`);
+          }
+        }
+      } catch (error) {
+        errors.push(`${categoryName}: ${error instanceof Error ? error.message : 'Network error'}`);
+      }
+    }
+
+    return { saved, duplicates, errors };
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,7 +248,8 @@ const AdminProductBulkImport: React.FC = () => {
               type: 'update',
               data: {
                 id: item.matchedProduct.id,
-                data: updateData
+                ...updateData,
+                rowNumber: item.rowNumber
               }
             };
           } else {
@@ -205,7 +261,8 @@ const AdminProductBulkImport: React.FC = () => {
                 name: productName,
                 slug: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                 stock: updateData.stock || 'available',
-                image: item.newData.image || 'https://placehold.co/600x400?text=No+Image'
+                image: item.newData.image || getCategoryPlaceholder(item.newData.category),
+                rowNumber: item.rowNumber
               }
             };
           }
@@ -230,7 +287,16 @@ const AdminProductBulkImport: React.FC = () => {
         
         totalSuccess += successCount;
         totalError += errors.length;
-        results.push(...errors.map((err: string) => `❌ Error: ${err}`));
+        
+        // Map backend errors to include product names for clarity
+        errors.forEach((err: string) => {
+          // Find which product this error belongs to by parsing the row number
+          const rowMatch = err.match(/Baris (\d+):/);
+          const rowNum = rowMatch ? parseInt(rowMatch[1]) : -1;
+          const product = chunk.find(item => item.rowNumber === rowNum);
+          const productName = product ? ` (${product.name})` : '';
+          results.push(`❌ ${err}${productName}`);
+        });
         
         // Add specific success messages for small imports, or generic for large ones
         if (chunk.length <= 5) {
@@ -251,9 +317,50 @@ const AdminProductBulkImport: React.FC = () => {
           `ℹ️ ${preview.length - validItems.length} baris dilewati (Error/Serupa)`
         ] 
       };
+
+      // Extract and save categories to database
+      const categoriesToSave = extractCategories(validItems);
+      if (categoriesToSave.length > 0) {
+        const categoryResults = await saveCategoriesToDatabase(categoriesToSave);
+        
+        if (categoryResults.saved > 0) {
+          summary.results.push(`📁 Berhasil simpan ${categoryResults.saved} kategori baru`);
+        }
+        if (categoryResults.duplicates > 0) {
+          summary.results.push(`ℹ️ ${categoryResults.duplicates} kategori sudah ada di database`);
+        }
+        if (categoryResults.errors.length > 0) {
+          categoryResults.errors.forEach(err => {
+            summary.results.push(`⚠️ Gagal simpan kategori: ${err}`);
+          });
+        }
+      }
+
       setProcessSummary(summary);
       
-      // Save to history
+      // Prepare per-row details for history (reasons why rows were not processed)
+      const details = preview
+        .map(item => {
+          let reason = '';
+          if (item.status === 'error') {
+            reason = item.error || 'Validasi gagal';
+          } else if (item.status === 'similar') {
+            const names = item.similarProducts?.map(p => p.name).slice(0, 5).join(', ');
+            reason = `Produk serupa ditemukan: ${names || 'tidak tersedia'}`;
+          } else {
+            reason = '';
+          }
+
+          return {
+            rowNumber: item.rowNumber,
+            name: item.name,
+            status: item.status,
+            reason: reason || undefined
+          };
+        })
+        .filter(d => d.status !== 'matched' && d.status !== 'new' && d.reason);
+
+      // Save to history (include structured details)
       saveHistory({
         id: `bulk_${Date.now()}`,
         timestamp: Date.now(),
@@ -261,11 +368,13 @@ const AdminProductBulkImport: React.FC = () => {
         successCount: totalSuccess,
         errorCount: totalError + (preview.length - validItems.length),
         results: summary.results,
+        details,
         totalItems: preview.length
       });
       
       setStep('done');
       toast.success(`Import selesai: ${totalSuccess} berhasil`);
+      
       
     } catch (error) {
       setProcessing(false);
@@ -1148,20 +1257,32 @@ const AdminProductBulkImport: React.FC = () => {
                             className="mt-3 pt-3 border-t border-outline/20 space-y-2"
                           >
                             <div className="text-xs space-y-1 max-h-[200px] overflow-y-auto">
-                              {entry.results.map((result, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`px-2 py-1 rounded text-xs ${
-                                    result.startsWith('✅')
-                                      ? 'bg-green-500/10 text-green-600'
-                                      : result.startsWith('❌')
-                                      ? 'bg-red-500/10 text-red-600'
-                                      : 'bg-blue-500/10 text-blue-600'
-                                  }`}
-                                >
-                                  {result}
-                                </div>
-                              ))}
+                                {entry.details && entry.details.length > 0 && (
+                                  <div className="space-y-1 mb-2">
+                                    <div className="text-sm font-medium text-on-surface">Rincian baris tidak terproses</div>
+                                    {entry.details.map((d, i) => (
+                                      <div key={`detail-${i}`} className="px-2 py-1 rounded text-xs bg-yellow-500/10 text-yellow-700">
+                                        <div className="font-semibold">Baris {d.rowNumber} — {d.name}</div>
+                                        <div className="text-[11px]">{d.reason}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {entry.results.map((result, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`px-2 py-1 rounded text-xs ${
+                                      result.startsWith('✅')
+                                        ? 'bg-green-500/10 text-green-600'
+                                        : result.startsWith('❌')
+                                        ? 'bg-red-500/10 text-red-600'
+                                        : 'bg-blue-500/10 text-blue-600'
+                                    }`}
+                                  >
+                                    {result}
+                                  </div>
+                                ))}
                             </div>
                             <button
                               onClick={() => {

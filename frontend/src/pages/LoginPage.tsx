@@ -32,6 +32,7 @@ const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -40,7 +41,7 @@ const LoginPage: React.FC = () => {
     setErrorMessage('');
 
     try {
-      const user = await login({ email, password });
+      const user = await login({ email, password, remember });
       if (user.must_change_password) {
         toast.warning(
           'Ganti Password',
@@ -226,9 +227,10 @@ const LoginPage: React.FC = () => {
                   </span>
                   <input
                     type="email"
+                    name="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    autoComplete="email"
+                    autoComplete="username"
                     placeholder="user@gmail.com"
                     className="w-full px-4 py-3.5 rounded-xl glass-dark border border-outline-variant/30 hover:border-outline-variant/50 focus:border-primary/50 font-body text-body-md text-white placeholder-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:ring-offset-surface transition-all duration-200"
                     required
@@ -242,6 +244,7 @@ const LoginPage: React.FC = () => {
                   </span>
                   <input
                     type="password"
+                    name="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
@@ -251,7 +254,22 @@ const LoginPage: React.FC = () => {
                   />
                 </label>
 
-                <div className="flex items-center justify-end">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={remember}
+                        onChange={(e) => setRemember(e.target.checked)}
+                        className="peer appearance-none w-5 h-5 rounded-md border border-outline-variant/30 checked:bg-primary checked:border-primary transition-all duration-200"
+                      />
+                      <CheckCircle2 className="absolute w-3.5 h-3.5 text-surface opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                    </div>
+                    <span className="font-body text-body-sm text-on-surface-variant group-hover:text-on-surface transition-colors">
+                      Ingat Saya
+                    </span>
+                  </label>
+                  
                   <Link
                     to="/forgot-password"
                     className="font-body text-body-sm font-semibold text-primary hover:text-primary/80 hover:underline transition-all duration-200"

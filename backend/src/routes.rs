@@ -269,13 +269,14 @@ fn cookie_secure_enabled() -> bool {
         .unwrap_or(false)
 }
 
-fn build_refresh_cookie(token: &str) -> String {
+fn build_refresh_cookie(token: &str, remember: bool) -> String {
     let secure = cookie_secure_enabled();
     let same_site = if secure { "None" } else { "Lax" };
     let secure_attr = if secure { "; Secure" } else { "" };
+    let max_age = if remember { 2592000 } else { 604800 }; // 30 days vs 7 days
     format!(
-        "refresh_token={}; HttpOnly; Path=/api/auth; Max-Age=604800; SameSite={}{}",
-        token, same_site, secure_attr
+        "refresh_token={}; HttpOnly; Path=/api/auth; Max-Age={}; SameSite={}{}",
+        token, max_age, same_site, secure_attr
     )
 }
 
@@ -322,8 +323,9 @@ async fn login(State(state): State<AppState>, headers: HeaderMap, Json(payload):
     let auth = login_with_request(&state, payload).await?;
     clear_login_rate_limit(&state, &email, client_ip.as_deref()).await;
     let refresh_token = auth.refresh_token.clone();
+    let remember = auth.remember;
     let mut response = json_ok("Login successful", auth);
-    append_set_cookie(&mut response, &build_refresh_cookie(&refresh_token));
+    append_set_cookie(&mut response, &build_refresh_cookie(&refresh_token, remember));
     Ok(response)
 }
 
@@ -353,8 +355,9 @@ async fn refresh(State(state): State<AppState>, headers: HeaderMap, body: axum::
     match refresh_with_request(&state, RefreshRequest { refresh_token }).await {
         Ok(auth) => {
             let new_refresh_token = auth.refresh_token.clone();
+            let remember = auth.remember;
             let mut response = json_ok("Token refreshed", auth);
-            append_set_cookie(&mut response, &build_refresh_cookie(&new_refresh_token));
+            append_set_cookie(&mut response, &build_refresh_cookie(&new_refresh_token, remember));
             response
         }
         Err(_) => {
@@ -2507,8 +2510,17 @@ struct CatalogUpdateRequest {
 #[derive(Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "camelCase")]
 enum BulkOperation {
-    Create(CatalogCreateRequest),
-    Update { id: String, data: CatalogUpdateRequest },
+    Create { 
+        #[serde(flatten)]
+        data: CatalogCreateRequest, 
+        row_number: Option<i32> 
+    },
+    Update { 
+        id: String, 
+        #[serde(flatten)]
+        data: CatalogUpdateRequest, 
+        row_number: Option<i32> 
+    },
 }
 
 #[derive(Deserialize)]
@@ -3349,18 +3361,20 @@ async fn bulk_products(
 
     for (index, op) in payload.operations.into_iter().enumerate() {
         match op {
-            BulkOperation::Create(data) => {
+            BulkOperation::Create { data, row_number } => {
+                let display_row = row_number.unwrap_or(index as i32 + 1);
+                
                 // Mandatory fields check for Create
                 let name = data.name.trim();
                 if name.is_empty() {
-                    errors.push(format!("Baris {}: Nama produk wajib diisi", index + 1));
+                    errors.push(format!("Baris {}: Nama produk wajib diisi", display_row));
                     continue;
                 }
                 
-                let category = data.category.unwrap_or_else(|| "Uncategorized".to_string());
+                let category = data.category.as_deref().unwrap_or("Uncategorized");
                 let price = data.price.unwrap_or(0.0);
-                let image = data.image.unwrap_or_else(|| "https://placehold.co/600x400?text=No+Image".to_string());
-                let slug = data.slug.unwrap_or_else(|| name.to_lowercase().replace(' ', "-"));
+                let image = data.image.as_deref().unwrap_or("https://placehold.co/600x400?text=No+Image");
+                let slug = data.slug.clone().unwrap_or_else(|| name.to_lowercase().replace(' ', "-"));
 
                 let id = data.id.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
                     .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -3374,7 +3388,7 @@ async fn bulk_products(
                 };
                 let ratings_json = serde_json::to_string(&ratings).unwrap_or_else(|_| "[]".to_string());
                 let (next_rating, next_review, _) = summarize_ratings(&ratings, data.rating, data.review.clone());
-                let stock = data.stock.unwrap_or_else(|| "available".to_string());
+                let stock = data.stock.as_deref().unwrap_or("available");
 
                 let result = sqlx::query(
                     "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -3405,12 +3419,13 @@ async fn bulk_products(
                 match result {
                     Ok(_) => success_count += 1,
                     Err(e) => {
-                        tracing::error!("Bulk Create Error at index {}: {}", index, e);
-                        errors.push(format!("Baris {}: Database Error - {}", index + 1, e));
+                        tracing::error!("Bulk Create Error at row {}: {}", display_row, e);
+                        errors.push(format!("Baris {}: Database Error - {}", display_row, e));
                     }
                 }
             }
-            BulkOperation::Update { id, data } => {
+            BulkOperation::Update { id, data, row_number } => {
+                let display_row = row_number.unwrap_or(index as i32 + 1);
                 let mut query = String::from("UPDATE products SET ");
                 let mut updates = Vec::new();
                 
@@ -3433,7 +3448,7 @@ async fn bulk_products(
                 }
 
                 query.push_str(&updates.join(", "));
-                query.push_str(" WHERE id = ?");
+                query.push_str(" WHERE id = ? OR slug = ?");
 
                 let mut q = sqlx::query(&query);
                 if let Some(ref val) = data.slug { q = q.bind(val.trim()); }
@@ -3448,13 +3463,13 @@ async fn bulk_products(
                 if let Some(ref val) = data.short_desc { q = q.bind(val); }
                 if let Some(ref val) = data.description { q = q.bind(val); }
                 
-                q = q.bind(&id);
+                q = q.bind(&id).bind(&id);
 
                 match q.execute(&mut *tx).await {
                     Ok(_) => success_count += 1,
                     Err(e) => {
-                        tracing::error!("Bulk Update Error for ID {}: {}", id, e);
-                        errors.push(format!("Baris {}: Database Error - {}", index + 1, e));
+                        tracing::error!("Bulk Update Error for ID {} at row {}: {}", id, display_row, e);
+                        errors.push(format!("Baris {}: Database Error - {}", display_row, e));
                     }
                 }
             }

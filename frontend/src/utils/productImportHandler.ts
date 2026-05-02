@@ -326,6 +326,34 @@ export function prepareUpdateData(
 }
 
 /**
+ * Get placeholder image based on category
+ */
+export function getCategoryPlaceholder(category?: string): string {
+  if (!category) return '/uploads/placeholders/default.png';
+  
+  const cat = category.toLowerCase().trim();
+  
+  if (cat.includes('tv')) return '/uploads/placeholders/tv.png';
+  if (cat.includes('cuci')) return '/uploads/placeholders/mesin_cuci.png';
+  if (cat.includes('ac')) return '/uploads/placeholders/ac.png';
+  if (cat.includes('sepeda') || cat.includes('selis')) return '/uploads/placeholders/sepeda_listrik.png';
+  if (cat.includes('kursi') || cat.includes('meja') || cat.includes('lemari')) return '/uploads/placeholders/kursi.png';
+  if (cat.includes('kulkas') || cat.includes('freezer') || cat.includes('showcase')) return '/uploads/placeholders/kulkas.png';
+  if (cat.includes('sofa')) return '/uploads/placeholders/sofa.png';
+  if (cat.includes('kompor')) return '/uploads/placeholders/kompor.png';
+  if (cat.includes('speaker') || cat.includes('audio')) return '/uploads/placeholders/speaker.png';
+  if (cat.includes('hp') || cat.includes('handphone') || cat.includes('ponsel')) return '/uploads/placeholders/handphone.png';
+  if (cat.includes('kasur') || cat.includes('springbed')) return '/uploads/placeholders/kasur.png';
+  if (cat.includes('magic com') || cat.includes('rice cooker')) return '/uploads/placeholders/magic_com.png';
+  if (cat.includes('kipas')) return '/uploads/placeholders/kipas_angin.png';
+  if (cat.includes('dispenser')) return '/uploads/placeholders/dispenser.png';
+  if (cat.includes('blender')) return '/uploads/placeholders/blender.png';
+  if (cat.includes('oven') || cat.includes('fryer') || cat.includes('cooker')) return '/uploads/placeholders/oven.png';
+  
+  return '/uploads/placeholders/default.png';
+}
+
+/**
  * Get summary dari import process
  */
 export function getImportSummary(preview: ImportPreviewItem[]): {

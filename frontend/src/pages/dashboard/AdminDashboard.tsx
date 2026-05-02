@@ -31,6 +31,7 @@ import {
   Cell,
   PieChart,
   Pie,
+  Legend,
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useProductStore } from '../../store/useProductStore';
@@ -475,35 +476,46 @@ const AdminDashboard: React.FC = () => {
             <h3 className="font-display text-title-md font-bold text-on-surface">Distribusi Katalog</h3>
             <p className="text-label-sm text-on-surface-variant mt-0.5">Top 8 kategori produk</p>
           </div>
-          <div className="relative h-[250px] w-full min-h-[250px] flex-1 overflow-visible">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200} aspect={250/250}>
+          <div className="relative h-[300px] w-full min-h-[300px] flex-1">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
               <PieChart>
                 <Pie
                   data={categoryData}
                   cx="50%"
-                  cy="50%"
+                  cy="45%"
                   innerRadius={60}
-                  outerRadius={80}
+                  outerRadius={75}
                   paddingAngle={5}
                   dataKey="value"
+                  stroke="none"
                 >
                   {categoryData.map((_entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF' }}
+                  contentStyle={{ 
+                    backgroundColor: '#1A1A1A', 
+                    borderColor: '#484847', 
+                    borderRadius: '12px', 
+                    color: '#FFF',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  align="center"
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ paddingTop: '10px' }}
+                  formatter={(value, entry: any) => (
+                    <span className="text-label-xs text-on-surface-variant font-medium">
+                      {value}: <span className="text-on-surface font-bold">{entry.payload.value}</span>
+                    </span>
+                  )}
                 />
               </PieChart>
             </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            {categoryData.slice(0, 4).map((cat, i) => (
-              <div key={cat.name} className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i] }} />
-                <span className="text-label-xs text-on-surface-variant truncate">{cat.name}: {cat.value}</span>
-              </div>
-            ))}
           </div>
         </motion.div>
       </div>

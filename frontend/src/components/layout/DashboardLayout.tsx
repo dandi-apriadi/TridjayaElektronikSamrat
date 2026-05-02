@@ -425,6 +425,15 @@ const DashboardLayout: React.FC = () => {
                 </span>
               )}
             </Link>
+
+            <button 
+              onClick={handleLogout}
+              className="w-10 h-10 rounded-lg glass-card flex items-center justify-center text-error hover:bg-error/10 transition-all"
+              aria-label="Logout"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
             
             <div className="h-10 w-px bg-outline-variant/20 mx-2 hidden sm:block" />
             

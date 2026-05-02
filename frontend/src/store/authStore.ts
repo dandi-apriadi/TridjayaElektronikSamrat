@@ -27,6 +27,7 @@ interface User {
 interface LoginCredentials {
   email: string;
   password: string;
+  remember?: boolean;
 }
 
 interface LoginResponse {
@@ -64,7 +65,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       accessToken: null,
       isInitializing: true,
-      login: async ({ email, password }) => {
+      login: async ({ email, password, remember }) => {
         try {
           const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
@@ -72,7 +73,7 @@ export const useAuthStore = create<AuthState>()(
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ email, password, remember }),
           });
 
           if (!response.ok) {
