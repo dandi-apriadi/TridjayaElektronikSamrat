@@ -58,6 +58,16 @@ impl FromStr for Role {
     }
 }
 
+impl Role {
+    pub fn can_manage_wa(&self) -> bool {
+        matches!(self, Self::Admin | Self::WaAdmin)
+    }
+
+    pub fn can_operate_wa(&self) -> bool {
+        matches!(self, Self::Admin | Self::WaAdmin | Self::WaOperator)
+    }
+}
+
 #[derive(Clone)]
 pub struct AccessSession {
     pub token: String,

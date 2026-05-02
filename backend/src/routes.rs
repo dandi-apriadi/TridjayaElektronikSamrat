@@ -937,7 +937,7 @@ struct UpdateSupportTicketStatusRequest {
 
 fn normalize_role(value: &str) -> Option<String> {
     let role = value.trim().to_lowercase();
-    if matches!(role.as_str(), "admin" | "agent" | "editor" | "operator") {
+    if matches!(role.as_str(), "admin" | "agent" | "editor" | "operator" | "wa_admin" | "wa-operator" | "wa_operator" | "waadmin" | "waoperator") {
         Some(role)
     } else {
         None
@@ -1001,7 +1001,7 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("name wajib diisi".to_string());
     }
     if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
+        errors.push("role harus salah satu dari: admin, agent, editor, operator, wa_admin, wa_operator".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
@@ -1023,7 +1023,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         errors.push("name tidak boleh kosong".to_string());
     }
     if payload.role.as_ref().is_some_and(|value| normalize_role(value).is_none()) {
-        errors.push("role harus salah satu dari: admin, agent, editor, operator".to_string());
+        errors.push("role harus salah satu dari: admin, agent, editor, operator, wa_admin, wa_operator".to_string());
     }
     if payload.password.as_ref().is_some_and(|value| value.len() < 8) {
         errors.push("password minimal 8 karakter".to_string());
