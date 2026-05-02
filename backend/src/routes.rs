@@ -32,6 +32,16 @@ pub fn router(state: AppState) -> Router {
         .route("/api/users/{id}", get(get_user).patch(update_user).delete(delete_user))
         .route("/api/users/{id}/reset-password", post(reset_user_password))
         .route("/api/users/{id}/resend-verification", post(resend_verification))
+        .route("/api/wa/accounts", get(list_wa_accounts).post(create_wa_account))
+        .route("/api/wa/accounts/{id}", patch(update_wa_account).delete(delete_wa_account))
+        .route("/api/wa/campaigns", get(list_wa_campaigns).post(create_wa_campaign))
+        .route("/api/wa/campaigns/{id}", get(get_wa_campaign).patch(update_wa_campaign).delete(delete_wa_campaign))
+        .route("/api/wa/campaigns/{id}/recipients", post(add_wa_recipients))
+        .route("/api/wa/campaigns/{id}/recipients/from-leads", post(add_wa_recipients_from_leads))
+        .route("/api/wa/campaigns/{id}/start", post(start_wa_campaign))
+        .route("/api/wa/campaigns/{id}/status", get(get_wa_campaign_status))
+        .route("/api/wa/recipients/{id}", patch(update_wa_recipient).delete(delete_wa_recipient))
+        .route("/api/wa/webhooks/fonnte", post(handle_fonnte_webhook))
         .route("/api/reward-tiers", get(list_reward_tiers))
         .route("/api/admin/uploads/image", post(upload_admin_image))
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
@@ -935,6 +945,124 @@ struct UpdateSupportTicketStatusRequest {
     status: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WaAccountCreateRequest {
+    name: String,
+    gateway_config: Option<Value>,
+    enabled: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WaCampaignCreateRequest {
+    name: String,
+    config: Option<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WaAccountUpdateRequest {
+    name: Option<String>,
+    gateway_config: Option<Value>,
+    enabled: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WaCampaignUpdateRequest {
+    name: Option<String>,
+    config: Option<Value>,
+    status: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WaRecipientInput {
+    phone: String,
+    variables: Option<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum WaRecipientsPayload {
+    One(WaRecipientInput),
+    Many { recipients: Vec<WaRecipientInput> },
+}
+
+#[derive(Serialize)]
+struct WaSummaryResponse {
+    id: String,
+    name: String,
+    gateway_config: Value,
+    enabled: bool,
+    created_by: Option<String>,
+    created_at: Option<String>,
+}
+
+#[derive(Serialize)]
+struct WaCampaignSummaryResponse {
+    id: String,
+    name: String,
+    status: String,
+    config: Value,
+    created_by: Option<String>,
+    created_at: Option<String>,
+    started_at: Option<String>,
+    recipient_total: i64,
+    recipient_sent: i64,
+    recipient_skipped: i64,
+    recipient_failed: i64,
+}
+
+#[derive(Serialize)]
+struct WaRecipientSummaryResponse {
+    id: String,
+    phone: String,
+    variables: Value,
+    status: String,
+    last_attempt_at: Option<String>,
+    delivered_at: Option<String>,
+    read_at: Option<String>,
+    replied_at: Option<String>,
+    last_error: Option<String>,
+    created_at: Option<String>,
+}
+
+fn normalize_phone(value: &str) -> Option<String> {
+    let digits: String = value
+        .chars()
+        .filter(|ch| ch.is_ascii_digit())
+        .collect();
+    if digits.len() < 8 {
+        None
+    } else {
+        Some(digits)
+    }
+}
+
+fn parse_json_value(text: Option<String>) -> Value {
+    text.and_then(|raw| serde_json::from_str(&raw).ok()).unwrap_or(Value::Null)
+}
+
+fn default_wa_campaign_config() -> Value {
+    json!({
+        "delayMs": 3000,
+        "jitterMs": 500,
+        "dedupeDays": 7,
+        "accountStrategy": "round_robin"
+    })
+}
+
+fn parse_json_value_or_default(text: Option<String>, default: Value) -> Value {
+    let parsed = parse_json_value(text);
+    if parsed.is_null() {
+        default
+    } else {
+        parsed
+    }
+}
+
 fn normalize_role(value: &str) -> Option<String> {
     let role = value.trim().to_lowercase();
     if matches!(role.as_str(), "admin" | "agent" | "editor" | "operator" | "wa_admin" | "wa-operator" | "wa_operator" | "waadmin" | "waoperator") {
@@ -1575,6 +1703,599 @@ async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, m
     Ok(json_ok("Image uploaded", json!({ "url": url })))
 }
 
+async fn list_wa_accounts(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    let rows = sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>)>(
+        "SELECT id, name, gateway_config, enabled, created_by, created_at FROM wa_accounts ORDER BY created_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching WA accounts: {}", e);
+        AppError::Internal
+    })?;
+
+    let items = rows
+        .into_iter()
+        .map(|(id, name, gateway_config, enabled, created_by, created_at)| WaSummaryResponse {
+            id,
+            name,
+            gateway_config: parse_json_value(gateway_config),
+            enabled,
+            created_by,
+            created_at,
+        })
+        .collect::<Vec<_>>();
+
+    Ok(json_ok("WA accounts fetched", json!({ "items": items })))
+}
+
+async fn create_wa_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<WaAccountCreateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    let name = payload.name.trim();
+    if name.is_empty() {
+        return Err(AppError::Validation { errors: vec!["name wajib diisi".to_string()] });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let gateway_config = payload.gateway_config.unwrap_or_else(|| json!({})).to_string();
+    let enabled = payload.enabled.unwrap_or(true);
+
+    sqlx::query(
+        "INSERT INTO wa_accounts (id, name, gateway_config, enabled, created_by) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(name)
+    .bind(gateway_config)
+    .bind(enabled)
+    .bind(&user.id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error creating WA account: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        format!("WA account created by {}", user.email),
+        json!({ "item": { "id": id } }),
+    ))
+}
+
+async fn update_wa_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<WaAccountUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    if let Some(name) = &payload.name {
+        sqlx::query("UPDATE wa_accounts SET name = ? WHERE id = ?")
+            .bind(name)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    if let Some(config) = &payload.gateway_config {
+        sqlx::query("UPDATE wa_accounts SET gateway_config = ? WHERE id = ?")
+            .bind(config.to_string())
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    if let Some(enabled) = payload.enabled {
+        sqlx::query("UPDATE wa_accounts SET enabled = ? WHERE id = ?")
+            .bind(enabled)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    Ok(json_ok("WA account updated", json!({ "id": id })))
+}
+
+async fn delete_wa_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    sqlx::query("DELETE FROM wa_accounts WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    Ok(json_ok("WA account deleted", json!({ "id": id })))
+}
+
+async fn list_wa_campaigns(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    let rows = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
+        "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id ORDER BY c.created_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching WA campaigns: {}", e);
+        AppError::Internal
+    })?;
+
+    let items = rows
+        .into_iter()
+        .map(|(id, name, status, config, created_by, created_at, started_at, recipient_total, recipient_sent, recipient_skipped, recipient_failed)| WaCampaignSummaryResponse {
+            id,
+            name,
+            status: status.unwrap_or_else(|| "draft".to_string()),
+            config: parse_json_value_or_default(config, default_wa_campaign_config()),
+            created_by,
+            created_at,
+            started_at,
+            recipient_total,
+            recipient_sent,
+            recipient_skipped,
+            recipient_failed,
+        })
+        .collect::<Vec<_>>();
+
+    Ok(json_ok("WA campaigns fetched", json!({ "items": items })))
+}
+
+async fn create_wa_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<WaCampaignCreateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    let name = payload.name.trim();
+    if name.is_empty() {
+        return Err(AppError::Validation { errors: vec!["name wajib diisi".to_string()] });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let config = payload.config.unwrap_or_else(default_wa_campaign_config).to_string();
+
+    sqlx::query(
+        "INSERT INTO wa_campaigns (id, name, created_by, config, status) VALUES (?, ?, ?, ?, 'draft')",
+    )
+    .bind(&id)
+    .bind(name)
+    .bind(&user.id)
+    .bind(config)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error creating WA campaign: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        format!("WA campaign created by {}", user.email),
+        json!({ "item": { "id": id } }),
+    ))
+}
+
+async fn get_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let item = fetch_wa_campaign_summary(&state, &id).await?;
+    Ok(json_ok("WA campaign fetched", json!({ "item": item })))
+}
+
+async fn update_wa_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<WaCampaignUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    if let Some(name) = &payload.name {
+        sqlx::query("UPDATE wa_campaigns SET name = ? WHERE id = ?")
+            .bind(name)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    if let Some(config) = &payload.config {
+        sqlx::query("UPDATE wa_campaigns SET config = ? WHERE id = ?")
+            .bind(config.to_string())
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    if let Some(status) = &payload.status {
+        sqlx::query("UPDATE wa_campaigns SET status = ? WHERE id = ?")
+            .bind(status)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    Ok(json_ok("WA campaign updated", json!({ "id": id })))
+}
+
+async fn delete_wa_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    sqlx::query("DELETE FROM wa_recipients WHERE campaign_id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("DELETE FROM wa_campaigns WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    Ok(json_ok("WA campaign deleted", json!({ "id": id })))
+}
+
+async fn add_wa_recipients(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<WaRecipientsPayload>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    let campaign_config: Option<String> = sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error loading WA campaign config: {}", e);
+            AppError::Internal
+        })?;
+
+    let campaign_config = campaign_config.ok_or(AppError::NotFound)?;
+    let config_value = parse_json_value(Some(campaign_config));
+    let dedupe_days = wa_config_dedupe_days(&config_value);
+    let recipients = match payload {
+        WaRecipientsPayload::One(item) => vec![item],
+        WaRecipientsPayload::Many { recipients } => recipients,
+    };
+
+    if recipients.is_empty() {
+        return Err(AppError::Validation { errors: vec!["recipients wajib diisi".to_string()] });
+    }
+
+    let mut inserted = 0_i64;
+    let mut skipped = 0_i64;
+    let mut invalid = Vec::new();
+
+    for recipient in recipients {
+        let phone = match normalize_phone(&recipient.phone) {
+            Some(value) => value,
+            None => {
+                invalid.push(format!("phone tidak valid: {}", recipient.phone));
+                continue;
+            }
+        };
+        let variables = recipient.variables.unwrap_or_else(|| json!({})).to_string();
+        let recipient_id = uuid::Uuid::new_v4().to_string();
+        let dedupe_window = format!("-{} day", dedupe_days.max(1));
+
+        let duplicate_exists: Option<i64> = sqlx::query_scalar(
+            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= datetime('now', ?) LIMIT 1",
+        )
+        .bind(&phone)
+        .bind(&dedupe_window)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking WA dedupe: {}", e);
+            AppError::Internal
+        })?;
+
+        let status = if duplicate_exists.is_some() { "skipped" } else { "pending" };
+        if duplicate_exists.is_some() {
+            skipped += 1;
+        } else {
+            inserted += 1;
+        }
+
+        sqlx::query(
+            "INSERT INTO wa_recipients (id, campaign_id, phone, variables_json, status) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&recipient_id)
+        .bind(&id)
+        .bind(&phone)
+        .bind(variables)
+        .bind(status)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error inserting WA recipient: {}", e);
+            AppError::Internal
+        })?;
+    }
+
+    if !invalid.is_empty() {
+        return Err(AppError::Validation { errors: invalid });
+    }
+
+    Ok(json_ok(
+        "WA recipients imported",
+        json!({ "inserted": inserted, "skipped": skipped }),
+    ))
+}
+
+async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    let result = sqlx::query(
+        "UPDATE wa_campaigns SET status = 'running', started_at = COALESCE(started_at, CURRENT_TIMESTAMP) WHERE id = ?",
+    )
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error starting WA campaign: {}", e);
+        AppError::Internal
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok(
+        format!("WA campaign started by {}", user.email),
+        json!({ "item": fetch_wa_campaign_summary(&state, &id).await? }),
+    ))
+}
+
+async fn get_wa_campaign_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let campaign = fetch_wa_campaign_summary(&state, &id).await?;
+
+    let recipient_rows = sqlx::query_as::<_, (String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>(
+        "SELECT id, phone, variables_json, status, last_attempt_at, delivered_at, read_at, replied_at, last_error, created_at FROM wa_recipients WHERE campaign_id = ? ORDER BY created_at DESC LIMIT 250",
+    )
+    .bind(&id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching WA recipients: {}", e);
+        AppError::Internal
+    })?;
+
+    let recipients = recipient_rows
+        .into_iter()
+        .map(|(id, phone, variables, status, last_attempt_at, delivered_at, read_at, replied_at, last_error, created_at)| WaRecipientSummaryResponse {
+            id,
+            phone,
+            variables: parse_json_value(variables),
+            status,
+            last_attempt_at,
+            delivered_at,
+            read_at,
+            replied_at,
+            last_error,
+            created_at,
+        })
+        .collect::<Vec<_>>();
+
+    Ok(json_ok("WA campaign status fetched", json!({ "campaign": campaign, "recipients": recipients })))
+}
+
+async fn fetch_wa_campaign_summary(state: &AppState, id: &str) -> Result<WaCampaignSummaryResponse, AppError> {
+    let row = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
+        "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.id = ? GROUP BY c.id LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error loading WA campaign summary: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    let (id, name, status, config, created_by, created_at, started_at, recipient_total, recipient_sent, recipient_skipped, recipient_failed) = row;
+
+    Ok(WaCampaignSummaryResponse {
+        id,
+        name,
+        status: status.unwrap_or_else(|| "draft".to_string()),
+        config: parse_json_value_or_default(config, default_wa_campaign_config()),
+        created_by,
+        created_at,
+        started_at,
+        recipient_total,
+        recipient_sent,
+        recipient_skipped,
+        recipient_failed,
+    })
+}
+
+fn wa_config_dedupe_days(config: &Value) -> i64 {
+    let from_camel = config.get("dedupeDays").and_then(Value::as_i64);
+    let from_snake = config.get("dedupe_days").and_then(Value::as_i64);
+    from_camel.or(from_snake).unwrap_or(7)
+}
+
+#[derive(Deserialize)]
+struct AddRecipientsFromLeadsRequest {
+    lead_ids: Vec<String>,
+}
+
+async fn add_wa_recipients_from_leads(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<AddRecipientsFromLeadsRequest>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    let mut inserted = 0;
+    let mut skipped = 0;
+
+    for lead_id in payload.lead_ids {
+        // Fetch lead data
+        let lead: Option<(String, String)> = sqlx::query_as("SELECT customer_name, phone_number FROM leads WHERE id = ?")
+            .bind(&lead_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        if let Some((name, phone)) = lead {
+            let phone_norm = match normalize_phone(&phone) {
+                Some(p) => p,
+                None => continue,
+            };
+
+            let recipient_id = uuid::Uuid::new_v4().to_string();
+            let vars = json!({ "name": name }).to_string();
+
+            let res = sqlx::query("INSERT OR IGNORE INTO wa_recipients (id, campaign_id, phone, variables_json, lead_id) VALUES (?, ?, ?, ?, ?)")
+                .bind(&recipient_id)
+                .bind(&id)
+                .bind(&phone_norm)
+                .bind(&vars)
+                .bind(&lead_id)
+                .execute(&state.pool)
+                .await
+                .map_err(|_| AppError::Internal)?;
+
+            if res.rows_affected() > 0 {
+                inserted += 1;
+            } else {
+                skipped += 1;
+            }
+        }
+    }
+
+    Ok(json_ok("Leads added to WA campaign", json!({ "inserted": inserted, "skipped": skipped })))
+}
+
+async fn delete_wa_recipient(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    sqlx::query("DELETE FROM wa_recipients WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    Ok(json_ok("Recipient deleted", json!({ "id": id })))
+}
+
+#[derive(Deserialize)]
+struct WaRecipientUpdateRequest {
+    phone: Option<String>,
+    variables: Option<Value>,
+}
+
+async fn update_wa_recipient(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<WaRecipientUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+
+    if let Some(phone) = payload.phone {
+        let phone_norm = normalize_phone(&phone).ok_or(AppError::Validation { errors: vec!["Phone not valid".to_string()] })?;
+        sqlx::query("UPDATE wa_recipients SET phone = ? WHERE id = ?")
+            .bind(phone_norm)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    if let Some(vars) = payload.variables {
+        sqlx::query("UPDATE wa_recipients SET variables_json = ? WHERE id = ?")
+            .bind(vars.to_string())
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    Ok(json_ok("Recipient updated", json!({ "id": id })))
+}
+
+#[derive(Deserialize, Debug)]
+struct FonnteWebhookPayload {
+    id: String, // message_id
+    status: String,
+    target: String,
+    message: Option<String>,
+}
+
+async fn handle_fonnte_webhook(
+    State(state): State<AppState>,
+    Json(payload): Json<FonnteWebhookPayload>,
+) -> Result<ResponseBody, AppError> {
+    tracing::info!("Fonnte Webhook received: {:?}", payload);
+
+    // Fonnte sends status updates. We need to match the message_id with our dispatch logs.
+    let log: Option<(String, String)> = sqlx::query_as("SELECT recipient_id, campaign_id FROM wa_dispatch_logs WHERE message_id = ? LIMIT 1")
+        .bind(&payload.id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    if let Some((recipient_id, _campaign_id)) = log {
+        let now = Utc::now().to_rfc3339();
+        
+        let query = match payload.status.to_lowercase().as_str() {
+            "delivered" => "UPDATE wa_recipients SET delivered_at = ? WHERE id = ?",
+            "read" => "UPDATE wa_recipients SET read_at = ? WHERE id = ?",
+            "failed" => "UPDATE wa_recipients SET status = 'failed', last_error = ? WHERE id = ?",
+            _ => "",
+        };
+
+        if !query.is_empty() {
+            let bind_val = if payload.status == "failed" {
+                payload.message.unwrap_or_else(|| "Unknown failure".to_string())
+            } else {
+                now
+            };
+
+            sqlx::query(query)
+                .bind(bind_val)
+                .bind(&recipient_id)
+                .execute(&state.pool)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+    }
+
+    Ok(json_ok("Webhook processed", json!({ "status": "ok" })))
+}
+
 async fn resend_verification(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1903,7 +2624,7 @@ fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSum
 }
 
 fn validate_stock(stock: &str) -> bool {
-    matches!(stock, "available" | "indent" | "hidden")
+    matches!(stock, "available" | "indent" | "hidden" | "limited" | "out_of_stock" | "discontinued")
 }
 
 fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppError> {
@@ -1990,7 +2711,7 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
 
 async fn find_catalog_by_id_or_slug(state: &AppState, id_or_slug: &str) -> Result<ProductRecord, AppError> {
     sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
     )
     .bind(id_or_slug)
     .bind(id_or_slug)

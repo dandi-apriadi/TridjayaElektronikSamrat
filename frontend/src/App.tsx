@@ -51,6 +51,7 @@ const AdminFinancePage = lazy(() => import('./pages/dashboard/AdminFinancePage')
 const AdminContentPage = lazy(() => import('./pages/dashboard/AdminContentPage'));
 const AdminFormPage = lazy(() => import('./pages/dashboard/AdminFormPage'));
 const AdminProductFormPage = lazy(() => import('./pages/dashboard/AdminProductFormPage'));
+const AdminProductBulkImportPage = lazy(() => import('./pages/dashboard/AdminProductBulkImportPage'));
 const AdminPromoFormPage = lazy(() => import('./pages/dashboard/AdminPromoFormPage'));
 const AdminArticleFormPage = lazy(() => import('./pages/dashboard/AdminArticleFormPage'));
 const AgentPushProspekPage = lazy(() => import('./pages/dashboard/AgentPushProspekPage'));
@@ -63,6 +64,10 @@ const AdminPartnersPage = lazy(() => import('./pages/dashboard/AdminPartnersPage
 const AdminProductCategoriesPage = lazy(() => import('./pages/dashboard/AdminProductCategoriesPage'));
 const NotificationsPage = lazy(() => import('./pages/dashboard/NotificationsPage'));
 const AdminCareersPage = lazy(() => import('./pages/dashboard/AdminCareersPage'));
+const AdminWaCampaignsPage = lazy(() => import('./pages/dashboard/AdminWaCampaignsPage'));
+const AdminWaCampaignFormPage = lazy(() => import('./pages/dashboard/AdminWaCampaignFormPage'));
+const AdminWaCampaignDetailPage = lazy(() => import('./pages/dashboard/AdminWaCampaignDetailPage'));
+const AdminWaAccountsPage = lazy(() => import('./pages/dashboard/AdminWaAccountsPage.tsx'));
 
 const RouteLoading: React.FC = () => (
   <div className="min-h-[40vh] w-full grid place-items-center px-4">
@@ -230,6 +235,14 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="admin/catalog/bulk-import"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminProductBulkImportPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
             path="admin/promo"
             element={
               <RoleGuard role="admin">
@@ -370,6 +383,38 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="admin">
                 {lazyPage(NotificationsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/wa/campaigns"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminWaCampaignsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/wa/accounts"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminWaAccountsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/wa/campaign/new"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminWaCampaignFormPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/wa/campaign/:id"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminWaCampaignDetailPage)}
               </RoleGuard>
             }
           />

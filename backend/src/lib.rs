@@ -3,6 +3,8 @@ pub mod response;
 pub mod routes;
 pub mod state;
 pub mod fonnte;
+pub mod wa_dispatcher;
 pub mod seed;
 pub mod mail;
 pub mod cache;
+pub mod wa_worker;

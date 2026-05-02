@@ -4,8 +4,9 @@ import {
   Users, Search, Filter, Phone,
   Clock, TrendingUp, CheckCircle2,
   Package, ExternalLink, User,
-  Calendar, RefreshCcw
+  Calendar, RefreshCcw, Send
 } from 'lucide-react';
+import SelectCampaignModal from '../../components/dashboard/SelectCampaignModal';
 
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { toast } from '../../store/useNotificationStore';
@@ -34,6 +35,8 @@ const AdminLeadsPage: React.FC = () => {
   const [filterStatus, setFilter] = usePersistedState('adminLeads:filterStatus', 'Semua');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = usePersistedState('adminLeads:currentPage', 1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSelectCampaignOpen, setIsSelectCampaignOpen] = useState(false);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -59,6 +62,20 @@ const AdminLeadsPage: React.FC = () => {
     if (success) {
       toast.success('Status Berhasil Diperbarui');
     }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === paginated.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(paginated.map(l => l.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   const filtered = leads.filter((l) => {
@@ -92,13 +109,23 @@ const AdminLeadsPage: React.FC = () => {
               Pantau performa pipeline seluruh agen secara real-time. Pastikan tidak ada prospek yang terbengkalai.
             </p>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors disabled:opacity-50"
-          >
-            <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} /> Sinkronkan Data
-          </button>
+          <div className="flex gap-2">
+            {selectedIds.length > 0 && (
+              <button
+                onClick={() => setIsSelectCampaignOpen(true)}
+                className="px-4 py-2.5 rounded-lg bg-primary text-surface font-bold text-label-sm inline-flex items-center gap-2 hover:shadow-neon-cyan transition-all"
+              >
+                <Send className="w-4 h-4" /> Add {selectedIds.length} to Blast
+              </button>
+            )}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors disabled:opacity-50"
+            >
+              <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} /> Sinkronkan Data
+            </button>
+          </div>
         </div>
       </motion.div>
 
@@ -148,6 +175,14 @@ const AdminLeadsPage: React.FC = () => {
           <table className="w-full text-left min-w-[1000px]">
             <thead>
               <tr className="text-label-xs text-on-surface-variant border-b border-outline-variant/20 uppercase tracking-widest">
+                <th className="py-3 px-4 w-10">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.length > 0 && selectedIds.length === paginated.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-outline-variant/30 bg-surface-high text-primary focus:ring-primary/20 accent-primary"
+                  />
+                </th>
                 <th className="py-3 px-4">Calon Pembeli</th>
                 <th className="py-3 px-4">Produk Diminati</th>
                 <th className="py-3 px-4">Agen Pengelola</th>
@@ -160,7 +195,15 @@ const AdminLeadsPage: React.FC = () => {
               {paginated.map((lead) => {
                 const sc = statusConfig[lead.status] || { cls: 'bg-surface-highest', dot: 'bg-on-surface-variant' };
                 return (
-                  <tr key={lead.id} className="border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
+                  <tr key={lead.id} className={`border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group ${selectedIds.includes(lead.id) ? 'bg-primary/5' : ''}`}>
+                    <td className="py-4 px-4">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(lead.id)}
+                        onChange={() => toggleSelect(lead.id)}
+                        className="w-4 h-4 rounded border-outline-variant/30 bg-surface-high text-primary focus:ring-primary/20 accent-primary"
+                      />
+                    </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center font-bold text-on-primary text-xs">
@@ -237,6 +280,16 @@ const AdminLeadsPage: React.FC = () => {
           className="mt-4 border-t border-outline-variant/10"
         />
       </motion.div>
+
+      <SelectCampaignModal 
+        isOpen={isSelectCampaignOpen}
+        onClose={() => setIsSelectCampaignOpen(false)}
+        selectedLeadIds={selectedIds}
+        onSuccess={() => {
+          setSelectedIds([]);
+          fetchLeads();
+        }}
+      />
     </motion.div>
   );
 };

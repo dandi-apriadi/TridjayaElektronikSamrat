@@ -95,15 +95,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
               />
               <div className="absolute inset-0 bg-gradient-to-t dark:from-surface/90 from-surface/30 via-transparent to-transparent" />
               
-              {product.badge && badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig] ? (
-                <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-label-md font-bold uppercase tracking-wider backdrop-blur-sm ${badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig].className}`}>
-                  {product.badgeText || badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig].label}
-                </div>
-              ) : product.badge ? (
-                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-label-md font-bold uppercase tracking-wider backdrop-blur-sm bg-surface/50 text-white border border-white/20">
-                  {product.badgeText || product.badge}
-                </div>
-              ) : null}
+              {(() => {
+                const b = (product.badge || '').toLowerCase();
+                const t = (product.badgeText || '').toLowerCase();
+                if (b === 'popular' || t.includes('terlaris')) return null;
+                
+                if (product.badge && badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig]) {
+                  const config = badgeConfig[product.badge.toLowerCase() as keyof typeof badgeConfig];
+                  return (
+                    <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-label-md font-bold uppercase tracking-wider backdrop-blur-sm ${config.className}`}>
+                      {product.badgeText || config.label}
+                    </div>
+                  );
+                } else if (product.badge) {
+                  return (
+                    <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-label-md font-bold uppercase tracking-wider backdrop-blur-sm bg-surface/50 text-white border border-white/20">
+                      {product.badgeText || product.badge}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {product.stock === 'indent' && (
                 <div className="absolute top-3 right-12 px-2.5 py-1 rounded-lg text-label-sm bg-surface-high/80 backdrop-blur-sm text-on-surface-variant">
@@ -285,6 +297,8 @@ interface BadgeProps {
 }
 
 export const Badge: React.FC<BadgeProps> = ({ label, variant = 'primary', size = 'md' }) => {
+  if (label.toLowerCase().includes('terlaris')) return null;
+
   const variantClass = {
     primary: 'bg-primary/15 text-primary border-primary/30',
     secondary: 'bg-secondary/15 text-secondary border-secondary/30',

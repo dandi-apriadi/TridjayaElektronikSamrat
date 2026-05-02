@@ -362,7 +362,7 @@ const AdminAgentsPage: React.FC = () => {
                                 )}
                                 <button
                                   onClick={() => setResettingId(findUserByEmail(item.email)!.id)}
-                                  className="px-3 py-1.5 rounded-md bg-surface-highest text-on-surface text-label-sm font-bold inline-flex items-center gap-1.5 hover:bg-white/10 transition-all"
+                                  className="px-3 py-1.5 rounded-md bg-surface-highest text-on-surface text-label-sm font-bold inline-flex items-center gap-1.5 hover:bg-surface-high transition-all"
                                 >
                                   <Key className="w-3.5 h-3.5" /> Password
                                 </button>
@@ -486,10 +486,10 @@ const AdminAgentsPage: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 40 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-5xl bg-surface border border-white/10 rounded-[2rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[92vh]"
+            className="relative w-full max-w-5xl bg-surface border border-outline-variant/10 rounded-[2rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[92vh]"
           >
             {/* Modal Header */}
-            <div className="relative p-8 border-b border-white/5 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent">
+            <div className="relative p-8 border-b border-outline-variant/10 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent">
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] -mr-32 -mt-32 pointer-events-none" />
               
               <div className="flex items-center justify-between relative z-10">
@@ -499,11 +499,11 @@ const AdminAgentsPage: React.FC = () => {
                     {selectedAgent.profilePhoto ? (
                       <img 
                         src={`${API_BASE_URL}${selectedAgent.profilePhoto}`} 
-                        className="relative w-20 h-20 rounded-2xl object-cover border border-white/20 shadow-2xl" 
+                        className="relative w-20 h-20 rounded-2xl object-cover border border-outline-variant/10 shadow-2xl" 
                         alt="" 
                       />
                     ) : (
-                      <div className="relative w-20 h-20 rounded-2xl bg-surface-highest flex items-center justify-center font-bold text-primary text-3xl border border-white/10">
+                      <div className="relative w-20 h-20 rounded-2xl bg-surface-highest flex items-center justify-center font-bold text-primary text-3xl border border-outline-variant/10">
                         {selectedAgent.fullName[0]}
                       </div>
                     )}
@@ -529,6 +529,7 @@ const AdminAgentsPage: React.FC = () => {
                 <button 
                   onClick={() => setSelectedAgent(null)}
                   className="w-12 h-12 rounded-full bg-white/5 text-on-surface-variant flex items-center justify-center hover:bg-white/10 hover:text-on-surface transition-all border border-white/10"
+                    className="w-12 h-12 rounded-full bg-surface-highest text-on-surface-variant flex items-center justify-center hover:bg-surface-high hover:text-on-surface transition-all border border-outline-variant/10"
                 >
                   <XCircle className="w-7 h-7" />
                 </button>
@@ -552,17 +553,17 @@ const AdminAgentsPage: React.FC = () => {
                     </header>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="col-span-full glass-card p-5 rounded-2xl border border-white/5 bg-white/[0.02]">
+                      <div className="col-span-full glass-card p-5 rounded-2xl border border-outline-variant/10 bg-surface-low">
                         <div className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1.5 opacity-50">Nama Lengkap Sesuai Identitas</div>
                         <div className="font-bold text-on-surface text-body-lg">{selectedAgent.fullName}</div>
                       </div>
-                      <div className="glass-card p-5 rounded-2xl border border-white/5 bg-white/[0.02]">
+                      <div className="glass-card p-5 rounded-2xl border border-outline-variant/10 bg-surface-low">
                         <div className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1.5 opacity-50">Nomor WhatsApp</div>
                         <a href={`https://wa.me/${selectedAgent.whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="font-bold text-primary text-body-md inline-flex items-center gap-2 hover:underline">
                           <Phone className="w-4 h-4" /> {selectedAgent.whatsapp}
                         </a>
                       </div>
-                      <div className="glass-card p-5 rounded-2xl border border-white/5 bg-white/[0.02]">
+                      <div className="glass-card p-5 rounded-2xl border border-outline-variant/10 bg-surface-low">
                         <div className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1.5 opacity-50">Alamat Email Aktif</div>
                         <div className="font-bold text-on-surface text-body-md truncate inline-flex items-center gap-2">
                           <Mail className="w-4 h-4 text-tertiary" /> {selectedAgent.email}
@@ -580,7 +581,7 @@ const AdminAgentsPage: React.FC = () => {
                       <h4 className="text-label-sm font-black text-on-surface uppercase tracking-[0.2em]">Lokasi Operasional</h4>
                     </header>
                     
-                    <div className="glass-card p-6 rounded-2xl border border-white/5 bg-white/[0.02] space-y-6">
+                    <div className="glass-card p-6 rounded-2xl border border-outline-variant/10 bg-surface-low space-y-6">
                       <div className="grid grid-cols-2 gap-8">
                         <div>
                           <div className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1 opacity-50">Provinsi</div>
@@ -591,7 +592,7 @@ const AdminAgentsPage: React.FC = () => {
                           <div className="font-bold text-on-surface text-body-md">{selectedAgent.city}</div>
                         </div>
                       </div>
-                      <div className="pt-5 border-t border-white/5">
+                      <div className="pt-5 border-t border-outline-variant/10">
                         <div className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2 opacity-50">Alamat Pengiriman / Domisili</div>
                         <div className="font-body text-body-sm text-on-surface-variant leading-relaxed">
                           {selectedAgent.address || 'Informasi alamat lengkap tidak dicantumkan oleh pendaftar.'}
@@ -611,7 +612,7 @@ const AdminAgentsPage: React.FC = () => {
                     <div className="flex flex-wrap gap-2.5">
                       {selectedAgent.preferredProducts?.length > 0 ? (
                         selectedAgent.preferredProducts.map((p) => (
-                          <span key={p} className="px-4 py-2 rounded-xl bg-surface-highest border border-white/5 text-on-surface text-label-sm font-bold shadow-sm">
+                          <span key={p} className="px-4 py-2 rounded-xl bg-surface-highest border border-outline-variant/10 text-on-surface text-label-sm font-bold shadow-sm">
                             {p}
                           </span>
                         ))
@@ -646,7 +647,7 @@ const AdminAgentsPage: React.FC = () => {
                             Buka Resolusi Penuh <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>
-                        <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden border border-white/10 bg-black/20 group-hover:border-primary/50 transition-all shadow-xl">
+                        <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden border border-outline-variant/10 bg-black/20 group-hover:border-primary/50 transition-all shadow-xl">
                           <img 
                             src={`${API_BASE_URL}${selectedAgent.profilePhoto}`} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
@@ -671,7 +672,7 @@ const AdminAgentsPage: React.FC = () => {
                             Buka Resolusi Penuh <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>
-                        <div className="relative aspect-[1.58/1] rounded-[2rem] overflow-hidden border border-white/10 bg-black/20 group-hover:border-primary/50 transition-all shadow-xl">
+                        <div className="relative aspect-[1.58/1] rounded-[2rem] overflow-hidden border border-outline-variant/10 bg-black/20 group-hover:border-primary/50 transition-all shadow-xl">
                           <img 
                             src={`${API_BASE_URL}${selectedAgent.ktpPhoto}`} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
@@ -683,7 +684,7 @@ const AdminAgentsPage: React.FC = () => {
                     )}
 
                     {!selectedAgent.profilePhoto && !selectedAgent.ktpPhoto && (
-                      <div className="py-24 flex flex-col items-center justify-center rounded-[2.5rem] border border-white/5 bg-white/[0.01] text-on-surface-variant/40">
+                      <div className="py-24 flex flex-col items-center justify-center rounded-[2.5rem] border border-outline-variant/10 bg-surface-low text-on-surface-variant/40">
                         <AlertCircle className="w-16 h-16 mb-4 opacity-10" />
                         <p className="text-label-sm font-black uppercase tracking-widest">Dokumen Belum Diunggah</p>
                       </div>
@@ -694,7 +695,7 @@ const AdminAgentsPage: React.FC = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-8 bg-surface-highest/50 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="p-8 bg-surface-highest/50 border-t border-outline-variant/10 flex flex-col sm:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-3 text-on-surface-variant/60">
                 <div className="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(var(--secondary-rgb),0.5)]" />
                 <span className="text-label-sm">Registrasi diterima pada {selectedAgent.submittedAt}</span>
@@ -702,7 +703,7 @@ const AdminAgentsPage: React.FC = () => {
               <div className="flex items-center gap-4 w-full sm:w-auto">
                 <button 
                   onClick={() => setSelectedAgent(null)}
-                  className="flex-1 sm:flex-none px-8 py-3.5 rounded-2xl border border-white/10 text-on-surface font-bold text-label-sm hover:bg-white/5 active:scale-95 transition-all"
+                  className="flex-1 sm:flex-none px-8 py-3.5 rounded-2xl border border-outline-variant/10 text-on-surface font-bold text-label-sm hover:bg-surface-high active:scale-95 transition-all"
                 >
                   Tutup
                 </button>
@@ -725,10 +726,10 @@ const AdminAgentsPage: React.FC = () => {
       {resettingId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResettingId(null)} />
-          <motion.div 
+            <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative w-full max-w-md bg-surface border border-white/10 rounded-2xl p-6 shadow-2xl"
+            className="relative w-full max-w-md bg-surface border border-outline-variant/10 rounded-2xl p-6 shadow-2xl"
           >
             <h3 className="text-title-md font-bold text-on-surface mb-4">Setel Ulang Kata Sandi</h3>
             <p className="text-body-sm text-on-surface-variant mb-6">

@@ -16,6 +16,7 @@ import {
   BarChart3,
   ExternalLink,
   MapPin,
+  Megaphone,
 } from 'lucide-react';
 import {
   XAxis,
@@ -236,6 +237,16 @@ const AdminDashboard: React.FC = () => {
       color: 'text-primary',
       bg: 'bg-primary/10',
       href: '/dashboard/admin/finance',
+    },
+    {
+      label: 'WA Campaign',
+      value: '0',
+      change: '+manage',
+      sub: 'Click untuk manage campaign',
+      icon: Megaphone,
+      color: 'text-secondary',
+      bg: 'bg-secondary/10',
+      href: '/dashboard/admin/wa/campaigns',
     },
   ];
 

@@ -68,6 +68,17 @@ async fn main() {
         Err(e) => tracing::error!("Failed to check agent_registrations table: {}", e),
     }
 
+    match sqlx::query("PRAGMA table_info(products)").fetch_all(&pool).await {
+        Ok(rows) => {
+            let columns: Vec<String> = rows.iter().map(|r: &sqlx::sqlite::SqliteRow| {
+                use sqlx::Row;
+                r.get::<String, _>("name")
+            }).collect();
+            tracing::info!("Products table columns: {:?}", columns);
+        },
+        Err(e) => tracing::error!("Failed to check products table: {}", e),
+    }
+
     let allowed_origins = std::env::var("ALLOWED_ORIGINS").ok();
     let origin_list = allowed_origins.unwrap_or_else(|| {
         if is_production_runtime() {
@@ -123,6 +134,12 @@ async fn main() {
             interval.tick().await;
             janitor_state.cleanup_expired_sessions().await;
         }
+    });
+
+    // Start WA Worker
+    let wa_state = state.clone();
+    tokio::spawn(async move {
+        tridjaya_backend::wa_worker::start_wa_worker(wa_state).await;
     });
 
     let app = routes::router(state)

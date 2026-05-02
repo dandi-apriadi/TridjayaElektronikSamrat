@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Package, Plus, Search, Filter, TrendingUp, AlertTriangle,
-  Eye, Edit3, ArrowUpRight, Tag, ChevronDown, Trash2
+  Eye, Edit3, ArrowUpRight, Tag, ChevronDown, Trash2, Upload
 } from 'lucide-react';
 
 import { useProductStore } from '../../store/useProductStore';
@@ -113,6 +113,12 @@ const AdminCatalogPage: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
+            <Link
+              to="/dashboard/admin/catalog/bulk-import"
+              className="px-4 py-2.5 rounded-lg bg-secondary/15 text-secondary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-secondary/25 transition-colors"
+            >
+              <Upload className="w-4 h-4" /> Bulk Import
+            </Link>
             <Link
               to="/dashboard/admin/catalog/new"
               className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"

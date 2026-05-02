@@ -136,7 +136,7 @@ const ProductDetailPage: React.FC = () => {
             <span className="text-white truncate">{product.name}</span>
           </nav>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 xl:gap-16">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 xl:gap-16 items-start">
             {/* Image */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -144,13 +144,15 @@ const ProductDetailPage: React.FC = () => {
               transition={{ duration: 0.6 }}
             >
               <div className="space-y-4 mb-4">
-                <div className="relative overflow-hidden rounded-2xl bg-surface-container aspect-[4/3] lg:min-h-[520px]">
+                <div className="relative overflow-hidden rounded-3xl bg-surface-container aspect-square md:aspect-[4/3] lg:aspect-[4/5] xl:aspect-[4/3] w-full">
                   <img
                     src={getImageUrl(galleryImages[selectedImageIndex] || product.image)}
                     alt={`${product.name} - gambar ${selectedImageIndex + 1}`}
                     className="w-full h-full object-cover"
                   />
-                  {product.badge && (
+                  {product.badge && 
+                   product.badge.toLowerCase() !== 'popular' && 
+                   !(product.badgeText || '').toLowerCase().includes('terlaris') && (
                     <div className="absolute top-4 left-4">
                       <Badge label={product.badgeText || product.badge} variant="primary" />
                     </div>

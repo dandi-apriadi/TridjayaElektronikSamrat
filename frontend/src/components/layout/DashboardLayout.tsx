@@ -14,6 +14,7 @@ import {
   Bell,
   Sun,
   Moon,
+  MessageCircle,
   Headphones,
   BookOpen,
   Wallet,
@@ -119,6 +120,7 @@ const DashboardLayout: React.FC = () => {
       items: [
         { label: 'Manajemen Prospek', icon: TrendingUp, path: '/dashboard/admin/leads' },
         { label: 'Manajemen Karier', icon: Briefcase, path: '/dashboard/admin/careers' },
+        { label: 'WhatsApp Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns' },
         { label: 'Support Ticket', icon: Headphones, path: '/dashboard/admin/support' },
       ]
     },

@@ -107,3 +107,39 @@ export interface PartnerItem {
 }
 
 export type Theme = 'dark' | 'light';
+
+export interface WaAccount {
+  id: string;
+  name: string;
+  gatewayConfig: Record<string, any>;
+  enabled: boolean;
+  createdBy?: string;
+  createdAt?: string;
+}
+
+export interface WaCampaign {
+  id: string;
+  name: string;
+  status: 'draft' | 'running' | 'paused' | 'completed';
+  config: Record<string, any>;
+  createdBy?: string;
+  createdAt?: string;
+  startedAt?: string;
+  recipientTotal: number;
+  recipientSent: number;
+  recipientSkipped: number;
+  recipientFailed: number;
+}
+
+export interface WaRecipient {
+  id: string;
+  phone: string;
+  variables: Record<string, any>;
+  status: 'pending' | 'sent' | 'skipped' | 'failed';
+  lastAttemptAt?: string;
+  deliveredAt?: string;
+  readAt?: string;
+  repliedAt?: string;
+  lastError?: string;
+  createdAt?: string;
+}
