@@ -26,7 +26,6 @@ import {
   type CreditData,
   type CustomerType
 } from '../../utils/creditCalculator';
-
 /* ─── Marketing Mappings ─────────────────────────────── */
 // Marketing data is now stored in the database and attached to each product.
 // No hard‑coded fallback data is kept here.
@@ -104,12 +103,40 @@ const AgentKnowledgePage: React.FC = () => {
     currentPage * itemsPerPage
   );
 
-  const handleCopyMaterial = (p: Product) => {
+  const handleCopyMaterial = async (p: Product) => {
     const mkt = getMarketingInfo(p);
     const encodedSlug = p.slug.split('+').map(part => encodeURIComponent(part)).join('+');
     const productUrl = `${getFrontendBaseUrl()}/produk/${encodedSlug}`;
-    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${p.dpMin ? `💵 DP Mulai: ${formatPrice(p.dpMin)}\n💳 Cicilan: ${formatPrice(p.priceInstallment || 0)}/bln\n` : ''}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
-    
+
+    // Calculate DP minimum from 15x installment (business rule)
+    let dpLine = '';
+    let cicilLine = '';
+    try {
+      const data = await loadCreditData();
+      const cat = mapProductToCreditCategory(p.category, p.subcategory);
+      const resultNew = calculateInstallments(data, p.price, 'NEW', cat);
+      const resultRO  = calculateInstallments(data, p.price, 'RO',  cat);
+      const dp15New = resultNew.installments['15x'] ?? null;
+      const dp15RO  = resultRO.installments['15x']  ?? null;
+      const minDp   = dp15New !== null && dp15RO !== null
+        ? Math.min(dp15New, dp15RO)
+        : dp15New ?? dp15RO ?? null;
+      const allValues = [
+        ...Object.values(resultNew.installments),
+        ...Object.values(resultRO.installments),
+      ].filter((v): v is number => typeof v === 'number' && v > 0);
+      const minCicil = allValues.length > 0 ? Math.min(...allValues) : null;
+
+      if (minDp)   dpLine    = `💵 DP Mulai: ${formatPrice(minDp)}\n`;
+      if (minCicil) cicilLine = `💳 Cicilan: ${formatPrice(minCicil)}/bln\n`;
+    } catch {
+      // fallback to manual fields if credit data unavailable
+      if (p.dpMin)           dpLine    = `💵 DP Mulai: ${formatPrice(p.dpMin)}\n`;
+      if (p.priceInstallment) cicilLine = `💳 Cicilan: ${formatPrice(p.priceInstallment)}/bln\n`;
+    }
+
+    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${dpLine}${cicilLine}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
+
     navigator.clipboard.writeText(text);
     addNotification({
       message: 'Materi Penjualan Disalin',
@@ -502,7 +529,7 @@ const AgentKnowledgePage: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2">
                            <button 
-                             onClick={() => handleCopyMaterial(item)}
+                             onClick={() => void handleCopyMaterial(item)}
                              className="px-5 py-2 rounded-lg gradient-primary text-surface font-bold text-label-sm hover:shadow-neon-cyan transition-all inline-flex items-center gap-2"
                            >
                               <Copy className="w-4 h-4" /> Copy Materi WA

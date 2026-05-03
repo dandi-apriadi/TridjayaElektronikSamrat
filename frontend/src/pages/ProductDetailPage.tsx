@@ -13,7 +13,7 @@ import { Badge, ProductCard, SectionHeader } from '../components/ui';
 import { recordTelemetry } from '../utils/telemetry';
 import { apiFetch, getImageUrl } from '../utils/apiClient';
 
-import { useMinInstallment } from '../hooks/useMinInstallment';
+import { useMinInstallment, useCreditSummary } from '../hooks/useMinInstallment';
 import { ShippingCalculator } from '../components/ShippingCalculator';
 
 const ProductDetailPage: React.FC = () => {
@@ -35,6 +35,7 @@ const ProductDetailPage: React.FC = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showCreditForm, setShowCreditForm] = useState(false);
   const minInstallment = useMinInstallment(product || null);
+  const { minDp } = useCreditSummary(product || null);
   const [selectedCreditPlan, setSelectedCreditPlan] = useState<CreditPlan | null>(null);
   const ratingEntries = useMemo(() => {
     if (!product) return [];
@@ -318,9 +319,9 @@ const ProductDetailPage: React.FC = () => {
                     <span className="font-body text-body-md text-on-surface-variant">
                       Cicil dari <span className="text-white font-semibold">{formatPrice(minInstallment || product.priceInstallment || 0)}</span>/bulan
                     </span>
-                    {product.dpMin && (
+                    {minDp && (
                       <span className="font-body text-label-sm text-on-surface-variant">
-                        DP mulai {formatPrice(product.dpMin)}
+                        DP mulai {formatPrice(minDp)}
                       </span>
                     )}
                   </div>

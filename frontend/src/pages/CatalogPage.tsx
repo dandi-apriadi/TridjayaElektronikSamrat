@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, SlidersHorizontal, Battery, Zap, Leaf, Search, X, ChevronDown, Image as ImageIcon, ImageOff, Tag } from 'lucide-react';
+import { Filter, SlidersHorizontal, Search, X, ChevronDown, Image as ImageIcon, ImageOff, Tag } from 'lucide-react';
 import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
@@ -9,12 +9,6 @@ import { useThemeStore } from '../store/themeStore';
 import { usePersistedState } from '../hooks/usePersistedState';
 
 const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
-
-const specs = [
-  { icon: Battery, label: 'Baterai Lithium', value: 'hingga 32Ah', color: 'text-primary' },
-  { icon: Zap, label: 'Motor BLDC', value: 'hingga 2000W', color: 'text-secondary' },
-  { icon: Leaf, label: 'Emisi CO2', value: '0 g/km', color: 'text-green-400' },
-];
 
 const CatalogPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -136,50 +130,43 @@ const CatalogPage: React.FC = () => {
       {/* Hero */}
       <section className="relative pt-28 pb-16 overflow-hidden">
         <div className="absolute inset-0">
-          {!isLiteMode && <img src={heroBike} alt="Sepeda Listrik" className="w-full h-full object-cover opacity-20" />}
+          {!isLiteMode && <img src={heroBike} alt="Katalog Produk" className="w-full h-full object-cover opacity-20" />}
           <div className="absolute inset-0 bg-gradient-to-b from-surface/80 via-surface/60 to-surface" />
         </div>
         <div className="relative z-10 container-custom">
           <motion.div
+            key={activeFilter + (activeCategory || '')}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
             className="max-w-2xl"
           >
             {/* Breadcrumb */}
             <nav className="flex items-center gap-2 font-body text-body-sm text-on-surface-variant mb-6">
               <Link to="/" className="hover:text-primary transition-colors">Beranda</Link>
               <span>/</span>
-              <span className="text-white">{activeCategory || 'Semua Produk'}</span>
+              <span className="text-white">
+                {activeFilter !== 'Semua' ? activeFilter : (activeCategory || 'Semua Produk')}
+              </span>
             </nav>
 
             <Badge label="Katalog Tridjaya" variant="primary" />
             <h1 className="font-display text-display-sm font-bold text-white mt-3 mb-4">
-              Katalog <span className="gradient-text-primary">{activeCategory || 'Produk'}</span>
+              Katalog{' '}
+              <span className="gradient-text-primary">
+                {activeFilter !== 'Semua' ? activeFilter : (activeCategory || 'Produk')}
+              </span>
             </h1>
             <p className="font-body text-body-lg text-on-surface-variant leading-relaxed">
-              Jelajahi berbagai pilihan produk {activeCategory ? activeCategory.toLowerCase() : 'terbaik'} kami. Temukan kualitas dan harga bersaing hanya di Tridjaya Manado.
+              Jelajahi berbagai pilihan{' '}
+              {activeFilter !== 'Semua'
+                ? activeFilter.toLowerCase()
+                : activeCategory
+                  ? activeCategory.toLowerCase()
+                  : 'produk terbaik'}{' '}
+              kami. Temukan kualitas dan harga bersaing hanya di Tridjaya Manado.
             </p>
           </motion.div>
-
-          {/* Quick specs (only show for Sepeda/Motor Listrik) */}
-          {(activeCategory?.toLowerCase().includes('listrik') || !activeCategory) && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex flex-wrap items-center gap-4 mt-8"
-            >
-              {specs.map(({ icon: Icon, label, value, color }) => (
-                <div key={label} className="flex items-center gap-2 glass-dark px-4 py-2.5 rounded-xl">
-                  <Icon className={`w-4 h-4 ${color}`} />
-                  <div>
-                    <div className="font-body text-label-sm text-on-surface-variant">{label}</div>
-                    <div className={`font-display text-body-md font-bold ${color}`}>{value}</div>
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          )}
         </div>
       </section>
 
