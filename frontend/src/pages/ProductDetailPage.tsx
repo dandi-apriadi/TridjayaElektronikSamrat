@@ -15,6 +15,8 @@ import { apiFetch, getImageUrl } from '../utils/apiClient';
 
 import { useMinInstallment, useCreditSummary } from '../hooks/useMinInstallment';
 import { ShippingCalculator } from '../components/ShippingCalculator';
+import { useAuthStore } from '../store/authStore';
+import { getFrontendBaseUrl } from '../utils/apiClient';
 
 const ProductDetailPage: React.FC = () => {
   const { slug: rawSlug } = useParams<{ slug: string }>();
@@ -98,6 +100,20 @@ const ProductDetailPage: React.FC = () => {
   const [referralWhatsapp, setReferralWhatsapp] = useState('6285161542103');
   const [referralLabel, setReferralLabel] = useState('kami');
 
+  // If a sales user is logged in, use their referral slug in the share URL
+  const { user: loggedInUser } = useAuthStore();
+  const salesReferralSlug = loggedInUser?.role === 'sales' ? loggedInUser.referral_slug?.trim() : null;
+
+  // Build the share URL: prefer sales referral link, else current URL (which may already have ?ref=)
+  const getShareUrl = () => {
+    const base = getFrontendBaseUrl();
+    const encodedSlug = product.slug.split('+').map(part => encodeURIComponent(part)).join('+');
+    if (salesReferralSlug) {
+      return `${base}/produk/${encodedSlug}?ref=${encodeURIComponent(salesReferralSlug)}`;
+    }
+    return window.location.href;
+  };
+
   useEffect(() => {
     const code = searchParams.get('ref')?.trim();
     if (!code) return;
@@ -129,7 +145,7 @@ const ProductDetailPage: React.FC = () => {
   const contactLink = `https://wa.me/${referralWhatsapp}?text=${contactText}`;
 
   const handleShareProduct = async () => {
-    const url = window.location.href;
+    const url = getShareUrl();
     recordTelemetry('click', {
       path: `/produk/${product.slug}`,
       source: 'direct',
@@ -154,7 +170,12 @@ const ProductDetailPage: React.FC = () => {
     }
 
     await navigator.clipboard.writeText(url);
-    toast.success('Link Produk Berhasil Disalin', 'Anda dapat membagikannya kepada calon pembeli.');
+    toast.success(
+      'Link Produk Berhasil Disalin',
+      salesReferralSlug
+        ? 'Link referral Anda sudah disalin dan siap dibagikan.'
+        : 'Anda dapat membagikannya kepada calon pembeli.'
+    );
   };
 
   return (

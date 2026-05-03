@@ -7,6 +7,7 @@ import type { Product } from '../../types';
 import { formatPrice } from '../../data';
 import { getImageUrl, getFrontendBaseUrl } from '../../utils/apiClient';
 import { useMinInstallment } from '../../hooks/useMinInstallment';
+import { useAuthStore } from '../../store/authStore';
 import { recordTelemetry } from '../../utils/telemetry';
 
 interface ProductCardProps {
@@ -25,6 +26,8 @@ const badgeConfig = {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isCompact }) => {
   const minInstallment = useMinInstallment(product);
+  const { user: loggedInUser } = useAuthStore();
+  const salesReferralSlug = loggedInUser?.role === 'sales' ? loggedInUser.referral_slug?.trim() : null;
   
   // By default show images, unless explicitly told to be compact (Lite Mode)
   const effectiveShowImages = isCompact !== undefined ? !isCompact : true;
@@ -34,7 +37,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
     e.stopPropagation();
     
     const encodedSlug = product.slug.split('+').map(part => encodeURIComponent(part)).join('+');
-    const url = `${getFrontendBaseUrl()}/produk/${encodedSlug}`;
+    const base = getFrontendBaseUrl();
+    // If sales is logged in, append their referral slug to the share URL
+    const url = salesReferralSlug
+      ? `${base}/produk/${encodedSlug}?ref=${encodeURIComponent(salesReferralSlug)}`
+      : `${base}/produk/${encodedSlug}`;
+
     const shareData = {
       title: product.name,
       text: `Lihat ${product.name} di Tridjaya Manado!`,
@@ -45,7 +53,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
       navigator.share(shareData).catch(() => {});
     } else {
       navigator.clipboard.writeText(url);
-      // We could use a toast here if available
     }
     
     recordTelemetry('click', {
