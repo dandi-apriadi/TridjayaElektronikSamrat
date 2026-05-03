@@ -361,7 +361,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* ── Charts Row ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Revenue Area Chart */}
         <motion.div
           variants={itemVariants}
@@ -525,7 +525,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* ── Middle Row ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Top Agents */}
         <motion.div variants={itemVariants} className="lg:col-span-2 glass-card rounded-xl p-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
@@ -643,7 +643,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* ── Bottom Row ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Top Catalog Products */}
         <motion.div variants={itemVariants} className="lg:col-span-1 glass-card rounded-xl p-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-tertiary/40 to-transparent" />
