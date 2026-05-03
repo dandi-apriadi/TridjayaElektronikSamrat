@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Menu, X, ChevronDown, ShoppingBag, LogIn, LayoutDashboard, ChevronRight } from 'lucide-react';
+import { Sun, Moon, Menu, X, ChevronDown, ShoppingBag, LogIn, LayoutDashboard, ChevronRight, Search } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import logoHorizontal from '../../assets/images/logo-horizontal.webp';
 
 import { useProductStore } from '../../store/useProductStore';
+import { getImageUrl } from '../../utils/apiClient';
+import { formatPrice } from '../../data';
 
 const getCategoryIcon = (cat: string) => {
   const c = cat.toLowerCase();
@@ -92,6 +94,54 @@ const Navbar: React.FC = () => {
   const { theme, toggleTheme } = useThemeStore();
   const { isAuthenticated, user } = useAuthStore();
   const { products } = useProductStore();
+  const navigate = useNavigate();
+
+  // Search state
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const searchResults = searchQuery.trim().length >= 2
+    ? products
+        .filter(p =>
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (p.subcategory || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.category.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        .slice(0, 6)
+    : [];
+
+  const openSearch = () => {
+    setIsSearchOpen(true);
+    setSearchQuery('');
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  };
+
+  const closeSearch = () => {
+    setIsSearchOpen(false);
+    setSearchQuery('');
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    closeSearch();
+    navigate(`/produk?q=${encodeURIComponent(searchQuery.trim())}`);
+  };
+
+  const handleSelectProduct = (slug: string) => {
+    closeSearch();
+    navigate(`/produk/${slug}`);
+  };
+
+  // Close search on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeSearch();
+    };
+    if (isSearchOpen) document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isSearchOpen]);
   const location = useLocation();
 
   const dashboardPath = user?.role === 'admin' 
@@ -309,6 +359,18 @@ const Navbar: React.FC = () => {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
+            {/* Search button */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={openSearch}
+              className={`w-10 h-10 rounded-lg glass-card flex items-center justify-center transition-all duration-300 ${
+                scrolled ? 'text-on-surface-variant' : 'text-white keep-white'
+              } hover:text-primary`}
+              aria-label="Cari produk"
+            >
+              <Search className="w-4.5 h-4.5" />
+            </motion.button>
+
             {/* Theme toggle */}
             <motion.button
               whileTap={{ scale: 0.9 }}

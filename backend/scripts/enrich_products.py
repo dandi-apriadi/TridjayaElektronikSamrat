@@ -84,6 +84,28 @@ DATA = {
         "short_desc": "Smartphone ekonomis dengan layar besar 6.71 inci and kamera 50MP AI.",
         "description": "Redmi 12C menawarkan performa harian yang handal dengan harga terjangkau. Memiliki layar lega untuk menonton video, baterai 5000mAh yang awet, serta kamera 50MP untuk menangkap momen penting dengan detail.",
         "specs": "Layar: 6.71 inch HD+; Prosesor: Helio G85; RAM/Storage: hingga 4GB/128GB; Kamera: 50MP AI; Baterai: 5000mAh."
+    },
+    # TV
+    "LE50AQT7000QU": {
+        "short_desc": "Smart Android TV 50 inci 4K UHD dengan teknologi HQLED and Hands-free Voice Control.",
+        "description": "AQUA LE50AQT7000QU Pro menghadirkan kualitas gambar memukau dengan HQLED 4K HDR and Dolby Vision. Dilengkapi sistem Android 11, fitur Google Assistant tanpa remote (Hands-free), and IoT Hub untuk mengontrol perangkat pintar di rumah Anda.",
+        "specs": "Layar: 50 inch 4K UHD; Sistem: Android 11; Fitur: Dolby Atmos, Chromecast, HQLED; Daya: 160W; Dimensi: 1116 x 252 x 727 mm."
+    },
+    "LE55AQT7000QU": {
+        "short_desc": "Smart Android TV 55 inci 4K UHD desain Bezel Less dengan visual HQLED yang nyata.",
+        "description": "AQUA LE55AQT7000QU menawarkan pengalaman menonton bioskop di rumah dengan layar 55 inci tanpa bingkai (Bezel Less). Didukung teknologi HQ-LED 4K HDR untuk detail gambar yang tajam and fitur cerdas Google Assistant untuk kemudahan navigasi.",
+        "specs": "Layar: 55 inch 4K UHD; Sistem: Android OS; Fitur: Intelligent Voice Control, IoT Hub, Chromecast; Daya: 150W; Dimensi: 1239 x 313 x 777 mm."
+    },
+    "POLYTRON 32": {
+        "short_desc": "Smart Google TV 32 inci HD Ready dengan garansi 5 tahun and kualitas suara unggul.",
+        "description": "TV Polytron 32 inci (Seri Cinemax/Google TV) memberikan gambar jernih dengan DIPE Engine and dukungan siaran TV Digital (DVB-T2). Dikenal dengan fitur suara yang kuat and jaminan garansi 5 tahun yang mencakup panel LED and remote.",
+        "specs": "Layar: 32 inch HD Ready; Sistem: Google TV / Android; Fitur: DIPE Engine, USB Multimedia, T2 Digital; Garansi: 5 Tahun."
+    },
+    # KULKAS
+    "SJ-236MG-GB": {
+        "short_desc": "Kulkas 2 pintu 205L desain Shine Magneglas yang elegan and hemat energi.",
+        "description": "Sharp SJ-236MG-GB Shine Series hadir dengan pintu bermotif geometris yang mewah and tahan gores. Dilengkapi Fan Cooling System untuk pendinginan merata, fitur 7 Shields untuk perlindungan maksimal, and teknologi AG+ Nano Deodorizer untuk menjaga kesegaran tanpa bau.",
+        "specs": "Kapasitas: 205 Liter; Sistem: Fan Cooling; Daya: 100-130W; Fitur: Tempered Glass Tray, Ice Twist, 7 Shields; Dimensi: 545 x 588 x 1380 mm."
     }
 }
 
