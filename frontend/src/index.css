@@ -112,14 +112,175 @@ body * {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Fix for hardcoded white text in light mode */
-body.light-mode .text-white:not(.keep-white) {
+/* Fix for hardcoded white text in light mode — exclude navbar elements */
+body.light-mode .text-white:not(.keep-white):not(.navbar-navlink-hero):not(.navbar-icon-btn):not(.navbar-cta-ghost):not(.navbar-cta-primary) {
   color: rgb(var(--color-on-surface)) !important;
 }
 
 /* ====================================
-   GLASSMORPHISM & UTILITIES
+   NAVBAR - Modern Light/Dark Mode
 ===================================== */
+
+/* Scrolled state - dark mode */
+.navbar-scrolled {
+  background: rgb(var(--color-surface-low) / 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgb(var(--color-primary) / 0.1);
+  box-shadow: 0 1px 0 rgb(var(--color-primary) / 0.06), 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Scrolled state - light mode */
+body.light-mode .navbar-scrolled {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgb(226 232 240);
+  box-shadow: 0 1px 0 rgb(226 232 240), 0 4px 24px rgba(15, 23, 42, 0.06);
+}
+
+/* ── Icon buttons ── */
+
+/* Dark mode: not scrolled (over hero) */
+.navbar-icon-btn {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.navbar-icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Dark mode: scrolled */
+.navbar-scrolled .navbar-icon-btn {
+  color: rgb(var(--color-on-surface-variant));
+  background: transparent;
+  border-color: transparent;
+}
+.navbar-scrolled .navbar-icon-btn:hover {
+  color: rgb(var(--color-primary));
+  background: rgb(var(--color-surface-high));
+}
+
+/* Light mode: not scrolled (over hero) — same as dark, hero is always dark image */
+body.light-mode .navbar-icon-btn {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+body.light-mode .navbar-icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Light mode: scrolled */
+body.light-mode .navbar-scrolled .navbar-icon-btn {
+  color: rgb(71 85 105);
+  background: transparent;
+  border-color: transparent;
+}
+body.light-mode .navbar-scrolled .navbar-icon-btn:hover {
+  color: rgb(79 70 229);
+  background: rgb(241 245 249);
+}
+
+/* ── Ghost CTA (Login / Dashboard) ── */
+
+/* Not scrolled — always white text over hero */
+.navbar-cta-ghost {
+  color: rgba(255, 255, 255, 0.9);
+}
+.navbar-cta-ghost:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Scrolled - dark mode */
+.navbar-scrolled .navbar-cta-ghost {
+  color: rgb(var(--color-on-surface-variant));
+}
+.navbar-scrolled .navbar-cta-ghost:hover {
+  color: rgb(var(--color-primary));
+  background: rgb(var(--color-surface-high));
+}
+
+/* Scrolled - light mode */
+body.light-mode .navbar-scrolled .navbar-cta-ghost {
+  color: rgb(71 85 105);
+}
+body.light-mode .navbar-scrolled .navbar-cta-ghost:hover {
+  color: rgb(79 70 229);
+  background: rgb(238 242 255);
+}
+
+/* ── Primary CTA (Jadi Agen) ── */
+
+/* Not scrolled — pill putih semi-transparan di atas hero */
+.navbar-cta-primary {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  box-shadow: none;
+}
+.navbar-cta-primary:hover {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: none;
+}
+
+/* Scrolled - dark mode */
+.navbar-scrolled .navbar-cta-primary {
+  background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-primary-dim)) 100%);
+  color: rgb(var(--color-on-primary));
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgb(var(--color-primary) / 0.25);
+}
+.navbar-scrolled .navbar-cta-primary:hover {
+  box-shadow: 0 6px 20px rgb(var(--color-primary) / 0.35);
+  transform: translateY(-1px);
+}
+
+/* Scrolled - light mode */
+body.light-mode .navbar-scrolled .navbar-cta-primary {
+  background: linear-gradient(135deg, rgb(79 70 229) 0%, rgb(99 102 241) 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
+}
+body.light-mode .navbar-scrolled .navbar-cta-primary:hover {
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ── Nav links ── */
+
+/* Over hero (not scrolled) — both dark & light mode, hero always dark */
+.navbar-navlink-hero {
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.navbar-navlink-hero:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  text-shadow: none;
+}
+.navbar-navlink-active {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+}
+
+/* Scrolled - light mode */
+body.light-mode .navbar-scrolled .nav-link-default {
+  color: rgb(51 65 85);
+}
+body.light-mode .navbar-scrolled .nav-link-default:hover {
+  color: rgb(79 70 229);
+  background: rgb(238 242 255);
+}
+
+
 .glass-premium {
   background: rgb(var(--glass-bg));
   backdrop-filter: blur(24px);

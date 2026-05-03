@@ -122,7 +122,14 @@ const RouteListener = () => {
   useTelemetryTracker();
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    // Scroll the dashboard content area to top on route change
+    // The dashboard uses an internal scrollable div, not window
+    const contentArea = document.getElementById('dashboard-content');
+    if (contentArea) {
+      contentArea.scrollTo(0, 0);
+    } else {
+      window.scrollTo(0, 0);
+    }
   }, [pathname]);
 
   useEffect(() => {

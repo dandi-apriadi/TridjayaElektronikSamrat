@@ -224,9 +224,9 @@ const Navbar: React.FC = () => {
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 navbar-root ${
           scrolled
-            ? 'glass-premium py-2'
+            ? 'navbar-scrolled py-2'
             : 'bg-gradient-to-b from-black/50 via-black/20 to-transparent py-4'
         }`}
         style={{ height: scrolled ? '72px' : '90px' }}
@@ -252,12 +252,12 @@ const Navbar: React.FC = () => {
                   <>
                     <Link
                       to={item.href}
-                      className={`flex items-center gap-1 px-4 py-2 rounded-lg font-body text-body-md font-semibold transition-all duration-300 ${
+                      className={`flex items-center gap-1 px-4 py-2 rounded-xl font-body text-body-md font-semibold transition-all duration-300 ${
                         location.pathname.startsWith('/produk')
-                          ? 'text-primary'
-                          : scrolled 
-                            ? 'text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
-                            : 'text-white keep-white hover:text-primary drop-shadow-sm'
+                          ? scrolled ? 'text-primary' : 'navbar-navlink-hero text-primary'
+                          : scrolled
+                            ? 'nav-link-default text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
+                            : 'navbar-navlink-hero'
                       }`}
                     >
                       {item.label}
@@ -340,14 +340,14 @@ const Navbar: React.FC = () => {
                 ) : (
                   <Link
                     to={item.href}
-                    className={`px-4 py-2 rounded-lg font-body text-body-md font-semibold transition-all duration-300 ${
+                    className={`px-4 py-2 rounded-xl font-body text-body-md font-semibold transition-all duration-300 ${
                       location.pathname === item.href
-                        ? scrolled 
-                          ? 'text-primary bg-surface-high'
-                          : 'text-white keep-white bg-white/20 backdrop-blur-md shadow-sm'
+                        ? scrolled
+                          ? 'text-primary bg-primary/8'
+                          : 'navbar-navlink-hero navbar-navlink-active'
                         : scrolled
-                          ? 'text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
-                          : 'text-white/90 keep-white hover:text-white drop-shadow-sm'
+                          ? 'nav-link-default text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
+                          : 'navbar-navlink-hero'
                     }`}
                   >
                     {item.label}
@@ -358,14 +358,12 @@ const Navbar: React.FC = () => {
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Search button */}
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={openSearch}
-              className={`w-10 h-10 rounded-lg glass-card flex items-center justify-center transition-all duration-300 ${
-                scrolled ? 'text-on-surface-variant' : 'text-white keep-white'
-              } hover:text-primary`}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 navbar-icon-btn"
               aria-label="Cari produk"
             >
               <Search className="w-4.5 h-4.5" />
@@ -375,9 +373,7 @@ const Navbar: React.FC = () => {
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={toggleTheme}
-              className={`w-10 h-10 rounded-lg glass-card flex items-center justify-center transition-all duration-300 ${
-                scrolled ? 'text-on-surface-variant' : 'text-white keep-white'
-              } hover:text-primary`}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 navbar-icon-btn"
               aria-label="Toggle tema"
             >
               <AnimatePresence mode="wait">
@@ -397,7 +393,7 @@ const Navbar: React.FC = () => {
             {isAuthenticated ? (
               <Link
                 to={dashboardPath}
-                className="hidden lg:flex items-center gap-2 px-4 py-2.5 glass-card rounded-lg font-body text-body-md font-semibold text-primary hover:bg-primary/10 transition-all duration-300"
+                className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl font-body text-body-md font-semibold navbar-cta-ghost transition-all duration-300"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
@@ -405,9 +401,7 @@ const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className={`hidden lg:flex items-center gap-2 px-4 py-2.5 glass-card rounded-lg font-body text-body-md font-semibold transition-all duration-300 ${
-                  scrolled ? 'text-on-surface-variant' : 'text-white keep-white'
-                } hover:text-primary`}
+                className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl font-body text-body-md font-semibold navbar-cta-ghost transition-all duration-300"
               >
                 <LogIn className="w-4 h-4" />
                 Login
@@ -416,7 +410,7 @@ const Navbar: React.FC = () => {
 
             <Link
               to="/daftar-agen"
-              className="hidden lg:flex items-center gap-2 px-5 py-2.5 gradient-primary rounded-lg font-body text-body-md font-semibold text-surface hover:shadow-neon-cyan transition-all duration-300"
+              className="hidden lg:flex items-center gap-2 px-5 py-2.5 rounded-xl font-body text-body-md font-semibold transition-all duration-300 navbar-cta-primary"
             >
               <ShoppingBag className="w-4 h-4" />
               Jadi Agen
@@ -426,7 +420,7 @@ const Navbar: React.FC = () => {
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="lg:hidden w-10 h-10 rounded-lg glass-card flex items-center justify-center text-white"
+              className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 navbar-icon-btn"
               aria-label="Toggle menu"
             >
               <AnimatePresence mode="wait">
@@ -579,6 +573,167 @@ const Navbar: React.FC = () => {
                 </Link>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Search Modal */}
+      <AnimatePresence>
+        {isSearchOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[70] flex items-start justify-center pt-16 sm:pt-24 px-4"
+            onClick={closeSearch}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+            
+            {/* Search Container */}
+            <motion.div
+              initial={{ opacity: 0, y: -16, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -16, scale: 0.97 }}
+              transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+              className="relative w-full max-w-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-surface rounded-2xl overflow-hidden shadow-2xl border border-white/8">
+                {/* Search Input */}
+                <form onSubmit={handleSearchSubmit}>
+                  <div className="flex items-center gap-3 px-4 py-4 border-b border-white/8">
+                    <Search className="w-5 h-5 text-primary flex-shrink-0" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Cari produk..."
+                      className="flex-1 bg-transparent text-on-surface placeholder:text-on-surface-variant/60 font-body text-base outline-none"
+                      autoComplete="off"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={closeSearch}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-all ml-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+
+                {/* Search Results */}
+                <div className="max-h-[70vh] overflow-y-auto">
+                  {searchQuery.trim().length === 0 ? (
+                    <div className="px-4 py-10 text-center">
+                      <Search className="w-10 h-10 mx-auto mb-3 text-on-surface-variant/30" />
+                      <p className="text-on-surface-variant text-sm">
+                        Ketik nama produk yang ingin dicari
+                      </p>
+                    </div>
+                  ) : searchQuery.trim().length < 2 ? (
+                    <div className="px-4 py-10 text-center">
+                      <p className="text-on-surface-variant text-sm">Ketik minimal 2 karakter...</p>
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="px-4 py-10 text-center">
+                      <p className="text-on-surface font-semibold mb-1">Produk tidak ditemukan</p>
+                      <p className="text-on-surface-variant text-sm mb-4">
+                        Coba kata kunci lain
+                      </p>
+                      <Link
+                        to="/produk"
+                        onClick={closeSearch}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary text-sm font-semibold hover:bg-primary/20 transition-all"
+                      >
+                        Lihat Semua Produk
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="py-2">
+                      {/* Header row */}
+                      <div className="px-4 py-2 flex items-center justify-between">
+                        <p className="text-on-surface-variant text-xs">
+                          {searchResults.length} hasil
+                        </p>
+                        {searchResults.length === 6 && (
+                          <button
+                            onClick={handleSearchSubmit}
+                            className="text-primary text-xs font-semibold hover:underline"
+                          >
+                            Lihat semua →
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Result items */}
+                      {searchResults.map((product) => (
+                        <button
+                          key={product.id}
+                          onClick={() => handleSelectProduct(product.slug)}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-high transition-colors text-left group"
+                        >
+                          {/* Product Image */}
+                          <div className="w-14 h-14 rounded-xl bg-surface-highest overflow-hidden flex-shrink-0 border border-white/5">
+                            {product.image ? (
+                              <img
+                                src={getImageUrl(product.image)}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  (e.currentTarget.parentElement as HTMLElement).classList.add('flex', 'items-center', 'justify-center');
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-on-surface-variant/40">
+                                <ShoppingBag className="w-5 h-5" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Product Info */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-on-surface text-sm font-semibold leading-snug mb-0.5 group-hover:text-primary transition-colors line-clamp-2">
+                              {product.name}
+                            </p>
+                            <p className="text-on-surface-variant text-xs truncate">
+                              {product.subcategory || product.category}
+                            </p>
+                          </div>
+
+                          {/* Price + Arrow */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <p className="text-primary text-sm font-bold">
+                              {product.price > 0 ? formatPrice(product.price) : '—'}
+                            </p>
+                            <ChevronRight className="w-4 h-4 text-on-surface-variant/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Footer */}
+                      <div className="px-4 pt-2 pb-3 border-t border-white/5 mt-1">
+                        <p className="text-on-surface-variant/50 text-xs text-center">
+                          Tekan <kbd className="px-1.5 py-0.5 rounded bg-surface-high text-on-surface font-mono text-[10px]">Enter</kbd> untuk lihat semua hasil
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

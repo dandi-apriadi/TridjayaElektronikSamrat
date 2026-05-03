@@ -2635,19 +2635,64 @@ async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
             errors: vec!["Anda tidak dapat menghapus akun Anda sendiri".to_string()]
         });
     }
-    
-    let result = sqlx::query("DELETE FROM users WHERE id = ?")
+
+    // Pastikan user yang akan dihapus ada
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM users WHERE id = ? LIMIT 1")
         .bind(&id)
-        .execute(&state.pool)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| { tracing::error!("DB error checking user existence: {}", e); AppError::Internal })?;
+
+    if exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Hapus semua data terkait dalam satu transaksi untuk menghindari FK constraint error.
+    // Tabel yang punya FK ke users tanpa ON DELETE CASCADE:
+    //   - agent_stats, agent_achievements, reward_claims (agent_rewards migration)
+    //   - leads (agent_leads migration)
+    //   - referrals (referrals migration)
+    //   - sales_delivery_schedules (sales_features migration)
+    // Tabel dengan ON DELETE CASCADE (otomatis terhapus):
+    //   - support_tickets, notifications, security_tokens (password_reset_tokens, email_verification_tokens)
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("DB error starting delete_user transaction: {}", e);
+        AppError::Internal
+    })?;
+
+    // Hapus data terkait yang tidak punya CASCADE
+    for query in &[
+        "DELETE FROM agent_stats WHERE user_id = ?",
+        "DELETE FROM agent_achievements WHERE agent_id = ?",
+        "DELETE FROM reward_claims WHERE agent_id = ?",
+        "DELETE FROM leads WHERE agent_id = ?",
+        "DELETE FROM referrals WHERE owner_user_id = ?",
+        "DELETE FROM sales_delivery_schedules WHERE sales_user_id = ?",
+    ] {
+        sqlx::query(query)
+            .bind(&id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error deleting related data for user {}: {}", id, e);
+                AppError::Internal
+            })?;
+    }
+
+    // Hapus user utama
+    sqlx::query("DELETE FROM users WHERE id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
         .await
         .map_err(|e| {
-            tracing::error!("DB error: {}", e);
+            tracing::error!("DB error deleting user {}: {}", id, e);
             AppError::Internal
         })?;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound);
-    }
+    tx.commit().await.map_err(|e| {
+        tracing::error!("DB error committing delete_user transaction: {}", e);
+        AppError::Internal
+    })?;
 
     state.invalidate_user_sessions(&id).await;
 

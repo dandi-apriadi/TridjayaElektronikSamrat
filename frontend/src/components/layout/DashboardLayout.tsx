@@ -228,7 +228,7 @@ const DashboardLayout: React.FC = () => {
   // Removed auto-expand effect to respect user's persistent choices
 
   return (
-    <div className="min-h-screen bg-surface flex text-on-surface relative overflow-hidden page-shell">
+    <div className="h-screen bg-surface flex text-on-surface relative overflow-hidden page-shell">
       {/* Decorative Background Blobs */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
          <div className="bg-blob bg-primary/20 -top-24 -left-24 animate-[blob-float_25s_infinite_ease-in-out]" />
@@ -258,10 +258,10 @@ const DashboardLayout: React.FC = () => {
           opacity: 1 
         }}
         transition={{ type: 'spring', stiffness: 240, damping: 30 }}
-        className="fixed lg:sticky left-0 top-0 bottom-0 z-[70] bg-surface-low/95 border-r border-outline-variant/20 flex flex-col backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
+        className="fixed lg:relative lg:flex-shrink-0 left-0 top-0 bottom-0 z-[70] bg-surface-low/95 border-r border-outline-variant/20 flex flex-col backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.18)] h-full"
       >
         {/* Brand */}
-        <div className="h-20 flex items-center px-6 gap-4 overflow-hidden border-b border-outline-variant/10">
+        <div className="h-20 flex-shrink-0 flex items-center px-6 gap-4 overflow-hidden border-b border-outline-variant/10">
           <img src={logoPng} alt="Tridjaya Manado" className="h-12 w-auto max-w-full object-contain" />
           {isMobile && (
             <button onClick={() => setMobileMenuOpen(false)} className="ml-auto p-2 rounded-lg bg-surface-high hover:bg-surface-highest transition-colors">
@@ -271,7 +271,7 @@ const DashboardLayout: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-6 px-4 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <nav className="flex-1 py-6 px-4 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
           {navSections.map((section) => {
             const isCollapsed = collapsedSections[section.title];
 
@@ -339,7 +339,7 @@ const DashboardLayout: React.FC = () => {
         </nav>
 
         {/* Footer Sidebar */}
-        <div className="p-4 border-t border-outline-variant/10 space-y-2">
+        <div className="flex-shrink-0 p-4 border-t border-outline-variant/10 space-y-2">
           {!isMobile && (
             <button
               type="button"
@@ -363,13 +363,13 @@ const DashboardLayout: React.FC = () => {
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 transition-all duration-300 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Top Header */}
         <motion.header
           initial={{ y: -10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="h-20 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30"
+          className="h-20 flex-shrink-0 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 px-4 md:px-8 flex items-center justify-between z-30"
         >
            <div className="flex items-center gap-4">
              {/* Mobile Menu Toggle */}
@@ -461,39 +461,42 @@ const DashboardLayout: React.FC = () => {
           </div>
         </motion.header>
 
-        {/* Force-change-password banner */}
-        {user?.must_change_password && (
-          <div className="px-4 md:px-8 pt-4">
-            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-start gap-3">
-              <Shield className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-bold text-on-surface">Anda perlu mengganti password.</p>
-                <p className="text-body-sm text-on-surface-variant">
-                  Demi keamanan, atur password baru Anda di halaman pengaturan akun.
-                </p>
+        {/* Scrollable content area */}
+        <div id="dashboard-content" className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
+          {/* Force-change-password banner */}
+          {user?.must_change_password && (
+            <div className="px-4 md:px-8 pt-4">
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-start gap-3">
+                <Shield className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-on-surface">Anda perlu mengganti password.</p>
+                  <p className="text-body-sm text-on-surface-variant">
+                    Demi keamanan, atur password baru Anda di halaman pengaturan akun.
+                  </p>
+                </div>
+                {user.role === 'agent' && (
+                  <Link
+                    to="/dashboard/agent/settings?force=password"
+                    className="text-label-md font-bold text-amber-400 hover:text-amber-300 whitespace-nowrap"
+                  >
+                    Ganti sekarang
+                  </Link>
+                )}
               </div>
-              {user.role === 'agent' && (
-                <Link
-                  to="/dashboard/agent/settings?force=password"
-                  className="text-label-md font-bold text-amber-400 hover:text-amber-300 whitespace-nowrap"
-                >
-                  Ganti sekarang
-                </Link>
-              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Content Outlet */}
-        <div className="p-4 md:p-8 flex-1 relative z-10 overflow-x-hidden">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-          >
-            <Outlet />
-          </motion.div>
+          {/* Content Outlet */}
+          <div className="p-4 md:p-8 relative z-10">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+            >
+              <Outlet />
+            </motion.div>
+          </div>
         </div>
       </main>
     </div>
