@@ -20,10 +20,20 @@ import { getFrontendBaseUrl } from '../utils/apiClient';
 
 const ProductDetailPage: React.FC = () => {
   const { slug: rawSlug } = useParams<{ slug: string }>();
-  // React Router may decode '+' as ' ' — restore it for correct slug matching
   const slug = rawSlug ? rawSlug.replace(/ /g, '+') : '';
   const [searchParams] = useSearchParams();
   const { getProductBySlug, products, isLoading, fetchProducts } = useProductStore();
+
+  // ── All hooks must be declared before any early return ──────────────────
+  const [selectedColor, setSelectedColor] = useState(0);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showCreditForm, setShowCreditForm] = useState(false);
+  const [selectedCreditPlan, setSelectedCreditPlan] = useState<CreditPlan | null>(null);
+  const [referralWhatsapp, setReferralWhatsapp] = useState('6285161542103');
+  const [referralLabel, setReferralLabel] = useState('kami');
+
+  const { user: loggedInUser } = useAuthStore();
+  const salesReferralSlug = loggedInUser?.role === 'sales' ? loggedInUser.referral_slug?.trim() : null;
 
   // Ensure products are loaded — handles direct URL access (page refresh / shared link)
   useEffect(() => {
@@ -31,25 +41,16 @@ const ProductDetailPage: React.FC = () => {
       fetchProducts();
     }
   }, [products.length, isLoading, fetchProducts]);
-  
+
   const product = getProductBySlug(slug || '');
-  const [selectedColor, setSelectedColor] = useState(0);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [showCreditForm, setShowCreditForm] = useState(false);
+
   const minInstallment = useMinInstallment(product || null);
   const { minDp } = useCreditSummary(product || null);
-  const [selectedCreditPlan, setSelectedCreditPlan] = useState<CreditPlan | null>(null);
+
   const ratingEntries = useMemo(() => {
     if (!product) return [];
-
-    if (product.ratings && product.ratings.length > 0) {
-      return product.ratings;
-    }
-
-    if (typeof product.rating === 'number') {
-      return [{ score: product.rating, review: product.review || '' }];
-    }
-
+    if (product.ratings && product.ratings.length > 0) return product.ratings;
+    if (typeof product.rating === 'number') return [{ score: product.rating, review: product.review || '' }];
     return [];
   }, [product]);
 
@@ -58,11 +59,9 @@ const ProductDetailPage: React.FC = () => {
 
   const galleryImages = useMemo(() => {
     if (!product) return [];
-
     const images = [product.image, ...(product.images || [])]
       .map((image) => image?.trim())
       .filter((image): image is string => Boolean(image));
-
     return Array.from(new Set(images));
   }, [product]);
 
@@ -70,7 +69,25 @@ const ProductDetailPage: React.FC = () => {
     setSelectedImageIndex(0);
   }, [slug]);
 
-  if (isLoading || (products.length === 0)) {
+  useEffect(() => {
+    const code = searchParams.get('ref')?.trim();
+    if (!code) return;
+    localStorage.setItem('tridjaya-referral-code', code);
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/public/referrals/${encodeURIComponent(code)}`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        const item = payload.data?.item;
+        if (item?.ownerWhatsapp) setReferralWhatsapp(String(item.ownerWhatsapp).replace(/\D/g, ''));
+        if (item?.ownerName) setReferralLabel(String(item.ownerName));
+      } catch { /* fallback to default */ }
+    })();
+  }, [searchParams]);
+  // ────────────────────────────────────────────────────────────────────────
+
+  // Early returns AFTER all hooks
+  if (isLoading || products.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-24">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
@@ -97,14 +114,8 @@ const ProductDetailPage: React.FC = () => {
 
   const productCatalogPath = `/produk?kategori=${encodeURIComponent(product.category)}`;
   const referralCode = searchParams.get('ref') || localStorage.getItem('tridjaya-referral-code') || '';
-  const [referralWhatsapp, setReferralWhatsapp] = useState('6285161542103');
-  const [referralLabel, setReferralLabel] = useState('kami');
 
-  // If a sales user is logged in, use their referral slug in the share URL
-  const { user: loggedInUser } = useAuthStore();
-  const salesReferralSlug = loggedInUser?.role === 'sales' ? loggedInUser.referral_slug?.trim() : null;
-
-  // Build the share URL: prefer sales referral link, else current URL (which may already have ?ref=)
+  // Build the share URL: prefer sales referral link, else current URL
   const getShareUrl = () => {
     const base = getFrontendBaseUrl();
     const encodedSlug = product.slug.split('+').map(part => encodeURIComponent(part)).join('+');
@@ -113,31 +124,6 @@ const ProductDetailPage: React.FC = () => {
     }
     return window.location.href;
   };
-
-  useEffect(() => {
-    const code = searchParams.get('ref')?.trim();
-    if (!code) return;
-
-    localStorage.setItem('tridjaya-referral-code', code);
-
-    void (async () => {
-      try {
-        const response = await apiFetch(`/api/public/referrals/${encodeURIComponent(code)}`);
-        if (!response.ok) return;
-
-        const payload = await response.json();
-        const item = payload.data?.item;
-        if (item?.ownerWhatsapp) {
-          setReferralWhatsapp(String(item.ownerWhatsapp).replace(/\D/g, ''));
-        }
-        if (item?.ownerName) {
-          setReferralLabel(String(item.ownerName));
-        }
-      } catch {
-        // Fallback ke kontak default.
-      }
-    })();
-  }, [searchParams]);
 
   const contactText = encodeURIComponent(
     `Halo ${referralLabel}, saya tertarik dengan produk ${product.name}. Mohon info stok dan simulasi kredit terbaru.`
