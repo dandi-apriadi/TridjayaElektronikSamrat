@@ -86,6 +86,27 @@ const ProductDetailPage: React.FC = () => {
       } catch { /* fallback to default */ }
     })();
   }, [searchParams]);
+
+  // Load WA info from session referral when no ?ref= in URL
+  // This runs once per product so navigating between products keeps the referral active
+  useEffect(() => {
+    const urlRef = searchParams.get('ref')?.trim();
+    if (urlRef) return; // already handled above
+    const sessionRef = getActiveReferralCode();
+    if (!sessionRef) return;
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/public/referrals/${encodeURIComponent(sessionRef)}`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        const item = payload.data?.item;
+        if (item?.ownerWhatsapp) setReferralWhatsapp(String(item.ownerWhatsapp).replace(/\D/g, ''));
+        if (item?.ownerName) setReferralLabel(String(item.ownerName));
+      } catch { /* fallback to default */ }
+    })();
+  // Re-run when slug changes (user navigates to different product)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
   // ────────────────────────────────────────────────────────────────────────
 
   // Early returns AFTER all hooks
@@ -117,25 +138,6 @@ const ProductDetailPage: React.FC = () => {
   const productCatalogPath = `/produk?kategori=${encodeURIComponent(product.category)}`;
   // Use active referral from session (with 1-hour expiry) or URL param
   const referralCode = searchParams.get('ref') || getActiveReferralCode() || '';
-
-  // If no ?ref= in URL but there's an active session referral, load the WA info
-  useEffect(() => {
-    const urlRef = searchParams.get('ref')?.trim();
-    if (urlRef) return; // already handled by the other useEffect
-    const sessionRef = getActiveReferralCode();
-    if (!sessionRef) return;
-    void (async () => {
-      try {
-        const response = await apiFetch(`/api/public/referrals/${encodeURIComponent(sessionRef)}`);
-        if (!response.ok) return;
-        const payload = await response.json();
-        const item = payload.data?.item;
-        if (item?.ownerWhatsapp) setReferralWhatsapp(String(item.ownerWhatsapp).replace(/\D/g, ''));
-        if (item?.ownerName) setReferralLabel(String(item.ownerName));
-      } catch { /* fallback to default */ }
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product?.id]);
 
   // Build the share URL: prefer sales referral link, else current URL
   const getShareUrl = () => {
