@@ -126,7 +126,7 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
 export function findSimilarProducts(
   importedName: string,
   existingProducts: Product[],
-  threshold: number = 0.9
+  threshold: number = 0.99
 ): { match?: Product; similar: Product[] } {
   if (!importedName || !importedName.trim()) {
     return { similar: [] };
@@ -180,8 +180,8 @@ export function findSimilarProducts(
   }).filter(r => r.score >= threshold)
     .sort((a, b) => b.score - a.score);
 
-  // If we have an extremely high score (0.97+), treat it as a match
-  if (results.length > 0 && results[0].score >= 0.97) {
+  // If we have a perfect score (0.99+), treat it as a match
+  if (results.length > 0 && results[0].score >= 0.99) {
     return { match: results[0].product, similar: results.slice(1, 2).map(r => r.product) };
   }
 

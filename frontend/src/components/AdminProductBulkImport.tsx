@@ -461,6 +461,15 @@ const AdminProductBulkImport: React.FC = () => {
     toast.success(`Peringatan baris ${rowNumber} diabaikan. Akan diproses sebagai produk baru.`);
   };
 
+  const handleDismissAllSimilar = () => {
+    const count = preview.filter(item => item.status === 'similar').length;
+    if (count === 0) return;
+    setPreview(prev => prev.map(item =>
+      item.status === 'similar' ? { ...item, status: 'new' as const, similarProducts: undefined } : item
+    ));
+    toast.success(`${count} produk serupa diabaikan`, 'Semua item serupa sekarang ditandai sebagai produk baru.');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -773,6 +782,18 @@ const AdminProductBulkImport: React.FC = () => {
                     {status === 'error' && <><XCircle className="w-3 h-3" /> Error ({summary.errors})</>}
                   </button>
                 ))}
+
+                {/* Dismiss All Similar button — only show when there are similar items */}
+                {summary.similar > 0 && (
+                  <button
+                    onClick={handleDismissAllSimilar}
+                    className="px-3 py-1.5 rounded-full transition-colors text-xs font-bold flex items-center gap-1.5 bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 border border-yellow-500/30"
+                    title="Abaikan semua produk serupa dan tandai sebagai produk baru"
+                  >
+                    <EyeOff className="w-3 h-3" />
+                    Abaikan Semua Serupa ({summary.similar})
+                  </button>
+                )}
                 
                 {(searchQuery || categoryFilter !== 'all' || subcategoryFilter !== 'all' || stockFilter !== 'all' || minPrice || maxPrice || showOnlyChanges || onlyPriceChanges) && (
                   <button
