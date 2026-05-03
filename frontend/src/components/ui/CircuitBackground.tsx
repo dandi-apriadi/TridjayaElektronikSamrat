@@ -1,76 +1,55 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 
+/**
+ * CircuitBackground — animated SVG circuit grid for public pages.
+ *
+ * Bug fix: animations were stopping after a few seconds because:
+ * 1. The performance monitor was incorrectly flagging normal devices as "slow"
+ *    and permanently switching to static mode.
+ * 2. Browser tab throttling paused CSS animations when the tab was inactive.
+ *
+ * Fix:
+ * - Remove the aggressive performance monitor (only respect prefers-reduced-motion)
+ * - Use Page Visibility API to force-restart CSS animations when tab becomes active again
+ * - Add `animation-play-state: running` explicitly to prevent browser pausing
+ */
 const CircuitBackground: React.FC = () => {
-  const [isStaticMode, setIsStaticMode] = useState(false);
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Restart CSS animations when the tab becomes visible again
+  // (browsers throttle/pause animations in background tabs)
   useEffect(() => {
-    const nav = navigator as Navigator & { deviceMemory?: number };
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const lowCoreCount = typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4;
-    const lowMemory = typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4;
+    if (prefersReducedMotion) return;
 
-    if (prefersReducedMotion || lowCoreCount || lowMemory) {
-      setIsStaticMode(true);
-      return;
-    }
-
-    const monitorDurationMs = 5000; // Increased to 5s for better averaging
-    let frameCount = 0;
-    let slowFrameCount = 0;
-    let longTaskCount = 0;
-    let rafId = 0;
-    let animationStartedAt = performance.now();
-    let lastFrameAt = animationStartedAt;
-
-    let observer: PerformanceObserver | null = null;
-    try {
-      if ('PerformanceObserver' in window) {
-        observer = new PerformanceObserver((list) => {
-          longTaskCount += list.getEntries().length;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && containerRef.current) {
+        // Force-restart all CSS animations by briefly toggling animation-name
+        const animated = containerRef.current.querySelectorAll<SVGElement>(
+          '.electric-line, .electric-line-alt, .node-pulse'
+        );
+        animated.forEach(el => {
+          el.style.animationPlayState = 'paused';
+          // Trigger reflow to reset animation
+          void el.getBoundingClientRect();
+          el.style.animationPlayState = 'running';
         });
-        observer.observe({ entryTypes: ['longtask'] });
       }
-    } catch {
-      observer = null;
-    }
-
-    const assess = (now: number) => {
-      const frameDelta = now - lastFrameAt;
-      lastFrameAt = now;
-      frameCount += 1;
-
-      if (frameDelta > 34) {
-        slowFrameCount += 1;
-      }
-
-      const elapsed = now - animationStartedAt;
-      if (elapsed >= monitorDurationMs) {
-        const averageFps = frameCount / (elapsed / 1000);
-        const slowFrameRatio = slowFrameCount / Math.max(frameCount, 1);
-        const unstableDevice = averageFps < 40 || slowFrameRatio > 0.35 || longTaskCount >= 3;
-        setIsStaticMode(unstableDevice);
-        return;
-      }
-      rafId = window.requestAnimationFrame(assess);
     };
 
-    // Start monitoring after a 1s delay to skip initial mount jitter
-    const startupTimeout = setTimeout(() => {
-      animationStartedAt = performance.now();
-      lastFrameAt = animationStartedAt;
-      rafId = window.requestAnimationFrame(assess);
-    }, 1000);
-
-    return () => {
-      clearTimeout(startupTimeout);
-      window.cancelAnimationFrame(rafId);
-      observer?.disconnect();
-    };
-  }, []);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [prefersReducedMotion]);
 
   return (
-    <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none select-none opacity-[0.4] dark:opacity-[0.25] will-change-transform">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none select-none opacity-[0.4] dark:opacity-[0.25] will-change-transform"
+    >
       <style>
         {`
           @keyframes circuitFlow {
@@ -85,15 +64,18 @@ const CircuitBackground: React.FC = () => {
           .electric-line {
             stroke-dasharray: 4;
             animation: circuitFlow 4s linear infinite;
+            animation-play-state: running;
             will-change: stroke-dashoffset, opacity;
           }
           .electric-line-alt {
             stroke-dasharray: 6;
             animation: circuitFlow 6s linear infinite reverse;
+            animation-play-state: running;
             will-change: stroke-dashoffset, opacity;
           }
           .node-pulse {
             animation: nodePulse 3s ease-in-out infinite;
+            animation-play-state: running;
             transform-origin: center;
             will-change: transform, opacity;
           }
@@ -114,7 +96,7 @@ const CircuitBackground: React.FC = () => {
             height="25"
             patternUnits="userSpaceOnUse"
           >
-            {/* Background Grid - Static for performance base */}
+            {/* Background Grid - Static */}
             <path
               d="M 5 0 V 10 H 0 M 15 25 V 15 H 25 M 0 12 H 8 V 18 H 15 V 25 M 25 5 H 20 V 0"
               fill="none"
@@ -122,26 +104,41 @@ const CircuitBackground: React.FC = () => {
               strokeWidth="0.1"
               className="text-primary/10 dark:text-sky-300/20"
             />
-            
-            {/* Animated Living Traces - Subset of lines to keep it light */}
-            <path
-              d="M 12 0 V 12 H 25 M 0 20 H 10 V 25"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="0.15"
-              className={`text-primary dark:text-sky-300 ${isStaticMode ? '' : 'electric-line'}`}
+
+            {/* Animated Living Traces */}
+            {!prefersReducedMotion && (
+              <path
+                d="M 12 0 V 12 H 25 M 0 20 H 10 V 25"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="0.15"
+                className="text-primary dark:text-sky-300 electric-line"
+              />
+            )}
+            {!prefersReducedMotion && (
+              <path
+                d="M 10 0 V 5 H 20 V 12 M 5 25 V 20 H 0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="0.12"
+                className="text-primary/60 dark:text-blue-400/80 electric-line-alt"
+              />
+            )}
+
+            {/* Connection Nodes */}
+            <circle
+              cx="5"
+              cy="10"
+              r="0.3"
+              className={`text-primary/40 dark:text-sky-300/70 fill-current${!prefersReducedMotion ? ' node-pulse' : ''}`}
             />
-            <path
-              d="M 10 0 V 5 H 20 V 12 M 5 25 V 20 H 0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="0.12"
-              className={`text-primary/60 dark:text-blue-400/80 ${isStaticMode ? '' : 'electric-line-alt'}`}
+            <circle
+              cx="20"
+              cy="12"
+              r="0.3"
+              className={`text-secondary/40 dark:text-blue-400/70 fill-current${!prefersReducedMotion ? ' node-pulse' : ''}`}
+              style={!prefersReducedMotion ? { animationDelay: '1s' } : undefined}
             />
-            
-            {/* Optimized Connection Nodes (CSS Animated) */}
-            <circle cx="5" cy="10" r="0.3" className={`text-primary/40 dark:text-sky-300/70 fill-current ${isStaticMode ? '' : 'node-pulse'}`} />
-            <circle cx="20" cy="12" r="0.3" className={`text-secondary/40 dark:text-blue-400/70 fill-current ${isStaticMode ? '' : 'node-pulse'}`} style={isStaticMode ? undefined : { animationDelay: '1s' }} />
           </pattern>
 
           <linearGradient id="surge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -156,14 +153,22 @@ const CircuitBackground: React.FC = () => {
           </linearGradient>
         </defs>
 
-        {/* Global Grid - No heavy SVG filters on tiling */}
+        {/* Global Grid */}
         <rect width="100" height="100" fill="url(#circuit-grid-optimized)" />
 
-        {/* Minimal High-Voltage Surges (Managed with Framer Motion) */}
-        {!isStaticMode && <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="dark:hidden" />}
-        {!isStaticMode && <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="dark:hidden" />}
-        {!isStaticMode && <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />}
-        {!isStaticMode && <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />}
+        {/* Surge Pulses */}
+        {!prefersReducedMotion && (
+          <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="dark:hidden" />
+        )}
+        {!prefersReducedMotion && (
+          <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="dark:hidden" />
+        )}
+        {!prefersReducedMotion && (
+          <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
+        )}
+        {!prefersReducedMotion && (
+          <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
+        )}
       </svg>
     </div>
   );
@@ -192,7 +197,9 @@ const SurgePulse: React.FC<{ d: string; delay: number; className?: string; gradi
       duration: 12,
       repeat: Infinity,
       delay,
-      ease: "linear",
+      ease: 'linear',
+      // Prevent Framer Motion from pausing when tab is hidden
+      repeatType: 'loop',
     }}
   />
 );
