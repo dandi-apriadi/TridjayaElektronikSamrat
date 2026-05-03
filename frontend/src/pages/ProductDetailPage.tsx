@@ -17,6 +17,7 @@ import { useMinInstallment, useCreditSummary } from '../hooks/useMinInstallment'
 import { ShippingCalculator } from '../components/ShippingCalculator';
 import { useAuthStore } from '../store/authStore';
 import { getFrontendBaseUrl } from '../utils/apiClient';
+import { saveReferralCode, getActiveReferralCode } from '../utils/referralSession';
 
 const ProductDetailPage: React.FC = () => {
   const { slug: rawSlug } = useParams<{ slug: string }>();
@@ -72,7 +73,8 @@ const ProductDetailPage: React.FC = () => {
   useEffect(() => {
     const code = searchParams.get('ref')?.trim();
     if (!code) return;
-    localStorage.setItem('tridjaya-referral-code', code);
+    // Save with 1-hour expiry (replaces any existing referral)
+    saveReferralCode(code);
     void (async () => {
       try {
         const response = await apiFetch(`/api/public/referrals/${encodeURIComponent(code)}`);
@@ -113,7 +115,27 @@ const ProductDetailPage: React.FC = () => {
     .slice(0, 3);
 
   const productCatalogPath = `/produk?kategori=${encodeURIComponent(product.category)}`;
-  const referralCode = searchParams.get('ref') || localStorage.getItem('tridjaya-referral-code') || '';
+  // Use active referral from session (with 1-hour expiry) or URL param
+  const referralCode = searchParams.get('ref') || getActiveReferralCode() || '';
+
+  // If no ?ref= in URL but there's an active session referral, load the WA info
+  useEffect(() => {
+    const urlRef = searchParams.get('ref')?.trim();
+    if (urlRef) return; // already handled by the other useEffect
+    const sessionRef = getActiveReferralCode();
+    if (!sessionRef) return;
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/public/referrals/${encodeURIComponent(sessionRef)}`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        const item = payload.data?.item;
+        if (item?.ownerWhatsapp) setReferralWhatsapp(String(item.ownerWhatsapp).replace(/\D/g, ''));
+        if (item?.ownerName) setReferralLabel(String(item.ownerName));
+      } catch { /* fallback to default */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
 
   // Build the share URL: prefer sales referral link, else current URL
   const getShareUrl = () => {

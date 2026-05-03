@@ -17,6 +17,7 @@ import { useProductStore } from './store/useProductStore';
 import { usePromoStore } from './store/usePromoStore';
 import { useBlogStore } from './store/useBlogStore';
 import { usePartnerStore } from './store/usePartnerStore';
+import { saveReferralCode } from './utils/referralSession';
 
 const CatalogPage = lazy(() => import('./pages/CatalogPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
@@ -127,7 +128,7 @@ const RouteListener = () => {
   useEffect(() => {
     const ref = new URLSearchParams(search).get('ref')?.trim();
     if (ref) {
-      localStorage.setItem('tridjaya-referral-code', ref);
+      saveReferralCode(ref);
     }
   }, [search]);
   
