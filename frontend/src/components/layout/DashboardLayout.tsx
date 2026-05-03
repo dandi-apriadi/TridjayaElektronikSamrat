@@ -15,6 +15,7 @@ import {
   Sun,
   Moon,
   MessageCircle,
+  Share2,
   Headphones,
   BookOpen,
   Wallet,
@@ -144,6 +145,7 @@ const DashboardLayout: React.FC = () => {
       items: [
         { label: 'Keuangan', icon: Wallet, path: '/dashboard/admin/finance' },
         { label: 'User & Akses', icon: Shield, path: '/dashboard/admin/users' },
+        { label: 'Sales Management', icon: Share2, path: '/dashboard/admin/sales' },
       ]
     }
   ], []);
@@ -174,7 +176,31 @@ const DashboardLayout: React.FC = () => {
     }
   ], []);
 
-  const navSections = user?.role === 'admin' ? adminSections : agentSections;
+  const salesSections = React.useMemo(() => [
+    {
+      title: 'Dashboard',
+      items: [
+        { label: 'Command Center', icon: LayoutDashboard, path: '/dashboard/sales' },
+        { label: 'Product Knowledge', icon: BookOpen, path: '/dashboard/sales/knowledge' },
+      ]
+    },
+    {
+      title: 'Operasional',
+      items: [
+        { label: 'Jadwal Pengiriman', icon: Send, path: '/dashboard/sales/delivery' },
+        { label: 'Referral & Link', icon: Share2, path: '/dashboard/sales/referral' },
+      ]
+    },
+    {
+      title: 'Akun & Bantuan',
+      items: [
+        { label: 'Pengaturan', icon: Shield, path: '/dashboard/sales/settings' },
+        { label: 'Support', icon: Headphones, path: '/dashboard/sales/support' },
+      ]
+    }
+  ], []);
+
+  const navSections = user?.role === 'admin' ? adminSections : user?.role === 'sales' ? salesSections : agentSections;
 
   const toggleSectionHandler = (title: string) => {
     toggleSection(title);
@@ -187,13 +213,17 @@ const DashboardLayout: React.FC = () => {
         { label: 'Finance', icon: Wallet, path: '/dashboard/admin/finance', color: 'text-tertiary' },
       ]
     : [
-        { label: 'Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge', color: 'text-primary' },
-        { label: 'Push', icon: Send, path: '/dashboard/agent/push-prospek', color: 'text-secondary' },
+        { label: 'Knowledge', icon: BookOpen, path: user?.role === 'sales' ? '/dashboard/sales/knowledge' : '/dashboard/agent/knowledge', color: 'text-primary' },
+        { label: 'Referral', icon: Share2, path: user?.role === 'sales' ? '/dashboard/sales/referral' : '/dashboard/agent/push-prospek', color: 'text-secondary' },
       ];
 
   const allNavItems = navSections.flatMap(s => s.items);
   const activeItem = allNavItems.find((item) => activeItemPath === item.path);
-  const notificationsPath = user?.role === 'admin' ? '/dashboard/admin/notifications' : '/dashboard/agent/notifications';
+  const notificationsPath = user?.role === 'admin'
+    ? '/dashboard/admin/notifications'
+    : user?.role === 'sales'
+      ? '/dashboard/sales/notifications'
+      : '/dashboard/agent/notifications';
 
   // Removed auto-expand effect to respect user's persistent choices
 

@@ -41,7 +41,7 @@ const categorize = (cat: string) => {
     c.includes('springbed')
   ) return "Furniture";
   
-  // Electronics categories
+  // Electronics categories - Focused on high-value items
   if (
     c.includes('elektronik') || 
     c.includes('ac') || 
@@ -49,18 +49,9 @@ const categorize = (cat: string) => {
     c.includes('tv') || 
     c.includes('hp') || 
     c.includes('handphone') ||
-    c.includes('blender') || 
-    c.includes('magicom') || 
-    c.includes('oven') || 
-    c.includes('kompor') || 
-    c.includes('dispenser') ||
     c.includes('freezer') ||
-    c.includes('kipas') ||
-    c.includes('air fryer') ||
     c.includes('mesin cuci') ||
-    c.includes('showcase') ||
-    c.includes('setrika') ||
-    c.includes('speaker')
+    c.includes('showcase')
   ) return "Produk Elektronik";
 
   return null;
@@ -115,8 +106,9 @@ const Navbar: React.FC = () => {
   // Group categories for Mega Menu
   const categoriesByGroup = uniqueCategories.reduce((acc, cat) => {
     const group = categorize(cat);
-    if (!acc[group]) acc[group] = [];
-    acc[group].push({
+    const key = group || 'Lainnya';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push({
       label: cat,
       href: `/produk?kategori=${encodeURIComponent(cat)}`,
       icon: getCategoryIcon(cat)
@@ -236,28 +228,30 @@ const Navbar: React.FC = () => {
                               item.isMega ? 'w-[900px]' : 'w-56'
                             }`}
                           >
-                            <div className={`glass-premium rounded-2xl overflow-hidden shadow-2xl border border-white/10 ${
-                              item.isMega ? 'p-8' : 'p-2'
+                            <div className={`glass-premium rounded-3xl overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] border border-white/10 !bg-surface/98 relative ${
+                              item.isMega ? 'p-10' : 'p-2'
                             }`}>
+                              {/* Decorative corner glow */}
+                              <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 blur-[80px] pointer-events-none" />
+                              <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-secondary/5 blur-[80px] pointer-events-none" />
                               {item.isMega ? (
-                                <div className="grid grid-cols-4 gap-8">
+                                <div className="grid grid-cols-3 gap-10">
                                   {item.groups && Object.entries(item.groups).map(([groupName, children]) => (
                                     <div key={groupName} className="flex flex-col gap-4">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-neon-cyan-sm" />
-                                        <h4 className="text-label-sm font-bold text-on-surface-variant uppercase tracking-widest">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_10px_rgb(var(--color-primary))]" />
+                                        <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.25em]">
                                           {groupName}
                                         </h4>
                                       </div>
-                                      <div className="flex flex-col gap-1">
+                                      <div className={`grid ${children.length > 8 ? 'grid-cols-2' : 'grid-cols-1'} gap-x-4 gap-y-0.5`}>
                                         {(children as NavItemChild[]).map((child) => (
                                           <Link
                                             key={child.label}
                                             to={child.href}
-                                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant hover:text-white hover:bg-white/5 transition-all duration-200 group/item"
+                                            className="flex items-center px-3 py-2 rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200 group/item"
                                           >
-                                            <span className="text-xl group-hover/item:scale-110 transition-transform">{child.icon}</span>
-                                            <span className="font-body text-body-sm font-medium">{child.label}</span>
+                                            <span className="font-body text-[13px] font-medium leading-tight">{child.label}</span>
                                           </Link>
                                         ))}
                                       </div>
@@ -265,14 +259,13 @@ const Navbar: React.FC = () => {
                                   ))}
                                 </div>
                               ) : (
-                                <div className="flex flex-col gap-1">
+                                <div className="flex flex-col gap-0.5">
                                   {item.children?.map((child) => (
                                     <Link
                                       key={child.label}
                                       to={child.href}
-                                      className="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant hover:text-white hover:bg-surface-highest transition-all duration-150"
+                                      className="flex items-center px-4 py-2.5 rounded-lg text-on-surface-variant hover:text-white hover:bg-surface-highest transition-all duration-150"
                                     >
-                                      <span className="text-lg">{child.icon}</span>
                                       <span className="font-body text-body-md font-medium">{child.label}</span>
                                     </Link>
                                   ))}

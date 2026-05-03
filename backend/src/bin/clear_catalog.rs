@@ -33,9 +33,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let res4 = sqlx::query("DELETE FROM blog_posts").execute(&pool).await?;
     println!("Tabel blog_posts dibersihkan: {} baris terhapus.", res4.rows_affected());
 
-    let res5 = sqlx::query("DELETE FROM site_content").execute(&pool).await?;
-    println!("Tabel site_content dibersihkan: {} baris terhapus.", res5.rows_affected());
-
     println!("Semua data produk, kategori, promo, dan konten katalog telah berhasil dihapus.");
 
     Ok(())

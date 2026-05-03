@@ -93,8 +93,15 @@ pub struct UserPublic {
     pub email: String,
     pub name: String,
     pub role: String, // String for DB compatibility, convert to Role in logic if needed
+    /// Jabatan (title/position) — display only, does NOT affect system access.
+    /// Examples: "kepala_cabang", "supervisor", "koordinator", "sales"
+    /// Only meaningful for users with role = "sales".
+    #[sqlx(default)]
+    pub jabatan: String,
     pub avatar: String,
     pub bank_account: String,
+    pub whatsapp: String,
+    pub referral_slug: String,
     pub created_at: Option<String>,
     pub last_login: Option<String>,
     pub is_active: bool,
@@ -114,8 +121,12 @@ pub struct UserRecord {
     pub name: String,
     pub role: String,
     pub password_hash: String,
+    #[sqlx(default)]
+    pub jabatan: String,
     pub avatar: String,
     pub bank_account: String,
+    pub whatsapp: String,
+    pub referral_slug: String,
     pub created_at: Option<String>,
     pub last_login: Option<String>,
     pub is_active: bool,
@@ -131,8 +142,11 @@ impl UserRecord {
             email: self.email.clone(),
             name: self.name.clone(),
             role: self.role.to_lowercase(),
+            jabatan: self.jabatan.clone(),
             avatar: self.avatar.clone(),
             bank_account: self.bank_account.clone(),
+            whatsapp: self.whatsapp.clone(),
+            referral_slug: self.referral_slug.clone(),
             created_at: self.created_at.clone(),
             last_login: self.last_login.clone(),
             is_active: self.is_active,

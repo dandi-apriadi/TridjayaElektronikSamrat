@@ -48,7 +48,12 @@ export const useProductStore = create<ProductState>((set, get) => ({
     return get().products.filter((p) => p.category === category);
   },
   getProductBySlug: (slug: string) => {
-    return get().products.find((p) => p.slug === slug);
+    // Normalize: React Router may decode '+' as ' ' (space) in some cases.
+    // We compare both the raw slug and a version with spaces replaced back to '+'.
+    const normalized = slug.replace(/ /g, '+');
+    return get().products.find(
+      (p) => p.slug === slug || p.slug === normalized
+    );
   },
   createProduct: async (data) => {
     set({ isLoading: true, error: null });

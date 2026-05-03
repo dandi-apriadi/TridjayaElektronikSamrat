@@ -68,6 +68,9 @@ const AdminWaCampaignsPage = lazy(() => import('./pages/dashboard/AdminWaCampaig
 const AdminWaCampaignFormPage = lazy(() => import('./pages/dashboard/AdminWaCampaignFormPage'));
 const AdminWaCampaignDetailPage = lazy(() => import('./pages/dashboard/AdminWaCampaignDetailPage'));
 const AdminWaAccountsPage = lazy(() => import('./pages/dashboard/AdminWaAccountsPage.tsx'));
+const SalesDeliveryPage = lazy(() => import('./pages/dashboard/SalesDeliveryPage'));
+const SalesReferralPage = lazy(() => import('./pages/dashboard/SalesReferralPage'));
+const AdminSalesPage = lazy(() => import('./pages/dashboard/AdminSalesPage'));
 
 const RouteLoading: React.FC = () => (
   <div className="min-h-[40vh] w-full grid place-items-center px-4">
@@ -94,7 +97,7 @@ const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) 
 };
  
 // Role-based Guard for individual subroutes
-const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent' }> = ({ children, role }) => {
+const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent' | 'sales' }> = ({ children, role }) => {
   const { user, isInitializing } = useAuthStore();
   
   if (isInitializing) return <RouteLoading />;
@@ -109,17 +112,24 @@ const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent
 // Dashboard Root (Redirects based on role)
 const DashboardRoot = () => {
   const { user } = useAuthStore();
-  return <Navigate to={user?.role === 'admin' ? '/dashboard/admin' : '/dashboard/agent'} replace />;
+  return <Navigate to={user?.role === 'admin' ? '/dashboard/admin' : user?.role === 'sales' ? '/dashboard/sales' : '/dashboard/agent'} replace />;
 };
 
 // Scroll to top and track telemetry on route change
 const RouteListener = () => {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   useTelemetryTracker();
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+
+  useEffect(() => {
+    const ref = new URLSearchParams(search).get('ref')?.trim();
+    if (ref) {
+      localStorage.setItem('tridjaya-referral-code', ref);
+    }
+  }, [search]);
   
   return null;
 };
@@ -199,6 +209,22 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="admin">
                 {lazyPage(AdminAgentsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/sales"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminSalesPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/sales/referral"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(SalesReferralPage)}
               </RoleGuard>
             }
           />
@@ -429,9 +455,25 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="sales"
+            element={
+              <RoleGuard role="sales">
+                {lazyPage(AgentDashboard)}
+              </RoleGuard>
+            }
+          />
+          <Route
             path="agent/knowledge"
             element={
               <RoleGuard role="agent">
+                {lazyPage(AgentKnowledgePage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="sales/knowledge"
+            element={
+              <RoleGuard role="sales">
                 {lazyPage(AgentKnowledgePage)}
               </RoleGuard>
             }
@@ -445,10 +487,26 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="sales/delivery"
+            element={
+              <RoleGuard role="sales">
+                {lazyPage(SalesDeliveryPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
             path="agent/earnings"
             element={
               <RoleGuard role="agent">
                 {lazyPage(AgentEarningsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="sales/referral"
+            element={
+              <RoleGuard role="sales">
+                {lazyPage(SalesReferralPage)}
               </RoleGuard>
             }
           />
@@ -461,10 +519,26 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="sales/support"
+            element={
+              <RoleGuard role="sales">
+                {lazyPage(AgentSupportPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
             path="agent/push"
             element={
               <RoleGuard role="agent">
                 {lazyPage(AgentPushProspekPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="sales/settings"
+            element={
+              <RoleGuard role="sales">
+                {lazyPage(AgentSettingsPage)}
               </RoleGuard>
             }
           />
@@ -488,6 +562,14 @@ const App: React.FC = () => {
             path="agent/notifications"
             element={
               <RoleGuard role="agent">
+                {lazyPage(NotificationsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="sales/notifications"
+            element={
+              <RoleGuard role="sales">
                 {lazyPage(NotificationsPage)}
               </RoleGuard>
             }

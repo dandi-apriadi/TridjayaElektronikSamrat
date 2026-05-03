@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Shield, CreditCard, Phone, Share2, Star
@@ -9,17 +9,26 @@ import { formatPrice } from '../data';
 import { useProductStore } from '../store/useProductStore';
 import CreditSimulator from '../components/CreditSimulator';
 import type { CreditPlan } from '../types';
-import { formatRupiah, tenorLabel } from '../utils/creditCalculator';
 import { Badge, ProductCard, SectionHeader } from '../components/ui';
 import { recordTelemetry } from '../utils/telemetry';
-import { getImageUrl } from '../utils/apiClient';
+import { apiFetch, getImageUrl } from '../utils/apiClient';
 
 import { useMinInstallment } from '../hooks/useMinInstallment';
 import { ShippingCalculator } from '../components/ShippingCalculator';
 
 const ProductDetailPage: React.FC = () => {
-  const { slug } = useParams<{ slug: string }>();
-  const { getProductBySlug, products, isLoading } = useProductStore();
+  const { slug: rawSlug } = useParams<{ slug: string }>();
+  // React Router may decode '+' as ' ' — restore it for correct slug matching
+  const slug = rawSlug ? rawSlug.replace(/ /g, '+') : '';
+  const [searchParams] = useSearchParams();
+  const { getProductBySlug, products, isLoading, fetchProducts } = useProductStore();
+
+  // Ensure products are loaded — handles direct URL access (page refresh / shared link)
+  useEffect(() => {
+    if (products.length === 0 && !isLoading) {
+      fetchProducts();
+    }
+  }, [products.length, isLoading, fetchProducts]);
   
   const product = getProductBySlug(slug || '');
   const [selectedColor, setSelectedColor] = useState(0);
@@ -58,7 +67,7 @@ const ProductDetailPage: React.FC = () => {
     setSelectedImageIndex(0);
   }, [slug]);
 
-  if (isLoading) {
+  if (isLoading || (products.length === 0)) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-24">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
@@ -84,13 +93,39 @@ const ProductDetailPage: React.FC = () => {
     .slice(0, 3);
 
   const productCatalogPath = `/produk?kategori=${encodeURIComponent(product.category)}`;
-  const agentMessage = encodeURIComponent(`Halo Tridjaya, saya tertarik dengan produk ${product.name}. Mohon info stok dan simulasi kredit terbaru.`);
-  const selectedTenorLabel = selectedCreditPlan ? tenorLabel(selectedCreditPlan.tenor) : 'belum dipilih';
-  const selectedInstallmentLabel = selectedCreditPlan ? formatRupiah(selectedCreditPlan.monthlyInstallment) : 'akan saya pilih di simulator';
-  const selectedCustomerTypeLabel = selectedCreditPlan?.customerType === 'RO' ? 'RO' : 'Baru';
-  const creditMessage = encodeURIComponent(
-    `Halo Tridjaya, saya ingin kredit ${product.name} warna ${product.colors?.[selectedColor] || 'default'} dengan Tenor ${selectedTenorLabel} angsuran ${selectedInstallmentLabel} (Nasabah ${selectedCustomerTypeLabel}).`
+  const referralCode = searchParams.get('ref') || localStorage.getItem('tridjaya-referral-code') || '';
+  const [referralWhatsapp, setReferralWhatsapp] = useState('6285161542103');
+  const [referralLabel, setReferralLabel] = useState('kami');
+
+  useEffect(() => {
+    const code = searchParams.get('ref')?.trim();
+    if (!code) return;
+
+    localStorage.setItem('tridjaya-referral-code', code);
+
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/public/referrals/${encodeURIComponent(code)}`);
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        const item = payload.data?.item;
+        if (item?.ownerWhatsapp) {
+          setReferralWhatsapp(String(item.ownerWhatsapp).replace(/\D/g, ''));
+        }
+        if (item?.ownerName) {
+          setReferralLabel(String(item.ownerName));
+        }
+      } catch {
+        // Fallback ke kontak default.
+      }
+    })();
+  }, [searchParams]);
+
+  const contactText = encodeURIComponent(
+    `Halo ${referralLabel}, saya tertarik dengan produk ${product.name}. Mohon info stok dan simulasi kredit terbaru.`
   );
+  const contactLink = `https://wa.me/${referralWhatsapp}?text=${contactText}`;
 
   const handleShareProduct = async () => {
     const url = window.location.href;
@@ -323,26 +358,26 @@ const ProductDetailPage: React.FC = () => {
                   Ajukan Kredit
                 </button>
                 <a
-                  href={`https://wa.me/6285161542103?text=${agentMessage}`}
+                  href={contactLink}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => {
                     recordTelemetry('whatsapp_click', {
                       path: `/produk/${product.slug}`,
-                      source: 'direct',
+                      source: referralCode || 'direct',
                       metadata: {
                         contentType: 'product',
                         contentSlug: product.slug,
                         contentKey: `product:${product.slug}`,
                         contentTitle: product.name,
-                        action: 'general_inquiry',
+                        action: referralCode ? 'referral_general_inquiry' : 'general_inquiry',
                       },
                     });
                   }}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 glass-card border border-primary/20 rounded-xl font-display text-title-sm font-semibold text-white hover:border-primary/50 transition-all duration-300"
                 >
                   <Phone className="w-4 h-4 text-primary" />
-                  Hubungi Agen
+                  Hubungi Kami
                 </a>
               </div>
 
@@ -360,19 +395,19 @@ const ProductDetailPage: React.FC = () => {
                     onSelectPlan={setSelectedCreditPlan}
                   />
                   <a
-                    href={`https://wa.me/6285161542103?text=${creditMessage}`}
+                    href={contactLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => {
                       recordTelemetry('whatsapp_click', {
                         path: `/produk/${product.slug}`,
-                        source: 'direct',
+                        source: referralCode || 'direct',
                         metadata: {
                           contentType: 'product',
                           contentSlug: product.slug,
                           contentKey: `product:${product.slug}`,
                           contentTitle: product.name,
-                          action: 'credit_inquiry',
+                          action: referralCode ? 'referral_credit_inquiry' : 'credit_inquiry',
                           selectedTenor: selectedCreditPlan?.tenor ?? null,
                         },
                       });

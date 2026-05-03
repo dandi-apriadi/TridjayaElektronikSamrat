@@ -367,7 +367,7 @@ const AgencyRegistrationPage: React.FC = () => {
                         {currentStep === 4 && (
                           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                             <div>
-                              <label className="block font-body text-label-md text-on-surface-variant mb-4 flex items-center gap-2">
+                              <label className="font-body text-label-md text-on-surface-variant mb-4 flex items-center gap-2">
                                 <Camera className="w-4 h-4 text-primary" />
                                 Foto Profil & KTP
                               </label>

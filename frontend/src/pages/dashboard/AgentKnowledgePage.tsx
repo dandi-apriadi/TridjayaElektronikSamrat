@@ -14,6 +14,8 @@ import type { Product } from '../../types';
 import { useNotificationStore } from '../../store/useNotificationStore';
 import { useProductStore } from '../../store/useProductStore';
 import { usePersistedState } from '../../hooks/usePersistedState';
+import { useAuthStore } from '../../store/authStore';
+import { getFrontendBaseUrl } from '../../utils/apiClient';
 import { 
   loadCreditData, 
   calculateInstallments, 
@@ -70,6 +72,7 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
 /* ─── Component ─────────────────────────────────────── */
 const AgentKnowledgePage: React.FC = () => {
+  const { user } = useAuthStore();
   const [search, setSearch]       = usePersistedState('agentKnowledge:search', '');
   const [category, setCategory]   = usePersistedState('agentKnowledge:category', 'Semua');
   const [expandedId, setExpandedId] = usePersistedState<string | null>('agentKnowledge:expandedId', null);
@@ -103,7 +106,9 @@ const AgentKnowledgePage: React.FC = () => {
 
   const handleCopyMaterial = (p: Product) => {
     const mkt = getMarketingInfo(p);
-    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${p.dpMin ? `💵 DP Mulai: ${formatPrice(p.dpMin)}\n💳 Cicilan: ${formatPrice(p.priceInstallment || 0)}/bln\n` : ''}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\nhttps://tridjayaelektronik.com/produk/${p.slug}\n\n_Segera hubungi saya untuk pemesanan!_`;
+    const encodedSlug = p.slug.split('+').map(part => encodeURIComponent(part)).join('+');
+    const productUrl = `${getFrontendBaseUrl()}/produk/${encodedSlug}`;
+    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${p.dpMin ? `💵 DP Mulai: ${formatPrice(p.dpMin)}\n💳 Cicilan: ${formatPrice(p.priceInstallment || 0)}/bln\n` : ''}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
     
     navigator.clipboard.writeText(text);
     addNotification({
@@ -115,7 +120,15 @@ const AgentKnowledgePage: React.FC = () => {
   };
 
   const handleCopyLink = (slug: string) => {
-    navigator.clipboard.writeText(`https://tridjayaelektronik.com/produk/${slug}`);
+    const ref = user?.referral_slug?.trim();
+    const base = getFrontendBaseUrl();
+    // encodeURIComponent encodes '+' as '%2B', but slugs use '+' literally in paths.
+    // Use a manual encode that preserves '+' in the path segment.
+    const encodedSlug = slug.split('+').map(part => encodeURIComponent(part)).join('+');
+    const link = ref
+      ? `${base}/produk/${encodedSlug}?ref=${encodeURIComponent(ref)}`
+      : `${base}/produk/${encodedSlug}`;
+    navigator.clipboard.writeText(link);
     addNotification({
       message: 'Link Disalin',
       description: 'Tautan produk berhasil disalin.',

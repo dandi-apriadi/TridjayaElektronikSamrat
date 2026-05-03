@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Zap, Shield, Award, Clock, Share2, Star } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../data';
-import { getImageUrl } from '../../utils/apiClient';
+import { getImageUrl, getFrontendBaseUrl } from '../../utils/apiClient';
 import { useMinInstallment } from '../../hooks/useMinInstallment';
 import { recordTelemetry } from '../../utils/telemetry';
 
@@ -33,7 +33,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
     e.preventDefault();
     e.stopPropagation();
     
-    const url = `${window.location.origin}/produk/${product.slug}`;
+    const encodedSlug = product.slug.split('+').map(part => encodeURIComponent(part)).join('+');
+    const url = `${getFrontendBaseUrl()}/produk/${encodedSlug}`;
     const shareData = {
       title: product.name,
       text: `Lihat ${product.name} di Tridjaya Manado!`,

@@ -16,6 +16,7 @@ import { usePersistedState } from '../../hooks/usePersistedState';
 const roleConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
   agent:    { cls: 'bg-secondary/15 text-secondary', label: 'Agent',  icon: <Users className="w-3 h-3" /> },
+  sales:    { cls: 'bg-tertiary/15 text-tertiary', label: 'Sales',   icon: <UserCog className="w-3 h-3" /> },
   editor:   { cls: 'bg-primary/10 text-primary', label: 'Editor', icon: <Eye className="w-3 h-3" /> },
   operator: { cls: 'bg-tertiary/15 text-tertiary', label: 'Operator', icon: <UserCog className="w-3 h-3" /> },
 };
@@ -29,6 +30,7 @@ const statusConfig: Record<string, { cls: string; dot: string }> = {
 const permissions = [
   { role: 'Admin',    perms: ['Dashboard Overview', 'Kelola Agen', 'Kelola Katalog', 'Kelola Promo', 'Kelola Konten', 'Keuangan & Payout', 'User & Akses', 'Telemetri'] },
   { role: 'Agent',    perms: ['Command Center', 'Product Knowledge', 'Pipeline Prospek', 'Push Prospek', 'Referral & Link', 'Komisi & Earning'] },
+  { role: 'Sales',    perms: ['Product Knowledge', 'Jadwal Pengiriman', 'Referral & Share Link'] },
   { role: 'Operator', perms: ['Dashboard Overview', 'Kelola Katalog', 'Kelola Konten'] },
 ];
 
@@ -277,7 +279,7 @@ const AdminUsersPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="w-4 h-4 text-on-surface-variant" />
-            {['Semua', 'Admin', 'Agent', 'Editor', 'Operator'].map((r) => (
+            {['Semua', 'Admin', 'Agent', 'Sales', 'Editor', 'Operator'].map((r) => (
               <button key={r} type="button" onClick={() => setRoleFilter(r)}
                 className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${roleFilter === r ? 'bg-primary/20 text-primary' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
                 {r}

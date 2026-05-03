@@ -8,9 +8,16 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'agent' | 'editor' | 'operator' | string;
+  role: 'admin' | 'agent' | 'sales' | 'editor' | 'operator' | string;
+  /** Jabatan (title/position) — display only, does NOT affect system access.
+   *  Only meaningful for users with role = "sales".
+   *  Values: "kepala_cabang" | "supervisor" | "koordinator" | "sales"
+   */
+  jabatan?: string;
   avatar: string;
   bank_account?: string;
+  whatsapp?: string;
+  referral_slug?: string;
   created_at?: string;
   last_login?: string;
   is_active: boolean;
@@ -26,18 +33,22 @@ interface UserStoreState {
     email: string;
     name: string;
     role: string;
+    jabatan?: string;
     password: string;
     avatar?: string;
     bankAccount?: string;
+    whatsapp?: string;
     isActive?: boolean;
   }) => Promise<boolean>;
   updateUser: (id: string, data: Partial<{
     email: string;
     name: string;
     role: string;
+    jabatan: string;
     password: string;
     avatar: string;
     bankAccount: string;
+    whatsapp: string;
     isActive: boolean;
     isVerified: boolean;
   }>) => Promise<boolean>;

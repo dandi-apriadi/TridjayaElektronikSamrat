@@ -24,6 +24,7 @@ fn mask_email_for_log(email: &str) -> String {
 pub enum Role {
     Admin,
     Agent,
+    Sales,
     Editor,
     Operator,
     WaAdmin,
@@ -35,6 +36,7 @@ impl Display for Role {
         match self {
             Self::Admin => write!(f, "admin"),
             Self::Agent => write!(f, "agent"),
+            Self::Sales => write!(f, "sales"),
             Self::Editor => write!(f, "editor"),
             Self::Operator => write!(f, "operator"),
             Self::WaAdmin => write!(f, "wa_admin"),
@@ -49,6 +51,7 @@ impl FromStr for Role {
         match s.to_lowercase().as_str() {
             "admin" => Ok(Self::Admin),
             "agent" => Ok(Self::Agent),
+            "sales" => Ok(Self::Sales),
             "editor" => Ok(Self::Editor),
             "operator" => Ok(Self::Operator),
             "wa_admin" | "wa-admin" | "waadmin" => Ok(Self::WaAdmin),

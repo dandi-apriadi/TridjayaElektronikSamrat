@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Filter, SlidersHorizontal, Battery, Zap, Leaf, Search, X, ChevronDown, Image as ImageIcon, ImageOff } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Filter, SlidersHorizontal, Battery, Zap, Leaf, Search, X, ChevronDown, Image as ImageIcon, ImageOff, Tag } from 'lucide-react';
 import { useProductStore } from '../store/useProductStore';
 import { ProductCard, Badge } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
@@ -18,6 +18,7 @@ const specs = [
 
 const CatalogPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const activeCategory = searchParams.get('kategori');
   const { showImages: globalShowImages } = useThemeStore();
   const [isLiteMode, setIsLiteMode] = usePersistedState('catalog:isLiteMode', !globalShowImages);
@@ -30,8 +31,24 @@ const CatalogPage: React.FC = () => {
   const [search, setSearch] = usePersistedState('catalog:search', '');
   const [visibleCount, setVisibleCount] = usePersistedState('catalog:visibleCount', 9);
 
+  // Category dropdown state
+  const [categorySearch, setCategorySearch] = useState('');
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
   const { products, isLoading, fetchProducts } = useProductStore();
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setIsCategoryOpen(false);
+        setCategorySearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
@@ -47,13 +64,29 @@ const CatalogPage: React.FC = () => {
     (p.subcategory || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  // Define popular categories for the quick filter bar
-  const popularFilters = ['Semua', 'Sepeda Listrik', 'AC', 'Kulkas', 'TV', 'Mesin Cuci', 'KASUR', 'SOFA', 'Dispenser'];
+  // Build dynamic filters from actual product data
+  // Always show ALL unique subcategories from the full catalog so users can
+  // navigate to any category from the dropdown, regardless of active URL filter.
+  const allSubcategories = Array.from(
+    new Set(products.map(p => p.subcategory || p.category).filter(Boolean))
+  ).sort() as string[];
 
-  // Use popular filters if in "All Products", otherwise show subcategories for the specific category
-  const dynamicFilters = activeCategory 
-    ? ['Semua', ...Array.from(new Set(categoryProducts.map(p => p.subcategory || p.category))).filter(Boolean)].slice(0, 12)
-    : popularFilters;
+  const dynamicFilters: string[] = ['Semua', ...allSubcategories];
+
+  // Category options filtered by search in dropdown
+  const filteredCategoryOptions = dynamicFilters.filter(f =>
+    f.toLowerCase().includes(categorySearch.toLowerCase())
+  );
+
+  // Count products per category — always count from full catalog so numbers
+  // are accurate for all categories in the dropdown, not just the active URL filter.
+  const countPerCategory = (cat: string) => {
+    if (cat === 'Semua') return products.length;
+    return products.filter(p =>
+      p.subcategory?.toLowerCase() === cat.toLowerCase() ||
+      p.category?.toLowerCase() === cat.toLowerCase()
+    ).length;
+  };
 
   const filteredByBrand = activeFilter === 'Semua'
     ? searchedProducts
@@ -154,29 +187,6 @@ const CatalogPage: React.FC = () => {
       <section className="pb-20 bg-surface/90">
         <div className="container-custom">
           
-          {/* Category Cards Navigation */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 -mt-12 z-20 relative">
-            {[
-              { label: 'Kendaraan Listrik', icon: '🏍️', href: '/produk?kategori=Sepeda+Listrik', color: 'from-cyan-500/10 to-blue-500/10' },
-              { label: 'Furnitur & Kasur', icon: '🛏️', href: '/produk?kategori=KASUR', color: 'from-purple-500/10 to-pink-500/10' },
-              { label: 'Elektronik & Gadget', icon: '📱', href: '/produk?kategori=AC', color: 'from-orange-500/10 to-yellow-500/10' },
-              { label: 'Semua Produk', icon: '📦', href: '/produk', color: 'from-green-500/10 to-emerald-500/10' },
-            ].map((cat) => (
-              <Link
-                key={cat.label}
-                to={cat.href}
-                className={`group relative overflow-hidden rounded-2xl glass-card p-5 border border-white/5 transition-all duration-300 hover:shadow-neon-cyan-sm hover:-translate-y-1 bg-gradient-to-br ${cat.color}`}
-              >
-                <div className="flex flex-col items-center text-center gap-3">
-                  <span className="text-3xl group-hover:scale-110 transition-transform duration-300">{cat.icon}</span>
-                  <span className="font-display text-title-sm font-bold text-on-surface group-hover:text-primary transition-colors">
-                    {cat.label}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-
           {/* Search Bar */}
           <div className="relative mb-8 z-20">
             <div className="glass-card rounded-2xl p-2 flex items-center gap-2 shadow-2xl border border-white/10">
@@ -200,21 +210,113 @@ const CatalogPage: React.FC = () => {
 
           {/* Filter bar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-            <div className="flex items-center gap-2 flex-wrap">
-              {dynamicFilters.map((f) => (
+            {/* Category Dropdown with Search */}
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative" ref={categoryDropdownRef}>
                 <button
-                  key={f as string}
-                  onClick={() => setActiveFilter(f as string)}
-                  className={`px-4 py-2 rounded-lg font-body text-body-md font-medium transition-all duration-200 ${
-                    activeFilter === f
-                      ? 'gradient-primary text-surface shadow-neon-cyan-sm'
-                      : 'glass-card text-on-surface-variant hover:text-white'
+                  type="button"
+                  onClick={() => { setIsCategoryOpen(!isCategoryOpen); setCategorySearch(''); }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl glass-card border font-body text-body-md font-semibold transition-all min-w-[180px] ${
+                    activeFilter !== 'Semua'
+                      ? 'border-primary/40 text-primary bg-primary/5'
+                      : 'border-white/10 text-on-surface-variant hover:text-white'
                   }`}
                 >
-                  {f as string}
+                  <Tag className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1 text-left truncate max-w-[140px]">{activeFilter}</span>
+                  <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${isCategoryOpen ? 'rotate-180' : ''}`} />
                 </button>
-              ))}
+
+                <AnimatePresence>
+                  {isCategoryOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 mt-2 w-72 glass-card rounded-2xl border border-white/10 shadow-2xl z-50 overflow-hidden"
+                    >
+                      {/* Search inside dropdown */}
+                      <div className="p-3 border-b border-white/5">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" />
+                          <input
+                            type="text"
+                            placeholder="Cari kategori..."
+                            value={categorySearch}
+                            onChange={(e) => setCategorySearch(e.target.value)}
+                            autoFocus
+                            className="w-full pl-9 pr-4 py-2 bg-surface-high rounded-lg text-body-sm text-white placeholder:text-on-surface-variant/50 outline-none focus:ring-1 focus:ring-primary/40 border border-white/5"
+                          />
+                          {categorySearch && (
+                            <button onClick={() => setCategorySearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+                              <X className="w-3.5 h-3.5 text-on-surface-variant hover:text-white" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Category list */}
+                      <div className="max-h-64 overflow-y-auto custom-scrollbar py-1">
+                        {filteredCategoryOptions.length === 0 ? (
+                          <div className="px-4 py-6 text-center text-body-sm text-on-surface-variant">
+                            Kategori tidak ditemukan
+                          </div>
+                        ) : (
+                          filteredCategoryOptions.map((f) => {
+                            const count = countPerCategory(f);
+                            const isActive = activeFilter === f;
+                            return (
+                              <button
+                                key={f}
+                                type="button"
+                                onClick={() => {
+                                  setActiveFilter(f);
+                                  setIsCategoryOpen(false);
+                                  setCategorySearch('');
+                                  // Clear URL ?kategori= param so full catalog is searched
+                                  if (activeCategory) navigate('/produk');
+                                }}
+                                className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors ${
+                                  isActive
+                                    ? 'bg-primary/15 text-primary'
+                                    : 'text-on-surface-variant hover:bg-surface-high hover:text-white'
+                                }`}
+                              >
+                                <span className="font-body text-body-sm font-medium truncate">{f}</span>
+                                <span className={`text-label-xs font-bold px-1.5 py-0.5 rounded-md ml-2 flex-shrink-0 ${
+                                  isActive ? 'bg-primary/20 text-primary' : 'bg-surface-highest text-on-surface-variant'
+                                }`}>
+                                  {count}
+                                </span>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Footer: total categories */}
+                      <div className="px-4 py-2 border-t border-white/5 text-label-xs text-on-surface-variant">
+                        {dynamicFilters.length - 1} kategori tersedia
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Active filter chip — quick clear */}
+              {activeFilter !== 'Semua' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveFilter('Semua')}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 text-primary border border-primary/20 text-label-sm font-semibold hover:bg-primary/20 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Reset
+                </button>
+              )}
             </div>
+
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setIsLiteMode(!isLiteMode)}

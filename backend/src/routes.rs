@@ -55,6 +55,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/referrals", get(list_referrals))
         .route("/api/referrals/{slug}", get(get_referral))
         .route("/api/referrals/{slug}/stats", get(get_referral_stats))
+        .route("/api/public/referrals/{slug}", get(get_public_referral))
+        .route("/api/sales/delivery-schedules", get(list_delivery_schedules).post(create_delivery_schedule))
         .route("/api/telemetry/page-view", post(page_view))
         .route("/api/telemetry/click", post(click))
         .route("/api/telemetry/whatsapp-click", post(whatsapp_click))
@@ -780,10 +782,13 @@ async fn change_auth_password(
 
 async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified, must_change_password FROM users")
+    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, jabatan, avatar, bank_account, whatsapp, referral_slug, created_at, last_login, is_active, is_verified, must_change_password FROM users")
         .fetch_all(&state.pool)
         .await
-        .map_err(|_| AppError::Internal)?;
+        .map_err(|e| {
+            tracing::error!("DB error in list_users: {}", e);
+            AppError::Internal
+        })?;
         
     Ok(json_ok(format!("Users fetched by {}", user.email), json!({ "items": users })))
 }
@@ -884,9 +889,12 @@ struct UserCreateRequest {
     email: String,
     name: String,
     role: String,
+    /// Jabatan (title) — only used when role = "sales". Stored separately from role.
+    jabatan: Option<String>,
     password: String,
     avatar: Option<String>,
     bank_account: Option<String>,
+    whatsapp: Option<String>,
     is_active: Option<bool>,
 }
 
@@ -896,11 +904,50 @@ struct UserUpdateRequest {
     email: Option<String>,
     name: Option<String>,
     role: Option<String>,
+    /// Jabatan (title) — only used when role = "sales". Stored separately from role.
+    jabatan: Option<String>,
     password: Option<String>,
     avatar: Option<String>,
     bank_account: Option<String>,
+    whatsapp: Option<String>,
     is_active: Option<bool>,
     is_verified: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeliveryScheduleCreateRequest {
+    customer_name: String,
+    item_name: String,
+    payment_status: String,
+    address: String,
+    sales_name: String,
+    sender_branch: String,
+}
+
+#[derive(sqlx::FromRow, serde::Serialize)]
+struct DeliveryScheduleRecord {
+    id: String,
+    customer_name: String,
+    item_name: String,
+    payment_status: String,
+    address: String,
+    sales_user_id: String,
+    sales_name: String,
+    sender_branch: String,
+    referral_slug: Option<String>,
+    created_at: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct PublicReferralRecord {
+    slug: String,
+    target_path: String,
+    label: Option<String>,
+    owner_name: String,
+    owner_whatsapp: String,
+    is_active: bool,
+    created_at: Option<String>,
 }
 
 
@@ -1069,11 +1116,46 @@ fn parse_json_value_or_default(text: Option<String>, default: Value) -> Value {
 
 fn normalize_role(value: &str) -> Option<String> {
     let role = value.trim().to_lowercase();
-    if matches!(role.as_str(), "admin" | "agent" | "editor" | "operator" | "wa_admin" | "wa-operator" | "wa_operator" | "waadmin" | "waoperator") {
-        Some(role)
+    if matches!(role.as_str(), 
+        "admin" | "agent" | "sales" | "editor" | "operator" | 
+        "wa_admin" | "wa-operator" | "wa_operator" | "waadmin" | "waoperator"
+    ) {
+        Some(role.replace(" ", "_"))
     } else {
         None
     }
+}
+
+fn normalize_jabatan(value: &str) -> String {
+    match value.trim().to_lowercase().replace(" ", "_").as_str() {
+        "kepala_cabang" | "kepala cabang" | "kepalacabang" => "kepala_cabang".to_string(),
+        "supervisor" => "supervisor".to_string(),
+        "koordinator" => "koordinator".to_string(),
+        "sales" => "sales".to_string(),
+        _ => "sales".to_string(), // default jabatan for sales role
+    }
+}
+
+fn slugify_sales_name(value: &str) -> String {
+    let mut slug = String::new();
+    let mut last_dash = false;
+
+    for ch in value.trim().to_lowercase().chars() {
+        if ch.is_ascii_alphanumeric() {
+            slug.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            slug.push('-');
+            last_dash = true;
+        }
+    }
+
+    slug.trim_matches('-').to_string()
+}
+
+fn validate_whatsapp(value: &str) -> bool {
+    let digits = value.chars().filter(|ch| ch.is_ascii_digit()).count();
+    digits >= 9 && digits <= 16
 }
 
 fn frontend_base_url() -> String {
@@ -1133,10 +1215,18 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("name wajib diisi".to_string());
     }
     if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin, agent, editor, operator, wa_admin, wa_operator".to_string());
+        errors.push("role harus salah satu dari: admin, agent, sales, editor, operator, wa_admin, wa_operator".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
+    }
+    if payload.role.trim().eq_ignore_ascii_case("sales")
+        && payload.whatsapp.as_ref().is_none_or(|value| value.trim().is_empty())
+    {
+        errors.push("whatsapp wajib diisi untuk role sales".to_string());
+    }
+    if payload.whatsapp.as_ref().is_some_and(|value| !value.trim().is_empty() && !validate_whatsapp(value)) {
+        errors.push("whatsapp tidak valid".to_string());
     }
 
     if errors.is_empty() {
@@ -1155,10 +1245,13 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         errors.push("name tidak boleh kosong".to_string());
     }
     if payload.role.as_ref().is_some_and(|value| normalize_role(value).is_none()) {
-        errors.push("role harus salah satu dari: admin, agent, editor, operator, wa_admin, wa_operator".to_string());
+        errors.push("role harus salah satu dari: admin, agent, sales, editor, operator, wa_admin, wa_operator".to_string());
     }
     if payload.password.as_ref().is_some_and(|value| value.len() < 8) {
         errors.push("password minimal 8 karakter".to_string());
+    }
+    if payload.whatsapp.as_ref().is_some_and(|value| !value.trim().is_empty() && !validate_whatsapp(value)) {
+        errors.push("whatsapp tidak valid".to_string());
     }
 
     if errors.is_empty() {
@@ -1382,7 +1475,7 @@ async fn notify_all_admins(
 
 async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
     sqlx::query_as::<_, UserPublic>(
-        "SELECT id, email, name, role, avatar, bank_account, created_at, last_login, is_active, is_verified, must_change_password FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, email, name, role, jabatan, avatar, bank_account, whatsapp, referral_slug, created_at, last_login, is_active, is_verified, must_change_password FROM users WHERE id = ? LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -1408,6 +1501,89 @@ async fn find_lead_by_id(state: &AppState, id: &str) -> Result<LeadRecord, AppEr
     .ok_or(AppError::NotFound)
 }
 
+async fn generate_unique_sales_slug(state: &AppState, base_name: &str, user_id: &str) -> Result<String, AppError> {
+    let fallback = {
+        let slug = slugify_sales_name(base_name);
+        if slug.is_empty() { "sales".to_string() } else { slug }
+    };
+    let suffix = user_id.chars().filter(|ch| ch.is_ascii_alphanumeric()).take(8).collect::<String>();
+    let mut candidate = fallback.clone();
+
+    for _ in 0..10 {
+        let exists = sqlx::query_scalar::<_, String>(
+            "SELECT referral_slug FROM users WHERE referral_slug = ? AND id != ? LIMIT 1",
+        )
+        .bind(&candidate)
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking sales slug: {}", e);
+            AppError::Internal
+        })?;
+
+        if exists.is_none() {
+            return Ok(candidate);
+        }
+
+        candidate = format!("{}-{}", fallback, suffix);
+    }
+
+    Ok(format!("{}-{}", fallback, suffix))
+}
+
+async fn sync_sales_referral(state: &AppState, user_id: &str, name: &str, slug: &str, is_active: bool) -> Result<(), AppError> {
+    let existing_slug = sqlx::query_scalar::<_, String>(
+        "SELECT slug FROM referrals WHERE owner_user_id = ? LIMIT 1"
+    )
+    .bind(user_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error loading existing sales referral: {}", e);
+        AppError::Internal
+    })?;
+
+    if let Some(current_slug) = existing_slug {
+        sqlx::query(
+            "UPDATE referrals SET slug = ?, label = ?, target_path = ?, is_active = ? WHERE owner_user_id = ?"
+        )
+        .bind(slug)
+        .bind(name.trim())
+        .bind("/produk")
+        .bind(is_active)
+        .bind(user_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error updating sales referral: {}", e);
+            AppError::Internal
+        })?;
+
+        if current_slug != slug {
+            tracing::info!("Updated sales referral slug from {} to {} for {}", current_slug, slug, user_id);
+        }
+    } else {
+        sqlx::query(
+            "INSERT INTO referrals (id, slug, owner_user_id, label, target_path, is_active) VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        .bind(uuid::Uuid::new_v4().to_string())
+        .bind(slug)
+        .bind(user_id)
+        .bind(name.trim())
+        .bind("/produk")
+        .bind(is_active)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error inserting sales referral: {}", e);
+            AppError::Internal
+        })?;
+    }
+
+    Ok(())
+}
+
 async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<UserCreateRequest>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     validate_user_create(&payload)?;
@@ -1423,22 +1599,40 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
         errors: vec!["role tidak valid".to_string()],
     })?;
     let password_hash = hash_password(&payload.password);
+    let whatsapp = payload.whatsapp.unwrap_or_else(|| "".to_string());
+    let jabatan = if role == "sales" {
+        payload.jabatan.as_deref().map(normalize_jabatan).unwrap_or_else(|| "sales".to_string())
+    } else {
+        String::new()
+    };
+    let referral_slug = if role == "sales" {
+        generate_unique_sales_slug(&state, &payload.name, &id).await?
+    } else {
+        String::new()
+    };
 
     sqlx::query(
-        "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (id, email, name, role, jabatan, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(payload.email.trim())
     .bind(payload.name.trim())
-    .bind(role)
+    .bind(&role)
+    .bind(&jabatan)
     .bind(password_hash)
     .bind(payload.avatar.unwrap_or_else(|| "".to_string()))
     .bind(payload.bank_account.unwrap_or_else(|| "".to_string()))
+    .bind(whatsapp)
+    .bind(&referral_slug)
     .bind(payload.is_active.unwrap_or(true))
     .bind(true) // Admin created users are verified by default
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
+
+    if role == "sales" {
+        sync_sales_referral(&state, &id, payload.name.trim(), &referral_slug, payload.is_active.unwrap_or(true)).await?;
+    }
 
     let created = find_user_public_by_id(&state, &id).await?;
     Ok(json_ok(
@@ -1473,8 +1667,8 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
     );
     validate_user_update(&payload)?;
 
-    let current = sqlx::query_as::<_, (String, String, String, String, String, String, bool, bool)>(
-        "SELECT email, name, role, password_hash, avatar, bank_account, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
+    let current = sqlx::query_as::<_, (String, String, String, String, String, String, String, String, String, bool, bool)>(
+        "SELECT email, name, role, jabatan, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -1489,9 +1683,12 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         current_email,
         current_name,
         current_role,
+        current_jabatan,
         current_password_hash,
         current_avatar,
         current_bank_account,
+        current_whatsapp,
+        current_referral_slug,
         current_is_active,
         current_is_verified,
     ) = current;
@@ -1503,6 +1700,15 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         .as_deref()
         .and_then(normalize_role)
         .unwrap_or_else(|| current_role.clone());
+    let next_jabatan = if next_role == "sales" {
+        payload.jabatan.as_deref()
+            .map(normalize_jabatan)
+            .unwrap_or_else(|| {
+                if current_jabatan.is_empty() { "sales".to_string() } else { current_jabatan.clone() }
+            })
+    } else {
+        String::new()
+    };
     let next_password_hash = payload
         .password
         .as_deref()
@@ -1510,8 +1716,20 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         .unwrap_or_else(|| current_password_hash.clone());
     let next_avatar = payload.avatar.unwrap_or(current_avatar);
     let next_bank_account = payload.bank_account.unwrap_or(current_bank_account);
+    let next_whatsapp = payload.whatsapp.unwrap_or(current_whatsapp);
     let next_is_active = payload.is_active.unwrap_or(current_is_active);
     let next_is_verified = payload.is_verified.unwrap_or(current_is_verified);
+    let next_referral_slug = if next_role == "sales" {
+        generate_unique_sales_slug(&state, &next_name, &id).await?
+    } else {
+        current_referral_slug.clone()
+    };
+
+    if next_role == "sales" && next_whatsapp.trim().is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["whatsapp wajib diisi untuk role sales".to_string()],
+        });
+    }
 
     let should_invalidate_sessions = next_role != current_role
         || next_password_hash != current_password_hash
@@ -1519,20 +1737,36 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         || next_is_verified != current_is_verified;
 
     sqlx::query(
-        "UPDATE users SET email = ?, name = ?, role = ?, password_hash = ?, avatar = ?, bank_account = ?, is_active = ?, is_verified = ? WHERE id = ?",
+        "UPDATE users SET email = ?, name = ?, role = ?, jabatan = ?, password_hash = ?, avatar = ?, bank_account = ?, whatsapp = ?, referral_slug = ?, is_active = ?, is_verified = ? WHERE id = ?",
     )
     .bind(next_email.trim())
     .bind(next_name.trim())
-    .bind(next_role)
+    .bind(&next_role)
+    .bind(&next_jabatan)
     .bind(next_password_hash)
     .bind(next_avatar)
     .bind(next_bank_account)
+    .bind(next_whatsapp)
+    .bind(&next_referral_slug)
     .bind(next_is_active)
     .bind(next_is_verified)
     .bind(&id)
     .execute(&state.pool)
     .await
     .map_err(map_conflict_if_needed)?;
+
+    if next_role == "sales" {
+        sync_sales_referral(&state, &id, &next_name, &next_referral_slug, next_is_active).await?;
+    } else if current_role.eq_ignore_ascii_case("sales") {
+        sqlx::query("UPDATE referrals SET is_active = 0 WHERE owner_user_id = ?")
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error disabling sales referral: {}", e);
+                AppError::Internal
+            })?;
+    }
 
     if should_invalidate_sessions {
         state.invalidate_user_sessions(&id).await;
@@ -4153,6 +4387,155 @@ async fn get_referral_stats(State(state): State<AppState>, headers: HeaderMap, P
     Ok(json_ok(
         format!("Referral {} stats fetched by {}", slug, user.email),
         json!({ "slug": slug, "clicks": row.clicks, "leads": row.leads }),
+    ))
+}
+
+async fn get_public_referral(State(state): State<AppState>, Path(slug): Path<String>) -> Result<ResponseBody, AppError> {
+    let row = sqlx::query_as::<_, PublicReferralRecord>(
+        r#"
+        SELECT
+            r.slug,
+            r.target_path,
+            r.label,
+            u.name AS owner_name,
+            COALESCE(u.whatsapp, '') AS owner_whatsapp,
+            r.is_active,
+            r.created_at
+        FROM referrals r
+        INNER JOIN users u ON u.id = r.owner_user_id
+        WHERE r.slug = ?
+        LIMIT 1
+        "#
+    )
+    .bind(&slug)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error loading public referral: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    if !row.is_active {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok(
+        format!("Public referral {} fetched", slug),
+        json!({
+            "item": {
+                "slug": row.slug,
+                "targetPath": row.target_path,
+                "label": row.label,
+                "ownerName": row.owner_name,
+                "ownerWhatsapp": row.owner_whatsapp,
+                "isActive": row.is_active,
+                "createdAt": row.created_at,
+            }
+        }),
+    ))
+}
+
+fn validate_payment_status(value: &str) -> bool {
+    matches!(value.to_lowercase().as_str(), "cash" | "credit" | "cod")
+}
+
+fn validate_delivery_schedule(payload: &DeliveryScheduleCreateRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if payload.customer_name.trim().is_empty() { errors.push("namaCust wajib diisi".to_string()); }
+    if payload.item_name.trim().is_empty() { errors.push("namaBarang wajib diisi".to_string()); }
+    if payload.address.trim().is_empty() { errors.push("alamat wajib diisi".to_string()); }
+    if payload.sales_name.trim().is_empty() { errors.push("namaSales wajib diisi".to_string()); }
+    if payload.sender_branch.trim().is_empty() { errors.push("cabangPengirim wajib diisi".to_string()); }
+    if !validate_payment_status(&payload.payment_status) { errors.push("status pembayaran harus cash, credit, atau cod".to_string()); }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+async fn create_delivery_schedule(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<DeliveryScheduleCreateRequest>) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Sales]).await?;
+    validate_delivery_schedule(&payload)?;
+
+    let sales_user = if user.role.eq_ignore_ascii_case("admin") {
+        sqlx::query_as::<_, UserRecord>("SELECT * FROM users WHERE LOWER(name) = LOWER(?) LIMIT 1")
+            .bind(payload.sales_name.trim())
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error finding sales user: {}", e);
+                AppError::Internal
+            })?
+            .ok_or_else(|| AppError::Validation { errors: vec!["nama sales tidak ditemukan di database".to_string()] })?
+    } else {
+        sqlx::query_as::<_, UserRecord>("SELECT * FROM users WHERE id = ? LIMIT 1")
+            .bind(&user.id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error loading sales user: {}", e);
+                AppError::Internal
+            })?
+            .ok_or(AppError::NotFound)?
+    };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        r#"
+        INSERT INTO sales_delivery_schedules (id, sales_user_id, customer_name, item_name, payment_status, address, sales_name, sender_branch, referral_slug)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#
+    )
+    .bind(&id)
+    .bind(&sales_user.id)
+    .bind(payload.customer_name.trim())
+    .bind(payload.item_name.trim())
+    .bind(payload.payment_status.trim().to_lowercase())
+    .bind(payload.address.trim())
+    .bind(sales_user.name.trim())
+    .bind(payload.sender_branch.trim())
+    .bind(if sales_user.referral_slug.trim().is_empty() { None::<String> } else { Some(sales_user.referral_slug.clone()) })
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error creating sales schedule: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        format!("Delivery schedule created by {}", user.email),
+        json!({ "item": { "id": id, "salesUserId": sales_user.id } }),
+    ))
+}
+
+async fn list_delivery_schedules(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Sales]).await?;
+
+    let rows = if user.role.eq_ignore_ascii_case("admin") {
+        sqlx::query_as::<_, DeliveryScheduleRecord>(
+            "SELECT id, customer_name, item_name, payment_status, address, sales_user_id, sales_name, sender_branch, referral_slug, created_at FROM sales_delivery_schedules ORDER BY created_at DESC"
+        )
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as::<_, DeliveryScheduleRecord>(
+            "SELECT id, customer_name, item_name, payment_status, address, sales_user_id, sales_name, sender_branch, referral_slug, created_at FROM sales_delivery_schedules WHERE sales_user_id = ? ORDER BY created_at DESC"
+        )
+        .bind(&user.id)
+        .fetch_all(&state.pool)
+        .await
+    }
+    .map_err(|e| {
+        tracing::error!("DB error listing delivery schedules: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        format!("Delivery schedules fetched by {}", user.email),
+        json!({ "items": rows }),
     ))
 }
 

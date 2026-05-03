@@ -158,3 +158,24 @@ export function getImageUrl(path: string | undefined | null): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
 }
+
+/**
+ * Returns the public-facing frontend base URL.
+ * Uses VITE_FRONTEND_URL env var if set (for production deployments),
+ * otherwise falls back to window.location.origin.
+ * This ensures referral links always point to the correct public domain,
+ * even when the dashboard is accessed from a different origin.
+ */
+export function getFrontendBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_FRONTEND_URL as string | undefined)?.replace(/\/$/, '');
+  if (envUrl && envUrl.length > 0) return envUrl;
+  return window.location.origin;
+}
+
+/**
+ * Generates a referral catalog link for a given slug.
+ * Always points to /produk?ref=<slug> on the public frontend domain.
+ */
+export function buildReferralLink(slug: string): string {
+  return `${getFrontendBaseUrl()}/produk?ref=${encodeURIComponent(slug)}`;
+}

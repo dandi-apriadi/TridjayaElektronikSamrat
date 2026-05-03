@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, Save, X, Package, Megaphone, User,
   Layout, AlertCircle, CheckCircle2, ChevronRight, BarChart3, Activity, Clock,
-  Plus, Trash2, Image as ImageIcon, CreditCard, Shield, List
+  Plus, Trash2, Image as ImageIcon, CreditCard, Shield, List, Copy
 } from 'lucide-react';
 import { toast } from '../../store/useNotificationStore';
 import {
@@ -15,6 +15,7 @@ import { usePromoStore } from '../../store/usePromoStore';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useUserStore } from '../../store/useUserStore';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
+import { buildReferralLink } from '../../utils/apiClient';
 
 type FormType = 'catalog' | 'promo' | 'content' | 'user';
 
@@ -70,7 +71,8 @@ const AdminFormPage: React.FC = () => {
   const [subcategory, setSubcategory] = useState('');
 
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'admin' | 'agent' | 'editor' | 'operator'>('agent');
+  const [role, setRole] = useState<'admin' | 'agent' | 'sales' | 'editor' | 'operator'>('sales');
+  const [jabatan, setJabatan] = useState<'sales' | 'kepala_cabang' | 'supervisor' | 'koordinator'>('sales');
   const [password, setPassword] = useState('');
   const [avatar, setAvatar] = useState('');
   const [bankAccount, setBankAccount] = useState('');
@@ -123,7 +125,7 @@ const AdminFormPage: React.FC = () => {
       }
 
       // For users/agents, try to show real lead activity if it's an agent
-      if (type === 'user' && currentUser?.role === 'agent') {
+      if (type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role)) {
         const perf = agentPerformance.find(p => p.date === dateStr);
         return { 
           day, 
@@ -169,15 +171,16 @@ const AdminFormPage: React.FC = () => {
     if (currentUser) {
       setName(currentUser.name || '');
       setEmail(currentUser.email || '');
-      setRole((currentUser.role as 'admin' | 'agent' | 'editor' | 'operator') || 'agent');
+      setRole((currentUser.role as any) || 'sales');
+      setJabatan((currentUser.jabatan as any) || 'sales');
       setAvatar(currentUser.avatar || '');
       setBankAccount(currentUser.bank_account || '');
+      setWhatsapp(currentUser.whatsapp || '');
       setAccountStatus(currentUser.is_active ? 'active' : 'suspended');
       setPassword('');
       
       // Load agent specific fields if available
       if (agentDetails) {
-        setWhatsapp(agentDetails.whatsapp || '');
         setCity(agentDetails.city || '');
         setProvince(agentDetails.province || '');
       }
@@ -186,9 +189,13 @@ const AdminFormPage: React.FC = () => {
         setIsVerified(currentUser.is_verified);
       }
     } else {
+      const params = new URLSearchParams(location.search);
+      const roleParam = params.get('role');
+      
       setName('');
       setEmail('');
-      setRole('agent');
+      setRole((roleParam as any) || 'sales');
+      setJabatan('sales');
       setAvatar('');
       setBankAccount('');
       setAccountStatus('active');
@@ -198,7 +205,7 @@ const AdminFormPage: React.FC = () => {
       setProvince('');
       setIsVerified(false);
     }
-  }, [currentUser, currentProduct, type, agentDetails]);
+  }, [currentUser, currentProduct, type, agentDetails, location.search]);
 
   const handleVerify = async () => {
     if (!id) return;
@@ -266,8 +273,10 @@ const AdminFormPage: React.FC = () => {
           email: email.trim(),
           name: name.trim(),
           role,
+          jabatan: role === 'sales' ? jabatan : undefined,
           avatar: avatar.trim(),
           bankAccount: bankAccount.trim(),
+          whatsapp: whatsapp.trim(),
           isActive: accountStatus === 'active',
           isVerified,
         };
@@ -393,7 +402,7 @@ const AdminFormPage: React.FC = () => {
           </div>
           
           <div className="flex gap-6 pr-4">
-            {type === 'user' && currentUser?.role === 'agent' ? (
+            {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) ? (
               <>
                 <div>
                   <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Poin</div>
@@ -580,16 +589,18 @@ const AdminFormPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="text-label-sm text-on-surface-variant font-semibold">Deskripsi Produk (Landing Page)</label>
-                <textarea
-                  rows={4}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Masukkan deskripsi lengkap yang akan tampil di halaman detail produk..."
-                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md resize-none transition-all"
-                />
-              </div>
+              {(type === 'catalog' || type === 'promo' || type === 'content') && (
+                <div className="space-y-1.5">
+                  <label className="text-label-sm text-on-surface-variant font-semibold">Deskripsi Produk (Landing Page)</label>
+                  <textarea
+                    rows={4}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Masukkan deskripsi lengkap yang akan tampil di halaman detail produk..."
+                    className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md resize-none transition-all"
+                  />
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -743,29 +754,50 @@ const AdminFormPage: React.FC = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-label-sm text-on-surface-variant font-semibold">Role</label>
+                <label className="text-label-sm text-on-surface-variant font-semibold">Role Akses Sistem</label>
                 <select
                   value={role}
-                  onChange={(event) => setRole(event.target.value as 'admin' | 'agent' | 'editor' | 'operator')}
+                  onChange={(event) => setRole(event.target.value as any)}
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
                 >
                   <option value="admin">Admin</option>
                   <option value="agent">Agent</option>
+                  <option value="sales">Sales</option>
                   <option value="editor">Editor</option>
                   <option value="operator">Operator</option>
                 </select>
+                <p className="text-label-xs text-on-surface-variant">Menentukan dashboard dan fitur yang bisa diakses.</p>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-label-sm text-on-surface-variant font-semibold">Nomor Rekening</label>
-                <input
-                  type="text"
-                  value={bankAccount}
-                  onChange={(event) => setBankAccount(event.target.value)}
-                  placeholder="BRI 1234-5678-9012"
-                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
-                />
-              </div>
+              {role === 'sales' && (
+                <div className="space-y-1.5">
+                  <label className="text-label-sm text-on-surface-variant font-semibold">Jabatan</label>
+                  <select
+                    value={jabatan}
+                    onChange={(event) => setJabatan(event.target.value as any)}
+                    className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                  >
+                    <option value="sales">Sales</option>
+                    <option value="koordinator">Koordinator</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="kepala_cabang">Kepala Cabang</option>
+                  </select>
+                  <p className="text-label-xs text-on-surface-variant">Hanya sebagai title tampilan, tidak mempengaruhi akses sistem.</p>
+                </div>
+              )}
+
+              {(role === 'sales' || role === 'agent') && (
+                <div className="space-y-1.5">
+                  <label className="text-label-sm text-on-surface-variant font-semibold">WhatsApp {role === 'sales' ? '*' : ''}</label>
+                  <input
+                    type="text"
+                    value={whatsapp}
+                    onChange={(event) => setWhatsapp(event.target.value)}
+                    placeholder="6281234567890"
+                    className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-label-sm text-on-surface-variant font-semibold">URL Avatar</label>
@@ -777,6 +809,29 @@ const AdminFormPage: React.FC = () => {
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
                 />
               </div>
+
+              {role === 'sales' && isEdit && currentUser?.referral_slug && (
+                <div className="space-y-1.5 md:col-span-2 xl:col-span-1">
+                  <label className="text-label-sm text-on-surface-variant font-semibold">Referral Slug & Link</label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 px-4 py-3 bg-tertiary/5 border border-tertiary/20 rounded-xl font-mono text-xs text-tertiary flex items-center overflow-hidden whitespace-nowrap">
+                      {currentUser.referral_slug}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = buildReferralLink(currentUser.referral_slug!);
+                        navigator.clipboard.writeText(url);
+                        toast.success('Link Disalin', 'Link referral siap dibagikan.');
+                      }}
+                      className="p-3 bg-tertiary/10 text-tertiary rounded-xl hover:bg-tertiary/20 transition-colors border border-tertiary/20"
+                      title="Salin Link Referral"
+                    >
+                      <Copy className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-label-sm text-on-surface-variant font-semibold">Password {isEdit ? '(kosongkan jika tidak diubah)' : '*'}</label>
@@ -858,16 +913,6 @@ const AdminFormPage: React.FC = () => {
               {role === 'agent' && (
                 <>
                   <div className="space-y-1.5">
-                    <label className="text-label-sm text-on-surface-variant font-semibold">WhatsApp</label>
-                    <input
-                      type="text"
-                      value={whatsapp}
-                      onChange={(event) => setWhatsapp(event.target.value)}
-                      placeholder="085161542103"
-                      className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
                     <label className="text-label-sm text-on-surface-variant font-semibold">Kota</label>
                     <input
                       type="text"
@@ -942,7 +987,7 @@ const AdminFormPage: React.FC = () => {
                   <div className="flex items-center gap-2 mb-2">
                     <Activity className="w-4 h-4 text-primary" />
                     <div className="text-label-sm font-semibold text-on-surface">
-                      {type === 'user' && currentUser?.role === 'agent' ? 'Total Leads (7d)' : 'Total Views'}
+                      {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) ? 'Total Leads (7d)' : 'Total Views'}
                     </div>
                   </div>
                   <div className="font-display font-bold text-headline-sm text-on-surface">
@@ -953,11 +998,11 @@ const AdminFormPage: React.FC = () => {
                   <div className="flex items-center gap-2 mb-2">
                     <Megaphone className="w-4 h-4 text-secondary" />
                     <div className="text-label-sm font-semibold text-on-surface">
-                      {type === 'user' && currentUser?.role === 'agent' ? 'Success Rate' : 'Conversion Rate'}
+                      {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) ? 'Success Rate' : 'Conversion Rate'}
                     </div>
                   </div>
                   <div className="font-display font-bold text-headline-sm text-on-surface">
-                    {type === 'user' && currentUser?.role === 'agent' 
+                    {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) 
                       ? `${Math.round(((agentDetails?.totalSales || 0) / Math.max(1, adminLeads.filter(l => l.agentId === id).length)) * 100)}%`
                       : `${Math.round((insightData.reduce((sum, row) => sum + row.clicks, 0) / Math.max(1, insightData.reduce((sum, row) => sum + row.views, 0))) * 100)}%`
                     }
@@ -966,7 +1011,7 @@ const AdminFormPage: React.FC = () => {
              </div>
 
              {/* Agent specific leads summary */}
-             {type === 'user' && currentUser?.role === 'agent' && (
+             {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) && (
                <div className="glass-card rounded-xl p-4 border border-outline-variant/10">
                  <div className="flex items-center justify-between mb-3">
                    <h4 className="font-display text-label-md font-bold text-on-surface">Prospek Terbaru</h4>

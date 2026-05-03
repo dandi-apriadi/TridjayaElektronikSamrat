@@ -35,6 +35,7 @@ import {
 } from 'recharts';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useProductStore } from '../../store/useProductStore';
+import { useUserStore } from '../../store/useUserStore';
 import { usePersistedState } from '../../hooks/usePersistedState';
 
 const formatRelativeTime = (isoDate: string): string => {
@@ -84,13 +85,15 @@ const AdminDashboard: React.FC = () => {
     updateClaimStatus,
   } = useAdminNetworkStore();
   const { products, fetchProducts } = useProductStore();
+  const { users, fetchUsers } = useUserStore();
 
   useEffect(() => {
     fetchRegistrations();
     fetchClaims();
     fetchTelemetryStats();
     fetchProducts();
-  }, [fetchRegistrations, fetchClaims, fetchTelemetryStats, fetchProducts]);
+    fetchUsers();
+  }, [fetchRegistrations, fetchClaims, fetchTelemetryStats, fetchProducts, fetchUsers]);
 
   const trafficData = telemetryStats?.trafficData || [];
   const systemMetrics = telemetryStats?.systemMetrics || [];
@@ -106,6 +109,7 @@ const AdminDashboard: React.FC = () => {
 
   const pendingPayouts = claims.filter((claim) => claim.status === 'pending' || claim.status === 'processing');
   const completedClaims = claims.filter((claim) => claim.status === 'completed').length;
+  const activeSales = users.filter((u) => u.role === 'sales' && u.is_active).length;
 
   const topAgents = useMemo(() => {
     const summary = new Map<string, { name: string; city: string; sales: number; pending: number }>();
@@ -240,14 +244,14 @@ const AdminDashboard: React.FC = () => {
       href: '/dashboard/admin/finance',
     },
     {
-      label: 'WA Campaign',
-      value: '0',
+      label: 'Tim Sales Aktif',
+      value: activeSales.toLocaleString('id-ID'),
       change: '+manage',
-      sub: 'Click untuk manage campaign',
+      sub: `${users.filter(u => u.role === 'sales').length} total sales`,
       icon: Megaphone,
       color: 'text-secondary',
       bg: 'bg-secondary/10',
-      href: '/dashboard/admin/wa/campaigns',
+      href: '/dashboard/admin/sales',
     },
   ];
 
