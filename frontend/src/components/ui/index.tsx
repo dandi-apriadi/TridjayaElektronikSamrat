@@ -160,20 +160,31 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
                       {product.review && <span className="text-on-surface-variant line-clamp-1">{product.review}</span>}
                     </div>
                   ) : null}
-                  <div className="font-display text-headline-sm font-bold gradient-text-primary">
-                    {formatPrice(product.price)}
-                  </div>
-                  {(minInstallment || product.priceInstallment) && (
-                    <div className="font-body text-body-sm text-on-surface-variant">
-                      Cicil dari {formatPrice(minInstallment || product.priceInstallment || 0)}/bln
+                  {product.price === 0 ? (
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-label-md mb-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        Harga Indent
+                      </div>
+                      <div className="font-body text-body-sm text-on-surface-variant">Hubungi kami untuk info harga</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="font-display text-headline-sm font-bold gradient-text-primary">
+                        {formatPrice(product.price)}
+                      </div>
+                      {(minInstallment || product.priceInstallment) && (
+                        <div className="font-body text-body-sm text-on-surface-variant">
+                          Cicil dari {formatPrice(minInstallment || product.priceInstallment || 0)}/bln
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
                 <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center group-hover:shadow-neon-cyan-sm transition-shadow duration-300">
                   <ArrowRight className="w-4 h-4 text-surface" />
                 </div>
-              </div>
-            </div>
+              </div>            </div>
           </>
         ) : (
           /* Compact View (No Image) - More Informative */
@@ -225,12 +236,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
               ) : null}
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-display text-title-md font-bold text-primary">
-                    {formatPrice(product.price)}
-                  </div>
-                  <div className="font-body text-[10px] text-on-surface-variant font-medium">
-                    Cicilan: {formatPrice(minInstallment || product.priceInstallment || 0)}/bln
-                  </div>
+                  {product.price === 0 ? (
+                    <div>
+                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-[11px] mb-0.5">
+                        <Clock className="w-3 h-3" />
+                        Indent
+                      </div>
+                      <div className="font-body text-[10px] text-on-surface-variant">Hubungi kami</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="font-display text-title-md font-bold text-primary">
+                        {formatPrice(product.price)}
+                      </div>
+                      <div className="font-body text-[10px] text-on-surface-variant font-medium">
+                        Cicilan: {formatPrice(minInstallment || product.priceInstallment || 0)}/bln
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="w-8 h-8 rounded-lg glass-dark flex items-center justify-center group-hover:bg-primary transition-all">
                   <ArrowRight className="w-4 h-4 text-on-surface-variant group-hover:text-surface group-hover:translate-x-0.5 transition-all" />

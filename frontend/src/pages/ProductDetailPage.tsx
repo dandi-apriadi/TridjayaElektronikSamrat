@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Shield, CreditCard, Phone, Share2, Star
+  Shield, CreditCard, Phone, Share2, Star, Clock
 } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
 import { formatPrice } from '../data';
@@ -311,18 +311,33 @@ const ProductDetailPage: React.FC = () => {
 
               {/* Price card */}
               <div className="glass-card rounded-2xl p-5 mb-6">
-                <div className="font-display text-display-sm font-bold gradient-text-primary mb-1">
-                  {formatPrice(product.price)}
-                </div>
-                {(minInstallment || product.priceInstallment) && (
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="font-body text-body-md text-on-surface-variant">
-                      Cicil dari <span className="text-white font-semibold">{formatPrice(minInstallment || product.priceInstallment || 0)}</span>/bulan
-                    </span>
-                    {minDp && (
-                      <span className="font-body text-label-sm text-on-surface-variant">
-                        DP mulai {formatPrice(minDp)}
-                      </span>
+                {product.price === 0 ? (
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-title-sm mb-2">
+                      <Clock className="w-5 h-5" />
+                      Produk Indent — Harga Belum Tersedia
+                    </div>
+                    <p className="font-body text-body-md text-on-surface-variant mb-1">
+                      Produk ini tersedia melalui pemesanan terlebih dahulu (indent).
+                      Hubungi kami untuk informasi harga, ketersediaan, dan estimasi waktu pengiriman.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="font-display text-display-sm font-bold gradient-text-primary mb-1">
+                      {formatPrice(product.price)}
+                    </div>
+                    {(minInstallment || product.priceInstallment) && (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="font-body text-body-md text-on-surface-variant">
+                          Cicil dari <span className="text-white font-semibold">{formatPrice(minInstallment || product.priceInstallment || 0)}</span>/bulan
+                        </span>
+                        {minDp && (
+                          <span className="font-body text-label-sm text-on-surface-variant">
+                            DP mulai {formatPrice(minDp)}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
