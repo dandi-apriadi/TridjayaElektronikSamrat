@@ -31,12 +31,18 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useUIPreferenceStore } from '../../store/useUIPreferenceStore';
 import { useDashboardNotificationsStore } from '../../store/useDashboardNotificationsStore';
 import { toast } from '../../store/useNotificationStore';
 import logoPng from '../../assets/images/logo.webp';
 
 const DashboardLayout: React.FC = () => {
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const { 
+    isSidebarOpen, 
+    toggleSidebar, 
+    collapsedSections, 
+    toggleSection 
+  } = useUIPreferenceStore();
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { user, logout } = useAuthStore();
@@ -96,7 +102,6 @@ const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const activeItemPath = location.pathname;
 
   const adminSections = React.useMemo(() => [
@@ -171,11 +176,8 @@ const DashboardLayout: React.FC = () => {
 
   const navSections = user?.role === 'admin' ? adminSections : agentSections;
 
-  const toggleSection = (title: string) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [title]: !prev[title]
-    }));
+  const toggleSectionHandler = (title: string) => {
+    toggleSection(title);
   };
 
   const quickActions = user?.role === 'admin'
@@ -193,27 +195,7 @@ const DashboardLayout: React.FC = () => {
   const activeItem = allNavItems.find((item) => activeItemPath === item.path);
   const notificationsPath = user?.role === 'admin' ? '/dashboard/admin/notifications' : '/dashboard/agent/notifications';
 
-  // Initialize and auto-expand sections based on current path
-  React.useEffect(() => {
-    const newCollapsed: Record<string, boolean> = { ...collapsedSections };
-    let changed = false;
-
-    navSections.forEach(section => {
-      const hasActiveItem = section.items.some(item => location.pathname === item.path);
-      if (hasActiveItem && collapsedSections[section.title] === undefined) {
-        newCollapsed[section.title] = false;
-        changed = true;
-      } else if (collapsedSections[section.title] === undefined) {
-        // Default other sections to expanded or collapsed? Let's keep them expanded for now unless there are many
-        newCollapsed[section.title] = false; 
-        changed = true;
-      }
-    });
-
-    if (changed) {
-      setCollapsedSections(newCollapsed);
-    }
-  }, [location.pathname, navSections]);
+  // Removed auto-expand effect to respect user's persistent choices
 
   return (
     <div className="min-h-screen bg-surface flex text-on-surface relative overflow-hidden page-shell">
@@ -268,7 +250,7 @@ const DashboardLayout: React.FC = () => {
                 {(isSidebarOpen || isMobile) && (
                   <button 
                     type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSection(section.title); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSectionHandler(section.title); }}
                     className="w-full flex items-center justify-between px-3 py-2 text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest hover:text-on-surface transition-colors group"
                   >
                     <span>{section.title}</span>
@@ -331,7 +313,7 @@ const DashboardLayout: React.FC = () => {
           {!isMobile && (
             <button
               type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSidebarOpen(!isSidebarOpen); }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSidebar(); }}
               className="w-full items-center gap-4 p-3 rounded-lg text-on-surface-variant hover:bg-surface-high hover:text-on-surface transition-all hidden lg:flex"
             >
               {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

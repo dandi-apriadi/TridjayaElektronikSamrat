@@ -243,16 +243,43 @@ const AdminProductBulkImport: React.FC = () => {
         
         const operations = chunk.map(item => {
           const updateData = prepareUpdateData(item.newData);
+          
+          // Logika Smart Placeholder
+          let finalImage = item.newData.image;
+          const isImageEmpty = !finalImage || finalImage.trim() === '';
+          
           if (item.status === 'matched' && item.matchedProduct) {
+            // Update: Gunakan image baru jika ada di Excel, 
+            // jika tidak ada, cek apakah produk lama butuh placeholder
+            if (isImageEmpty) {
+              const currentImage = item.matchedProduct.image || '';
+              const needsPlaceholder = !currentImage || 
+                                      currentImage.includes('placehold.co') || 
+                                      currentImage.includes('/uploads/placeholders/') ||
+                                      currentImage === '';
+              
+              if (needsPlaceholder) {
+                finalImage = getCategoryPlaceholder(item.newData.category || item.matchedProduct.category);
+              } else {
+                finalImage = currentImage; // Pertahankan gambar asli yang sudah ada
+              }
+            }
+
             return {
               type: 'update',
               data: {
                 id: item.matchedProduct.id,
                 ...updateData,
+                image: finalImage,
                 rowNumber: item.rowNumber
               }
             };
           } else {
+            // Create: Jika tidak ada gambar di Excel, langsung pakai placeholder kategori
+            if (isImageEmpty) {
+              finalImage = getCategoryPlaceholder(item.newData.category);
+            }
+            
             const productName = item.newData.name || '';
             return {
               type: 'create',
@@ -261,7 +288,7 @@ const AdminProductBulkImport: React.FC = () => {
                 name: productName,
                 slug: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                 stock: updateData.stock || 'available',
-                image: item.newData.image || getCategoryPlaceholder(item.newData.category),
+                image: finalImage,
                 rowNumber: item.rowNumber
               }
             };

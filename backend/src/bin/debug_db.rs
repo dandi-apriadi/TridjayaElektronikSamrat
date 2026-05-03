@@ -53,7 +53,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "agent_registrations",
         "support_tickets",
         "sales",
-        "telemetry_events"
+        "telemetry_events",
+        "products",
+        "promos",
+        "product_categories",
+        "blog_posts",
+        "job_listings"
     ];
 
     for table in tables {

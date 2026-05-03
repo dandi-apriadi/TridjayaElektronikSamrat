@@ -23,6 +23,16 @@ path = "src/bin/clear_catalog.rs"
 required-features = ["dev-tools"]
 
 [[bin]]
+name = "cleanup_assets"
+path = "src/bin/cleanup_assets.rs"
+required-features = ["dev-tools"]
+
+
+[[bin]]
+name = "list_categories"
+path = "src/bin/list_categories.rs"
+
+[[bin]]
 name = "clear_db"
 path = "src/bin/clear_db.rs"
 required-features = ["dev-tools"]

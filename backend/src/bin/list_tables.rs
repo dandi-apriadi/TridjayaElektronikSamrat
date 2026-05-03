@@ -10,13 +10,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&database_url)
         .await?;
 
-    let rows: Vec<(String,)> = sqlx::query_as("SELECT name FROM sqlite_master WHERE type='table'")
+    let tables: Vec<(String,)> = sqlx::query_as("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         .fetch_all(&pool)
         .await?;
 
-    println!("Tabel yang tersedia di database:");
-    for (name,) in rows {
-        println!("- {}", name);
+    for (table,) in tables {
+        println!("Table: {}", table);
+        let columns: Vec<(i64, String, String, i64, Option<String>, i64)> = sqlx::query_as(&format!("PRAGMA table_info({})", table))
+            .fetch_all(&pool)
+            .await?;
+        for col in columns {
+            println!("  - {} ({})", col.1, col.2);
+        }
     }
 
     Ok(())

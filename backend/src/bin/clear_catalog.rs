@@ -1,8 +1,17 @@
 use sqlx::sqlite::SqlitePoolOptions;
 use std::env;
 
+fn ensure_destructive_allowed() -> Result<(), Box<dyn std::error::Error>> {
+    let flag = env::var("ALLOW_DESTRUCTIVE").unwrap_or_default();
+    if flag != "yes-i-mean-it" {
+        return Err("Refusing to run destructive tool without ALLOW_DESTRUCTIVE=yes-i-mean-it. Run with environment variable set.".into());
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ensure_destructive_allowed()?;
     dotenvy::dotenv().ok();
     let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
     let pool = SqlitePoolOptions::new()
@@ -21,7 +30,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let res3 = sqlx::query("DELETE FROM promos").execute(&pool).await?;
     println!("Tabel promos dibersihkan: {} baris terhapus.", res3.rows_affected());
 
-    println!("Semua data produk, kategori, dan promo telah berhasil dihapus.");
+    let res4 = sqlx::query("DELETE FROM blog_posts").execute(&pool).await?;
+    println!("Tabel blog_posts dibersihkan: {} baris terhapus.", res4.rows_affected());
+
+    let res5 = sqlx::query("DELETE FROM site_content").execute(&pool).await?;
+    println!("Tabel site_content dibersihkan: {} baris terhapus.", res5.rows_affected());
+
+    println!("Semua data produk, kategori, promo, dan konten katalog telah berhasil dihapus.");
 
     Ok(())
 }

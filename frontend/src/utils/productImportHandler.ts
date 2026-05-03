@@ -94,6 +94,8 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
               normalized.description = String(value || '').trim();
             } else if (['short_desc', 'shortdesc', 'short description', 'deskripsi singkat'].includes(lowerKey)) {
               normalized.shortDesc = String(value || '').trim();
+            } else if (['image', 'gambar', 'img', 'thumbnail', 'photo', 'foto'].includes(lowerKey)) {
+              normalized.image = String(value || '').trim();
             } else {
               // Store additional fields as-is
               normalized[key] = value;
@@ -293,8 +295,13 @@ export function prepareUpdateData(
 
   if (importRow.price !== undefined && importRow.price !== null) {
     const price = parseFloat(String(importRow.price).replace(/[^0-9.-]/g, ''));
-    if (!isNaN(price) && price > 0) {
+    if (!isNaN(price)) {
       updateData.price = price;
+      
+      // Jika harga 0, otomatis set status ke Inden
+      if (price === 0) {
+        updateData.stock = 'indent' as any;
+      }
     }
   }
 
@@ -302,7 +309,10 @@ export function prepareUpdateData(
     const validStocks = ['available', 'indent', 'hidden', 'limited', 'out_of_stock', 'discontinued'];
     const stock = importRow.stock.toLowerCase().trim();
     if (validStocks.includes(stock)) {
-      updateData.stock = stock as any;
+      // Hanya terapkan jika harga tidak 0 (karena harga 0 memaksa status Inden)
+      if (updateData.price !== 0) {
+        updateData.stock = stock as any;
+      }
     }
   }
 
@@ -320,6 +330,10 @@ export function prepareUpdateData(
 
   if (importRow.shortDesc) {
     updateData.shortDesc = importRow.shortDesc.trim();
+  }
+
+  if (importRow.image !== undefined) {
+    updateData.image = importRow.image.trim();
   }
 
   return updateData;

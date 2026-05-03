@@ -25,13 +25,45 @@ const getCategoryIcon = (cat: string) => {
 
 const categorize = (cat: string) => {
   const c = cat.toLowerCase();
-  if (c.includes('sepeda') || c.includes('motor') || c.includes('ban') || c.includes('sparepart') || c.includes('baterai')) 
-    return "Kendaraan Listrik";
-  if (c.includes('kasur') || c.includes('springbed') || c.includes('sofa') || c.includes('meja') || c.includes('lemari') || c.includes('furniture') || c.includes('kursi') || c.includes('sopa'))
-    return "Furnitur & Kasur";
-  if (c.includes('ac') || c.includes('kulkas') || c.includes('freezer') || c.includes('tv') || c.includes('hp') || c.includes('blender') || c.includes('oven') || c.includes('dispenser') || c.includes('kipas') || c.includes('magicom') || c.includes('speaker') || c.includes('handphone') || c.includes('elektronik'))
-    return "Elektronik & Gadget";
-  return "Aksesoris & Lainnya";
+  
+  // Specific match for Sepeda Listrik
+  if (c === 'sepeda listrik') return "Sepeda Listrik";
+  
+  // Furniture categories
+  if (
+    c.includes('furnitur') || 
+    c.includes('furniture') || 
+    c.includes('kasur') || 
+    c.includes('sofa') || 
+    c.includes('meja') || 
+    c.includes('lemari') || 
+    c.includes('kursi') ||
+    c.includes('springbed')
+  ) return "Furniture";
+  
+  // Electronics categories
+  if (
+    c.includes('elektronik') || 
+    c.includes('ac') || 
+    c.includes('kulkas') || 
+    c.includes('tv') || 
+    c.includes('hp') || 
+    c.includes('handphone') ||
+    c.includes('blender') || 
+    c.includes('magicom') || 
+    c.includes('oven') || 
+    c.includes('kompor') || 
+    c.includes('dispenser') ||
+    c.includes('freezer') ||
+    c.includes('kipas') ||
+    c.includes('air fryer') ||
+    c.includes('mesin cuci') ||
+    c.includes('showcase') ||
+    c.includes('setrika') ||
+    c.includes('speaker')
+  ) return "Produk Elektronik";
+
+  return null;
 };
 
 interface NavItemChild {
@@ -77,7 +109,8 @@ const Navbar: React.FC = () => {
       ? '/dashboard/agent' 
       : '/dashboard';
 
-  const uniqueCategories = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
+  const uniqueCategories = Array.from(new Set(products.map(p => p.category)))
+    .filter(cat => cat && categorize(cat) !== null);
   
   // Group categories for Mega Menu
   const categoriesByGroup = uniqueCategories.reduce((acc, cat) => {
@@ -92,7 +125,7 @@ const Navbar: React.FC = () => {
   }, {} as Record<string, NavItemChild[]>);
 
   // Sort groups and items by popularity
-  const groupPriority = ["Kendaraan Listrik", "Elektronik & Gadget", "Furnitur & Kasur", "Aksesoris & Lainnya"];
+  const groupPriority = ["Sepeda Listrik", "Produk Elektronik", "Furniture"];
   const itemPriority: Record<string, number> = {
     "Sepeda Listrik": 1,
     "Motor Listrik": 2,
