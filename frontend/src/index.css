@@ -1519,21 +1519,123 @@ body.light-mode .bg-blob {
   animation: pulse-glow 2s infinite ease-in-out;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+/* ====================================
+   MODERN SCROLLBAR STYLING
+===================================== */
+
+/* Global scrollbar for all elements */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-primary) / 0.3) transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
   background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(var(--color-outline-variant) / 0.5);
   border-radius: 10px;
 }
 
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--color-primary) / 0.4),
+    rgb(var(--color-primary) / 0.2)
+  );
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--color-primary) / 0.7),
+    rgb(var(--color-primary) / 0.5)
+  );
+  border-width: 1px;
+  box-shadow: 0 0 12px rgb(var(--color-primary) / 0.4);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--color-primary) / 0.9),
+    rgb(var(--color-primary) / 0.7)
+  );
+}
+
+/* Corner where horizontal and vertical scrollbars meet */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Custom scrollbar class for specific elements */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-primary) / 0.4) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgb(var(--color-surface-high) / 0.3);
+  border-radius: 10px;
+  margin: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--color-primary) / 0.5),
+    rgb(var(--color-primary) / 0.3)
+  );
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--color-primary) / 0.5);
+  background: linear-gradient(
+    180deg,
+    rgb(var(--color-primary) / 0.8),
+    rgb(var(--color-primary) / 0.6)
+  );
+  box-shadow: 0 0 8px rgb(var(--color-primary) / 0.5);
+}
+
+/* Thin scrollbar variant */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-primary) / 0.3);
+  border-radius: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-primary) / 0.6);
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
