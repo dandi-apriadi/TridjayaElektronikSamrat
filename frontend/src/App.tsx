@@ -9,6 +9,7 @@ import {
 import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
 import { useTelemetryTracker } from './store/useTelemetryTracker';
+import { usePageTitle } from './hooks/usePageTitle';
 
 import { NotificationContainer } from './components/ui/Notification';
 import { useThemeStore } from './store/themeStore';
@@ -120,6 +121,7 @@ const DashboardRoot = () => {
 const RouteListener = () => {
   const { pathname, search } = useLocation();
   useTelemetryTracker();
+  usePageTitle();
 
   useEffect(() => {
     // Scroll the dashboard content area to top on route change

@@ -226,8 +226,8 @@ const Navbar: React.FC = () => {
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 navbar-root ${
           scrolled
-            ? 'navbar-scrolled py-2'
-            : 'bg-gradient-to-b from-black/50 via-black/20 to-transparent py-4'
+            ? 'navbar-scrolled py-2 bg-surface/80 backdrop-blur-xl shadow-sm border-b border-white/8'
+            : 'py-4 bg-surface/40 backdrop-blur-md'
         }`}
         style={{ height: scrolled ? '72px' : '90px' }}
       >

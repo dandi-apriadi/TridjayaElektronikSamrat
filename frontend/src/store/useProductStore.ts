@@ -23,6 +23,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
     // Prevent redundant fetching, but allow if forced
     if (get().isLoading && !force) return;
     if (!force && get().products.length > 0) return;
+    if (!force && get().error) return;
  
     set({ isLoading: true, error: null });
     try {
@@ -37,7 +38,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
       
       set({ products: items, isLoading: false });
     } catch (error) {
-      console.error('Error fetching products:', error);
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Terjadi kesalahan jaringan' 
