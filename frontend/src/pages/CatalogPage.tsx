@@ -11,9 +11,10 @@ import { usePersistedState } from '../hooks/usePersistedState';
 const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
 
 const CatalogPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const activeCategory = searchParams.get('kategori');
+  const urlSearchQuery = searchParams.get('q');
   const { showImages: globalShowImages } = useThemeStore();
   const [isLiteMode, setIsLiteMode] = usePersistedState('catalog:isLiteMode', !globalShowImages);
 
@@ -29,8 +30,42 @@ const CatalogPage: React.FC = () => {
   const [categorySearch, setCategorySearch] = useState('');
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { products, isLoading, fetchProducts } = useProductStore();
+
+  // Set search from URL parameter when page loads
+  useEffect(() => {
+    if (urlSearchQuery) {
+      console.log('[CatalogPage] Search from header detected:', urlSearchQuery);
+      console.log('[CatalogPage] Current activeFilter:', activeFilter);
+      
+      // Force update both search and filter immediately
+      setSearch(urlSearchQuery);
+      setActiveFilter('Semua');
+      
+      console.log('[CatalogPage] Setting activeFilter to: Semua');
+      
+      // Remove kategori parameter from URL if exists
+      if (activeCategory) {
+        console.log('[CatalogPage] Removing kategori parameter from URL');
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('kategori');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [urlSearchQuery, activeCategory, searchParams, setSearchParams, setSearch, setActiveFilter]);
+
+  // Separate effect for scroll and focus after state updates
+  useEffect(() => {
+    if (urlSearchQuery && search === urlSearchQuery && activeFilter === 'Semua') {
+      console.log('[CatalogPage] Scrolling to search box, activeFilter is now:', activeFilter);
+      setTimeout(() => {
+        searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        searchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [urlSearchQuery, search, activeFilter]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -47,8 +82,8 @@ const CatalogPage: React.FC = () => {
     fetchProducts();
   }, [fetchProducts]);
   
-  // Filter by URL category parameter
-  const categoryProducts = activeCategory 
+  // Filter by URL category parameter (ignore if searching from header)
+  const categoryProducts = (activeCategory && !urlSearchQuery)
     ? products.filter(p => p.category === activeCategory)
     : products;
 
@@ -180,6 +215,7 @@ const CatalogPage: React.FC = () => {
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Cari produk impian Anda (misal: Samsung A56, AC LG, Kulkas...)"
                   value={search}

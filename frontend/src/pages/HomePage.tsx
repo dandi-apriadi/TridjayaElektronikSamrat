@@ -7,10 +7,10 @@ import {
   Bike,
   ChevronLeft,
   ChevronRight,
+  Clock,
   CreditCard,
   Gauge,
   MapPin,
-  Phone,
   Shield,
   Sofa,
   Sparkles,
@@ -23,32 +23,28 @@ import {
 import { PartnerLogos, ProductCard, SectionHeader, StatsRow } from '../components/ui';
 import { recordTelemetry } from '../utils/telemetry';
 import { useProductStore } from '../store/useProductStore';
-import { useThemeStore } from '../store/themeStore';
 import type { Product } from '../types';
-import { formatPrice, products as fallbackProducts } from '../data';
-import { getImageUrl } from '../utils/apiClient';
-
-import logoHorizontal from '../assets/images/logo-horizontal.webp';
+import { products as fallbackProducts } from '../data';
 
 import heroLatteBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-latte.webp';
 import heroCappuccinoBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-cappuccino.webp';
 import heroPolarisBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-polaris.webp';
 import heroKingkongBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-kingkong.webp';
 import heroD66BBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-d66b.webp';
-import heroLatteProduct from '../assets/images/landing/hero-custom/hero-latte-red.png';
-import heroCappuccinoProduct from '../assets/images/landing/hero-custom/hero-cappuccino-green.png';
-import heroPolarisProduct from '../assets/images/landing/hero-custom/hero-polaris-family.png';
-import heroKingkongProduct from '../assets/images/landing/hero-custom/hero-kingkong-white.png';
-import heroD66BProduct from '../assets/images/landing/hero-custom/hero-uwinfly-d66b-pink.png';
-import categoryMobilityPro from '../assets/images/landing/generated-pro/category-mobility.webp';
-import categoryElectronicsPro from '../assets/images/landing/generated-pro/category-electronics.webp';
-import categoryFurniturePro from '../assets/images/landing/generated-pro/category-furniture.webp';
-import categoryDiningPro from '../assets/images/landing/generated-pro/category-dining.webp';
-import smartRideShowcasePro from '../assets/images/landing/generated-pro/smart-ride-showcase-pro.webp';
-import d66bMain from '../assets/images/landing/d66b-main-page-S9HT2gRVddXkHuYK.avif';
-import d66bPerformance from '../assets/images/landing/d66b-performance-page-4-ybCecsyBXB9EFblH.avif';
-import d66bShoot from '../assets/images/landing/d66b-shoot-transparant-bQlgwb4RFhdgShXT.avif';
-import d66bUsed from '../assets/images/landing/d66b-used-png-DjH5NU3CT2HNCKmR.avif';
+import heroLatteProduct from '../assets/images/landing/hero-custom/hero-latte-red.webp';
+import heroCappuccinoProduct from '../assets/images/landing/hero-custom/hero-cappuccino-green.webp';
+import heroPolarisProduct from '../assets/images/landing/hero-custom/hero-polaris-family.webp';
+import heroKingkongProduct from '../assets/images/landing/hero-custom/hero-kingkong-white.webp';
+import heroD66BProduct from '../assets/images/landing/hero-custom/hero-uwinfly-d66b-pink.webp';
+import categoryMobilityPro from '../assets/images/landing/categories/cat-mobility.webp';
+import categoryElectronicsPro from '../assets/images/landing/categories/cat-electronics.webp';
+import categoryFurniturePro from '../assets/images/landing/categories/cat-furniture.webp';
+import categoryDiningPro from '../assets/images/landing/categories/cat-dining.webp';
+import smartRideShowcasePro from '../assets/images/landing/smart-ride/smart-ride-main.png';
+import smartRideLamp from '../assets/images/landing/smart-ride/smart-ride-lamp.png';
+import smartRideBattery from '../assets/images/landing/smart-ride/smart-ride-battery.png';
+import smartRideSeat from '../assets/images/landing/smart-ride/smart-ride-seat.png';
+import smartRideBody from '../assets/images/landing/smart-ride/smart-ride-body.png';
 
 type LandingSlide = {
   id: string;
@@ -217,12 +213,6 @@ const landingSlides: LandingSlide[] = [
   },
 ];
 
-const productStoryTones = [
-  'from-red-500/24 via-white/5 to-cyan-300/18',
-  'from-lime-300/22 via-white/5 to-amber-300/18',
-  'from-sky-300/22 via-white/5 to-tertiary/16',
-];
-
 const heroProductHints = ['latte', 'cappuccino', 'polaris', 'kingkong', 'king kong', 'd66b', 'd66 b'];
 
 const getProductStoryItems = (products: Product[]) => {
@@ -245,54 +235,70 @@ const getProductStoryItems = (products: Product[]) => {
 const categoryPanels = [
   {
     label: 'Sepeda Listrik',
-    copy: 'Skuter, e-bike, dan kendaraan keluarga dengan badge spesifikasi yang mudah dibaca.',
+    copy: 'Solusi mobilitas cerdas dengan performa tinggi dan desain futuristik untuk gaya hidup modern.',
     href: '/produk?kategori=Sepeda+Listrik',
     image: categoryMobilityPro,
     icon: Bike,
     tone: 'cyan',
-    tags: ['60 km', '800W', 'Garansi'],
+    tags: ['Eco Performance', '800W Power', 'Smart Tech'],
   },
   {
     label: 'Elektronik',
-    copy: 'TV, AC, kulkas, handphone, dan perangkat rumah tangga untuk kebutuhan harian.',
+    copy: 'Lengkapi rumah Anda dengan teknologi visual dan audio tercanggih dari brand ternama dunia.',
     href: '/produk?kategori=AC',
     image: categoryElectronicsPro,
     icon: Smartphone,
     tone: 'lime',
-    tags: ['AC', 'TV 4K', 'Kulkas'],
+    tags: ['4K Ultra HD', 'Smart Home', 'Energy Efficient'],
   },
   {
-    label: 'Sofa & Kursi',
-    copy: 'Tampilan ruang keluarga yang lebih hangat dengan pilihan bahan dan warna rapi.',
+    label: 'Furniture',
+    copy: 'Ciptakan kenyamanan maksimal di setiap sudut ruangan dengan koleksi furniture eksklusif kami.',
     href: '/produk?kategori=SOPA',
     image: categoryFurniturePro,
     icon: Sofa,
     tone: 'pink',
-    tags: ['Sofa', 'Kursi', 'Meja'],
+    tags: ['Premium Fabric', 'Ergonomic', 'Elegant Design'],
   },
   {
-    label: 'Meja Makan',
-    copy: 'Paket dining set untuk rumah baru, renovasi, dan kebutuhan keluarga.',
+    label: 'Dining Set',
+    copy: 'Hadirkan kehangatan di ruang makan dengan set furnitur berkualitas yang dirancang dengan presisi.',
     href: '/produk?kategori=Meja',
     image: categoryDiningPro,
     icon: Utensils,
     tone: 'amber',
-    tags: ['Dining', 'Set', 'Ready'],
+    tags: ['Luxury Dining', 'Craftsmanship', 'Durable'],
   },
 ];
 
 const serviceHighlights = [
-  { icon: CreditCard, label: 'Kredit Tanpa Uang Muka', desc: 'Proses cepat dengan partner leasing resmi.' },
-  { icon: Truck, label: 'Kirim Cepat', desc: 'Pengiriman aman untuk Manado dan sekitarnya.' },
-  { icon: Shield, label: 'Produk Original', desc: 'Garansi resmi dan kualitas terjamin.' },
-  { icon: Phone, label: 'Sales Responsif', desc: 'Konsultasi produk sebelum datang ke toko.' },
+  { 
+    icon: Zap, 
+    label: 'Harga Pabrik', 
+    desc: 'Kami menjalin kerja sama langsung dengan distributor utama untuk menjamin harga termurah di Manado.' 
+  },
+  { 
+    icon: CreditCard, 
+    label: 'Kredit DP 0%', 
+    desc: 'Bawa pulang produk impian tanpa uang muka dengan proses cepat melalui partner leasing resmi kami.' 
+  },
+  { 
+    icon: Shield, 
+    label: 'Garansi Resmi', 
+    desc: 'Seluruh produk elektronik dan mobility kami memiliki garansi resmi pabrik untuk ketenangan pikiran Anda.' 
+  },
+  { 
+    icon: Truck, 
+    label: 'Pengiriman Cepat', 
+    desc: 'Layanan kirim aman dan instalasi langsung oleh tim profesional kami untuk wilayah Manado dan sekitarnya.' 
+  },
 ];
 
 const smartRideFeatures = [
-  { title: 'Lampu LED Modern', desc: 'Tampilan tajam, terang, dan hemat energi.', img: d66bMain },
-  { title: 'Baterai Efisien', desc: 'Dirancang untuk mobilitas harian yang lebih hemat.', img: d66bPerformance },
-  { title: 'Jok Nyaman', desc: 'Posisi duduk ergonomis untuk pengendara dan penumpang.', img: d66bUsed },
-  { title: 'Body Futuristik', desc: 'Finishing glossy dengan detail produk yang terasa premium.', img: d66bShoot },
+  { title: 'Lampu LED Modern', desc: 'Tampilan tajam, terang, dan hemat energi.', img: smartRideLamp },
+  { title: 'Baterai Efisien', desc: 'Dirancang untuk mobilitas harian yang lebih hemat.', img: smartRideBattery },
+  { title: 'Jok Nyaman', desc: 'Posisi duduk ergonomis untuk pengendara dan penumpang.', img: smartRideSeat },
+  { title: 'Body Futuristik', desc: 'Finishing glossy dengan detail produk yang terasa premium.', img: smartRideBody },
 ];
 
 const toneClass: Record<string, string> = {
@@ -503,7 +509,6 @@ const HeroSection: React.FC = () => {
                 transition={{ duration: 0.55 }}
               >
                 <div className="brochure-brand-row mb-4 flex flex-wrap items-center gap-2">
-                  <img src={logoHorizontal} alt="Tridjaya Elektronik Manado" className="brochure-inline-logo h-8 w-auto rounded-md bg-white/80 p-1" />
                   <div className="brochure-brand-chip inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 backdrop-blur-md">
                     <slide.icon className="h-3.5 w-3.5 flex-none text-primary" />
                     <span className="truncate font-body text-[0.7rem] font-black uppercase text-white/80">{slide.eyebrow}</span>
@@ -611,40 +616,45 @@ const HeroSection: React.FC = () => {
         </div>
       </motion.div>
 
-      <div className="landing-slide-controls brochure-slide-controls absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/12 bg-black/25 px-3 py-2 backdrop-blur-xl">
+      {/* Slide indicator — minimal floating dots */}
+      <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3">
+        {/* Prev */}
         <button
           type="button"
-          onClick={() => {
-            goPrev();
-            setAutoplay(false);
-          }}
+          onClick={() => { goPrev(); setAutoplay(false); }}
           aria-label="Slide sebelumnya"
-          className="grid h-9 w-9 place-items-center rounded-full text-white/72 transition hover:bg-white/12 hover:text-white"
+          className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-white/60 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         </button>
-        {landingSlides.map((item, index) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => {
-              setCurrent(index);
-              setAutoplay(false);
-            }}
-            aria-label={`Buka slide ${index + 1}`}
-            className={`h-2 rounded-full transition-all ${index === current ? 'w-9 bg-primary' : 'w-2 bg-white/30 hover:bg-white/55'}`}
-          />
-        ))}
+
+        {/* Dots */}
+        <div className="flex items-center gap-1.5">
+          {landingSlides.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => { setCurrent(index); setAutoplay(false); }}
+              aria-label={`Buka slide ${index + 1}`}
+              className="relative flex items-center justify-center"
+            >
+              {index === current ? (
+                <span className="block h-1.5 w-6 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)] transition-all duration-500" />
+              ) : (
+                <span className="block h-1.5 w-1.5 rounded-full bg-white/35 transition-all duration-300 hover:bg-white/60" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Next */}
         <button
           type="button"
-          onClick={() => {
-            goNext();
-            setAutoplay(false);
-          }}
+          onClick={() => { goNext(); setAutoplay(false); }}
           aria-label="Slide berikutnya"
-          className="grid h-9 w-9 place-items-center rounded-full text-white/72 transition hover:bg-white/12 hover:text-white"
+          className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-white/60 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
     </section>
@@ -652,20 +662,20 @@ const HeroSection: React.FC = () => {
 };
 
 const ServiceRibbon = () => (
-  <section className="landing-theme-surface relative z-20 bg-[#06162b] py-6 sm:-mt-8 sm:py-0">
+  <section className="landing-section relative z-20 border-t border-blue-900/40 bg-[#060f1e] py-8">
     <div className="container-custom">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {serviceHighlights.map(({ icon: Icon, label, desc }) => (
           <div
             key={label}
-            className="landing-trust-card group flex min-h-[108px] items-center gap-4 rounded-xl border border-white/12 bg-[#0d2a4a]/88 p-5 shadow-[0_14px_34px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-[#8ff5ff]/35 hover:bg-[#113457]/90"
+            className="landing-card group flex items-center gap-4 rounded-2xl border border-blue-800/30 bg-blue-950/50 p-5 transition duration-300 hover:-translate-y-0.5"
           >
-            <div className="landing-trust-icon grid h-11 w-11 flex-none place-items-center rounded-lg border border-[#8ff5ff]/20 bg-[#8ff5ff]/10 text-[#8ff5ff] transition group-hover:bg-[#8ff5ff]/15">
-              <Icon className="h-5 w-5" />
+            <div className="landing-icon-wrap grid h-10 w-10 flex-none place-items-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-400 transition">
+              <Icon className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0">
-              <p className="font-display text-title-sm font-black leading-tight text-white">{label}</p>
-              <p className="mt-1.5 font-body text-body-sm leading-relaxed text-white/62">{desc}</p>
+              <p className="landing-text-heading font-display text-[0.82rem] font-black leading-tight text-white">{label}</p>
+              <p className="landing-text-muted mt-1 font-body text-[0.72rem] leading-relaxed text-blue-200/55">{desc}</p>
             </div>
           </div>
         ))}
@@ -688,7 +698,7 @@ const ProductStorySection = () => {
   if (!isLoading && storyProducts.length === 0) return null;
 
   return (
-    <section className="section-padding bg-surface">
+    <section className="landing-section-alt section-padding bg-[#0a1628]">
       <div className="container-custom">
         <SectionHeader
           eyebrow="Visual Promo"
@@ -699,43 +709,10 @@ const ProductStorySection = () => {
         <div className="grid gap-5 lg:grid-cols-3">
           {storyProducts.length > 0
             ? storyProducts.map((product, index) => (
-                <motion.article
-                  key={product.id}
-                  initial={{ opacity: 0, y: 28 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-80px' }}
-                  transition={{ duration: 0.55, delay: index * 0.08 }}
-                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-surface-container"
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${productStoryTones[index % productStoryTones.length]}`} />
-                  <Link
-                    to={`/produk/${product.slug}`}
-                    onClick={() => trackClick(`/produk/${product.slug}`, 'product_story', { productId: product.id, title: product.name })}
-                    className="relative block"
-                  >
-                    <div className="aspect-[4/5] overflow-hidden">
-                      <img
-                        src={getImageUrl(product.image)}
-                        alt={product.name}
-                        className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]"
-                      />
-                    </div>
-                    <div className="absolute inset-x-4 bottom-4 rounded-lg border border-white/14 bg-black/52 p-4 backdrop-blur-xl">
-                      <div className="flex items-end justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="truncate font-display text-title-lg font-black text-white">{product.name}</p>
-                          <p className="mt-1 line-clamp-1 text-body-sm text-white/64">{product.shortDesc || product.subcategory}</p>
-                        </div>
-                        <span className="shrink-0 rounded-md bg-secondary px-3 py-2 font-display text-title-sm font-black text-on-secondary">
-                          {product.price > 0 ? formatPrice(product.price).replace('Rp', 'Rp ') : 'Cek Harga'}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.article>
+                <ProductCard key={product.id} product={product} index={index} />
               ))
             : [0, 1, 2].map((item) => (
-                <div key={item} className="min-h-[488px] animate-pulse rounded-xl border border-white/10 bg-surface-container/80" />
+                <div key={item} className="landing-card aspect-[3/4] animate-pulse rounded-2xl border border-blue-800/30 bg-[#0d1f38]" />
               ))}
         </div>
       </div>
@@ -743,64 +720,65 @@ const ProductStorySection = () => {
   );
 };
 
-const CategoryShowcase = () => {
-  const { showImages } = useThemeStore();
+const CategoryCard = ({ category, index }: { category: typeof categoryPanels[0], index: number }) => {
+  const Icon = category.icon;
 
   return (
-    <section className="section-padding bg-surface-low/70">
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.5, delay: index * 0.08, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <Link
+        to={category.href}
+        onClick={() => trackClick(category.href, 'category_showcase', { category: category.label })}
+        className="landing-card group flex flex-col overflow-hidden rounded-2xl border border-blue-800/30 bg-[#0d1f38] transition duration-300 hover:-translate-y-1 hover:border-blue-500/30 hover:shadow-[0_12px_40px_rgba(37,99,235,0.15)]"
+      >
+        {/* Image */}
+        <div className="relative aspect-[4/3] overflow-hidden">
+          <img
+            src={category.image}
+            alt={category.label}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+          />
+          {/* Badge */}
+          <div className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 backdrop-blur-md ${toneClass[category.tone]}`}>
+            <Icon className="h-3 w-3" />
+            <span className="font-body text-[0.62rem] font-black uppercase tracking-wide">{category.label}</span>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex flex-1 flex-col p-5">
+          <h3 className="landing-text-heading font-display text-base font-black text-white">{category.label}</h3>
+          <p className="landing-text-body mt-2 flex-1 font-body text-[0.78rem] leading-relaxed text-blue-200/70">{category.copy}</p>
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {category.tags.map((tag) => (
+              <span key={tag} className="landing-tag rounded-full border border-blue-700/30 bg-blue-900/40 px-2.5 py-0.5 text-[0.65rem] font-bold text-blue-300/80">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Link>
+    </motion.div>
+  );
+};
+
+const CategoryShowcase = () => {
+  return (
+    <section className="landing-section section-padding bg-[#060f1e]">
       <div className="container-custom">
         <SectionHeader
           eyebrow="Kategori"
           title="Elektronik, Mobility, dan Furniture Dalam Satu Alur"
-          subtitle="Setiap kategori memakai visual studio yang lebih konsisten, mudah discan, dan tetap terasa dekat dengan produk asli."
+          subtitle="Temukan produk terbaik dari setiap kategori — sepeda listrik, elektronik rumah tangga, hingga furniture."
         />
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {categoryPanels.map((category, index) => {
-            const Icon = category.icon;
-            return (
-              <motion.div
-                key={category.label}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-80px' }}
-                transition={{ duration: 0.5, delay: index * 0.06 }}
-              >
-                <Link
-                  to={category.href}
-                  onClick={() => trackClick(category.href, 'category_showcase', { category: category.label })}
-                  className="group block h-full overflow-hidden rounded-xl border border-white/10 bg-surface-container transition hover:-translate-y-1 hover:border-primary/25"
-                >
-                  <div className="grid h-full min-h-[340px] grid-rows-[1fr_auto]">
-                    <div className="relative overflow-hidden">
-                      {showImages && (
-                        <img
-                          src={category.image}
-                          alt={category.label}
-                          className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.05]"
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,22,43,0.02),rgba(6,22,43,0.74))]" />
-                      <div className={`absolute left-5 top-5 inline-flex items-center gap-2 rounded-lg border px-3 py-2 ${toneClass[category.tone]}`}>
-                        <Icon className="h-4 w-4" />
-                        <span className="font-body text-label-sm font-black uppercase">{category.label}</span>
-                      </div>
-                    </div>
-                    <div className="p-5">
-                      <p className="font-body text-body-md leading-relaxed text-on-surface-variant">{category.copy}</p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {category.tags.map((tag) => (
-                          <span key={tag} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-body-sm font-bold text-on-surface">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            );
-          })}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {categoryPanels.map((category, index) => (
+            <CategoryCard key={category.label} category={category} index={index} />
+          ))}
         </div>
       </div>
     </section>
@@ -808,78 +786,53 @@ const CategoryShowcase = () => {
 };
 
 const SmartRideSection = () => (
-  <section className="relative overflow-hidden bg-surface py-20 lg:py-28">
-    <div className="container-custom">
+  <section className="landing-section-alt relative overflow-hidden bg-[#0a1628] py-20 lg:py-28">
+    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_50%,rgba(37,99,235,0.08),transparent_60%)] dark-only" />
+    <div className="container-custom relative">
       <div className="grid items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
-        <motion.div
-          initial={{ opacity: 0, x: -28 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.6 }}
-        >
-          <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-2">
-            <Zap className="h-4 w-4 text-primary" />
-            <span className="font-body text-label-sm font-black uppercase text-primary">Smart Ride System</span>
+        <motion.div initial={{ opacity: 0, x: -28 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-100px' }} transition={{ duration: 0.6 }}>
+          <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-blue-500/25 bg-blue-500/10 px-4 py-2">
+            <Zap className="h-4 w-4 landing-text-accent text-blue-400" />
+            <span className="landing-text-accent font-body text-label-sm font-black uppercase text-blue-400">Smart Ride System</span>
           </div>
-          <h2 className="font-display text-display-sm font-black leading-tight text-on-surface sm:text-display-md">
+          <h2 className="landing-text-heading font-display text-display-sm font-black leading-tight text-white sm:text-display-md">
             Detail produk dibuat seperti microsite, bukan katalog biasa.
           </h2>
-          <p className="mt-5 max-w-xl text-body-lg leading-relaxed text-on-surface-variant">
+          <p className="landing-text-body mt-5 max-w-xl text-body-lg leading-relaxed text-blue-200/65">
             Bagian ini cocok untuk sepeda listrik unggulan: ada highlight performa, kartu fitur, dan animasi scanning yang terasa elektronik tanpa mengganggu keterbacaan.
           </p>
-
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ['800W', 'Motor'],
-              ['60 km', 'Jarak'],
-              ['4-6 jam', 'Charging'],
-              ['150 kg', 'Beban'],
-            ].map(([value, label]) => (
-              <div key={label} className="rounded-xl border border-white/10 bg-surface-container p-4">
-                <p className="font-display text-title-lg font-black text-primary">{value}</p>
-                <p className="mt-1 text-body-sm font-bold uppercase text-on-surface-variant">{label}</p>
+            {[['800W','Motor'],['60 km','Jarak'],['4-6 jam','Charging'],['150 kg','Beban']].map(([value, label]) => (
+              <div key={label} className="landing-card rounded-xl border border-blue-800/35 bg-[#0d1f38] p-4">
+                <p className="landing-text-accent font-display text-title-lg font-black text-blue-400">{value}</p>
+                <p className="landing-text-muted mt-1 text-body-sm font-bold uppercase text-blue-200/50">{label}</p>
               </div>
             ))}
           </div>
         </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, x: 28 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.6 }}
-          className="relative"
-        >
-          <div className="electric-grid absolute inset-0 rounded-2xl opacity-40" />
-          <div className="relative overflow-hidden rounded-xl border border-white/10 bg-surface-container p-4">
-            <div className="relative aspect-[16/11] overflow-hidden rounded-lg bg-surface-low">
+        <motion.div initial={{ opacity: 0, x: 28 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-100px' }} transition={{ duration: 0.6 }} className="relative">
+          <div className="landing-card relative overflow-hidden rounded-2xl border border-blue-800/35 bg-[#0d1f38] p-4">
+            <div className="relative aspect-[16/11] overflow-hidden rounded-xl bg-[#060f1e]">
               <img src={smartRideShowcasePro} alt="Showcase teknologi sepeda listrik" className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(6,22,43,0.62),transparent_58%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(6,15,30,0.72),transparent_58%)]" />
               <div className="absolute left-5 top-5 max-w-[210px]">
                 <p className="font-display text-title-lg font-black text-white">Eco mode active</p>
-                <p className="mt-2 text-body-sm text-white/62">Baterai, rem, suspensi, dan jarak tempuh lebih gampang dipahami.</p>
+                <p className="mt-2 text-body-sm text-blue-200/70">Baterai, rem, suspensi, dan jarak tempuh lebih gampang dipahami.</p>
               </div>
             </div>
           </div>
         </motion.div>
       </div>
-
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {smartRideFeatures.map((feature, index) => (
-          <motion.article
-            key={feature.title}
-            initial={{ opacity: 0, y: 22 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.45, delay: index * 0.06 }}
-            className="group overflow-hidden rounded-xl border border-white/10 bg-surface-container"
-          >
+          <motion.article key={feature.title} initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: index * 0.06 }}
+            className="landing-card group overflow-hidden rounded-2xl border border-blue-800/30 bg-[#0d1f38] transition duration-300 hover:-translate-y-0.5">
             <div className="aspect-[4/3] overflow-hidden">
               <img src={feature.img} alt={feature.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.06]" />
             </div>
             <div className="p-5">
-              <h3 className="font-display text-title-md font-black text-on-surface">{feature.title}</h3>
-              <p className="mt-2 text-body-sm text-on-surface-variant">{feature.desc}</p>
+              <h3 className="landing-text-heading font-display text-title-md font-black text-white">{feature.title}</h3>
+              <p className="landing-text-body mt-2 text-body-sm text-blue-200/65">{feature.desc}</p>
             </div>
           </motion.article>
         ))}
@@ -895,7 +848,7 @@ const TrendingProducts = () => {
   if (trending.length === 0) return null;
 
   return (
-    <section className="section-padding bg-surface-low/45">
+    <section className="landing-section section-padding bg-[#060f1e]">
       <div className="container-custom">
         <SectionHeader
           eyebrow="Produk Trending"
@@ -913,7 +866,7 @@ const TrendingProducts = () => {
           <Link
             to="/produk"
             onClick={() => trackClick('/produk', 'trending_products')}
-            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-6 py-3 font-display text-title-sm font-black text-primary transition hover:bg-primary/16"
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/10 px-6 py-3 font-display text-title-sm font-black text-blue-400 transition hover:bg-blue-500/18"
           >
             Lihat Semua Produk
             <ArrowRight className="h-4 w-4" />
@@ -925,28 +878,22 @@ const TrendingProducts = () => {
 };
 
 const WhyUs = () => (
-  <section className="section-padding bg-surface">
+  <section className="landing-section-alt section-padding bg-[#0a1628]">
     <div className="container-custom">
       <SectionHeader
         eyebrow="Kenapa Tridjaya"
-        title="Lebih Dari Sekadar Tampilan Cantik"
-        subtitle="Desain baru tetap mengangkat alasan bisnis yang penting: kredit, pengiriman, garansi, dan layanan setelah pembelian."
+        title="Mengutamakan Kepercayaan Sejak 2004"
+        subtitle="Berawal dari komitmen pelayanan di sektor otomotif (Tridjaya Motor), kini kami hadir memberikan solusi kebutuhan rumah tangga dan mobility terbaik di Manado dengan harga langsung dari pabrik."
       />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {serviceHighlights.map(({ icon: Icon, label, desc }, index) => (
-          <motion.div
-            key={label}
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.45, delay: index * 0.06 }}
-            className="rounded-2xl border border-white/10 bg-surface-container p-6"
-          >
-            <div className="mb-5 grid h-12 w-12 place-items-center rounded-xl bg-primary/10 text-primary">
+          <motion.div key={label} initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: index * 0.06 }}
+            className="landing-card rounded-2xl border border-blue-800/30 bg-[#0d1f38] p-6 transition duration-300 hover:-translate-y-0.5 hover:border-blue-500/30">
+            <div className="landing-icon-wrap mb-5 grid h-12 w-12 place-items-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-400">
               <Icon className="h-6 w-6" />
             </div>
-            <h3 className="font-display text-title-md font-black text-on-surface">{label}</h3>
-            <p className="mt-2 text-body-md leading-relaxed text-on-surface-variant">{desc}</p>
+            <h3 className="landing-text-heading font-display text-title-md font-black text-white">{label}</h3>
+            <p className="landing-text-body mt-2 text-body-sm leading-relaxed text-blue-200/65">{desc}</p>
           </motion.div>
         ))}
       </div>
@@ -958,56 +905,116 @@ const WhyUs = () => (
 );
 
 const CTASection = () => (
-  <section className="landing-theme-surface relative overflow-hidden bg-[#071b35] py-20">
-    <FloatingCircuits />
+  <section className="landing-section relative overflow-hidden bg-[#060f1e] py-24">
+    {/* Ambient background glows */}
+    <div className="absolute left-1/4 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/8 blur-[120px]" />
+    <div className="absolute right-1/4 bottom-0 h-[400px] w-[400px] translate-x-1/2 rounded-full bg-indigo-600/6 blur-[100px]" />
+
     <div className="container-custom relative z-10">
-      <div className="grid items-center gap-8 lg:grid-cols-[1fr_auto]">
-        <div>
-          <div className="mb-5 flex items-center gap-3">
-            <img src={logoHorizontal} alt="Tridjaya Elektronik" className="h-12 w-auto rounded-lg bg-white p-2" />
-            <span className="rounded-full border border-secondary/25 bg-secondary/10 px-3 py-1.5 font-body text-label-sm font-black uppercase text-secondary">
-              Rajanya Kredit Elektronik
-            </span>
+      {/* Main CTA card */}
+      <div className="relative overflow-hidden rounded-3xl border border-blue-700/30 bg-gradient-to-br from-[#0d1f38] via-[#112448] to-[#0a1628]">
+        {/* Subtle inner glow top-right */}
+        <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
+        {/* Thin accent line top */}
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
+
+        <div className="grid lg:grid-cols-[1fr_auto] lg:items-stretch">
+          {/* Left: content */}
+          <div className="p-10 lg:p-16">
+            {/* Eyebrow */}
+            <div className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-blue-500/25 bg-blue-500/10 px-4 py-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+              <span className="font-body text-[0.62rem] font-black uppercase tracking-[0.18em] text-blue-400">
+                Wujudkan Sekarang
+              </span>
+            </div>
+
+            <h2 className="max-w-2xl font-display text-3xl font-black leading-[1.1] text-white sm:text-4xl lg:text-5xl">
+              Siap Memiliki Produk Impian Dengan{' '}
+              <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                Kredit Ringan?
+              </span>
+            </h2>
+
+            <p className="mt-5 max-w-lg text-[0.95rem] leading-relaxed text-blue-200/60">
+              Dapatkan promo DP 0% dan proses persetujuan instan hari ini juga. Cicilan ringan untuk elektronik, furniture, dan sepeda listrik favorit Anda.
+            </p>
+
+            {/* CTAs */}
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link
+                to="/produk"
+                onClick={() => trackClick('/produk', 'home_cta')}
+                className="inline-flex h-13 items-center gap-2.5 rounded-xl bg-blue-600 px-8 font-display text-sm font-black text-white shadow-[0_8px_24px_rgba(37,99,235,0.4)] transition hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-[0_12px_32px_rgba(37,99,235,0.5)]"
+              >
+                Lihat Katalog
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                to="/daftar-agen"
+                onClick={() => trackClick('/daftar-agen', 'home_cta')}
+                className="inline-flex h-13 items-center gap-2.5 rounded-xl border border-blue-700/50 bg-blue-900/30 px-8 font-display text-sm font-black text-blue-200 backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-500/50 hover:bg-blue-800/40 hover:text-white"
+              >
+                Daftar Agen
+                <Smartphone className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {/* Trust badges */}
+            <div className="mt-9 flex flex-wrap items-center gap-6 border-t border-blue-800/40 pt-7">
+              {[
+                { label: 'Proses 1 Hari', icon: Clock },
+                { label: 'DP Mulai 0%', icon: CreditCard },
+                { label: 'Garansi Resmi', icon: Shield },
+              ].map(({ label, icon: Icon }) => (
+                <div key={label} className="flex items-center gap-2">
+                  <div className="grid h-7 w-7 place-items-center rounded-lg bg-blue-500/12 text-blue-400">
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-[0.72rem] font-bold uppercase tracking-wider text-blue-200/55">{label}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <h2 className="max-w-3xl font-display text-display-sm font-black leading-tight text-white sm:text-display-md">
-            Siap belanja elektronik, sepeda listrik, dan furniture dengan proses kredit yang ringan?
-          </h2>
-          <p className="mt-4 max-w-2xl text-body-lg leading-relaxed text-white/66">
-            Arahkan pengunjung ke katalog, promo, atau pendaftaran agen dari satu penutup yang kuat.
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-          <Link
-            to="/produk"
-            onClick={() => trackClick('/produk', 'home_cta')}
-            className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-primary px-7 py-4 font-display text-title-sm font-black text-on-primary shadow-neon-cyan transition hover:-translate-y-0.5"
-          >
-            Buka Katalog
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            to="/daftar-agen"
-            onClick={() => trackClick('/daftar-agen', 'home_cta')}
-            className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl border border-white/16 bg-white/10 px-7 py-4 font-display text-title-sm font-bold text-white backdrop-blur-md transition hover:bg-white/16"
-          >
-            Daftar Agen
-            <Sparkles className="h-4 w-4 text-secondary" />
-          </Link>
+
+          {/* Right: product image */}
+          <div className="relative hidden w-[340px] shrink-0 overflow-hidden lg:block xl:w-[400px]">
+            <div className="absolute inset-0 bg-gradient-to-l from-transparent to-[#112448]/60" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a1628]/80 via-transparent to-transparent" />
+            <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/15 blur-3xl" />
+            <motion.img
+              src={heroLatteProduct}
+              alt="Saige Latte - Sepeda Listrik"
+              className="absolute inset-0 h-full w-full object-contain object-center p-6 drop-shadow-[0_24px_48px_rgba(0,0,0,0.5)]"
+              animate={{ y: [0, -12, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="mt-12 grid gap-4 md:grid-cols-2">
+      {/* Location cards */}
+      <div className="mt-8 grid gap-4 md:grid-cols-2">
         {[
-          ['Tridjaya Elektronik Samrat', 'Jl. Samratulangi No. 147, Samrat, Manado'],
+          ['Tridjaya Elektronik Samrat', 'Jl. Sam Ratulangi No. 147, Samrat, Manado'],
           ['Tridjaya Elektronik Bahu', 'Jl. Wolter Monginsidi, depan KFC Bahu, Manado'],
         ].map(([name, address]) => (
-          <div key={name} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-md">
-            <MapPin className="mt-1 h-6 w-6 flex-none text-primary" />
-            <div>
-              <p className="font-display text-title-sm font-black text-white">{name}</p>
-              <p className="mt-1 text-body-sm leading-relaxed text-white/58">{address}</p>
+          <a
+            key={name}
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="landing-card group flex items-center gap-4 rounded-2xl border border-blue-800/30 bg-[#0d1f38]/60 px-6 py-5 transition duration-300 hover:border-blue-500/30 hover:bg-[#0d1f38]"
+          >
+            <div className="landing-icon-wrap grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-400 transition group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500">
+              <MapPin className="h-5 w-5" />
             </div>
-          </div>
+            <div className="min-w-0 flex-1">
+              <p className="landing-text-heading font-display text-sm font-black text-white">{name}</p>
+              <p className="landing-text-body mt-0.5 truncate text-[0.72rem] text-blue-200/55">{address}</p>
+            </div>
+            <ArrowRight className="h-4 w-4 shrink-0 text-blue-500/40 transition group-hover:text-blue-400 group-hover:translate-x-0.5" />
+          </a>
         ))}
       </div>
     </div>
@@ -1023,7 +1030,7 @@ const HomePage: React.FC = () => (
     <SmartRideSection />
     <TrendingProducts />
     <WhyUs />
-    <section className="section-padding-sm bg-surface-low/55">
+    <section className="landing-section section-padding-sm bg-surface">
       <div className="container-custom">
         <SectionHeader
           title="Partner Strategis Kami"

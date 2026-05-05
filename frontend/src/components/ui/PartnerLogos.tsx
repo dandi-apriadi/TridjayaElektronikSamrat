@@ -3,13 +3,6 @@ import { motion } from 'framer-motion';
 import { usePartnerStore } from '../../store/usePartnerStore';
 import { getImageUrl } from '../../utils/apiClient';
 
-const shadowPalette = [
-  'hover:shadow-[0_0_16px_rgba(143,245,255,0.3)]',
-  'hover:shadow-[0_0_16px_rgba(99,102,241,0.3)]',
-  'hover:shadow-[0_0_16px_rgba(255,255,255,0.15)]',
-  'hover:shadow-[0_0_16px_rgba(162,243,31,0.3)]',
-];
-
 export const PartnerLogos: React.FC = () => {
   const { partners, isLoading, fetchPartners } = usePartnerStore();
 
@@ -40,7 +33,7 @@ export const PartnerLogos: React.FC = () => {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {[0, 1, 2, 3].map((item) => (
-          <div key={item} className="glass-card rounded-2xl h-28 animate-pulse" />
+          <div key={item} className="rounded-2xl border border-outline-variant/30 bg-surface-container h-28 animate-pulse" />
         ))}
       </div>
     );
@@ -48,40 +41,76 @@ export const PartnerLogos: React.FC = () => {
 
   if (!isLoading && uniquePartners.length === 0) {
     return (
-      <div className="glass-card rounded-2xl p-8 text-center text-on-surface-variant">
+      <div className="rounded-2xl border border-outline-variant/30 bg-surface-container p-8 text-center text-on-surface/50">
         Logo partner akan tampil di sini setelah ditambahkan dari admin panel.
       </div>
     );
   }
 
+  // Triple the partners for a very smooth, long loop
+  const marqueePartners = [...uniquePartners, ...uniquePartners, ...uniquePartners];
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-      {uniquePartners.map((partner, i) => (
+    <div className="relative w-full overflow-hidden py-14">
+      {/* Seamless Fading Edges - Responsive to theme */}
+      <div className="pointer-events-none absolute left-0 top-0 z-20 h-full w-32 bg-gradient-to-r from-surface to-transparent" />
+      <div className="pointer-events-none absolute right-0 top-0 z-20 h-full w-32 bg-gradient-to-l from-surface to-transparent" />
+
+      <div className="flex w-full">
         <motion.div
-          key={partner.id}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: Math.min(i * 0.05, 0.4) }}
-          className={`glass-card rounded-2xl p-8 flex items-center justify-center group border-outline-variant/10 hover:border-primary/20 hover:-translate-y-1 ${shadowPalette[i % shadowPalette.length]}`}
-          style={{ transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease' }}
+          className="flex shrink-0 gap-8"
+          animate={{
+            x: [0, -1200], 
+          }}
+          transition={{
+            duration: 40,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+          style={{ x: "-33.33%" }}
         >
-          {partner.websiteUrl ? (
-            <a href={partner.websiteUrl} target="_blank" rel="noreferrer" className="block">
-              <img
-                src={getImageUrl(partner.logoUrl)}
-                alt={partner.name}
-                className="h-10 md:h-14 w-auto object-contain opacity-90 grayscale-[0.3] group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-300"
-              />
-            </a>
-          ) : (
-            <img
-              src={getImageUrl(partner.logoUrl)}
-              alt={partner.name}
-              className="h-10 md:h-14 w-auto object-contain opacity-90 grayscale-[0.3] group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-300"
-            />
-          )}
+          {marqueePartners.map((partner, i) => (
+            <div
+              key={`${partner.id}-${i}`}
+              className="group relative flex h-24 w-40 shrink-0 items-center justify-center transition-all duration-500 hover:-translate-y-1.5"
+            >
+              <div className="flex h-full w-full items-center justify-center rounded-2xl border border-outline-variant/30 bg-surface-container p-5 backdrop-blur-[2px] transition-all duration-500 group-hover:border-primary/30 group-hover:bg-surface-container-high">
+                {partner.websiteUrl ? (
+                  <a href={partner.websiteUrl} target="_blank" rel="noreferrer" className="flex h-full w-full items-center justify-center">
+                    <img
+                      src={getImageUrl(partner.logoUrl)}
+                      alt={partner.name}
+                      className="max-h-full max-w-full object-contain opacity-40 grayscale transition-all duration-700 group-hover:opacity-100 group-hover:grayscale-0 group-hover:scale-105"
+                    />
+                  </a>
+                ) : (
+                  <img
+                    src={getImageUrl(partner.logoUrl)}
+                    alt={partner.name}
+                    className="max-h-full max-w-full object-contain opacity-40 grayscale transition-all duration-700 group-hover:opacity-100 group-hover:grayscale-0 group-hover:scale-105"
+                  />
+                )}
+              </div>
+            </div>
+          ))}
         </motion.div>
-      ))}
+      </div>
+
+      {/* Modern Indicator Dots */}
+      <div className="mt-12 flex justify-center gap-3">
+        {[...Array(3)].map((_, i) => (
+          <div
+            key={i}
+            className="h-1 w-8 rounded-full bg-on-surface/20"
+          >
+            <motion.div 
+              className="h-full rounded-full bg-primary/40"
+              animate={{ width: ["0%", "100%", "0%"] }}
+              transition={{ duration: 3, repeat: Infinity, delay: i * 1, ease: "easeInOut" }}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
