@@ -2,7 +2,7 @@ import React from 'react';
 export * from './PartnerLogos';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Zap, Shield, Award, Clock, Share2, Star } from 'lucide-react';
+import { ArrowRight, Zap, Clock, Share2, Star, MapPin } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../data';
 import { getImageUrl, getFrontendBaseUrl } from '../../utils/apiClient';
@@ -400,9 +400,10 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
    STATS ROW
 ======================== */
 const stats = [
-  { icon: Award, value: '15+', label: 'Tahun Berpengalaman', color: 'text-primary' },
-  { icon: Zap, value: '500+', label: 'Unit Terjual / Bulan', color: 'text-secondary' },
-  { icon: Shield, value: '10.000+', label: 'Pelanggan Aktif', color: 'text-tertiary' },
+  { icon: Clock, value: '20+', label: 'Tahun Pengalaman', color: 'text-primary' },
+  { icon: MapPin, value: '15+', label: 'Cabang Nasional', color: 'text-secondary' },
+  { icon: Star, value: '50k+', label: 'Pelanggan Puas', color: 'text-tertiary' },
+  { icon: Zap, value: 'DP 0%', label: 'Pilihan Kredit', color: 'text-amber-400' },
 ];
 
 export const StatsRow: React.FC = () => (
@@ -414,13 +415,13 @@ export const StatsRow: React.FC = () => (
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: i * 0.1 }}
-        className="glass-card rounded-2xl p-5 text-center"
+        className="rounded-2xl border border-blue-100 bg-white p-6 text-center shadow-sm hover:shadow-md transition-shadow duration-300"
       >
-        <div className={`w-10 h-10 rounded-xl bg-surface-high mx-auto mb-3 flex items-center justify-center ${color}`}>
-          <Icon className="w-5 h-5" />
+        <div className={`w-12 h-12 rounded-2xl bg-blue-50 mx-auto mb-4 flex items-center justify-center ${color}`}>
+          <Icon className="w-6 h-6" />
         </div>
-        <div className={`font-display text-display-sm font-bold ${color} mb-1`}>{value}</div>
-        <div className="font-body text-body-sm text-on-surface-variant">{label}</div>
+        <div className={`font-display text-display-sm font-black ${color} mb-1 tracking-tight`}>{value}</div>
+        <div className="font-body text-body-xs font-bold uppercase tracking-widest text-slate-400">{label}</div>
       </motion.div>
     ))}
   </div>

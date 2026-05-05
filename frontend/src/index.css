@@ -1336,6 +1336,69 @@ body:not(.light-mode) .brochure-slide-controls .bg-primary {
 }
 
 /* ====================================
+   LANDING PAGE — LIGHT MODE OVERRIDES
+===================================== */
+
+/* Utility: hide dark-only decorative elements in light mode */
+body.light-mode .dark-only { display: none !important; }
+
+/* All landing sections get light backgrounds */
+body.light-mode .landing-section {
+  background-color: #f0f6ff !important;
+}
+body.light-mode .landing-section-alt {
+  background-color: #e8f0fe !important;
+}
+
+/* Cards */
+body.light-mode .landing-card {
+  background-color: rgba(255,255,255,0.88) !important;
+  border-color: rgba(147,197,253,0.3) !important;
+}
+body.light-mode .landing-card-muted {
+  background-color: rgba(239,246,255,0.8) !important;
+  border-color: rgba(147,197,253,0.25) !important;
+}
+
+/* Text */
+body.light-mode .landing-text-body  { color: rgb(51,65,85) !important; }
+body.light-mode .landing-text-muted { color: rgb(71,85,105) !important; }
+body.light-mode .landing-text-accent { color: rgb(29,78,216) !important; }
+body.light-mode .landing-text-heading { color: rgb(15,23,42) !important; }
+
+/* Icon containers */
+body.light-mode .landing-icon-wrap {
+  background-color: rgba(219,234,254,0.7) !important;
+  border-color: rgba(37,99,235,0.18) !important;
+  color: rgb(29,78,216) !important;
+}
+
+/* Tags / chips */
+body.light-mode .landing-tag {
+  background-color: rgba(219,234,254,0.6) !important;
+  border-color: rgba(147,197,253,0.4) !important;
+  color: rgb(30,58,138) !important;
+}
+
+/* Hover card */
+body.light-mode .landing-card:hover {
+  border-color: rgba(37,99,235,0.25) !important;
+  box-shadow: 0 8px 32px rgba(37,99,235,0.1) !important;
+}
+
+/* CTA primary button */
+body.light-mode .landing-cta-primary {
+  background-color: rgb(37,99,235) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(37,99,235,0.3) !important;
+}
+body.light-mode .landing-cta-secondary {
+  background-color: rgba(219,234,254,0.7) !important;
+  border-color: rgba(37,99,235,0.2) !important;
+  color: rgb(29,78,216) !important;
+}
+
+/* ====================================
    HYPER-FLUID ANIMATIONS & EFFECTS
 ===================================== */
 @keyframes blob-float {
