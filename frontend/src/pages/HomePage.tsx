@@ -11,10 +11,12 @@ import {
   CreditCard,
   Gauge,
   MapPin,
+  Quote,
   Shield,
   Sofa,
   Sparkles,
   Smartphone,
+  Star,
   Truck,
   Utensils,
   Wrench,
@@ -904,39 +906,233 @@ const WhyUs = () => (
   </section>
 );
 
+const testimonials = [
+  {
+    name: 'Ricky Tumewu',
+    role: 'Pelanggan Setia',
+    location: 'Manado',
+    avatar: 'RT',
+    rating: 5,
+    text: 'Proses kredit sangat cepat, hanya 1 hari langsung disetujui. Sepeda listrik Saige yang saya beli kualitasnya luar biasa. Terima kasih Tridjaya!',
+    product: 'Sepeda Listrik Saige',
+    color: 'from-blue-500 to-cyan-500',
+  },
+  {
+    name: 'Melisa Wangko',
+    role: 'Ibu Rumah Tangga',
+    location: 'Bahu, Manado',
+    avatar: 'MW',
+    rating: 5,
+    text: 'Kulkas LG yang saya beli sudah 2 tahun, masih bagus dan hemat listrik. Pelayanan toko ramah dan harga bersaing. Pasti belanja lagi di sini!',
+    product: 'Kulkas LG',
+    color: 'from-violet-500 to-purple-500',
+  },
+  {
+    name: 'Benny Kalangi',
+    role: 'Pengusaha',
+    location: 'Samrat, Manado',
+    avatar: 'BK',
+    rating: 5,
+    text: 'Sudah 3 kali beli di Tridjaya, mulai dari AC, TV, sampai mesin cuci. Garansi resmi dan after-sales service terbaik di Manado!',
+    product: 'AC Sharp, TV, Mesin Cuci',
+    color: 'from-emerald-500 to-teal-500',
+  },
+  {
+    name: 'Yanti Polii',
+    role: 'Guru',
+    location: 'Manado',
+    avatar: 'YP',
+    rating: 5,
+    text: 'DP 0% beneran ada! Saya kira cuma promosi, ternyata bisa. Cicilan ringan dan proses mudah. Sofa impian saya akhirnya terwujud!',
+    product: 'Sofa Premium',
+    color: 'from-rose-500 to-pink-500',
+  },
+  {
+    name: 'Doni Maramis',
+    role: 'Karyawan Swasta',
+    location: 'Manado',
+    avatar: 'DM',
+    rating: 5,
+    text: 'Beli motor listrik Goda di sini, harga terbaik se-Manado. Staf sangat membantu menjelaskan spesifikasi dan pilihan kredit yang sesuai budget.',
+    product: 'Motor Listrik Goda',
+    color: 'from-amber-500 to-orange-500',
+  },
+  {
+    name: 'Sinta Roring',
+    role: 'Mahasiswi',
+    location: 'Manado',
+    avatar: 'SR',
+    rating: 5,
+    text: 'Handphone baru dengan cicilan ringan, proses cepat tanpa ribet. Toko bersih, produk lengkap, dan staf yang sabar melayani. Recommended banget!',
+    product: 'Smartphone',
+    color: 'from-sky-500 to-blue-500',
+  },
+];
+
+const TestimonialSection = () => {
+  const [active, setActive] = useState(0);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+
+  useEffect(() => {
+    if (!isAutoPlaying) return;
+    const timer = setInterval(() => {
+      setActive(prev => (prev + 1) % testimonials.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [isAutoPlaying]);
+
+  const prev = () => {
+    setIsAutoPlaying(false);
+    setActive(i => (i - 1 + testimonials.length) % testimonials.length);
+  };
+  const next = () => {
+    setIsAutoPlaying(false);
+    setActive(i => (i + 1) % testimonials.length);
+  };
+
+  return (
+    <section className="landing-section section-padding bg-surface-container/30 overflow-hidden">
+      <div className="container-custom">
+        <SectionHeader
+          eyebrow="Testimoni"
+          title="Dipercaya Ribuan Pelanggan"
+          subtitle="Cerita nyata dari pelanggan yang sudah merasakan kemudahan berbelanja di Tridjaya."
+          align="center"
+        />
+
+        <div className="mt-14 relative">
+          {/* Main testimonial card */}
+          <div className="relative max-w-3xl mx-auto">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                className="relative rounded-3xl border border-outline-variant/30 bg-surface p-8 md:p-12 shadow-lg"
+              >
+                {/* Quote icon */}
+                <div className={`absolute -top-5 left-10 h-10 w-10 rounded-2xl bg-gradient-to-br ${testimonials[active].color} flex items-center justify-center shadow-lg`}>
+                  <Quote className="h-5 w-5 text-white fill-white" />
+                </div>
+
+                {/* Stars */}
+                <div className="flex gap-1 mb-6">
+                  {[...Array(testimonials[active].rating)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+
+                {/* Text */}
+                <p className="text-on-surface text-lg leading-relaxed font-medium">
+                  "{testimonials[active].text}"
+                </p>
+
+                {/* Product badge */}
+                <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-surface-container px-4 py-1.5 border border-outline-variant/30">
+                  <div className={`h-2 w-2 rounded-full bg-gradient-to-r ${testimonials[active].color}`} />
+                  <span className="text-xs font-semibold text-on-surface-variant">{testimonials[active].product}</span>
+                </div>
+
+                {/* Author */}
+                <div className="mt-8 flex items-center gap-4">
+                  <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${testimonials[active].color} flex items-center justify-center text-white font-black text-sm shadow-md`}>
+                    {testimonials[active].avatar}
+                  </div>
+                  <div>
+                    <p className="font-bold text-on-surface">{testimonials[active].name}</p>
+                    <p className="text-sm text-on-surface-variant">{testimonials[active].role} · {testimonials[active].location}</p>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Navigation arrows */}
+            <button
+              onClick={prev}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-5 h-10 w-10 rounded-full border border-outline-variant/40 bg-surface shadow-md flex items-center justify-center text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={next}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-5 h-10 w-10 rounded-full border border-outline-variant/40 bg-surface shadow-md flex items-center justify-center text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Dot indicators */}
+          <div className="mt-8 flex justify-center gap-2">
+            {testimonials.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => { setIsAutoPlaying(false); setActive(i); }}
+                className={`rounded-full transition-all duration-300 ${
+                  i === active
+                    ? 'w-6 h-2 bg-primary'
+                    : 'w-2 h-2 bg-outline-variant/50 hover:bg-primary/50'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Avatar strip */}
+          <div className="mt-10 flex justify-center gap-3">
+            {testimonials.map((t, i) => (
+              <button
+                key={i}
+                onClick={() => { setIsAutoPlaying(false); setActive(i); }}
+                className={`h-10 w-10 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center text-white font-black text-xs transition-all duration-300 ${
+                  i === active
+                    ? 'scale-110 shadow-lg ring-2 ring-primary/50 ring-offset-2 ring-offset-surface'
+                    : 'opacity-50 hover:opacity-80'
+                }`}
+              >
+                {t.avatar}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const CTASection = () => (
-  <section className="landing-section relative overflow-hidden bg-[#060f1e] py-24">
+  <section className="landing-section relative overflow-hidden bg-surface py-24">
     {/* Ambient background glows */}
-    <div className="absolute left-1/4 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/8 blur-[120px]" />
-    <div className="absolute right-1/4 bottom-0 h-[400px] w-[400px] translate-x-1/2 rounded-full bg-indigo-600/6 blur-[100px]" />
+    <div className="absolute left-1/4 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/8 blur-[120px]" />
+    <div className="absolute right-1/4 bottom-0 h-[400px] w-[400px] translate-x-1/2 rounded-full bg-primary/6 blur-[100px]" />
 
     <div className="container-custom relative z-10">
       {/* Main CTA card */}
-      <div className="relative overflow-hidden rounded-3xl border border-blue-700/30 bg-gradient-to-br from-[#0d1f38] via-[#112448] to-[#0a1628]">
+      <div className="relative overflow-hidden rounded-3xl border border-outline-variant/30 bg-gradient-to-br from-surface-container via-surface-high to-surface-container">
         {/* Subtle inner glow top-right */}
-        <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
         {/* Thin accent line top */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
         <div className="grid lg:grid-cols-[1fr_auto] lg:items-stretch">
           {/* Left: content */}
           <div className="p-10 lg:p-16">
             {/* Eyebrow */}
-            <div className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-blue-500/25 bg-blue-500/10 px-4 py-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-              <span className="font-body text-[0.62rem] font-black uppercase tracking-[0.18em] text-blue-400">
+            <div className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="font-body text-[0.62rem] font-black uppercase tracking-[0.18em] text-primary">
                 Wujudkan Sekarang
               </span>
             </div>
 
-            <h2 className="max-w-2xl font-display text-3xl font-black leading-[1.1] text-white sm:text-4xl lg:text-5xl">
+            <h2 className="max-w-2xl font-display text-3xl font-black leading-[1.1] text-on-surface sm:text-4xl lg:text-5xl">
               Siap Memiliki Produk Impian Dengan{' '}
-              <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-primary to-primary-container bg-clip-text text-transparent">
                 Kredit Ringan?
               </span>
             </h2>
 
-            <p className="mt-5 max-w-lg text-[0.95rem] leading-relaxed text-blue-200/60">
+            <p className="mt-5 max-w-lg text-[0.95rem] leading-relaxed text-on-surface-variant/80">
               Dapatkan promo DP 0% dan proses persetujuan instan hari ini juga. Cicilan ringan untuk elektronik, furniture, dan sepeda listrik favorit Anda.
             </p>
 
@@ -945,7 +1141,7 @@ const CTASection = () => (
               <Link
                 to="/produk"
                 onClick={() => trackClick('/produk', 'home_cta')}
-                className="inline-flex h-13 items-center gap-2.5 rounded-xl bg-blue-600 px-8 font-display text-sm font-black text-white shadow-[0_8px_24px_rgba(37,99,235,0.4)] transition hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-[0_12px_32px_rgba(37,99,235,0.5)]"
+                className="inline-flex h-13 items-center gap-2.5 rounded-xl bg-primary px-8 font-display text-sm font-black text-on-primary shadow-[0_8px_24px_rgba(var(--color-primary)/0.4)] transition hover:-translate-y-0.5 hover:bg-primary-dim hover:shadow-[0_12px_32px_rgba(var(--color-primary)/0.5)]"
               >
                 Lihat Katalog
                 <ArrowRight className="h-4 w-4" />
@@ -953,7 +1149,7 @@ const CTASection = () => (
               <Link
                 to="/daftar-agen"
                 onClick={() => trackClick('/daftar-agen', 'home_cta')}
-                className="inline-flex h-13 items-center gap-2.5 rounded-xl border border-blue-700/50 bg-blue-900/30 px-8 font-display text-sm font-black text-blue-200 backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-500/50 hover:bg-blue-800/40 hover:text-white"
+                className="inline-flex h-13 items-center gap-2.5 rounded-xl border border-outline-variant/50 bg-surface-high/50 px-8 font-display text-sm font-black text-on-surface backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-primary/50 hover:bg-surface-highest hover:text-primary"
               >
                 Daftar Agen
                 <Smartphone className="h-4 w-4" />
@@ -961,17 +1157,17 @@ const CTASection = () => (
             </div>
 
             {/* Trust badges */}
-            <div className="mt-9 flex flex-wrap items-center gap-6 border-t border-blue-800/40 pt-7">
+            <div className="mt-9 flex flex-wrap items-center gap-6 border-t border-outline-variant/40 pt-7">
               {[
                 { label: 'Proses 1 Hari', icon: Clock },
                 { label: 'DP Mulai 0%', icon: CreditCard },
                 { label: 'Garansi Resmi', icon: Shield },
               ].map(({ label, icon: Icon }) => (
                 <div key={label} className="flex items-center gap-2">
-                  <div className="grid h-7 w-7 place-items-center rounded-lg bg-blue-500/12 text-blue-400">
+                  <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-primary">
                     <Icon className="h-3.5 w-3.5" />
                   </div>
-                  <span className="text-[0.72rem] font-bold uppercase tracking-wider text-blue-200/55">{label}</span>
+                  <span className="text-[0.72rem] font-bold uppercase tracking-wider text-on-surface-variant/70">{label}</span>
                 </div>
               ))}
             </div>
@@ -979,13 +1175,10 @@ const CTASection = () => (
 
           {/* Right: product image */}
           <div className="relative hidden w-[340px] shrink-0 overflow-hidden lg:block xl:w-[400px]">
-            <div className="absolute inset-0 bg-gradient-to-l from-transparent to-[#112448]/60" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a1628]/80 via-transparent to-transparent" />
-            <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/15 blur-3xl" />
             <motion.img
               src={heroLatteProduct}
               alt="Saige Latte - Sepeda Listrik"
-              className="absolute inset-0 h-full w-full object-contain object-center p-6 drop-shadow-[0_24px_48px_rgba(0,0,0,0.5)]"
+              className="h-full w-full object-contain object-center p-8"
               animate={{ y: [0, -12, 0] }}
               transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
             />
@@ -1004,16 +1197,16 @@ const CTASection = () => (
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="landing-card group flex items-center gap-4 rounded-2xl border border-blue-800/30 bg-[#0d1f38]/60 px-6 py-5 transition duration-300 hover:border-blue-500/30 hover:bg-[#0d1f38]"
+            className="landing-card group flex items-center gap-4 rounded-2xl border border-outline-variant/30 bg-surface-container/60 px-6 py-5 transition duration-300 hover:border-primary/30 hover:bg-surface-container"
           >
-            <div className="landing-icon-wrap grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-400 transition group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500">
+            <div className="landing-icon-wrap grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-on-primary group-hover:border-primary">
               <MapPin className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="landing-text-heading font-display text-sm font-black text-white">{name}</p>
-              <p className="landing-text-body mt-0.5 truncate text-[0.72rem] text-blue-200/55">{address}</p>
+              <p className="landing-text-heading font-display text-sm font-black text-on-surface">{name}</p>
+              <p className="landing-text-body mt-0.5 truncate text-[0.72rem] text-on-surface-variant/70">{address}</p>
             </div>
-            <ArrowRight className="h-4 w-4 shrink-0 text-blue-500/40 transition group-hover:text-blue-400 group-hover:translate-x-0.5" />
+            <ArrowRight className="h-4 w-4 shrink-0 text-primary/40 transition group-hover:text-primary group-hover:translate-x-0.5" />
           </a>
         ))}
       </div>
@@ -1030,6 +1223,7 @@ const HomePage: React.FC = () => (
     <SmartRideSection />
     <TrendingProducts />
     <WhyUs />
+    <TestimonialSection />
     <section className="landing-section section-padding-sm bg-surface">
       <div className="container-custom">
         <SectionHeader
