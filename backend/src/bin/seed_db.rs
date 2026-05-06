@@ -11,6 +11,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&database_url)
         .await?;
 
+    println!("Running migrations...");
+    sqlx::migrate!("./migrations").run(&pool).await?;
+
     println!("Starting database re-seed...");
     seed_database(&pool).await?;
     println!("Database re-seed completed successfully!");

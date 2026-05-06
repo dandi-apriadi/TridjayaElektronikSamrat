@@ -1126,3 +1126,4 @@ mod tests {
         // Verify: conversion rows still exist (not deleted)
         assert_eq!(conversions.len(), 3, "All conversion rows must be preserved");
     }
+}
