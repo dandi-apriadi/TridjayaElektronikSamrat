@@ -1,48 +1,30 @@
 # VPS Deployment Setup Guide - Tridjaya Samrat
 
-Dokumen ini menjelaskan langkah-langkah untuk melakukan update database dan aset gambar ke VPS, serta konfigurasi layanan agar aplikasi berjalan optimal di lingkungan produksi.
+Panduan ini menjelaskan langkah-langkah instalasi aplikasi dari awal menggunakan Git Clone di VPS yang sudah terkonfigurasi domainnya.
 
-## 1. Persiapan Database dan Aset
+## 1. Clone Repository
 
-Pastikan database lokal Anda (`backend/tridjaya.db`) dalam kondisi terbaru dan sudah di-seed dengan data yang benar.
-
-### Struktur Folder Penting
-- `backend/tridjaya.db`: Database utama.
-- `backend/uploads/`: Folder gambar produk dan artikel yang diunggah sistem.
-- `frontend/public/assets/images/`: Folder aset gambar statis frontend.
-
----
-
-## 2. Persiapan Folder di VPS
-Sebelum mengirim file, pastikan folder tujuan sudah ada di VPS. Jalankan perintah ini di VPS (via SSH):
+Masuk ke folder `/var/www` dan ambil kode terbaru dari GitHub:
 ```bash
-mkdir -p /var/www/tridjaya-samrat/backend
-mkdir -p /var/www/tridjaya-samrat/frontend/public/assets
-```
+cd /var/www
+# Hapus folder lama jika ingin instalasi bersih (opsional)
+# rm -rf tridjaya-samrat 
 
-## 3. Transfer Data ke VPS (Rekomendasi SCP)
-Gunakan perintah berikut dari terminal lokal Anda:
-```bash
-scp backend/tridjaya.db root@165.245.179.167:/var/www/tridjaya-samrat/backend/tridjaya.db
-```
-
-### B. Mengirim Folder Uploads (Gambar Produk/Artikel)
-```bash
-scp -r backend/uploads root@165.245.179.167:/var/www/tridjaya-samrat/backend/
-```
-
-### C. Mengirim Aset Frontend
-Jika ada perubahan pada gambar statis di folder public:
-```bash
-scp -r frontend/public/assets/images root@165.245.179.167:/var/www/tridjaya-samrat/frontend/public/assets/
+git clone https://github.com/dandi-apriadi/TridjayaElektronikSamrat.git tridjaya-samrat
+cd tridjaya-samrat
 ```
 
 ---
 
-## 4. Konfigurasi Backend di VPS
+## 2. Konfigurasi Environment (.env)
 
-### A. Environment Variables (`backend/.env`)
-Pastikan file `.env` di server menggunakan URL produksi:
+Anda perlu membuat file `.env` secara manual di folder backend dan frontend.
+
+### A. Backend (`backend/.env`)
+```bash
+nano backend/.env
+```
+Isi dengan:
 ```env
 DATABASE_URL=sqlite://tridjaya.db?mode=rwc
 SMTP_EMAIL=dandimamonto.tridjaya03@gmail.com
@@ -51,52 +33,68 @@ SMTP_SERVER=smtp.gmail.com
 FRONTEND_URL=https://polimdogreenacc.com
 ```
 
-### B. Menjalankan Layanan dengan PM2
-Agar backend tetap berjalan di background:
+### B. Frontend (`frontend/.env`)
+```bash
+nano frontend/.env
+```
+Isi dengan:
+```env
+VITE_API_BASE_URL=https://polimdogreenacc.com
+VITE_FRONTEND_URL=https://polimdogreenacc.com
+```
+
+---
+
+## 3. Setup Backend (Rust)
+
+### A. Build Binary
+Pastikan Rust sudah terinstall di VPS.
 ```bash
 cd /var/www/tridjaya-samrat/backend
-# Build binary jika belum ada
 cargo build --release --bin tridjaya-backend
+```
 
-# Jalankan dengan PM2
+### B. Jalankan dengan PM2
+```bash
+# Hapus proses lama jika ada
+pm2 delete tridjaya-backend 
+
+# Jalankan proses baru
 pm2 start ./target/release/tridjaya-backend --name "tridjaya-backend"
 pm2 save
 ```
 
 ---
 
-## 5. Konfigurasi Frontend di VPS
+## 4. Setup Frontend (Vite)
 
-### A. Environment Variables (`frontend/.env`)
-```env
-VITE_API_BASE_URL=https://polimdogreenacc.com
-VITE_FRONTEND_URL=https://polimdogreenacc.com
-```
-
-### B. Build Frontend
+### A. Build Aset Statis
 ```bash
 cd /var/www/tridjaya-samrat/frontend
 npm install
 npm run build
 ```
+*Pastikan konfigurasi Nginx Anda mengarah ke folder `/var/www/tridjaya-samrat/frontend/dist`.*
 
 ---
 
-## 6. Sinkronisasi via Git (Opsional)
+## 5. Sinkronisasi Data (Database & Gambar)
 
-Jika Anda ingin "push" database via Git (hanya untuk satu kali sinkronisasi):
-1. Hapus `*.db` dari `.gitignore`.
-2. Lakukan commit: `git add backend/tridjaya.db && git commit -m "Deploy: Update production database"`.
-3. Push ke repository: `git push origin main`.
-4. Di VPS: `git pull`.
-
-> [!CAUTION]
-> Jangan jadikan file `.db` sebagai file yang terus menerus di-tracking di Git untuk data dinamis. Gunakan metode SCP untuk update data harian.
+Karena database dan gambar sudah saya sertakan di repository, Anda hanya perlu melakukan pull jika ada perubahan di masa depan:
+```bash
+cd /var/www/tridjaya-samrat
+git pull origin main
+pm2 restart tridjaya-backend
+```
 
 ---
 
-## 7. Verifikasi Akhir
-Setelah semua file ditransfer dan layanan direstart:
-1. Cek log backend: `pm2 logs tridjaya-backend`.
-2. Akses `https://polimdogreenacc.com/blog` untuk memastikan gambar artikel muncul.
-3. Cek koneksi database dengan mencoba login ke panel admin.
+## 6. Verifikasi Akhir
+
+1. **Cek Log Backend**: `pm2 logs tridjaya-backend` (Pastikan muncul "Listening on http://0.0.0.0:8081").
+2. **Cek Website**: Buka `https://polimdogreenacc.com`.
+3. **Cek Gambar**: Buka halaman Blog untuk memastikan gambar artikel muncul.
+
+> [!TIP]
+> Jika gambar tetap tidak muncul, pastikan folder `backend/uploads` dan `frontend/public/assets/images` memiliki izin baca (read permission):
+> `chmod -R 755 /var/www/tridjaya-samrat`
