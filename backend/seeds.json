@@ -7822,43 +7822,43 @@
     {
       "id": "partner-aqua",
       "name": "Aqua",
-      "logo_url": "/uploads/Aqua.jpg",
+      "logo_url": "/uploads/Aqua.webp",
       "sort_order": 10
     },
     {
       "id": "partner-tem",
       "name": "TEM",
-      "logo_url": "/uploads/TEM.png",
+      "logo_url": "/uploads/TEM.webp",
       "sort_order": 20
     },
     {
       "id": "partner-goda",
       "name": "Goda",
-      "logo_url": "/uploads/goda.png",
+      "logo_url": "/uploads/goda.webp",
       "sort_order": 30
     },
     {
       "id": "partner-polytron",
       "name": "Polytron",
-      "logo_url": "/uploads/polytron.jpg",
+      "logo_url": "/uploads/polytron.webp",
       "sort_order": 40
     },
     {
       "id": "partner-saige",
       "name": "Saige",
-      "logo_url": "/uploads/saige.png",
+      "logo_url": "/uploads/saige.webp",
       "sort_order": 50
     },
     {
       "id": "partner-sharp",
       "name": "Sharp",
-      "logo_url": "/uploads/sharp.png",
+      "logo_url": "/uploads/sharp.webp",
       "sort_order": 60
     },
     {
       "id": "partner-uwinfly",
       "name": "U Winfly",
-      "logo_url": "/uploads/u winfly.jpg",
+      "logo_url": "/uploads/u_winfly.webp",
       "sort_order": 70
     }
   ]
