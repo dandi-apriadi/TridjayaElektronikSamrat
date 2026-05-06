@@ -4367,33 +4367,33 @@
     {
       "id": "p100",
       "name": "MESIN CUCI AQUA QW-8031 HT",
-      "category": "SEPEDA LISTRIK",
+      "category": "MESIN CUCI",
       "price": 1600000,
-      "image": "",
-      "shortDesc": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis.",
-      "description": "Mobilitas ramah lingkungan dengan fitur keamanan canggih, NFC, dan desain yang ergonomis. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
+      "image": "uploads/products/mesin-cuci-aqua-qw-9031ht.webp",
+      "shortDesc": "Mesin cuci dua tabung dengan teknologi Dynamic Drive dan pulsator besar untuk hasil cuci maksimal namun tetap hemat energi.",
+      "description": "Mesin cuci AQUA QW-8031 HT hadir dengan desain dua tabung yang tangguh. Dilengkapi dengan fitur pulsator besar yang menghasilkan pusaran air kuat untuk membersihkan noda membandel tanpa merusak serat pakaian. Kapasitas yang ideal untuk keluarga dengan efisiensi daya yang tinggi.",
       "specs": {
         "Garansi": "1 Tahun",
         "Warna": "Beragam"
       },
       "highlights": [
-        "Bebas bensin & polusi",
-        "Biaya charge sangat murah",
-        "Mudah dikendarai"
+        "Pulsator besar & kuat",
+        "Hemat listrik & air",
+        "Anti karat & tahan lama"
       ],
       "sellingPoints": [
-        "Bisa dicicil tanpa kartu kredit",
-        "Servis bisa panggil ke rumah",
-        "Baterai awet & tahan lama"
+        "Cicilan ringan bunga rendah",
+        "Layanan purna jual resmi Sulawesi",
+        "Garansi komponen terjamin"
       ],
       "objections": [
-        "\"Takut kena hujan?\" -> Komponen sudah waterproof standar IP.",
-        "\"Sparepart susah?\" -> Kami sedia lengkap dari baterai sampai ban."
+        "\"Berisik saat berputar?\" -> Sudah dilengkapi peredam getaran terbaru.",
+        "\"Boros listrik?\" -> Teknologi Dynamic Drive menjamin efisiensi daya tinggi."
       ],
       "slug": "mesin-cuci-aqua-qw-8031-ht",
-      "subcategory": "SEPEDA LISTRIK",
-      "priceInstallment": 288000,
-      "dpMin": 160000,
+      "subcategory": "MESIN CUCI",
+      "priceInstallment": 157000,
+      "dpMin": 257000,
       "images": [
         ""
       ],
@@ -4411,7 +4411,7 @@
       "name": "MESIN CUCI AQUA QW-9031HT",
       "category": "MESIN CUCI",
       "price": 1800000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-aqua-qw-9031ht.webp",
       "shortDesc": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4454,7 +4454,7 @@
       "name": "MESIN CUCI HISENSE WS80SK10",
       "category": "MESIN CUCI",
       "price": 1500000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-hisense-ws80sk10.webp",
       "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4497,7 +4497,7 @@
       "name": "MESIN CUCI HISENSE WS90SK10",
       "category": "MESIN CUCI",
       "price": 1700000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-hisense-ws90sk10.webp",
       "shortDesc": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4540,7 +4540,7 @@
       "name": "MESIN CUCI HISENSE WSHS1013UB",
       "category": "MESIN CUCI",
       "price": 1950000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-hisense-wshs1013ub.webp",
       "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4583,7 +4583,7 @@
       "name": "MESIN CUCI HISENSE WSHS1213UB",
       "category": "MESIN CUCI",
       "price": 2250000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-hisense-wshs1213ub.webp",
       "shortDesc": "Mesin cuci kapasitas 12 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 12 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4626,7 +4626,7 @@
       "name": "MESIN CUCI LG P1000RT",
       "category": "MESIN CUCI",
       "price": 2900000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-lg-p1000rt.webp",
       "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4712,7 +4712,7 @@
       "name": "MESIN CUCI LG P7000N",
       "category": "MESIN CUCI",
       "price": 2500000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-lg-p7000n.webp",
       "shortDesc": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4755,7 +4755,7 @@
       "name": "MESIN CUCI LG P8000N",
       "category": "MESIN CUCI",
       "price": 2700000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-lg-p8000n.webp",
       "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4798,7 +4798,7 @@
       "name": "MESIN CUCI LG P9050RTB",
       "category": "MESIN CUCI",
       "price": 2800000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-lg-p9050rtb.webp",
       "shortDesc": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 9 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4841,7 +4841,7 @@
       "name": "MESIN CUCI POLYTRON PWM-1076",
       "category": "MESIN CUCI",
       "price": 2150000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-polytron-pwm-1076.webp",
       "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4884,7 +4884,7 @@
       "name": "MESIN CUCI POLYTRON PWM-7073-P",
       "category": "MESIN CUCI",
       "price": 1600000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-polytron-pwm-7073-p.webp",
       "shortDesc": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4927,7 +4927,7 @@
       "name": "MESIN CUCI POLYTRON PWM-8072",
       "category": "MESIN CUCI",
       "price": 1700000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-polytron-pwm-8072.webp",
       "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -4970,7 +4970,7 @@
       "name": "MESIN CUCI POLYTRON PWM-9076",
       "category": "MESIN CUCI",
       "price": 1900000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-polytron-pwm-9076.webp",
       "shortDesc": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
       "description": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5013,7 +5013,7 @@
       "name": "MESIN CUCI RSA 10Kg WM-TT100",
       "category": "MESIN CUCI",
       "price": 1700000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-rsa-10kg-wm-tt100.webp",
       "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5056,7 +5056,7 @@
       "name": "MESIN CUCI RSA 7kg WM-TT70",
       "category": "MESIN CUCI",
       "price": 1300000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-rsa-7kg-wm-tt70.webp",
       "shortDesc": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 7 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5099,7 +5099,7 @@
       "name": "MESIN CUCI RSA 8Kg WM-TT80",
       "category": "MESIN CUCI",
       "price": 1400000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-rsa-8kg-wm-tt80.webp",
       "shortDesc": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 8 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5142,7 +5142,7 @@
       "name": "MESIN CUCI SHARP ES-T1090-VK/PK",
       "category": "MESIN CUCI",
       "price": 2499000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-sharp-es-t1090-vk-pk.webp",
       "shortDesc": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain.",
       "description": "Mesin cuci kapasitas 10 kg. Pembersihan maksimal dengan fitur pulsator bertenaga, hemat air, dan ramah untuk berbagai jenis kain. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5185,7 +5185,7 @@
       "name": "MESIN CUCI SHARP ES-T1290WA",
       "category": "MESIN CUCI",
       "price": 3050000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-sharp-es-t1290wa.webp",
       "shortDesc": "Mesin cuci kapasitas 12 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
       "description": "Mesin cuci kapasitas 12 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5228,7 +5228,7 @@
       "name": "MESIN CUCI SHARP ES-T70MW-BL",
       "category": "MESIN CUCI",
       "price": 1500000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-sharp-es-t70mw-bl.webp",
       "shortDesc": "Mesin cuci kapasitas 7 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
       "description": "Mesin cuci kapasitas 7 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5271,7 +5271,7 @@
       "name": "MESIN CUCI SHARP ES-T80MW",
       "category": "MESIN CUCI",
       "price": 1650000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-sharp-es-t80mw.webp",
       "shortDesc": "Mesin cuci kapasitas 8 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
       "description": "Mesin cuci kapasitas 8 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5314,7 +5314,7 @@
       "name": "MESIN CUCI SHARP ES-T90MW",
       "category": "MESIN CUCI",
       "price": 1975000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-sharp-es-t90mw.webp",
       "shortDesc": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
       "description": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
@@ -5357,7 +5357,7 @@
       "name": "MESIN CUCI SHARP ES-T90MW-PK",
       "category": "MESIN CUCI",
       "price": 1975000,
-      "image": "",
+      "image": "uploads/products/mesin-cuci-sharp-es-t90mw-pk.webp",
       "shortDesc": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi.",
       "description": "Mesin cuci kapasitas 9 kg. Produk berkualitas mc dari brand ternama dengan garansi resmi. Produk ini merupakan pilihan terbaik di kelasnya dengan dukungan garansi resmi dan layanan purna jual yang terjamin.",
       "specs": {
