@@ -194,8 +194,8 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
     - Test status transition from `completed` is rejected
     - _Requirements: 3.2, 3.5, 3.7, 23.3_
 
-- [-] 10. Implement custom conversion handlers
-  - [ ] 10.1 Create custom conversion functions in `backend/src/pixel/campaign_handlers.rs`
+- [x] 10. Implement custom conversion handlers
+  - [x] 10.1 Create custom conversion functions in `backend/src/pixel/campaign_handlers.rs`
     - Implement `pub async fn create_custom_conversion(State, HeaderMap, Path<String>, Json<CreateCustomConversionRequest>) -> Result<ResponseBody, AppError>`
       - Authorize `Role::Admin`; verify admin owns the campaign
       - Validate `rules` JSON contains at least one of `url_filter` or `param_match` keys
@@ -214,13 +214,13 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - Set `custom_conversion_id = NULL` on existing `conversions` rows (preserve historical records)
       - Write audit log with `action_type = "custom_conversion.deleted"`
       - _Requirements: 4.6, 16.4_
-  - [ ] 10.2 Write unit tests for custom conversion handlers
+  - [x] 10.2 Write unit tests for custom conversion handlers
     - Test `rules` validation rejects empty JSON object
     - Test delete preserves historical conversion records (sets FK to NULL)
     - _Requirements: 4.2, 4.6_
 
-- [~] 11. Register campaign and conversion routes
-  - [ ] 11.1 Add campaign and conversion routes to `backend/src/routes.rs`
+- [x] 11. Register campaign and conversion routes
+  - [x] 11.1 Add campaign and conversion routes to `backend/src/routes.rs`
     - Add routes:
       - `POST /api/campaigns` → `pixel::campaign_handlers::create_campaign`
       - `GET /api/campaigns` → `pixel::campaign_handlers::list_campaigns`
@@ -233,14 +233,14 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - `DELETE /api/campaigns/{campaign_id}/conversions/{conversion_id}` → `pixel::campaign_handlers::delete_custom_conversion`
     - _Requirements: 3.1, 4.1_
 
-- [~] 12. Checkpoint — Ensure all tests pass
+- [x] 12. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 
 ### Phase 5: Backend — Event Tracking & Meta CAPI Integration
 
-- [~] 13. Implement pixel event ingestion endpoint
-  - [ ] 13.1 Create `backend/src/pixel/event_handlers.rs` with the new pixel event endpoint
+- [x] 13. Implement pixel event ingestion endpoint
+  - [x] 13.1 Create `backend/src/pixel/event_handlers.rs` with the new pixel event endpoint
     - Implement `pub async fn receive_pixel_event(State, HeaderMap, Json<PixelEventRequest>) -> Result<ResponseBody, AppError>`
       - This is a PUBLIC endpoint (no auth required) at `POST /api/pixel-events`
       - Apply rate limiting using `state.pixel_meta_attempts` — max 100 requests/minute per IP (Requirement 19.7)
@@ -257,15 +257,15 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - Check custom conversion rules for the matched campaign and create conversion records if matched (Requirement 4.3)
       - Return success within 100ms (Requirement 18.1)
       - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 7.1, 7.3, 8.1, 8.2, 8.3, 17.1, 17.2, 17.3, 18.1, 19.7_
-  - [ ] 13.2 Write property test for event_id uniqueness and deduplication
+  - [x] 13.2 Write property test for event_id uniqueness and deduplication
     - **Property 1: Event deduplication — no two stored events share the same event_id**
     - **Validates: Requirements 7.1, 7.3**
-  - [ ] 13.3 Write property test for PII hashing
+  - [x] 13.3 Write property test for PII hashing
     - **Property 2: PII hashing is one-way — hashed IP/email/phone never equals the plaintext input**
     - **Validates: Requirements 17.1, 17.2, 17.3, 17.4**
 
-- [~] 14. Implement Meta CAPI integration
-  - [ ] 14.1 Create `backend/src/pixel/meta_capi.rs` with Meta Conversions API client
+- [x] 14. Implement Meta CAPI integration
+  - [x] 14.1 Create `backend/src/pixel/meta_capi.rs` with Meta Conversions API client
     - Implement `pub async fn send_event(pool: &SqlitePool, event_id: &str, pixel_id: &str, access_token_encrypted: &str) -> Result<(), MetaCapiError>`
       - Decrypt `access_token` using `crypto::decrypt_token`
       - Build Meta CAPI payload per the design: `event_name`, `event_time`, `event_id`, `event_source_url`, `action_source = "website"`, `user_data` (hashed), `custom_data`
@@ -278,27 +278,27 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - Return the raw Meta API response JSON for display to the admin
       - Do NOT write to `pixel_events` table (Requirement 15.6)
       - _Requirements: 15.1, 15.2, 15.3, 15.4_
-  - [ ] 14.2 Write unit tests for Meta CAPI client
+  - [x] 14.2 Write unit tests for Meta CAPI client
     - Test `send_event` correctly sets `sent_to_meta = 1` on success
     - Test `send_event` increments `retry_count` on error
     - Test `send_test_event` does not insert into `pixel_events`
     - _Requirements: 6.3, 6.4, 15.6_
 
-- [~] 15. Implement retry background job for failed Meta CAPI events
-  - [ ] 15.1 Add retry logic to `backend/src/pixel/meta_capi.rs`
+- [x] 15. Implement retry background job for failed Meta CAPI events
+  - [x] 15.1 Add retry logic to `backend/src/pixel/meta_capi.rs`
     - Implement `pub async fn retry_failed_events(pool: &SqlitePool) -> Result<(), MetaCapiError>`
       - Query `pixel_events` WHERE `sent_to_meta = 0 AND retry_count < 3` ORDER BY `created_at ASC` LIMIT 100
       - For each event, call `send_event` with exponential backoff delay: `2^retry_count` seconds (1s, 2s, 4s)
       - After 3 failures, log error with `tracing::error!` and leave `retry_count = 3` as terminal state (Requirement 6.6)
       - Update `last_retry_run` in `AppState` on completion
       - _Requirements: 6.5, 6.6, 19.1, 19.2_
-  - [ ] 15.2 Register retry job in `backend/src/main.rs`
+  - [x] 15.2 Register retry job in `backend/src/main.rs`
     - Spawn a `tokio::task` that calls `pixel::meta_capi::retry_failed_events` every 60 seconds
     - Log start and completion time of each run (Requirement 25.1)
     - _Requirements: 19.1, 25.1, 25.2_
 
-- [~] 16. Register event tracking and test event routes
-  - [ ] 16.1 Add event routes to `backend/src/routes.rs`
+- [x] 16. Register event tracking and test event routes
+  - [x] 16.1 Add event routes to `backend/src/routes.rs`
     - Add routes (preserving existing `/api/telemetry/pixel-event` unchanged):
       - `POST /api/pixel-events` → `pixel::event_handlers::receive_pixel_event` (public, no auth)
       - `POST /api/pixel-events/test` → `pixel::event_handlers::send_test_event` (requires `Role::Admin`)
@@ -307,8 +307,8 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
 
 ### Phase 6: Backend — Analytics Aggregation & Background Jobs
 
-- [~] 17. Implement analytics aggregation job
-  - [ ] 17.1 Create `backend/src/pixel/analytics_job.rs` with the aggregation logic
+- [x] 17. Implement analytics aggregation job
+  - [x] 17.1 Create `backend/src/pixel/analytics_job.rs` with the aggregation logic
     - Implement `pub async fn run_analytics_aggregation(pool: &SqlitePool, state: &AppState) -> Result<(), AnalyticsError>`
       - Check `state.analytics_job_running` AtomicBool; if already `true`, log warning and return early (Requirement 25.5)
       - Set `analytics_job_running = true` at start; set to `false` in a `defer`-style pattern (use `scopeguard` or explicit finally block)
@@ -322,16 +322,16 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - Update `state.last_analytics_run` with current timestamp on success
       - Log completion time; warn if duration exceeds 5 minutes (Requirement 25.3)
       - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 25.1, 25.3, 25.5, 25.6_
-  - [ ] 17.2 Write property test for analytics aggregation correctness
+  - [x] 17.2 Write property test for analytics aggregation correctness
     - **Property 3: Analytics total_events equals COUNT of raw pixel_events for the same pixel and period**
     - **Validates: Requirements 10.2, 10.6**
-  - [ ] 17.3 Register analytics job in `backend/src/main.rs`
+  - [x] 17.3 Register analytics job in `backend/src/main.rs`
     - Spawn a `tokio::task` that calls `pixel::analytics_job::run_analytics_aggregation` every 5 minutes
     - Log job start and end; log error with stack trace on failure (Requirement 25.2)
     - _Requirements: 10.1, 25.1, 25.2, 25.6_
 
-- [~] 18. Implement health check endpoint with job status
-  - [ ] 18.1 Add pixel system health info to the existing `/health` endpoint in `backend/src/routes.rs`
+- [x] 18. Implement health check endpoint with job status
+  - [x] 18.1 Add pixel system health info to the existing `/health` endpoint in `backend/src/routes.rs`
     - Extend the `health` handler to include:
       - `analytics_job_running: bool` from `state.analytics_job_running`
       - `last_analytics_run: Option<String>` from `state.last_analytics_run`
@@ -341,8 +341,8 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
 
 ### Phase 7: Backend — Analytics API Endpoints
 
-- [~] 19. Implement Super Admin analytics endpoints
-  - [ ] 19.1 Create `backend/src/pixel/analytics_handlers.rs` with Super Admin analytics
+- [x] 19. Implement Super Admin analytics endpoints
+  - [x] 19.1 Create `backend/src/pixel/analytics_handlers.rs` with Super Admin analytics
     - Implement `pub async fn get_super_admin_dashboard(State, HeaderMap, Query<AnalyticsQuery>) -> Result<ResponseBody, AppError>`
       - Authorize `Role::SuperAdmin`
       - Accept query params: `period_type` (default `"daily"`), `start_date`, `end_date`
@@ -361,8 +361,8 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - Query `pixel_audit_logs` with filters applied
       - _Requirements: 16.6_
 
-- [~] 20. Implement Admin analytics endpoints
-  - [ ] 20.1 Add Admin analytics functions to `backend/src/pixel/analytics_handlers.rs`
+- [x] 20. Implement Admin analytics endpoints
+  - [x] 20.1 Add Admin analytics functions to `backend/src/pixel/analytics_handlers.rs`
     - Implement `pub async fn get_admin_dashboard(State, HeaderMap, Query<AnalyticsQuery>) -> Result<ResponseBody, AppError>`
       - Authorize `Role::Admin`
       - Return `campaign_analytics` only for campaigns the admin created (`admin_id = current_user.id`)
@@ -374,8 +374,8 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - Return `campaign_analytics` rows for the specified campaign and date range
       - _Requirements: 12.3, 12.4_
 
-- [~] 21. Implement role-based analytics endpoints for Agent/Sales/Editor
-  - [ ] 21.1 Add role-scoped analytics functions to `backend/src/pixel/analytics_handlers.rs`
+- [x] 21. Implement role-based analytics endpoints for Agent/Sales/Editor
+  - [x] 21.1 Add role-scoped analytics functions to `backend/src/pixel/analytics_handlers.rs`
     - Implement `pub async fn get_agent_pixel_analytics(State, HeaderMap, Query<AnalyticsQuery>) -> Result<ResponseBody, AppError>`
       - Authorize `Role::Agent`
       - Return campaign-level metrics only (no pixel-level) for events where `pixel_events.user_id = current_user.id`
@@ -388,7 +388,7 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - Authorize `Role::Editor` (maps to "marketing" role in requirements)
       - Return campaign-level metrics for all campaigns the editor has been granted view permission on via `pixel_admins.permissions`
       - _Requirements: 13.3, 13.4, 13.5_
-  - [ ] 21.2 Register all analytics routes in `backend/src/routes.rs`
+  - [x] 21.2 Register all analytics routes in `backend/src/routes.rs`
     - Add routes:
       - `GET /api/pixel-analytics/super-admin` → `pixel::analytics_handlers::get_super_admin_dashboard`
       - `GET /api/pixel-analytics/pixels/{id}` → `pixel::analytics_handlers::get_pixel_analytics`
@@ -400,21 +400,21 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
       - `GET /api/pixel-analytics/editor` → `pixel::analytics_handlers::get_editor_pixel_analytics`
     - _Requirements: 11.1, 12.1, 13.1, 13.2, 13.3_
 
-- [~] 22. Checkpoint — Ensure all tests pass
+- [x] 22. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 
 ### Phase 8: Frontend — Auth & Navigation Extension
 
-- [~] 23. Extend frontend auth and navigation for super_admin role
-  - [ ] 23.1 Update `RoleGuard` in `frontend/src/App.tsx` to accept `'super_admin'`
+- [x] 23. Extend frontend auth and navigation for super_admin role
+  - [x] 23.1 Update `RoleGuard` in `frontend/src/App.tsx` to accept `'super_admin'`
     - Change the `role` prop type from `'admin' | 'agent' | 'sales'` to `'admin' | 'agent' | 'sales' | 'super_admin'`
     - _Requirements: 1.7_
-  - [ ] 23.2 Update `DashboardRoot` in `frontend/src/App.tsx` to redirect `super_admin` to `/dashboard/super-admin`
+  - [x] 23.2 Update `DashboardRoot` in `frontend/src/App.tsx` to redirect `super_admin` to `/dashboard/super-admin`
     - Add `user?.role === 'super_admin'` branch: redirect to `/dashboard/super-admin`
     - Keep existing `admin`, `sales`, `agent` branches unchanged
     - _Requirements: 1.7_
-  - [ ] 23.3 Add `superAdminSections` to `DashboardLayout.tsx` in `frontend/src/components/layout/DashboardLayout.tsx`
+  - [x] 23.3 Add `superAdminSections` to `DashboardLayout.tsx` in `frontend/src/components/layout/DashboardLayout.tsx`
     - Import `Cpu`, `BarChart2`, `Link2`, `FlaskConical` (or equivalent) from `lucide-react` for pixel nav icons
     - Define `superAdminSections` with:
       - Section "Pixel Management": items for "Pixels Overview" (`/dashboard/super-admin`), "Manage Pixels" (`/dashboard/super-admin/pixels`), "Audit Logs" (`/dashboard/super-admin/audit-logs`)
@@ -423,7 +423,7 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
     - Update `quickActions` for `super_admin`: show "Pixels" and "Analytics" quick links
     - Update `notificationsPath` for `super_admin`: use `/dashboard/admin/notifications` (reuse admin notifications)
     - _Requirements: 1.6, 11.1_
-  - [ ] 23.4 Add `super_admin` dashboard routes to `frontend/src/App.tsx`
+  - [x] 23.4 Add `super_admin` dashboard routes to `frontend/src/App.tsx`
     - Add lazy imports for new super admin pages (to be created in Phase 9)
     - Add routes under `/dashboard`:
       - `path="super-admin"` with `RoleGuard role="super_admin"`
@@ -437,20 +437,20 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
 
 ### Phase 9: Frontend — Super Admin Pixel Management UI
 
-- [~] 24. Create Super Admin pixel list and detail pages
-  - [ ] 24.1 Create `frontend/src/pages/dashboard/SuperAdminDashboard.tsx`
+- [x] 24. Create Super Admin pixel list and detail pages
+  - [x] 24.1 Create `frontend/src/pages/dashboard/SuperAdminDashboard.tsx`
     - Display summary cards: total pixels, total admins assigned, total events (last 24h), total revenue
     - Fetch from `GET /api/pixel-analytics/super-admin?period_type=daily`
     - Show real-time event count from last hour
     - _Requirements: 11.1, 11.6_
-  - [ ] 24.2 Create `frontend/src/pages/dashboard/SuperAdminPixelsPage.tsx`
+  - [x] 24.2 Create `frontend/src/pages/dashboard/SuperAdminPixelsPage.tsx`
     - Fetch pixel list from `GET /api/pixels`
     - Display table with columns: Pixel ID, Name, Business Manager, Status, Assigned Admins, Total Events, Actions
     - "New Pixel" button navigating to `/dashboard/super-admin/pixels/new`
     - Status badge (active = green, inactive = yellow, suspended = red)
     - Per-row actions: Edit, Assign Admin, Deactivate/Activate
     - _Requirements: 1.6, 2.5_
-  - [ ] 24.3 Create `frontend/src/pages/dashboard/SuperAdminPixelFormPage.tsx`
+  - [x] 24.3 Create `frontend/src/pages/dashboard/SuperAdminPixelFormPage.tsx`
     - Form fields: Pixel ID, Name, Business Manager ID, Access Token (masked input), Status, Config (domain verification, event priorities)
     - On submit: `POST /api/pixels` (create) or `PATCH /api/pixels/{id}` (edit)
     - Show assigned admins list with "Assign Admin" and "Revoke" actions calling `POST /api/pixels/{id}/admins` and `DELETE /api/pixels/{id}/admins/{user_id}`
@@ -458,28 +458,28 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
     - Display domain verification instructions (static text per Requirement 20.5)
     - Display event priority configuration (drag-and-drop list of 8 events per Requirement 21.4)
     - _Requirements: 1.1, 1.3, 2.1, 2.3, 20.5, 21.1, 21.4_
-  - [ ] 24.4 Create `frontend/src/pages/dashboard/SuperAdminAnalyticsPage.tsx`
+  - [x] 24.4 Create `frontend/src/pages/dashboard/SuperAdminAnalyticsPage.tsx`
     - Date range picker (default: last 7 days)
     - Period type selector: hourly / daily / weekly / monthly
     - Charts: total events over time (line chart), event type breakdown (bar chart), revenue by campaign (bar chart)
     - Pixel-level metrics table: pixel name, total events, unique users, purchases, leads, revenue
     - Campaign metrics table across all pixels
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
-  - [ ] 24.5 Create `frontend/src/pages/dashboard/SuperAdminAuditLogsPage.tsx`
+  - [x] 24.5 Create `frontend/src/pages/dashboard/SuperAdminAuditLogsPage.tsx`
     - Fetch from `GET /api/pixel-analytics/audit-logs` with filter params
     - Filter controls: action_type dropdown, resource_type dropdown, user search, date range
     - Table: timestamp, user, action, resource type, resource ID, old/new value diff
     - _Requirements: 16.6_
 
-- [~] 25. Create Admin pixel campaign management pages
-  - [ ] 25.1 Create `frontend/src/pages/dashboard/AdminPixelCampaignsPage.tsx`
+- [x] 25. Create Admin pixel campaign management pages
+  - [x] 25.1 Create `frontend/src/pages/dashboard/AdminPixelCampaignsPage.tsx`
     - Fetch campaigns from `GET /api/campaigns`
     - Display table: Campaign Name, Pixel, Status, UTM Admin, Total Events, Conversions, Revenue, Actions
     - Status filter tabs: All / Active / Paused / Completed
     - "New Campaign" button navigating to campaign form
     - Per-row actions: Edit, Pause/Resume, View Analytics
     - _Requirements: 3.5, 23.5, 23.6_
-  - [ ] 25.2 Create `frontend/src/pages/dashboard/AdminPixelCampaignFormPage.tsx`
+  - [x] 25.2 Create `frontend/src/pages/dashboard/AdminPixelCampaignFormPage.tsx`
     - Form fields: Campaign Name, Pixel (dropdown of assigned pixels), UTM Source, UTM Medium, UTM Campaign, UTM Admin (auto-filled), UTM Content, UTM Term
     - On submit: `POST /api/campaigns` or `PATCH /api/campaigns/{id}`
     - Custom Conversions section: list existing conversions with add/edit/delete
@@ -490,43 +490,43 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
 
 ### Phase 10: Frontend — Admin Campaign Management UI
 
-- [~] 26. Add Admin pixel routes to App.tsx
-  - [ ] 26.1 Add lazy imports and routes for Admin pixel pages in `frontend/src/App.tsx`
+- [x] 26. Add Admin pixel routes to App.tsx
+  - [x] 26.1 Add lazy imports and routes for Admin pixel pages in `frontend/src/App.tsx`
     - Add lazy imports for `AdminPixelCampaignsPage` and `AdminPixelCampaignFormPage`
     - Add routes under `/dashboard`:
       - `path="admin/pixel-campaigns"` with `RoleGuard role="admin"`
       - `path="admin/pixel-campaigns/new"` with `RoleGuard role="admin"`
       - `path="admin/pixel-campaigns/:id"` with `RoleGuard role="admin"`
     - _Requirements: 3.1, 3.5_
-  - [ ] 26.2 Add "Pixel Campaigns" nav item to `adminSections` in `DashboardLayout.tsx`
+  - [x] 26.2 Add "Pixel Campaigns" nav item to `adminSections` in `DashboardLayout.tsx`
     - Add to the "Operasional" section: `{ label: 'Pixel Campaigns', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns' }`
     - Import `BarChart2` from `lucide-react` if not already imported
     - _Requirements: 3.5_
 
-- [~] 27. Create Admin analytics dashboard page
-  - [ ] 27.1 Create `frontend/src/pages/dashboard/AdminPixelAnalyticsPage.tsx`
+- [x] 27. Create Admin analytics dashboard page
+  - [x] 27.1 Create `frontend/src/pages/dashboard/AdminPixelAnalyticsPage.tsx`
     - Fetch from `GET /api/pixel-analytics/admin` with date range and campaign filter params
     - Date range picker and campaign selector dropdown
     - Conversion funnel visualization: PageView → AddToCart → InitiateCheckout → Purchase (funnel chart or step bars)
     - Campaign performance table: name, events, conversions, conversion rate, revenue, ROAS
     - Top campaigns ranked by conversion rate
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
-  - [ ] 27.2 Add `AdminPixelAnalyticsPage` route and nav item
+  - [x] 27.2 Add `AdminPixelAnalyticsPage` route and nav item
     - Add lazy import and route `path="admin/pixel-analytics"` with `RoleGuard role="admin"` in `App.tsx`
     - Add nav item to `adminSections` "Utama" section: `{ label: 'Pixel Analytics', icon: TrendingUp, path: '/dashboard/admin/pixel-analytics' }`
     - _Requirements: 12.1_
 
-- [~] 28. Create Agent and Sales analytics pages
-  - [ ] 28.1 Create `frontend/src/pages/dashboard/AgentPixelAnalyticsPage.tsx`
+- [x] 28. Create Agent and Sales analytics pages
+  - [x] 28.1 Create `frontend/src/pages/dashboard/AgentPixelAnalyticsPage.tsx`
     - Fetch from `GET /api/pixel-analytics/agent`
     - Display campaign-level metrics only (no pixel-level data)
     - Show events attributed to the agent's user_id
     - _Requirements: 13.1, 13.4, 13.5_
-  - [ ] 28.2 Create `frontend/src/pages/dashboard/SalesPixelAnalyticsPage.tsx`
+  - [x] 28.2 Create `frontend/src/pages/dashboard/SalesPixelAnalyticsPage.tsx`
     - Fetch from `GET /api/pixel-analytics/sales`
     - Display campaign-level metrics for campaigns tagged with the sales user's identifier
     - _Requirements: 13.2, 13.4, 13.5_
-  - [ ] 28.3 Add routes and nav items for Agent and Sales analytics pages
+  - [x] 28.3 Add routes and nav items for Agent and Sales analytics pages
     - Add lazy imports and routes in `App.tsx`:
       - `path="agent/pixel-analytics"` with `RoleGuard role="agent"`
       - `path="sales/pixel-analytics"` with `RoleGuard role="sales"`
@@ -538,36 +538,36 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
 
 ### Phase 11: Frontend — Analytics Dashboards
 
-- [~] 29. Create shared analytics components
-  - [ ] 29.1 Create `frontend/src/components/pixel/ConversionFunnel.tsx`
+- [x] 29. Create shared analytics components
+  - [x] 29.1 Create `frontend/src/components/pixel/ConversionFunnel.tsx`
     - Props: `{ pageViews: number, addToCarts: number, checkouts: number, purchases: number }`
     - Render a step-down funnel visualization using CSS or a lightweight chart library already in the project
     - Show drop-off percentage between each step
     - _Requirements: 12.5_
-  - [ ] 29.2 Create `frontend/src/components/pixel/MetricsCard.tsx`
+  - [x] 29.2 Create `frontend/src/components/pixel/MetricsCard.tsx`
     - Reusable card component for displaying a single metric with label, value, and optional trend indicator
     - Props: `{ label: string, value: string | number, trend?: number, currency?: string }`
     - _Requirements: 11.2, 12.2_
-  - [ ] 29.3 Create `frontend/src/components/pixel/CampaignTable.tsx`
+  - [x] 29.3 Create `frontend/src/components/pixel/CampaignTable.tsx`
     - Reusable table for campaign analytics rows
     - Columns configurable via props; supports sorting by conversion_rate, revenue, total_events
     - _Requirements: 12.6_
 
-- [~] 30. Create multi-currency revenue display
-  - [ ] 30.1 Update analytics pages to group and display revenue by currency
+- [x] 30. Create multi-currency revenue display
+  - [x] 30.1 Update analytics pages to group and display revenue by currency
     - In `SuperAdminAnalyticsPage`, `AdminPixelAnalyticsPage`: group revenue totals by currency code
     - Display as `IDR 1,500,000 / USD 100` format when multiple currencies present
     - Default to USD when currency is absent
     - _Requirements: 24.1, 24.2, 24.3, 24.4, 24.5_
 
-- [~] 31. Checkpoint — Ensure all tests pass
+- [x] 31. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 
 ### Phase 12: Frontend — Pixel Event Tester & URL Generator
 
-- [~] 32. Create Pixel Event Tester page
-  - [ ] 32.1 Create `frontend/src/pages/dashboard/AdminPixelEventTesterPage.tsx`
+- [x] 32. Create Pixel Event Tester page
+  - [x] 32.1 Create `frontend/src/pages/dashboard/AdminPixelEventTesterPage.tsx`
     - Campaign selector dropdown (fetches from `GET /api/campaigns`)
     - Event type selector: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase, Lead, CompleteRegistration
     - Dynamic form fields based on event type:
@@ -580,14 +580,14 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
     - Display raw Meta API response JSON in a code block
     - Display validation errors from Meta in a highlighted error section
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6_
-  - [ ] 32.2 Add route and nav item for Pixel Event Tester
+  - [x] 32.2 Add route and nav item for Pixel Event Tester
     - Add lazy import and route `path="admin/pixel-tester"` with `RoleGuard role="admin"` in `App.tsx`
     - Add nav item to `adminSections` "Operasional" section: `{ label: 'Pixel Tester', icon: FlaskConical, path: '/dashboard/admin/pixel-tester' }`
     - Import `FlaskConical` from `lucide-react`
     - _Requirements: 15.5_
 
-- [~] 33. Create Tracking URL Generator component
-  - [ ] 33.1 Create `frontend/src/components/pixel/TrackingUrlGenerator.tsx`
+- [x] 33. Create Tracking URL Generator component
+  - [x] 33.1 Create `frontend/src/components/pixel/TrackingUrlGenerator.tsx`
     - Props: `{ campaign: CampaignRecord }`
     - Base URL input field (the landing page URL to append UTM params to)
     - Auto-populate UTM fields from campaign: utm_source, utm_medium, utm_campaign, utm_admin
@@ -596,7 +596,7 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
     - Live preview of the generated URL
     - "Copy URL" button with clipboard API and visual feedback
     - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5_
-  - [ ] 33.2 Embed `TrackingUrlGenerator` in `AdminPixelCampaignFormPage.tsx`
+  - [x] 33.2 Embed `TrackingUrlGenerator` in `AdminPixelCampaignFormPage.tsx`
     - Show the generator in a collapsible section below the campaign form fields
     - Only show when editing an existing campaign (not on create)
     - _Requirements: 14.1, 14.4_
@@ -604,50 +604,50 @@ Implement a multi-tenant Meta Pixel tracking platform on the existing Rust/Axum 
 
 ### Phase 13: Testing & Verification
 
-- [~] 34. Property-based tests for crypto utilities
-  - [ ] 34.1 Write property test for AES-256-GCM token encryption round-trip
+- [x] 34. Property-based tests for crypto utilities
+  - [x] 34.1 Write property test for AES-256-GCM token encryption round-trip
     - **Property 4: Encrypt-then-decrypt round-trip — for any plaintext string, `decrypt(encrypt(plaintext)) == plaintext`**
     - **Validates: Requirements 1.3, 17.7**
     - Write in `backend/src/pixel/crypto.rs` using `proptest` or `quickcheck`
-  - [ ] 34.2 Write property test for SHA-256 PII hashing determinism
+  - [x] 34.2 Write property test for SHA-256 PII hashing determinism
     - **Property 5: PII hashing is deterministic — `hash_pii(x) == hash_pii(x)` for all inputs**
     - **Validates: Requirements 17.1, 17.2, 17.3**
 
-- [~] 35. Property-based tests for campaign attribution
-  - [ ] 35.1 Write property test for UTM parameter extraction
+- [x] 35. Property-based tests for campaign attribution
+  - [x] 35.1 Write property test for UTM parameter extraction
     - **Property 6: UTM extraction completeness — all UTM params present in a URL are captured in the stored `utm_params` JSON**
     - **Validates: Requirements 5.4, 8.5**
-  - [ ] 35.2 Write property test for campaign attribution matching
+  - [x] 35.2 Write property test for campaign attribution matching
     - **Property 7: Attribution consistency — an event with `utm_admin = X` is always attributed to the campaign whose `utm_admin = X`, never to a different campaign**
     - **Validates: Requirements 8.1, 8.2, 8.4**
 
-- [~] 36. Property-based tests for analytics correctness
-  - [ ] 36.1 Write property test for conversion rate calculation
+- [x] 36. Property-based tests for analytics correctness
+  - [x] 36.1 Write property test for conversion rate calculation
     - **Property 8: Conversion rate bounds — `conversion_rate` is always in `[0.0, 1.0]` and equals `conversions / total_events` when `total_events > 0`**
     - **Validates: Requirements 10.7**
-  - [ ] 36.2 Write property test for unique user counting
+  - [x] 36.2 Write property test for unique user counting
     - **Property 9: Unique user count never exceeds total event count for the same pixel and period**
     - **Validates: Requirements 10.6**
 
-- [~] 37. Integration tests for event ingestion pipeline
-  - [ ] 37.1 Write integration test for the full event ingestion flow
+- [x] 37. Integration tests for event ingestion pipeline
+  - [x] 37.1 Write integration test for the full event ingestion flow
     - Test: POST to `/api/pixel-events` → event stored in DB → Meta CAPI called asynchronously → `sent_to_meta = 1` after job runs
     - Test: duplicate `event_id` returns 409
     - Test: inactive pixel returns 404
     - _Requirements: 5.1, 5.5, 6.1, 6.3, 7.3_
-  - [ ] 37.2 Write integration test for retry job
+  - [x] 37.2 Write integration test for retry job
     - Test: event with `retry_count = 2` is retried; after 3 failures `retry_count = 3` and no further retries
     - _Requirements: 6.5, 6.6_
 
-- [~] 38. Integration tests for RBAC enforcement
-  - [ ] 38.1 Write integration tests for role-based access control
+- [x] 38. Integration tests for RBAC enforcement
+  - [x] 38.1 Write integration tests for role-based access control
     - Test: `admin` role cannot call `POST /api/pixels` (returns 403)
     - Test: `super_admin` role cannot call `POST /api/campaigns` (returns 403)
     - Test: `agent` role calling `/api/pixel-analytics/agent` returns only their own data
     - Test: `editor` role calling `/api/pixel-analytics/editor` returns only permitted campaigns
     - _Requirements: 1.7, 3.2, 13.1, 13.3_
 
-- [~] 39. Final checkpoint — Ensure all tests pass
+- [x] 39. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ---

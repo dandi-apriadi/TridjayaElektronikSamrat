@@ -9,6 +9,7 @@ import { apiFetch, getImageUrl } from '../../utils/apiClient';
 type PartnerForm = {
   name: string;
   logoUrl: string;
+  logoFile?: File;
   websiteUrl: string;
   sortOrder: number;
   isActive: boolean;
@@ -80,14 +81,15 @@ const AdminPartnersPage: React.FC = () => {
     event.preventDefault();
     setSubmitError(null);
 
-    if (!form.name.trim() || !form.logoUrl.trim()) {
-      setSubmitError('Nama partner dan URL logo wajib diisi.');
+    if (!form.name.trim() || (!form.logoUrl.trim() && !form.logoFile)) {
+      setSubmitError('Nama partner dan logo wajib diisi.');
       return;
     }
 
     const payload = {
       name: form.name.trim(),
       logoUrl: form.logoUrl.trim(),
+      logo: form.logoFile, // This will be handled as multipart
       websiteUrl: form.websiteUrl.trim() || null,
       sortOrder: Number.isFinite(form.sortOrder) ? form.sortOrder : 0,
       isActive: form.isActive,
@@ -106,36 +108,17 @@ const AdminPartnersPage: React.FC = () => {
     await fetchPartners(true, true);
   };
 
-  const handleLogoUpload = async (file: File) => {
+  const handleLogoUpload = (file: File) => {
     setSubmitError(null);
-    setIsUploadingLogo(true);
-
-    try {
-      const data = new FormData();
-      data.append('file', file);
-
-      const response = await apiFetch('/api/admin/uploads/image', {
-        method: 'POST',
-        body: data,
-      });
-
-      if (!response.ok) {
-        throw new Error('Gagal upload logo');
-      }
-
-      const payload = await response.json();
-      const uploadedUrl = payload?.data?.url;
-      if (!uploadedUrl) {
-        throw new Error('URL logo tidak ditemukan setelah upload');
-      }
-
-      setForm((prev) => ({ ...prev, logoUrl: uploadedUrl }));
-    } catch (uploadError) {
-      setSubmitError(uploadError instanceof Error ? uploadError.message : 'Terjadi kesalahan saat upload logo');
-    } finally {
-      setIsUploadingLogo(false);
-    }
+    // Create local preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setForm((prev) => ({ 
+      ...prev, 
+      logoUrl: previewUrl,
+      logoFile: file 
+    }));
   };
+
 
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm('Hapus partner ini?');

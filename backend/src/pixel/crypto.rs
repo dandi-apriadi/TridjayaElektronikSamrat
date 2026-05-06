@@ -203,4 +203,28 @@ mod tests {
         let hash = hash_pii(value);
         assert_ne!(hash, value);
     }
+
+    // Property-based tests
+    use proptest::prelude::*;
+
+    proptest! {
+        /// **Property 4: Encrypt-then-decrypt round-trip — for any plaintext string, `decrypt(encrypt(plaintext)) == plaintext`**
+        /// **Validates: Requirements 1.3, 17.7**
+        #[test]
+        fn prop_encrypt_decrypt_roundtrip(plaintext in "\\PC*") {
+            let key = test_key();
+            let encrypted = encrypt_token(&plaintext, &key).expect("encryption should succeed");
+            let decrypted = decrypt_token(&encrypted, &key).expect("decryption should succeed");
+            prop_assert_eq!(decrypted, plaintext);
+        }
+
+        /// **Property 5: PII hashing is deterministic — `hash_pii(x) == hash_pii(x)` for all inputs**
+        /// **Validates: Requirements 17.1, 17.2, 17.3**
+        #[test]
+        fn prop_hash_pii_deterministic(input in "\\PC*") {
+            let hash1 = hash_pii(&input);
+            let hash2 = hash_pii(&input);
+            prop_assert_eq!(hash1, hash2);
+        }
+    }
 }

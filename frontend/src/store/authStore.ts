@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { API_BASE_URL } from '../utils/apiClient';
 
-export type UserRole = 'admin' | 'agent' | 'sales' | 'editor' | 'operator';
+export type UserRole = 'admin' | 'agent' | 'sales' | 'editor' | 'operator' | 'super_admin';
 
 interface User {
   id: string;

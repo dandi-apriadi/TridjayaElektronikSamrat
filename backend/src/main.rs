@@ -142,6 +142,40 @@ async fn main() {
         tridjaya_backend::wa_worker::start_wa_worker(wa_state).await;
     });
 
+    // Start Meta CAPI retry job (every 60 seconds)
+    let retry_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            let start = std::time::Instant::now();
+            tracing::info!("Meta CAPI retry job starting...");
+            if let Err(e) = tridjaya_backend::pixel::meta_capi::retry_failed_events(&retry_state.pool).await {
+                tracing::error!("Meta CAPI retry job failed: {}", e);
+            } else {
+                // Update last_retry_run timestamp
+                *retry_state.last_retry_run.write().await = Some(chrono::Utc::now());
+            }
+            tracing::info!("Meta CAPI retry job completed in {:?}", start.elapsed());
+        }
+    });
+
+    // Start analytics aggregation job (every 5 minutes)
+    let analytics_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            tracing::info!("Analytics aggregation job triggered");
+            if let Err(e) = tridjaya_backend::pixel::analytics_job::run_analytics_aggregation(
+                &analytics_state.pool,
+                &analytics_state,
+            ).await {
+                tracing::error!("Analytics aggregation job error: {}", e);
+            }
+        }
+    });
+
     let app = routes::router(state)
         .nest_service("/uploads", ServeDir::new("uploads"))
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))

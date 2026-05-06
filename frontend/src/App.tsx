@@ -74,6 +74,23 @@ const SalesDeliveryPage = lazy(() => import('./pages/dashboard/SalesDeliveryPage
 const SalesReferralPage = lazy(() => import('./pages/dashboard/SalesReferralPage'));
 const AdminSalesPage = lazy(() => import('./pages/dashboard/AdminSalesPage'));
 
+// Super Admin pages
+const SuperAdminDashboard = lazy(() => import('./pages/dashboard/SuperAdminDashboard'));
+const SuperAdminPixelsPage = lazy(() => import('./pages/dashboard/SuperAdminPixelsPage'));
+const SuperAdminPixelFormPage = lazy(() => import('./pages/dashboard/SuperAdminPixelFormPage'));
+const SuperAdminAnalyticsPage = lazy(() => import('./pages/dashboard/SuperAdminAnalyticsPage'));
+const SuperAdminAuditLogsPage = lazy(() => import('./pages/dashboard/SuperAdminAuditLogsPage'));
+
+// Admin Pixel pages
+const AdminPixelCampaignsPage = lazy(() => import('./pages/dashboard/AdminPixelCampaignsPage'));
+const AdminPixelCampaignFormPage = lazy(() => import('./pages/dashboard/AdminPixelCampaignFormPage'));
+const AdminPixelAnalyticsPage = lazy(() => import('./pages/dashboard/AdminPixelAnalyticsPage'));
+const AdminPixelEventTesterPage = lazy(() => import('./pages/dashboard/AdminPixelEventTesterPage'));
+
+// Agent and Sales Pixel pages
+const AgentPixelAnalyticsPage = lazy(() => import('./pages/dashboard/AgentPixelAnalyticsPage'));
+const SalesPixelAnalyticsPage = lazy(() => import('./pages/dashboard/SalesPixelAnalyticsPage'));
+
 const RouteLoading: React.FC = () => (
   <div className="min-h-[40vh] w-full grid place-items-center px-4">
     <div className="glass-card rounded-xl px-5 py-3 text-label-sm text-on-surface-variant">
@@ -99,7 +116,7 @@ const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) 
 };
  
 // Role-based Guard for individual subroutes
-const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent' | 'sales' }> = ({ children, role }) => {
+const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent' | 'sales' | 'super_admin' }> = ({ children, role }) => {
   const { user, isInitializing } = useAuthStore();
   
   if (isInitializing) return <RouteLoading />;
@@ -114,7 +131,7 @@ const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent
 // Dashboard Root (Redirects based on role)
 const DashboardRoot = () => {
   const { user } = useAuthStore();
-  return <Navigate to={user?.role === 'admin' ? '/dashboard/admin' : user?.role === 'sales' ? '/dashboard/sales' : '/dashboard/agent'} replace />;
+  return <Navigate to={user?.role === 'super_admin' ? '/dashboard/super-admin' : user?.role === 'admin' ? '/dashboard/admin' : user?.role === 'sales' ? '/dashboard/sales' : '/dashboard/agent'} replace />;
 };
 
 // Scroll to top and track telemetry on route change
@@ -206,6 +223,58 @@ const App: React.FC = () => {
           }
         >
           <Route index element={<DashboardRoot />} />
+          
+          {/* Super Admin Routes */}
+          <Route
+            path="super-admin"
+            element={
+              <RoleGuard role="super_admin">
+                {lazyPage(SuperAdminDashboard)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="super-admin/pixels"
+            element={
+              <RoleGuard role="super_admin">
+                {lazyPage(SuperAdminPixelsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="super-admin/pixels/new"
+            element={
+              <RoleGuard role="super_admin">
+                {lazyPage(SuperAdminPixelFormPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="super-admin/pixels/:id"
+            element={
+              <RoleGuard role="super_admin">
+                {lazyPage(SuperAdminPixelFormPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="super-admin/analytics"
+            element={
+              <RoleGuard role="super_admin">
+                {lazyPage(SuperAdminAnalyticsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="super-admin/audit-logs"
+            element={
+              <RoleGuard role="super_admin">
+                {lazyPage(SuperAdminAuditLogsPage)}
+              </RoleGuard>
+            }
+          />
+          
+          {/* Admin Routes */}
           <Route
             path="admin"
             element={
@@ -454,6 +523,46 @@ const App: React.FC = () => {
               </RoleGuard>
             }
           />
+          <Route
+            path="admin/pixel-campaigns"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminPixelCampaignsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/pixel-campaigns/new"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminPixelCampaignFormPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/pixel-campaigns/:id"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminPixelCampaignFormPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/pixel-analytics"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminPixelAnalyticsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/pixel-tester"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminPixelEventTesterPage)}
+              </RoleGuard>
+            }
+          />
 
 
           <Route
@@ -529,10 +638,26 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="agent/pixel-analytics"
+            element={
+              <RoleGuard role="agent">
+                {lazyPage(AgentPixelAnalyticsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
             path="sales/support"
             element={
               <RoleGuard role="sales">
                 {lazyPage(AgentSupportPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="sales/pixel-analytics"
+            element={
+              <RoleGuard role="sales">
+                {lazyPage(SalesPixelAnalyticsPage)}
               </RoleGuard>
             }
           />

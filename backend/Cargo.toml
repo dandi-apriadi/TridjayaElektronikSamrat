@@ -77,6 +77,21 @@ name = "verify_admin"
 path = "src/bin/verify_admin.rs"
 required-features = ["dev-tools"]
 
+[[bin]]
+name = "debug_pixel"
+path = "src/bin/debug_pixel.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "check_event"
+path = "src/bin/check_event.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "test_agent_dashboard"
+path = "src/bin/test_agent_dashboard.rs"
+required-features = ["dev-tools"]
+
 [dependencies]
 axum = { version = "0.8", features = ["macros", "multipart"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -103,3 +118,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 aes-gcm = { version = "0.10", features = ["aes"] }
 sha2 = "0.10"
 base64 = "0.22"
+
+[dev-dependencies]
+proptest = "1.5"
+tower = { version = "0.5", features = ["util"] }

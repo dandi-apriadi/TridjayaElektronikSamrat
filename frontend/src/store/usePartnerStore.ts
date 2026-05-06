@@ -43,12 +43,20 @@ export const usePartnerStore = create<PartnerState>((set, get) => ({
   createPartner: async (data) => {
     set({ isLoading: true, error: null });
     try {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          if (key === 'logo' && value instanceof File) {
+            formData.append('logo', value);
+          } else {
+            formData.append(key, String(value));
+          }
+        }
+      });
+
       const response = await apiFetch('/api/admin/partners', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -69,12 +77,20 @@ export const usePartnerStore = create<PartnerState>((set, get) => ({
   updatePartner: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          if (key === 'logo' && value instanceof File) {
+            formData.append('logo', value);
+          } else {
+            formData.append(key, String(value));
+          }
+        }
+      });
+
       const response = await apiFetch(`/api/admin/partners/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -91,6 +107,7 @@ export const usePartnerStore = create<PartnerState>((set, get) => ({
       return false;
     }
   },
+
 
   deletePartner: async (id) => {
     set({ error: null });

@@ -6,7 +6,9 @@ import {
   Users, 
   Package, 
   Ticket, 
-  BarChart3, 
+  BarChart3,
+  BarChart2,
+  FlaskConical,
   Trophy,
   LogOut, 
   Menu, 
@@ -105,12 +107,30 @@ const DashboardLayout: React.FC = () => {
 
   const activeItemPath = location.pathname;
 
+  const superAdminSections = React.useMemo(() => [
+    {
+      title: 'Pixel Management',
+      items: [
+        { label: 'Pixels Overview', icon: LayoutDashboard, path: '/dashboard/super-admin' },
+        { label: 'Manage Pixels', icon: BarChart3, path: '/dashboard/super-admin/pixels' },
+        { label: 'Audit Logs', icon: FileText, path: '/dashboard/super-admin/audit-logs' },
+      ]
+    },
+    {
+      title: 'Analytics',
+      items: [
+        { label: 'Platform Analytics', icon: TrendingUp, path: '/dashboard/super-admin/analytics' },
+      ]
+    }
+  ], []);
+
   const adminSections = React.useMemo(() => [
     {
       title: 'Utama',
       items: [
         { label: 'Overview', icon: LayoutDashboard, path: '/dashboard/admin' },
         { label: 'Telemetri', icon: BarChart3, path: '/dashboard/admin/telemetry' },
+        { label: 'Pixel Analytics', icon: TrendingUp, path: '/dashboard/admin/pixel-analytics' },
       ]
     },
     {
@@ -127,6 +147,8 @@ const DashboardLayout: React.FC = () => {
         { label: 'Manajemen Prospek', icon: TrendingUp, path: '/dashboard/admin/leads' },
         { label: 'Manajemen Karier', icon: Briefcase, path: '/dashboard/admin/careers' },
         { label: 'WhatsApp Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns' },
+        { label: 'Pixel Campaigns', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns' },
+        { label: 'Pixel Tester', icon: FlaskConical, path: '/dashboard/admin/pixel-tester' },
         { label: 'Support Ticket', icon: Headphones, path: '/dashboard/admin/support' },
       ]
     },
@@ -164,6 +186,7 @@ const DashboardLayout: React.FC = () => {
         { label: 'Product Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge' },
         { label: 'Pipeline Prospek', icon: Users, path: '/dashboard/agent/leads' },
         { label: 'Push Prospek', icon: Send, path: '/dashboard/agent/push-prospek' },
+        { label: 'Pixel Analytics', icon: BarChart3, path: '/dashboard/agent/pixel-analytics' },
       ]
     },
     {
@@ -189,6 +212,7 @@ const DashboardLayout: React.FC = () => {
       items: [
         { label: 'Jadwal Pengiriman', icon: Send, path: '/dashboard/sales/delivery' },
         { label: 'Referral & Link', icon: Share2, path: '/dashboard/sales/referral' },
+        { label: 'Pixel Analytics', icon: BarChart3, path: '/dashboard/sales/pixel-analytics' },
       ]
     },
     {
@@ -200,13 +224,18 @@ const DashboardLayout: React.FC = () => {
     }
   ], []);
 
-  const navSections = user?.role === 'admin' ? adminSections : user?.role === 'sales' ? salesSections : agentSections;
+  const navSections = user?.role === 'super_admin' ? superAdminSections : user?.role === 'admin' ? adminSections : user?.role === 'sales' ? salesSections : agentSections;
 
   const toggleSectionHandler = (title: string) => {
     toggleSection(title);
   };
 
-  const quickActions = user?.role === 'admin'
+  const quickActions = user?.role === 'super_admin'
+    ? [
+        { label: 'Pixels', icon: BarChart3, path: '/dashboard/super-admin/pixels', color: 'text-primary' },
+        { label: 'Analytics', icon: TrendingUp, path: '/dashboard/super-admin/analytics', color: 'text-secondary' },
+      ]
+    : user?.role === 'admin'
     ? [
         { label: 'Produk', icon: Package, path: '/dashboard/admin/catalog', color: 'text-primary' },
         { label: 'Agen', icon: UserCheck, path: '/dashboard/admin/agents', color: 'text-secondary' },
@@ -219,7 +248,9 @@ const DashboardLayout: React.FC = () => {
 
   const allNavItems = navSections.flatMap(s => s.items);
   const activeItem = allNavItems.find((item) => activeItemPath === item.path);
-  const notificationsPath = user?.role === 'admin'
+  const notificationsPath = user?.role === 'super_admin'
+    ? '/dashboard/admin/notifications'
+    : user?.role === 'admin'
     ? '/dashboard/admin/notifications'
     : user?.role === 'sales'
       ? '/dashboard/sales/notifications'

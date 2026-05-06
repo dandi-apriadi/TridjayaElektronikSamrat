@@ -254,6 +254,8 @@ pub struct PixelEventRequest {
     pub fbc: Option<String>,
     pub user_data: Option<serde_json::Value>,
     pub custom_data: Option<serde_json::Value>,
+    /// Optional agent ID for attribution
+    pub agent_id: Option<String>,
     /// Unix timestamp (seconds). If omitted, server time is used.
     pub event_time: Option<i64>,
 }
