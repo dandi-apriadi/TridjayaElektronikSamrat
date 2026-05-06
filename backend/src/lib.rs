@@ -8,3 +8,4 @@ pub mod seed;
 pub mod mail;
 pub mod cache;
 pub mod wa_worker;
+pub mod pixel;

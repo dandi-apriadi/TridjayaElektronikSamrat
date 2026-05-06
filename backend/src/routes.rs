@@ -3,7 +3,8 @@ use crate::{
     response::{json_ok, AppError},
     state::{AppState, UserPublic, UserRecord},
 };
-use axum::{extract::{Path, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{get, post, patch}, Json, Router};
+use axum::{extract::{Path, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{delete, get, post, patch}, Json, Router};
+use crate::pixel;
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::fs;
@@ -85,6 +86,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/admin/agents/{id}/performance", get(get_agent_performance))
         .route("/api/admin/leads", get(list_leads))
         .route("/api/admin/leads/{id}/status", patch(update_lead_status))
+        .route("/api/pixels", post(pixel::handlers::create_pixel).get(pixel::handlers::list_pixels))
+        .route("/api/pixels/{id}", get(pixel::handlers::get_pixel).patch(pixel::handlers::update_pixel).delete(pixel::handlers::delete_pixel))
+        .route("/api/pixels/{id}/admins", post(pixel::handlers::assign_admin).get(pixel::handlers::list_pixel_admins))
+        .route("/api/pixels/{id}/admins/{user_id}", delete(pixel::handlers::revoke_admin))
         .with_state(state)
 }
 

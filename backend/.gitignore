@@ -13,3 +13,6 @@ target
 # uploads/*_ktp.webp
 # uploads/*_profile.webp
 # uploads/*_article.webp
+!uploads/products/*.webp
+!uploads/products/*.jpg
+!uploads/products/*.png

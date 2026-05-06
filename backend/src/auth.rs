@@ -29,6 +29,7 @@ pub enum Role {
     Operator,
     WaAdmin,
     WaOperator,
+    SuperAdmin,
 }
 
 impl Display for Role {
@@ -41,6 +42,7 @@ impl Display for Role {
             Self::Operator => write!(f, "operator"),
             Self::WaAdmin => write!(f, "wa_admin"),
             Self::WaOperator => write!(f, "wa_operator"),
+            Self::SuperAdmin => write!(f, "super_admin"),
         }
     }
 }
@@ -56,6 +58,7 @@ impl FromStr for Role {
             "operator" => Ok(Self::Operator),
             "wa_admin" | "wa-admin" | "waadmin" => Ok(Self::WaAdmin),
             "wa_operator" | "wa-operator" | "waoperator" => Ok(Self::WaOperator),
+            "super_admin" | "superadmin" => Ok(Self::SuperAdmin),
             _ => Err(()),
         }
     }
@@ -68,6 +71,10 @@ impl Role {
 
     pub fn can_operate_wa(&self) -> bool {
         matches!(self, Self::Admin | Self::WaAdmin | Self::WaOperator)
+    }
+
+    pub fn can_manage_pixels(&self) -> bool {
+        matches!(self, Self::SuperAdmin)
     }
 }
 

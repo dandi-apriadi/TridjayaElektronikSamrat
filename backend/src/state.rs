@@ -1,6 +1,7 @@
 use crate::auth::{AccessSession, RefreshSession};
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, sync::Arc};
+use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 use sqlx::SqlitePool;
 
@@ -20,6 +21,14 @@ pub struct AppState {
     pub telemetry_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     pub mailer: Arc<crate::mail::Mailer>,
     pub cache: Arc<crate::cache::CacheManager>,
+    /// Per-IP rate limiting for the pixel event endpoint.
+    pub pixel_meta_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    /// Prevents concurrent analytics aggregation runs.
+    pub analytics_job_running: Arc<AtomicBool>,
+    /// Timestamp of the last successful analytics aggregation.
+    pub last_analytics_run: Arc<RwLock<Option<DateTime<Utc>>>>,
+    /// Timestamp of the last Meta CAPI retry job run.
+    pub last_retry_run: Arc<RwLock<Option<DateTime<Utc>>>>,
 }
 
 impl AppState {
@@ -37,6 +46,10 @@ impl AppState {
             telemetry_attempts: Arc::new(RwLock::new(HashMap::new())),
             mailer: Arc::new(crate::mail::Mailer::new()),
             cache,
+            pixel_meta_attempts: Arc::new(RwLock::new(HashMap::new())),
+            analytics_job_running: Arc::new(AtomicBool::new(false)),
+            last_analytics_run: Arc::new(RwLock::new(None)),
+            last_retry_run: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -73,6 +86,13 @@ impl AppState {
         {
             let mut tel = self.telemetry_attempts.write().await;
             tel.retain(|_, attempts| {
+                attempts.retain(|ts| now.signed_duration_since(*ts).num_seconds() < 60);
+                !attempts.is_empty()
+            });
+        }
+        {
+            let mut pixel = self.pixel_meta_attempts.write().await;
+            pixel.retain(|_, attempts| {
                 attempts.retain(|ts| now.signed_duration_since(*ts).num_seconds() < 60);
                 !attempts.is_empty()
             });

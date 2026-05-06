@@ -100,3 +100,6 @@ lettre = { version = "0.11", default-features = false, features = ["tokio1-rustl
 urlencoding = "2.1"
 redis = { version = "0.29", features = ["tokio-comp", "json", "connection-manager"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart", "stream"] }
+aes-gcm = { version = "0.10", features = ["aes"] }
+sha2 = "0.10"
+base64 = "0.22"
