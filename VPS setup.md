@@ -15,23 +15,22 @@ Pastikan database lokal Anda (`backend/tridjaya.db`) dalam kondisi terbaru dan s
 
 ## 2. Transfer Data ke VPS (Rekomendasi SCP)
 
-Gunakan perintah berikut dari terminal lokal Anda untuk mengirimkan database dan folder uploads ke server. 
-*Ganti `user@vps-ip` dengan detail SSH Anda.*
+Gunakan perintah berikut dari terminal lokal Anda untuk mengirimkan database dan folder uploads ke server.
 
 ### A. Mengirim Database
 ```bash
-scp backend/tridjaya.db user@vps-ip:/var/www/tridjaya-samrat/backend/tridjaya.db
+scp backend/tridjaya.db root@165.245.179.167:/var/www/tridjaya-samrat/backend/tridjaya.db
 ```
 
 ### B. Mengirim Folder Uploads (Gambar Produk/Artikel)
 ```bash
-scp -r backend/uploads user@vps-ip:/var/www/tridjaya-samrat/backend/
+scp -r backend/uploads root@165.245.179.167:/var/www/tridjaya-samrat/backend/
 ```
 
 ### C. Mengirim Aset Frontend
 Jika ada perubahan pada gambar statis di folder public:
 ```bash
-scp -r frontend/public/assets/images user@vps-ip:/var/www/tridjaya-samrat/frontend/public/assets/
+scp -r frontend/public/assets/images root@165.245.179.167:/var/www/tridjaya-samrat/frontend/public/assets/
 ```
 
 ---
