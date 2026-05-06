@@ -10,6 +10,6 @@ target
 
 # User-uploaded PII / konten pengguna. Berkas brand & partner statis (mis.
 # uploads/partners/*, uploads/logo.png) tetap boleh di-commit.
-uploads/*_ktp.webp
-uploads/*_profile.webp
-uploads/*_article.webp
+# uploads/*_ktp.webp
+# uploads/*_profile.webp
+# uploads/*_article.webp
