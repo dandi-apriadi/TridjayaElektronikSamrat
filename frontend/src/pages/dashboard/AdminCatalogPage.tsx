@@ -10,6 +10,7 @@ import { useProductStore } from '../../store/useProductStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
 import { usePersistedState } from '../../hooks/usePersistedState';
+import { getImageUrl } from '../../utils/apiClient';
 
 const categories = ['Semua', 'bike', 'electronics', 'furniture'];
 const statuses   = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
@@ -242,10 +243,29 @@ const AdminCatalogPage: React.FC = () => {
             <tbody>
               {paginated.map((p) => (
                 <tr key={p.id} className="border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
-                  <td className="py-3.5 pr-4">
-                    <div>
-                      <div className="font-semibold text-on-surface text-body-sm group-hover:text-primary transition-colors">{p.name}</div>
-                      <div className="text-label-xs text-on-surface-variant">{p.id}</div>
+                  <td className="py-3 pr-4">
+                    <div className="flex items-center gap-3">
+                      {/* Thumbnail */}
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface-highest flex-shrink-0 border border-outline-variant/20">
+                        {p.image ? (
+                          <img
+                            src={getImageUrl(p.image)}
+                            alt={p.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-on-surface-variant/30">
+                            <Package className="w-4 h-4" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-on-surface text-body-sm group-hover:text-primary transition-colors truncate max-w-[200px]">{p.name}</div>
+                        <div className="text-label-xs text-on-surface-variant truncate max-w-[200px]">{p.id}</div>
+                      </div>
                     </div>
                   </td>
                   <td className="py-3.5 pr-4">

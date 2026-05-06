@@ -74,6 +74,13 @@ const itemVariants = {
 const AdminDashboard: React.FC = () => {
   const [chartRange, setChartRange] = usePersistedState('adminDashboard:chartRange', '6M');
   const [pendingClaimActionId, setPendingClaimActionId] = useState<string | null>(null);
+  const [chartReady, setChartReady] = useState(false);
+
+  // Delay chart rendering until after first paint to avoid width/height = -1 warning
+  useEffect(() => {
+    const t = setTimeout(() => setChartReady(true), 100);
+    return () => clearTimeout(t);
+  }, []);
 
   const {
     registrations,
@@ -403,6 +410,7 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
           <div className="relative h-[260px] w-full min-h-[260px] overflow-visible">
+            {chartReady && (
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
               <AreaChart data={chartData}>
                 <defs>
@@ -432,6 +440,7 @@ const AdminDashboard: React.FC = () => {
                 <Area type="monotone" dataKey="leads" stroke="#A2F31F" strokeWidth={2.5} fill="url(#gradPayout)" name="Lead" />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </motion.div>
 
@@ -453,6 +462,7 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
           <div className="relative h-[220px] w-full min-h-[220px] flex-1 overflow-visible">
+            {chartReady && (
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
               <BarChart data={agentGrowthData} barSize={8} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
@@ -465,6 +475,7 @@ const AdminDashboard: React.FC = () => {
                 <Bar dataKey="new" fill="#A2F31F" opacity={0.85} radius={[3, 3, 0, 0]} name="Baru" />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
           <div className="mt-4 p-3 rounded-lg bg-surface-high border border-outline-variant/10">
             <div className="text-label-xs text-on-surface-variant">Registrasi agen bulan ini</div>
@@ -481,6 +492,7 @@ const AdminDashboard: React.FC = () => {
             <p className="text-label-sm text-on-surface-variant mt-0.5">Top 8 kategori produk</p>
           </div>
           <div className="relative h-[300px] w-full min-h-[300px] flex-1">
+            {chartReady && (
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
               <PieChart>
                 <Pie
@@ -520,6 +532,7 @@ const AdminDashboard: React.FC = () => {
                 />
               </PieChart>
             </ResponsiveContainer>
+            )}
           </div>
         </motion.div>
       </div>

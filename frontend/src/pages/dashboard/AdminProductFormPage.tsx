@@ -390,11 +390,25 @@ const AdminProductFormPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Sanitize: convert null values to undefined/empty string to satisfy Zod schema
     const payload = {
       ...formData,
-      ratings: formData.ratings || [],
-      rating: undefined,
+      subcategory: formData.subcategory ?? undefined,
+      description: formData.description ?? '',
+      shortDesc: formData.shortDesc ?? '',
       review: undefined,
+      rating: undefined,
+      priceInstallment: formData.priceInstallment ?? undefined,
+      dpMin: formData.dpMin ?? undefined,
+      image: formData.image ?? '',
+      images: (formData.images ?? []).filter(Boolean),
+      colors: (formData.colors ?? []).filter(Boolean),
+      highlights: (formData.highlights ?? []).filter(Boolean),
+      sellingPoints: (formData.sellingPoints ?? []).filter(Boolean),
+      objections: (formData.objections ?? []).filter(Boolean),
+      specs: formData.specs ?? {},
+      ratings: formData.ratings || [],
+      badge: formData.badge ?? undefined,
     };
 
     const parsed = adminProductSchema.safeParse(payload);
@@ -414,7 +428,7 @@ const AdminProductFormPage: React.FC = () => {
         } as Product);
         if (success) {
           toast.success('Produk berhasil diperbarui');
-          navigate('/dashboard/admin/catalog');
+          // Tetap di halaman edit setelah update
         }
       } else {
         const newId = `PRD-${Math.floor(Math.random() * 1000)}`;

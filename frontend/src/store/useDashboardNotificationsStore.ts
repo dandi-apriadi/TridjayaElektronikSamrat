@@ -63,6 +63,7 @@ export const useDashboardNotificationsStore = create<DashboardNotificationsState
   fetchUnreadCount: async () => {
     try {
       const response = await apiFetch('/api/notifications/unread-count');
+      // Silently ignore 401 — token expired or not logged in yet, not worth logging
       if (!response.ok) {
         return get().unreadCount;
       }
