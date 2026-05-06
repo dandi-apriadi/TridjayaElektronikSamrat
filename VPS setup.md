@@ -13,11 +13,15 @@ Pastikan database lokal Anda (`backend/tridjaya.db`) dalam kondisi terbaru dan s
 
 ---
 
-## 2. Transfer Data ke VPS (Rekomendasi SCP)
+## 2. Persiapan Folder di VPS
+Sebelum mengirim file, pastikan folder tujuan sudah ada di VPS. Jalankan perintah ini di VPS (via SSH):
+```bash
+mkdir -p /var/www/tridjaya-samrat/backend
+mkdir -p /var/www/tridjaya-samrat/frontend/public/assets
+```
 
-Gunakan perintah berikut dari terminal lokal Anda untuk mengirimkan database dan folder uploads ke server.
-
-### A. Mengirim Database
+## 3. Transfer Data ke VPS (Rekomendasi SCP)
+Gunakan perintah berikut dari terminal lokal Anda:
 ```bash
 scp backend/tridjaya.db root@165.245.179.167:/var/www/tridjaya-samrat/backend/tridjaya.db
 ```
@@ -35,7 +39,7 @@ scp -r frontend/public/assets/images root@165.245.179.167:/var/www/tridjaya-samr
 
 ---
 
-## 3. Konfigurasi Backend di VPS
+## 4. Konfigurasi Backend di VPS
 
 ### A. Environment Variables (`backend/.env`)
 Pastikan file `.env` di server menggunakan URL produksi:
@@ -61,7 +65,7 @@ pm2 save
 
 ---
 
-## 4. Konfigurasi Frontend di VPS
+## 5. Konfigurasi Frontend di VPS
 
 ### A. Environment Variables (`frontend/.env`)
 ```env
@@ -78,7 +82,7 @@ npm run build
 
 ---
 
-## 5. Sinkronisasi via Git (Opsional)
+## 6. Sinkronisasi via Git (Opsional)
 
 Jika Anda ingin "push" database via Git (hanya untuk satu kali sinkronisasi):
 1. Hapus `*.db` dari `.gitignore`.
@@ -91,7 +95,7 @@ Jika Anda ingin "push" database via Git (hanya untuk satu kali sinkronisasi):
 
 ---
 
-## 6. Verifikasi Akhir
+## 7. Verifikasi Akhir
 Setelah semua file ditransfer dan layanan direstart:
 1. Cek log backend: `pm2 logs tridjaya-backend`.
 2. Akses `https://polimdogreenacc.com/blog` untuk memastikan gambar artikel muncul.
