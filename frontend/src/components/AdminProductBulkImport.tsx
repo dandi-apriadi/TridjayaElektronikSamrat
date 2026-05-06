@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, CheckCircle2, XCircle, Download, Play, Trash2, Eye, EyeOff, History, Trash } from 'lucide-react';
+import { Upload, CheckCircle2, XCircle, Download, Play, Trash2, Eye, EyeOff, History, Trash, Zap } from 'lucide-react';
 import { useProductStore } from '../store/useProductStore';
 import { toast } from '../store/useNotificationStore';
 import {
@@ -36,7 +36,7 @@ const AdminProductBulkImport: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'similar' | 'new' | 'error'>('all');
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [processSummary, setProcessSummary] = useState<{ successCount: number; errorCount: number; results: string[] } | null>(null);
+  const [processSummary, setProcessSummary] = useState<{ successCount: number; errorCount: number; results: string[]; failedProducts: { row: number; name: string; reason: string }[] } | null>(null);
   const [importProgress, setImportProgress] = useState(0);
   const [bulkHistory, setBulkHistory] = useState<BulkImportHistory[]>([]);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
@@ -94,7 +94,26 @@ const AdminProductBulkImport: React.FC = () => {
     let duplicates = 0;
     const errors: string[] = [];
 
+    // Fetch existing categories first to avoid unnecessary 409 requests
+    let existingNames = new Set<string>();
+    try {
+      const res = await apiFetch('/api/product-categories');
+      if (res.ok) {
+        const data = await res.json();
+        const items: { name: string }[] = data?.data?.items || [];
+        existingNames = new Set(items.map(i => i.name.toLowerCase().trim()));
+      }
+    } catch (_) {
+      // If fetch fails, proceed anyway — backend handles duplicates with INSERT OR IGNORE
+    }
+
     for (const categoryName of categoryNames) {
+      // Skip if already exists locally
+      if (existingNames.has(categoryName.toLowerCase().trim())) {
+        duplicates++;
+        continue;
+      }
+
       try {
         const response = await apiFetch('/api/product-categories', {
           method: 'POST',
@@ -111,7 +130,6 @@ const AdminProductBulkImport: React.FC = () => {
           saved++;
         } else {
           const errorData = await response.json().catch(() => ({}));
-          // Check if it's a duplicate (UNIQUE constraint violation)
           if (response.status === 409 || errorData.message?.includes('UNIQUE')) {
             duplicates++;
           } else {
@@ -232,6 +250,7 @@ const AdminProductBulkImport: React.FC = () => {
     setImportProgress(0);
     
     const results: string[] = [];
+    const failedProducts: { row: number; name: string; reason: string }[] = [];
     let totalSuccess = 0;
     let totalError = 0;
 
@@ -323,6 +342,13 @@ const AdminProductBulkImport: React.FC = () => {
           const product = chunk.find(item => item.rowNumber === rowNum);
           const productName = product ? ` (${product.name})` : '';
           results.push(`❌ ${err}${productName}`);
+          console.error(`[BulkImport] GAGAL${productName} | Row ${rowNum} | ${err}`);
+          // Kumpulkan untuk ditampilkan di halaman hasil
+          failedProducts.push({
+            row: rowNum,
+            name: product?.name || `Row ${rowNum}`,
+            reason: err.replace(/^Baris \d+[^:]*:\s*/, '').replace('Database Error - ', '')
+          });
         });
         
         // Add specific success messages for small imports, or generic for large ones
@@ -363,7 +389,7 @@ const AdminProductBulkImport: React.FC = () => {
         }
       }
 
-      setProcessSummary(summary);
+      setProcessSummary({ ...summary, failedProducts });
       
       // Prepare per-row details for history (reasons why rows were not processed)
       const details = preview
@@ -407,7 +433,7 @@ const AdminProductBulkImport: React.FC = () => {
       setProcessing(false);
       setStep('preview');
       toast.error('Terjadi error saat bulk processing');
-      console.error('Bulk import error:', error);
+      console.error('[BulkImport] Fatal error:', error);
     }
   };
 
@@ -468,6 +494,160 @@ const AdminProductBulkImport: React.FC = () => {
       item.status === 'similar' ? { ...item, status: 'new' as const, similarProducts: undefined } : item
     ));
     toast.success(`${count} produk serupa diabaikan`, 'Semua item serupa sekarang ditandai sebagai produk baru.');
+  };
+
+  // Import ALL rows (including similar) — no filter, treat similar as new
+  const handleImportAll = async () => {
+    const allItems = preview.filter(item => item.status !== 'error');
+    if (allItems.length === 0) {
+      toast.error('Tidak ada data valid untuk diimport.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Import SEMUA ${allItems.length} produk tanpa filter?\n\n` +
+      `• ${preview.filter(i => i.status === 'matched').length} produk akan di-UPDATE\n` +
+      `• ${preview.filter(i => i.status === 'new').length} produk baru akan dibuat\n` +
+      `• ${preview.filter(i => i.status === 'similar').length} produk serupa akan dibuat sebagai BARU\n` +
+      `• ${preview.filter(i => i.status === 'error').length} produk error akan dilewati\n\n` +
+      `Lanjutkan?`
+    );
+    if (!confirmed) return;
+
+    // Treat similar as new
+    const itemsToProcess = allItems.map(item =>
+      item.status === 'similar'
+        ? { ...item, status: 'new' as const, similarProducts: undefined, matchedProduct: undefined }
+        : item
+    );
+
+    setProcessing(true);
+    setStep('processing');
+    setImportProgress(0);
+
+    const results: string[] = [];
+    const failedProducts: { row: number; name: string; reason: string }[] = [];
+    let totalSuccess = 0;
+    let totalError = 0;
+
+    try {
+      const chunkSize = 50;
+      for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
+        const chunk = itemsToProcess.slice(i, i + chunkSize);
+
+        const operations = chunk.map(item => {
+          const updateData = prepareUpdateData(item.newData);
+          let finalImage = item.newData.image;
+          const isImageEmpty = !finalImage || finalImage.trim() === '';
+
+          if (item.status === 'matched' && item.matchedProduct) {
+            if (isImageEmpty) {
+              const currentImage = item.matchedProduct.image || '';
+              const needsPlaceholder = !currentImage ||
+                currentImage.includes('placehold.co') ||
+                currentImage.includes('/uploads/placeholders/') ||
+                currentImage === '';
+              finalImage = needsPlaceholder
+                ? getCategoryPlaceholder(item.newData.category || item.matchedProduct.category)
+                : currentImage;
+            }
+            return {
+              type: 'update',
+              data: { id: item.matchedProduct.id, ...updateData, image: finalImage, rowNumber: item.rowNumber }
+            };
+          } else {
+            if (isImageEmpty) finalImage = getCategoryPlaceholder(item.newData.category);
+            const productName = item.newData.name || '';
+            return {
+              type: 'create',
+              data: {
+                ...updateData,
+                name: productName,
+                slug: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                stock: updateData.stock || 'available',
+                image: finalImage,
+                rowNumber: item.rowNumber
+              }
+            };
+          }
+        });
+
+        const response = await apiFetch('/api/admin/catalogs/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operations }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || errorData.error || 'Gagal memproses bulk import');
+        }
+
+        const payload = await response.json();
+        const { successCount, errors } = payload.data || { successCount: 0, errors: [] };
+        totalSuccess += successCount;
+        totalError += errors.length;
+
+        errors.forEach((err: string) => {
+          const rowMatch = err.match(/Baris (\d+):/);
+          const rowNum = rowMatch ? parseInt(rowMatch[1]) : -1;
+          const product = chunk.find(item => item.rowNumber === rowNum);
+          const productName = product ? ` (${product.name})` : '';
+          results.push(`❌ ${err}${productName}`);
+          console.error(`[BulkImport:All] GAGAL${productName} | Row ${rowNum} | ${err}`);
+          failedProducts.push({
+            row: rowNum,
+            name: product?.name || `Row ${rowNum}`,
+            reason: err.replace(/^Baris \d+[^:]*:\s*/, '').replace('Database Error - ', '')
+          });
+        });
+
+        if (chunk.length <= 5) {
+          chunk.forEach(item => results.push(`✅ Selesai: ${item.name}`));
+        } else {
+          results.push(`✅ Berhasil memproses ${successCount} produk di batch ini`);
+        }
+
+        setImportProgress(Math.min(100, Math.round(((i + chunk.length) / itemsToProcess.length) * 100)));
+      }
+
+      setProcessing(false);
+      const skipped = preview.filter(i => i.status === 'error').length;
+      const summaryResult = {
+        successCount: totalSuccess,
+        errorCount: totalError + skipped,
+        results: [
+          ...results,
+          ...(skipped > 0 ? [`ℹ️ ${skipped} baris dilewati (Error validasi)`] : [])
+        ]
+      };
+
+      const categoriesToSave = extractCategories(itemsToProcess);
+      if (categoriesToSave.length > 0) {
+        const categoryResults = await saveCategoriesToDatabase(categoriesToSave);
+        if (categoryResults.saved > 0) summaryResult.results.push(`📁 Berhasil simpan ${categoryResults.saved} kategori baru`);
+        if (categoryResults.duplicates > 0) summaryResult.results.push(`ℹ️ ${categoryResults.duplicates} kategori sudah ada`);
+      }
+
+      setProcessSummary({ ...summaryResult, failedProducts });
+      saveHistory({
+        id: `bulk_all_${Date.now()}`,
+        timestamp: Date.now(),
+        fileName: `[IMPORT ALL] ${selectedFile?.name || 'Import'}`,
+        successCount: totalSuccess,
+        errorCount: totalError + skipped,
+        results: summaryResult.results,
+        totalItems: preview.length
+      });
+
+      setStep('done');
+      toast.success(`Import semua selesai: ${totalSuccess} berhasil`);
+    } catch (error) {
+      setProcessing(false);
+      setStep('preview');
+      toast.error('Terjadi error saat bulk processing');
+      console.error('[BulkImport:All] Fatal error:', error);
+    }
   };
 
   return (
@@ -1138,14 +1318,28 @@ const AdminProductBulkImport: React.FC = () => {
               >
                 ← Kembali
               </button>
-              <button
-                onClick={handleProcessImport}
-                disabled={processing}
-                className="px-6 py-3 bg-primary hover:opacity-95 disabled:opacity-60 text-on-primary rounded-lg font-medium transition-colors flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                Proses Import ({summary.matched + summary.new} item)
-              </button>
+              <div className="flex gap-3">
+                {/* Import All button — bypasses similar filter */}
+                {preview.filter(i => i.status === 'similar').length > 0 && (
+                  <button
+                    onClick={handleImportAll}
+                    disabled={processing}
+                    className="px-6 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                    title="Import semua produk termasuk yang serupa, tanpa perlu review manual"
+                  >
+                    <Zap className="w-4 h-4" />
+                    Import Semua ({preview.filter(i => i.status !== 'error').length} item)
+                  </button>
+                )}
+                <button
+                  onClick={handleProcessImport}
+                  disabled={processing}
+                  className="px-6 py-3 bg-primary hover:opacity-95 disabled:opacity-60 text-on-primary rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <Play className="w-4 h-4" />
+                  Proses Import ({summary.matched + summary.new} item)
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -1187,23 +1381,70 @@ const AdminProductBulkImport: React.FC = () => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-4"
           >
+            {/* Summary header */}
             <div className="glass-card rounded-lg border border-outline p-6">
               <div className="flex items-center gap-3 mb-3">
                 <CheckCircle2 className="w-6 h-6 text-neon-lime" />
                 <h3 className="text-xl font-bold text-on-surface">Import selesai</h3>
               </div>
-              <p className="text-on-surface-variant">
-                {processSummary.successCount} berhasil, {processSummary.errorCount} gagal.
-              </p>
+              <div className="flex gap-6">
+                <div>
+                  <span className="text-2xl font-black text-green-500">{processSummary.successCount}</span>
+                  <span className="text-sm text-on-surface-variant ml-1">berhasil</span>
+                </div>
+                {processSummary.errorCount > 0 && (
+                  <div>
+                    <span className="text-2xl font-black text-red-500">{processSummary.errorCount}</span>
+                    <span className="text-sm text-on-surface-variant ml-1">gagal</span>
+                  </div>
+                )}
+              </div>
             </div>
 
+            {/* Failed products table — shown prominently if any */}
+            {processSummary.failedProducts.length > 0 && (
+              <div className="glass-card rounded-lg border border-red-500/30 overflow-hidden">
+                <div className="px-4 py-3 border-b border-red-500/20 bg-red-500/10 flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-red-500" />
+                  <span className="font-semibold text-red-500">
+                    {processSummary.failedProducts.length} Produk Gagal Diimport
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-outline/30 bg-surface-container/50">
+                        <th className="px-4 py-2 text-left text-on-surface-variant font-semibold w-16">Row</th>
+                        <th className="px-4 py-2 text-left text-on-surface-variant font-semibold">Nama Produk</th>
+                        <th className="px-4 py-2 text-left text-on-surface-variant font-semibold">Penyebab Error</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline/20">
+                      {processSummary.failedProducts.map((fp, i) => (
+                        <tr key={i} className="hover:bg-surface-container/30 transition-colors">
+                          <td className="px-4 py-2.5 text-on-surface-variant font-mono text-xs">{fp.row}</td>
+                          <td className="px-4 py-2.5 text-on-surface font-medium">{fp.name}</td>
+                          <td className="px-4 py-2.5 text-red-400 text-xs font-mono">{fp.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Full log */}
             <div className="glass-card rounded-lg border border-outline overflow-hidden">
               <div className="px-4 py-3 border-b border-outline bg-surface-low font-semibold text-on-surface">
                 Ringkasan hasil per baris
               </div>
               <div className="max-h-80 overflow-auto divide-y divide-outline/20">
                 {processSummary.results.map((line, index) => (
-                  <div key={`${line}-${index}`} className="px-4 py-3 text-sm text-on-surface-variant flex items-center gap-2">
+                  <div key={`${line}-${index}`} className={`px-4 py-3 text-sm flex items-center gap-2 ${
+                    line.startsWith('❌') ? 'bg-red-500/5 text-red-400' :
+                    line.startsWith('✅') ? 'text-green-500' :
+                    'text-on-surface-variant'
+                  }`}>
                     <span>{line}</span>
                   </div>
                 ))}

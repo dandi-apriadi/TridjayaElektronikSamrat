@@ -120,75 +120,31 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
 }
 
 /**
- * Match products dari Excel dengan existing products berdasarkan nama
- * Melakukan pengecekan case-insensitive dan fuzzy matching
+ * Match products dari Excel dengan existing products berdasarkan nama.
+ * Strategy:
+ *   1. Exact match (case-insensitive, trim whitespace) → matched
+ *   2. Tidak ada match → new
+ *   Tidak ada "similar" — perbedaan 1 karakter pun dianggap produk berbeda.
  */
 export function findSimilarProducts(
   importedName: string,
   existingProducts: Product[],
-  threshold: number = 0.99
+  _threshold: number = 1.0 // kept for API compatibility, unused
 ): { match?: Product; similar: Product[] } {
   if (!importedName || !importedName.trim()) {
     return { similar: [] };
   }
 
   const searchName = importedName.toLowerCase().trim();
-  const importedWords = searchName.split(/\s+/).filter(w => w.length > 1);
-  const firstWord = importedWords[0];
 
-  // 1. Exact Match (100% confidence)
+  // Exact match only (case-insensitive, trimmed)
   const exactMatch = existingProducts.find(
     p => p.name.toLowerCase().trim() === searchName
   );
   if (exactMatch) return { match: exactMatch, similar: [] };
 
-  // 2. Extremely Strict Analysis
-  const results = existingProducts.map(p => {
-    const productName = p.name.toLowerCase().trim();
-    const productWords = productName.split(/\s+/).filter(w => w.length > 1);
-    const productFirstWord = productWords[0];
-
-    // BRAND CHECK: First word must match exactly (e.g., Polytron vs Samsung)
-    if (firstWord.toLowerCase() !== productFirstWord.toLowerCase()) {
-      return { product: p, score: 0 };
-    }
-    
-    // Calculate word overlap
-    const matchedWords = importedWords.filter(w => 
-      productWords.some(pw => pw === w)
-    );
-    
-    // Strict word score (Intersection over Union)
-    const union = new Set([...importedWords, ...productWords]);
-    const wordScore = matchedWords.length / union.size;
-    
-    // Character similarity (check for very small differences at the end)
-    let charScore = 0;
-    if (searchName.length > 8 && productName.length > 8) {
-      const minLen = Math.min(searchName.length, productName.length);
-      const diffLen = Math.abs(searchName.length - productName.length);
-      
-      // Names must be identical for at least 90% of their length from the start
-      const prefixLen = Math.floor(minLen * 0.9);
-      if (searchName.substring(0, prefixLen) === productName.substring(0, prefixLen) && diffLen <= 3) {
-        charScore = (minLen - diffLen) / minLen;
-      }
-    }
-
-    const finalScore = Math.max(wordScore, charScore);
-    return { product: p, score: finalScore };
-  }).filter(r => r.score >= threshold)
-    .sort((a, b) => b.score - a.score);
-
-  // If we have a perfect score (0.99+), treat it as a match
-  if (results.length > 0 && results[0].score >= 0.99) {
-    return { match: results[0].product, similar: results.slice(1, 2).map(r => r.product) };
-  }
-
-  // Otherwise, return as similar
-  return { 
-    similar: results.slice(0, 2).map(r => r.product) 
-  };
+  // No match → new product
+  return { similar: [] };
 }
 
 /**
@@ -200,7 +156,7 @@ export function generateImportPreview(
 ): ImportPreviewItem[] {
   const seenImportedNames = new Set<string>();
 
-  return importedRows.map((row, index) => {
+  const items = importedRows.map((row, index): ImportPreviewItem | null => {
     const rowNumber = index + 2; // +2 because Excel is 1-indexed + header row
 
     // Validate required fields
@@ -216,13 +172,8 @@ export function generateImportPreview(
 
     const normalizedName = row.name.trim().toLowerCase();
     if (seenImportedNames.has(normalizedName)) {
-      return {
-        rowNumber,
-        name: row.name,
-        status: 'error',
-        newData: row,
-        error: 'Nama produk duplikat di file import'
-      };
+      // Duplikat — skip saja (baris pertama sudah diproses), jangan masukkan ke preview
+      return null;
     }
     seenImportedNames.add(normalizedName);
 
@@ -230,12 +181,20 @@ export function generateImportPreview(
     const { match, similar } = findSimilarProducts(row.name, existingProducts);
 
     if (match) {
-      const priceChange = 
-        row.price !== undefined && row.price !== null && row.price !== match.price
+      // Parse both prices as numbers to avoid string vs number false positives
+      const importedPrice = row.price !== undefined && row.price !== null
+        ? parseFloat(String(row.price).replace(/[^0-9.-]/g, ''))
+        : undefined;
+      const existingPrice = typeof match.price === 'number' ? match.price : parseFloat(String(match.price));
+
+      const priceChange =
+        importedPrice !== undefined &&
+        !isNaN(importedPrice) &&
+        Math.abs(importedPrice - existingPrice) > 0.01  // toleransi floating point
           ? {
-              old: match.price,
-              new: parseFloat(String(row.price)),
-              difference: parseFloat(String(row.price)) - match.price
+              old: existingPrice,
+              new: importedPrice,
+              difference: importedPrice - existingPrice
             }
           : undefined;
 
@@ -283,6 +242,8 @@ export function generateImportPreview(
       newData: row
     };
   });
+
+  return items.filter((item): item is ImportPreviewItem => item !== null);
 }
 
 /**

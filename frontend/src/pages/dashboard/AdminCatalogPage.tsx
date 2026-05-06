@@ -29,8 +29,13 @@ const AdminCatalogPage: React.FC = () => {
   const [category, setCategory] = usePersistedState('adminCatalog:category', 'Semua');
   const [status, setStatus]     = usePersistedState('adminCatalog:status', 'Semua');
   const [sortBy, setSortBy]     = usePersistedState('adminCatalog:sortBy', 'views');
-  const [currentPage, setCurrentPage] = usePersistedState('adminCatalog:currentPage', 1);
+  const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 8;
+
+  // Reset ke halaman 1 setiap kali filter berubah
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [search, category, status, sortBy]);
 
   React.useEffect(() => {
     fetchProducts(true);
@@ -56,7 +61,8 @@ const AdminCatalogPage: React.FC = () => {
 
   const filtered = products
     .filter((p) => {
-      const matchSearch   = `${p.name} ${p.id}`.toLowerCase().includes(search.toLowerCase());
+      const matchSearch   = search.trim() === '' || 
+        `${p.name} ${p.id} ${p.category} ${p.subcategory || ''}`.toLowerCase().includes(search.toLowerCase());
       const matchCategory = category === 'Semua' || p.category === category;
       
       let pStatus = 'Active';

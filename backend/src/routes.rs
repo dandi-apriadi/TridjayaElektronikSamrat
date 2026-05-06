@@ -3335,7 +3335,7 @@ async fn create_product_category(
     let slug = payload.name.to_lowercase().replace(' ', "-");
 
     sqlx::query(
-        "INSERT INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)"
+        "INSERT OR IGNORE INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(payload.name.trim())
@@ -3343,7 +3343,10 @@ async fn create_product_category(
     .bind(payload.description)
     .execute(&state.pool)
     .await
-    .map_err(map_conflict_if_needed)?;
+    .map_err(|e| {
+        tracing::error!("Failed to create product category: {}", e);
+        AppError::Internal
+    })?;
 
     Ok(json_ok("Category created", json!({ "id": id, "slug": slug })))
 }
@@ -3653,7 +3656,33 @@ async fn bulk_products(
                 let category = data.category.as_deref().unwrap_or("Uncategorized");
                 let price = data.price.unwrap_or(0.0);
                 let image = data.image.as_deref().unwrap_or("https://placehold.co/600x400?text=No+Image");
-                let slug = data.slug.clone().unwrap_or_else(|| name.to_lowercase().replace(' ', "-"));
+                let base_slug = data.slug.clone().unwrap_or_else(|| {
+                    // Sanitize: lowercase, replace spaces and special chars with hyphens, collapse multiple hyphens
+                    let s = name.to_lowercase();
+                    let s = s.chars().map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' }).collect::<String>();
+                    s.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-")
+                });
+
+                // Ensure slug is unique by appending a suffix if needed
+                let slug = {
+                    let mut candidate = base_slug.trim().to_string();
+                    let mut suffix = 1u32;
+                    loop {
+                        let exists: Option<i64> = sqlx::query_scalar(
+                            "SELECT 1 FROM products WHERE slug = ? LIMIT 1"
+                        )
+                        .bind(&candidate)
+                        .fetch_optional(&mut *tx)
+                        .await
+                        .unwrap_or(None);
+
+                        if exists.is_none() {
+                            break candidate;
+                        }
+                        suffix += 1;
+                        candidate = format!("{}-{}", base_slug.trim(), suffix);
+                    }
+                };
 
                 let id = data.id.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
                     .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -3698,8 +3727,12 @@ async fn bulk_products(
                 match result {
                     Ok(_) => success_count += 1,
                     Err(e) => {
-                        tracing::error!("Bulk Create Error at row {}: {}", display_row, e);
-                        errors.push(format!("Baris {}: Database Error - {}", display_row, e));
+                        let err_msg = e.to_string();
+                        tracing::error!(
+                            "Bulk Create Error at row {} | name='{}' | slug='{}' | error: {}",
+                            display_row, name, slug, err_msg
+                        );
+                        errors.push(format!("Baris {} ({}): {}", display_row, name, err_msg));
                     }
                 }
             }
@@ -3747,8 +3780,12 @@ async fn bulk_products(
                 match q.execute(&mut *tx).await {
                     Ok(_) => success_count += 1,
                     Err(e) => {
-                        tracing::error!("Bulk Update Error for ID {} at row {}: {}", id, display_row, e);
-                        errors.push(format!("Baris {}: Database Error - {}", display_row, e));
+                        let err_msg = e.to_string();
+                        tracing::error!(
+                            "Bulk Update Error at row {} | id='{}' | error: {}",
+                            display_row, id, err_msg
+                        );
+                        errors.push(format!("Baris {} (id={}): {}", display_row, id, err_msg));
                     }
                 }
             }
