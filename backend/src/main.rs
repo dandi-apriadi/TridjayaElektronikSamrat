@@ -237,7 +237,7 @@ async fn main() {
         state.pool.clone(),
         state.redis.clone(),
         state.queue_manager.clone(),
-        None,
+        state.bridge_client.clone(),
         vec![PathBuf::from("uploads"), PathBuf::from("uploads/temp")],
     ));
 
@@ -297,12 +297,29 @@ async fn main() {
         }
     });
 
+    // Layer ordering note: layers are applied outside-in, so the LAST `.layer`
+    // call wraps everything. We want `TraceLayer` to be the outermost so its
+    // span is active when `correlation_id_middleware` calls
+    // `Span::current().record("correlation_id", ...)`. The TraceLayer span must
+    // also pre-declare the `correlation_id` field (with `field::Empty`) for the
+    // `record` call to land somewhere.
     let app = routes::router(state)
         .nest_service("/uploads", ServeDir::new("uploads"))
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))
         .layer(cors)
-        .layer(TraceLayer::new_for_http())
-        .layer(axum_middleware::from_fn(correlation_id_middleware));
+        .layer(axum_middleware::from_fn(correlation_id_middleware))
+        .layer(
+            TraceLayer::new_for_http().make_span_with(
+                |request: &axum::http::Request<_>| {
+                    tracing::info_span!(
+                        "http_request",
+                        method = %request.method(),
+                        uri = %request.uri(),
+                        correlation_id = tracing::field::Empty,
+                    )
+                },
+            ),
+        );
 
     let addr: SocketAddr = "0.0.0.0:8081".parse().expect("valid listen address");
     tracing::info!("Backend listening on http://{}", addr);
