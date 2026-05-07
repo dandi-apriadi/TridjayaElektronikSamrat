@@ -1,4 +1,6 @@
 use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
 use axum::http::{HeaderValue, Method};
 use axum::extract::DefaultBodyLimit;
 use tower_http::{cors::{AllowOrigin, CorsLayer}, trace::TraceLayer, services::ServeDir};
@@ -6,7 +8,7 @@ use tracing_subscriber::EnvFilter;
 use sqlx::sqlite::SqlitePoolOptions;
 use dotenvy::dotenv;
 
-use tridjaya_backend::{routes, state::AppState, seed::seed_database};
+use tridjaya_backend::{cleanup::CleanupManager, routes, seed::seed_database, state::AppState};
 
 fn is_production_runtime() -> bool {
     matches!(std::env::var("APP_ENV").ok().as_deref(), Some("production") | Some("prod"))
@@ -118,7 +120,7 @@ async fn main() {
         })
         .expect("Failed to create Redis connection manager");
 
-    let cache = std::sync::Arc::new(tridjaya_backend::cache::CacheManager::new(redis_conn));
+    let cache = std::sync::Arc::new(tridjaya_backend::cache::CacheManager::new(redis_conn.clone()));
     
     // Start adaptive sync in background
     let cache_clone = cache.clone();
@@ -126,7 +128,39 @@ async fn main() {
         cache_clone.start_adaptive_sync().await;
     });
 
-    let state = AppState::new(pool, cache);
+    // Initialize QueueManager for WhatsApp gateway
+    let queue_manager = match tridjaya_backend::redis_manager::RedisManager::new(&redis_url).await {
+        Ok(redis_manager) => {
+            tracing::info!("Redis manager initialized for queue management");
+            let qm = tridjaya_backend::queue_manager::QueueManager::new(redis_manager, pool.clone());
+            Some(std::sync::Arc::new(qm))
+        }
+        Err(e) => {
+            tracing::warn!("Failed to initialize queue manager: {}. API send endpoint will be unavailable.", e);
+            None
+        }
+    };
+
+    let mut state = AppState::new(pool, cache).with_redis(redis_conn);
+    if let Some(qm) = queue_manager {
+        state = state.with_queue_manager(qm);
+    }
+
+    let cleanup_manager = Arc::new(CleanupManager::new(
+        state.pool.clone(),
+        state.redis.clone(),
+        state.queue_manager.clone(),
+        None,
+        vec![PathBuf::from("uploads"), PathBuf::from("uploads/temp")],
+    ));
+
+    {
+        let cleanup_runner = cleanup_manager.clone();
+        tokio::spawn(async move {
+            cleanup_runner.start_scheduler().await;
+        });
+    }
+
     let janitor_state = state.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
@@ -188,5 +222,25 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("failed to bind address");
-    axum::serve(listener, app).await.expect("server error");
+
+    let shutdown_cleanup = cleanup_manager.clone();
+    let shutdown_signal = async move {
+        if let Err(e) = tokio::signal::ctrl_c().await {
+            tracing::error!("Failed to listen for shutdown signal: {}", e);
+            return;
+        }
+
+        tracing::info!("Shutdown signal received, starting graceful shutdown");
+        if let Err(e) = shutdown_cleanup
+            .graceful_shutdown(std::time::Duration::from_secs(30))
+            .await
+        {
+            tracing::error!("Graceful shutdown encountered an error: {}", e);
+        }
+    };
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await
+        .expect("server error");
 }

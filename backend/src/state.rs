@@ -4,6 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 use sqlx::SqlitePool;
+use redis::aio::ConnectionManager;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -29,6 +30,12 @@ pub struct AppState {
     pub last_analytics_run: Arc<RwLock<Option<DateTime<Utc>>>>,
     /// Timestamp of the last Meta CAPI retry job run.
     pub last_retry_run: Arc<RwLock<Option<DateTime<Utc>>>>,
+    /// Queue manager for WhatsApp message queuing (optional, initialized when Redis is available)
+    pub queue_manager: Option<Arc<crate::queue_manager::QueueManager>>,
+    /// Rate limiting for API tokens (wa_api_tokens)
+    pub api_rate_limiter: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    /// Redis connection manager for rate limiting (optional, initialized when Redis is available)
+    pub redis: Option<Arc<RwLock<ConnectionManager>>>,
 }
 
 impl AppState {
@@ -50,6 +57,85 @@ impl AppState {
             analytics_job_running: Arc::new(AtomicBool::new(false)),
             last_analytics_run: Arc::new(RwLock::new(None)),
             last_retry_run: Arc::new(RwLock::new(None)),
+            queue_manager: None,
+            api_rate_limiter: Arc::new(RwLock::new(HashMap::new())),
+            redis: None,
+        }
+    }
+
+    pub fn with_queue_manager(mut self, queue_manager: Arc<crate::queue_manager::QueueManager>) -> Self {
+        self.queue_manager = Some(queue_manager);
+        self
+    }
+
+    pub fn with_redis(mut self, redis: ConnectionManager) -> Self {
+        self.redis = Some(Arc::new(RwLock::new(redis)));
+        self
+    }
+
+    /// Check IP-based rate limit using Redis (if available)
+    /// 
+    /// **Validates: Requirements 15.5**
+    /// 
+    /// Limit: 100 requests per minute per IP address
+    pub async fn check_ip_rate_limit(&self, ip: &str) -> Result<(), crate::response::AppError> {
+        if let Some(redis) = &self.redis {
+            let mut conn = redis.write().await;
+            crate::api_tokens::check_ip_rate_limit(&mut conn, ip)
+                .await
+                .map_err(|e| match e {
+                    crate::api_tokens::RateLimitError::RateLimitExceeded { .. } => {
+                        crate::response::AppError::TooManyRequests
+                    }
+                    crate::api_tokens::RateLimitError::RedisError(msg) => {
+                        tracing::error!("Redis error in IP rate limit: {}", msg);
+                        crate::response::AppError::Internal
+                    }
+                })
+        } else {
+            // Fallback to in-memory rate limiting if Redis is not available
+            tracing::warn!("Redis not available, using in-memory rate limiting for IP");
+            Ok(())
+        }
+    }
+
+    /// Check API token-based rate limit using Redis (if available)
+    /// 
+    /// **Validates: Requirements 9.8**
+    /// 
+    /// Limit: 100 requests per minute per API token
+    pub async fn check_api_rate_limit(&self, token_id: &str) -> Result<(), crate::response::AppError> {
+        if let Some(redis) = &self.redis {
+            let mut conn = redis.write().await;
+            crate::api_tokens::check_token_rate_limit(&mut conn, token_id)
+                .await
+                .map_err(|e| match e {
+                    crate::api_tokens::RateLimitError::RateLimitExceeded { .. } => {
+                        crate::response::AppError::TooManyRequests
+                    }
+                    crate::api_tokens::RateLimitError::RedisError(msg) => {
+                        tracing::error!("Redis error in API rate limit: {}", msg);
+                        crate::response::AppError::Internal
+                    }
+                })
+        } else {
+            // Fallback to in-memory rate limiting if Redis is not available
+            const MAX_REQUESTS_PER_MINUTE: usize = 100;
+            let now = chrono::Utc::now();
+            let threshold = now - chrono::Duration::minutes(1);
+
+            let mut attempts = self.api_rate_limiter.write().await;
+            let entry = attempts.entry(token_id.to_string()).or_default();
+
+            // Remove old attempts outside the window
+            entry.retain(|ts| *ts > threshold);
+
+            if entry.len() >= MAX_REQUESTS_PER_MINUTE {
+                return Err(crate::response::AppError::TooManyRequests);
+            }
+
+            entry.push(now);
+            Ok(())
         }
     }
 

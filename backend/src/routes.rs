@@ -5,6 +5,9 @@ use crate::{
 };
 use axum::{extract::{Path, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{delete, get, post, patch}, Json, Router};
 use crate::pixel;
+use crate::wa_webhook_handlers;
+use crate::chatbot_routes;
+use crate::api_routes;
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::fs;
@@ -12,7 +15,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    // Create the main router with all existing routes
+    let main_router = Router::new()
         .route("/health", get(health))
         .route("/api/partners", get(list_partners))
         .route("/api/admin/partners", get(list_admin_partners).post(create_partner))
@@ -41,8 +45,14 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wa/campaigns/{id}/recipients/from-leads", post(add_wa_recipients_from_leads))
         .route("/api/wa/campaigns/{id}/start", post(start_wa_campaign))
         .route("/api/wa/campaigns/{id}/status", get(get_wa_campaign_status))
+        .route("/api/wa/campaigns/{id}/metrics", get(get_wa_campaign_metrics))
         .route("/api/wa/recipients/{id}", patch(update_wa_recipient).delete(delete_wa_recipient))
+        .route("/api/wa/webhooks", get(wa_webhook_handlers::list_webhooks).post(wa_webhook_handlers::create_webhook))
+        .route("/api/wa/webhooks/{id}", patch(wa_webhook_handlers::update_webhook).delete(wa_webhook_handlers::delete_webhook))
         .route("/api/wa/webhooks/fonnte", post(handle_fonnte_webhook))
+        .route("/api/wa/chatbot-rules", get(chatbot_routes::list_chatbot_rules).post(chatbot_routes::create_chatbot_rule))
+        .route("/api/wa/chatbot-rules/bulk", patch(chatbot_routes::bulk_update_chatbot_rules))
+        .route("/api/wa/chatbot-rules/{id}", patch(chatbot_routes::update_chatbot_rule).delete(chatbot_routes::delete_chatbot_rule))
         .route("/api/reward-tiers", get(list_reward_tiers))
         .route("/api/admin/uploads/image", post(upload_admin_image))
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
@@ -104,7 +114,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/pixel-analytics/agent", get(pixel::analytics_handlers::get_agent_pixel_analytics))
         .route("/api/pixel-analytics/sales", get(pixel::analytics_handlers::get_sales_pixel_analytics))
         .route("/api/pixel-analytics/editor", get(pixel::analytics_handlers::get_editor_pixel_analytics))
-        .with_state(state)
+        .with_state(state.clone());
+
+    // Merge with API routes (for N8N integration)
+    main_router.merge(api_routes::router(state))
 }
 
 async fn health(State(state): State<AppState>) -> ResponseBody {
@@ -2371,6 +2384,64 @@ async fn get_wa_campaign_status(State(state): State<AppState>, headers: HeaderMa
         .collect::<Vec<_>>();
 
     Ok(json_ok("WA campaign status fetched", json!({ "campaign": campaign, "recipients": recipients })))
+}
+
+/// GET /api/wa/campaigns/{id}/metrics - Get campaign metrics
+/// **Validates: Requirements 10.5, 10.6, 10.8**
+/// 
+/// Returns comprehensive campaign metrics including:
+/// - Campaign details (name, status)
+/// - Real-time metrics (total sent, delivered rate, read rate, reply rate)
+/// - Hourly metrics breakdown
+/// 
+/// Authentication: Admin, WaAdmin, or WaOperator role required
+async fn get_wa_campaign_metrics(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    // Authorize user with appropriate roles
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    // Get complete campaign metrics response
+    let metrics_response = crate::campaign_metrics::get_campaign_metrics_response(&state.pool, &id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get campaign metrics for {}: {}", id, e);
+            // Check if it's a "not found" error
+            if e.to_string().contains("not found") {
+                AppError::NotFound
+            } else {
+                AppError::Internal
+            }
+        })?;
+
+    tracing::info!(
+        "Campaign metrics retrieved: {} (sent: {}, delivered: {:.2}%, read: {:.2}%, reply: {:.2}%)",
+        id,
+        metrics_response.metrics.total_sent,
+        metrics_response.metrics.delivered_rate,
+        metrics_response.metrics.read_rate,
+        metrics_response.metrics.reply_rate
+    );
+
+    Ok(json_ok("Campaign metrics berhasil diambil", json!({
+        "campaignId": metrics_response.campaign_id,
+        "campaignName": metrics_response.campaign_name,
+        "status": metrics_response.status,
+        "metrics": {
+            "totalRecipients": metrics_response.metrics.total_recipients,
+            "totalSent": metrics_response.metrics.total_sent,
+            "totalDelivered": metrics_response.metrics.total_delivered,
+            "totalRead": metrics_response.metrics.total_read,
+            "totalReplied": metrics_response.metrics.total_replied,
+            "totalFailed": metrics_response.metrics.total_failed,
+            "deliveredRate": metrics_response.metrics.delivered_rate,
+            "readRate": metrics_response.metrics.read_rate,
+            "replyRate": metrics_response.metrics.reply_rate,
+        },
+        "hourlyMetrics": metrics_response.hourly_metrics,
+    })))
 }
 
 async fn fetch_wa_campaign_summary(state: &AppState, id: &str) -> Result<WaCampaignSummaryResponse, AppError> {

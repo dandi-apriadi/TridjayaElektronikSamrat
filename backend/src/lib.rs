@@ -9,3 +9,25 @@ pub mod mail;
 pub mod cache;
 pub mod wa_worker;
 pub mod pixel;
+pub mod redis_manager;
+pub mod bridge;
+pub mod session_manager;
+pub mod spintax;
+pub mod media_handler;
+pub mod queue_manager;
+pub mod blast_engine;
+pub mod webhook_forwarder;
+pub mod wa_webhook_handlers;
+pub mod chatbot_engine;
+pub mod chatbot_routes;
+pub mod wa_status_tracker;
+pub mod wa_event_dispatcher;
+pub mod campaign_metrics;
+pub mod bomber;
+pub mod validation;
+pub mod api_tokens;
+pub mod campaign_config;
+pub mod cleanup;
+
+// Sub-modules for routes
+pub mod api_routes;

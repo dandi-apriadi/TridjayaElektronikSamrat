@@ -71,6 +71,12 @@ pub enum AppError {
     Internal,
     #[error("email not verified")]
     EmailUnverified,
+    #[error("cooldown active")]
+    CooldownActive {
+        target_phone: String,
+        cooldown_expires_at: String,
+        remaining_seconds: i64,
+    },
 }
 
 impl AppError {
@@ -84,6 +90,7 @@ impl AppError {
             Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
             Self::EmailUnverified => StatusCode::FORBIDDEN,
+            Self::CooldownActive { .. } => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 
@@ -97,6 +104,7 @@ impl AppError {
             Self::TooManyRequests => "Too many requests".to_string(),
             Self::Internal => "Unexpected internal error".to_string(),
             Self::EmailUnverified => "Email belum terverifikasi. Silakan cek inbox Anda atau hubungi admin.".to_string(),
+            Self::CooldownActive { .. } => "Target phone masih dalam cooldown period".to_string(),
         }
     }
 }
@@ -112,6 +120,23 @@ impl IntoResponse for AppError {
 
         let body = match self {
             Self::Validation { errors } => ErrorResponse::new(message, None, errors),
+            Self::CooldownActive {
+                target_phone,
+                cooldown_expires_at,
+                remaining_seconds,
+            } => {
+                // Return special format for cooldown error
+                let error_data = serde_json::json!({
+                    "error": "cooldown_active",
+                    "message": message,
+                    "data": {
+                        "targetPhone": target_phone,
+                        "cooldownExpiresAt": cooldown_expires_at,
+                        "remainingSeconds": remaining_seconds,
+                    }
+                });
+                return (status, Json(error_data)).into_response();
+            }
             _ => ErrorResponse::new(message, detail, Vec::new()),
         };
 
