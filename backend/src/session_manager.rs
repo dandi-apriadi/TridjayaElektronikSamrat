@@ -295,8 +295,12 @@ impl SessionManager {
                 }
             }
             
+            // Persist as 'failed' (not 'disconnected') so restore_all_sessions
+            // — which only picks up 'connected'/'disconnected' rows — does not
+            // resurrect sessions that have already exhausted all retries on
+            // the next startup. Admin intervention is required to re-pair.
             sqlx::query(
-                "UPDATE wa_accounts SET status = 'disconnected', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                "UPDATE wa_accounts SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
             )
             .bind(&account_id)
             .execute(&self.pool)
