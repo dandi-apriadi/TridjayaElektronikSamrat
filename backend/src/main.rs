@@ -191,7 +191,7 @@ async fn main() {
     ));
     state = state.with_webhook_forwarder(webhook_forwarder.clone());
 
-    match ChatbotEngine::new(
+    let chatbot_engine = match ChatbotEngine::new(
         ChatbotEngineConfig {
             redis_url: redis_url.clone(),
             ..Default::default()
@@ -201,30 +201,88 @@ async fn main() {
     ) {
         Ok(engine) => {
             let engine = Arc::new(engine);
-            state = state.with_chatbot_engine(engine);
+            state = state.with_chatbot_engine(engine.clone());
+            Some(engine)
         }
         Err(e) => {
             tracing::warn!(
                 "Chatbot engine unavailable ({}). Auto-replies will be disabled.",
                 e
             );
+            None
         }
-    }
+    };
 
     // Wire the bridge event receiver to a dispatcher that fans events out to
     // the webhook forwarder, status tracker, and chatbot engine.
     {
         use tokio::sync::mpsc;
         use tridjaya_backend::wa_event_dispatcher::WaEventDispatcher;
+        use tridjaya_backend::wa_status_tracker::WaStatusTracker;
 
         let (webhook_tx, webhook_rx) = mpsc::unbounded_channel();
-        let dispatcher = WaEventDispatcher::new().with_webhook_forwarder(webhook_tx);
+        let (status_tx, status_rx) = mpsc::unbounded_channel();
+
+        let mut dispatcher = WaEventDispatcher::new()
+            .with_webhook_forwarder(webhook_tx)
+            .with_status_tracker(status_tx);
 
         // Webhook forwarder consumes its own dedicated channel.
         let forwarder = webhook_forwarder.clone();
         tokio::spawn(async move {
             forwarder.start(webhook_rx).await;
         });
+
+        // Status tracker consumes its own dedicated channel for both
+        // `message_status` updates and reply detection on `message_received`.
+        let status_tracker = WaStatusTracker::new(pool.clone());
+        tokio::spawn(async move {
+            status_tracker.start(status_rx).await;
+        });
+
+        // Chatbot engine: only register the channel when the engine actually
+        // initialized. Otherwise the dispatcher would buffer events nobody
+        // reads.
+        if let Some(engine) = chatbot_engine.clone() {
+            let (chatbot_tx, mut chatbot_rx) = mpsc::unbounded_channel();
+            dispatcher = dispatcher.with_chatbot_engine(chatbot_tx);
+
+            tokio::spawn(async move {
+                while let Some(event) = chatbot_rx.recv().await {
+                    if event.event_type != "message_received" {
+                        continue;
+                    }
+                    let sender = match event.data.get("sender").and_then(|v| v.as_str()) {
+                        Some(s) => s.to_string(),
+                        None => {
+                            tracing::warn!(
+                                session_id = %event.session_id,
+                                "Chatbot skipping event: missing sender field"
+                            );
+                            continue;
+                        }
+                    };
+                    let message_text = event
+                        .data
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+
+                    if let Err(e) = engine
+                        .process_message(&event.session_id, &sender, &message_text)
+                        .await
+                    {
+                        tracing::error!(
+                            session_id = %event.session_id,
+                            sender = %sender,
+                            error = %e,
+                            "Chatbot engine failed to process message"
+                        );
+                    }
+                }
+            });
+        }
 
         tokio::spawn(async move {
             dispatcher.start(bridge_event_rx).await;

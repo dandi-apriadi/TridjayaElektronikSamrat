@@ -121,7 +121,7 @@ impl ChatbotEngine {
         config: ChatbotEngineConfig,
         pool: SqlitePool,
         bridge: Arc<BridgeClient>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let redis_client = redis::Client::open(config.redis_url.as_str())?;
         
         Ok(Self {
@@ -139,7 +139,7 @@ impl ChatbotEngine {
         account_id: &str,
         sender_phone: &str,
         message_text: &str,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let start_time = Instant::now();
         
         debug!(
@@ -265,7 +265,7 @@ impl ChatbotEngine {
         &self,
         rules: &[ChatbotRule],
         message_text: &str,
-    ) -> Result<Option<MatchResult>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<MatchResult>, Box<dyn std::error::Error + Send + Sync>> {
         for rule in rules {
             let match_mode = rule.match_mode.parse::<MatchMode>()
                 .map_err(|e| format!("Invalid match mode '{}': {}", rule.match_mode, e))?;
@@ -367,7 +367,7 @@ impl ChatbotEngine {
         account_id: &str,
         sender_phone: &str,
         rule_id: &str,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let cooldown_key = format!("chatbot:cooldown:{}:{}:{}", account_id, sender_phone, rule_id);
         
         let mut conn = self.redis_client.get_multiplexed_async_connection().await?;
@@ -383,7 +383,7 @@ impl ChatbotEngine {
         sender_phone: &str,
         rule_id: &str,
         cooldown_seconds: i32,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let cooldown_key = format!("chatbot:cooldown:{}:{}:{}", account_id, sender_phone, rule_id);
         
         let mut conn = self.redis_client.get_multiplexed_async_connection().await?;
@@ -406,7 +406,7 @@ impl ChatbotEngine {
         account_id: &str,
         target_phone: &str,
         message: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let params = serde_json::json!({
             "phone": target_phone,
             "message": message,
