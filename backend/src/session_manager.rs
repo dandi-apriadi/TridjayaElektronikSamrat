@@ -29,7 +29,7 @@ use tracing::{debug, error, info, warn};
 
 /// Session state for a WhatsApp account
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum SessionStatus {
     /// Session needs QR code pairing
     NeedsPairing,
@@ -41,6 +41,20 @@ pub enum SessionStatus {
     Disconnected,
     /// Connection failed after max retries
     Failed,
+}
+
+impl SessionStatus {
+    /// String representation that matches the values written to the
+    /// `wa_accounts.status` column by [`SessionManager`].
+    pub fn as_db_str(&self) -> &'static str {
+        match self {
+            SessionStatus::NeedsPairing => "needs_pairing",
+            SessionStatus::WaitingForScan => "waiting_for_scan",
+            SessionStatus::Connected => "connected",
+            SessionStatus::Disconnected => "disconnected",
+            SessionStatus::Failed => "failed",
+        }
+    }
 }
 
 /// Session state information

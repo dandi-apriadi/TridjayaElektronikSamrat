@@ -192,12 +192,16 @@ impl CleanupManager {
 
     async fn close_idle_whatsapp_connections(&self) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         let threshold = Utc::now() - chrono::Duration::hours(self.config.idle_connection_hours);
+        // Filter on `updated_at` (refreshed on every connection / disconnection /
+        // session-persist event by SessionManager), NOT `created_at` — otherwise
+        // every account whose row is older than `idle_connection_hours` would be
+        // killed regardless of whether it had recent activity.
         let idle_accounts: Vec<String> = sqlx::query_scalar(
             r#"
             SELECT id
             FROM wa_accounts
             WHERE status = 'connected'
-              AND datetime(created_at) < datetime(?)
+              AND datetime(updated_at) < datetime(?)
             "#,
         )
         .bind(threshold.to_rfc3339())

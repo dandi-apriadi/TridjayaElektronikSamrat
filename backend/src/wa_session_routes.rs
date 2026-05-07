@@ -53,7 +53,7 @@ async fn list_sessions(
         .into_iter()
         .map(|(_, s)| SessionDescriptor {
             account_id: s.account_id,
-            status: format!("{:?}", s.status).to_lowercase(),
+            status: s.status.as_db_str().to_string(),
             has_qr_code: s.qr_code.is_some(),
             last_health_check: s.last_health_check.map(|dt| dt.to_rfc3339()),
             reconnect_attempts: s.reconnect_attempts,
@@ -88,7 +88,7 @@ async fn get_session(
         json!({
             "session": SessionDescriptor {
                 account_id: session.account_id,
-                status: format!("{:?}", session.status).to_lowercase(),
+                status: session.status.as_db_str().to_string(),
                 has_qr_code: session.qr_code.is_some(),
                 last_health_check: session.last_health_check.map(|dt| dt.to_rfc3339()),
                 reconnect_attempts: session.reconnect_attempts,
