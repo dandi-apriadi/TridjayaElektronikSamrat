@@ -122,7 +122,9 @@ impl CleanupManager {
             Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
         })
         .await
-        .map_err(|_| "graceful shutdown timed out".into())??;
+        .map_err(|_| -> Box<dyn std::error::Error + Send + Sync> {
+            "graceful shutdown timed out".into()
+        })??;
 
         info!("Graceful shutdown completed");
         Ok(())

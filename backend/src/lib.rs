@@ -28,6 +28,9 @@ pub mod validation;
 pub mod api_tokens;
 pub mod campaign_config;
 pub mod cleanup;
+pub mod metrics;
+pub mod logging;
 
 // Sub-modules for routes
 pub mod api_routes;
+pub mod wa_session_routes;

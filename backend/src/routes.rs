@@ -8,6 +8,8 @@ use crate::pixel;
 use crate::wa_webhook_handlers;
 use crate::chatbot_routes;
 use crate::api_routes;
+use crate::metrics as gateway_metrics;
+use crate::wa_session_routes;
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::fs;
@@ -116,8 +118,12 @@ pub fn router(state: AppState) -> Router {
         .route("/api/pixel-analytics/editor", get(pixel::analytics_handlers::get_editor_pixel_analytics))
         .with_state(state.clone());
 
-    // Merge with API routes (for N8N integration)
-    main_router.merge(api_routes::router(state))
+    // Merge with API routes (for N8N integration), gateway metrics/health,
+    // and self-hosted WhatsApp session-management endpoints.
+    main_router
+        .merge(api_routes::router(state.clone()))
+        .merge(gateway_metrics::router(state.clone()))
+        .merge(wa_session_routes::router(state))
 }
 
 async fn health(State(state): State<AppState>) -> ResponseBody {

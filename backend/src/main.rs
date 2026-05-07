@@ -3,12 +3,22 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use axum::http::{HeaderValue, Method};
 use axum::extract::DefaultBodyLimit;
+use axum::middleware as axum_middleware;
 use tower_http::{cors::{AllowOrigin, CorsLayer}, trace::TraceLayer, services::ServeDir};
-use tracing_subscriber::EnvFilter;
 use sqlx::sqlite::SqlitePoolOptions;
 use dotenvy::dotenv;
 
-use tridjaya_backend::{cleanup::CleanupManager, routes, seed::seed_database, state::AppState};
+use tridjaya_backend::{
+    bridge::BridgeClient,
+    chatbot_engine::{ChatbotEngine, ChatbotEngineConfig},
+    cleanup::CleanupManager,
+    logging::{correlation_id_middleware, init_tracing},
+    routes,
+    seed::seed_database,
+    session_manager::SessionManager,
+    state::AppState,
+    webhook_forwarder::{WebhookForwarder, WebhookForwarderConfig},
+};
 
 fn is_production_runtime() -> bool {
     matches!(std::env::var("APP_ENV").ok().as_deref(), Some("production") | Some("prod"))
@@ -18,12 +28,8 @@ fn is_production_runtime() -> bool {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
-        .with_target(false)
-        .compact()
-        .init();
+
+    init_tracing();
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
     tracing::info!("Connecting to database...");
@@ -141,10 +147,91 @@ async fn main() {
         }
     };
 
-    let mut state = AppState::new(pool, cache).with_redis(redis_conn);
+    let mut state = AppState::new(pool.clone(), cache).with_redis(redis_conn.clone());
     if let Some(qm) = queue_manager {
         state = state.with_queue_manager(qm);
     }
+
+    // -- Self-hosted WhatsApp gateway components ----------------------------
+    //
+    // These components are best-effort: they require the Node.js Baileys
+    // bridge to be available and (for the chatbot) Redis. If any of them
+    // fail to initialize we keep the rest of the backend running and just
+    // log a warning so the gateway endpoints (metrics, health, sessions)
+    // still report degraded status instead of taking the whole API down.
+    let (bridge_client, bridge_event_rx) = BridgeClient::new();
+    let bridge_client = Arc::new(bridge_client);
+    state = state.with_bridge_client(bridge_client.clone());
+
+    match SessionManager::new(bridge_client.clone(), pool.clone()) {
+        Ok(manager) => {
+            let manager = Arc::new(manager);
+            state = state.with_session_manager(manager.clone());
+
+            // Best-effort: try to restore previously-paired sessions so they
+            // come back online automatically after a restart.
+            let restore_manager = manager.clone();
+            tokio::spawn(async move {
+                if let Err(e) = restore_manager.restore_all_sessions().await {
+                    tracing::warn!("Failed to restore WA sessions on startup: {}", e);
+                }
+            });
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Session manager unavailable ({}). /api/wa/sessions/* endpoints will return errors.",
+                e
+            );
+        }
+    }
+
+    let webhook_forwarder = Arc::new(WebhookForwarder::new(
+        WebhookForwarderConfig::default(),
+        pool.clone(),
+    ));
+    state = state.with_webhook_forwarder(webhook_forwarder.clone());
+
+    match ChatbotEngine::new(
+        ChatbotEngineConfig {
+            redis_url: redis_url.clone(),
+            ..Default::default()
+        },
+        pool.clone(),
+        bridge_client.clone(),
+    ) {
+        Ok(engine) => {
+            let engine = Arc::new(engine);
+            state = state.with_chatbot_engine(engine);
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Chatbot engine unavailable ({}). Auto-replies will be disabled.",
+                e
+            );
+        }
+    }
+
+    // Wire the bridge event receiver to a dispatcher that fans events out to
+    // the webhook forwarder, status tracker, and chatbot engine.
+    {
+        use tokio::sync::mpsc;
+        use tridjaya_backend::wa_event_dispatcher::WaEventDispatcher;
+
+        let (webhook_tx, webhook_rx) = mpsc::unbounded_channel();
+        let dispatcher = WaEventDispatcher::new().with_webhook_forwarder(webhook_tx);
+
+        // Webhook forwarder consumes its own dedicated channel.
+        let forwarder = webhook_forwarder.clone();
+        tokio::spawn(async move {
+            forwarder.start(webhook_rx).await;
+        });
+
+        tokio::spawn(async move {
+            dispatcher.start(bridge_event_rx).await;
+        });
+    }
+
+    // ----------------------------------------------------------------------
 
     let cleanup_manager = Arc::new(CleanupManager::new(
         state.pool.clone(),
@@ -214,7 +301,8 @@ async fn main() {
         .nest_service("/uploads", ServeDir::new("uploads"))
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))
         .layer(cors)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(axum_middleware::from_fn(correlation_id_middleware));
 
     let addr: SocketAddr = "0.0.0.0:8081".parse().expect("valid listen address");
     tracing::info!("Backend listening on http://{}", addr);

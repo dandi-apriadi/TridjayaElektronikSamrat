@@ -1,4 +1,5 @@
 use crate::auth::{AccessSession, RefreshSession};
+use crate::metrics::GatewayMetrics;
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, sync::Arc};
 use std::sync::atomic::AtomicBool;
@@ -36,6 +37,16 @@ pub struct AppState {
     pub api_rate_limiter: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     /// Redis connection manager for rate limiting (optional, initialized when Redis is available)
     pub redis: Option<Arc<RwLock<ConnectionManager>>>,
+    /// Session manager for self-hosted WhatsApp gateway (optional)
+    pub session_manager: Option<Arc<crate::session_manager::SessionManager>>,
+    /// Bridge client for Baileys/Node bridge (optional)
+    pub bridge_client: Option<Arc<crate::bridge::BridgeClient>>,
+    /// Webhook forwarder for incoming WA messages (optional)
+    pub webhook_forwarder: Option<Arc<crate::webhook_forwarder::WebhookForwarder>>,
+    /// Chatbot engine for keyword-based auto-replies (optional)
+    pub chatbot_engine: Option<Arc<crate::chatbot_engine::ChatbotEngine>>,
+    /// Prometheus-compatible gateway metrics counters (always available).
+    pub metrics: Arc<GatewayMetrics>,
 }
 
 impl AppState {
@@ -60,6 +71,11 @@ impl AppState {
             queue_manager: None,
             api_rate_limiter: Arc::new(RwLock::new(HashMap::new())),
             redis: None,
+            session_manager: None,
+            bridge_client: None,
+            webhook_forwarder: None,
+            chatbot_engine: None,
+            metrics: GatewayMetrics::new(),
         }
     }
 
@@ -70,6 +86,38 @@ impl AppState {
 
     pub fn with_redis(mut self, redis: ConnectionManager) -> Self {
         self.redis = Some(Arc::new(RwLock::new(redis)));
+        self
+    }
+
+    pub fn with_session_manager(
+        mut self,
+        manager: Arc<crate::session_manager::SessionManager>,
+    ) -> Self {
+        self.session_manager = Some(manager);
+        self
+    }
+
+    pub fn with_bridge_client(
+        mut self,
+        bridge: Arc<crate::bridge::BridgeClient>,
+    ) -> Self {
+        self.bridge_client = Some(bridge);
+        self
+    }
+
+    pub fn with_webhook_forwarder(
+        mut self,
+        forwarder: Arc<crate::webhook_forwarder::WebhookForwarder>,
+    ) -> Self {
+        self.webhook_forwarder = Some(forwarder);
+        self
+    }
+
+    pub fn with_chatbot_engine(
+        mut self,
+        engine: Arc<crate::chatbot_engine::ChatbotEngine>,
+    ) -> Self {
+        self.chatbot_engine = Some(engine);
         self
     }
 
