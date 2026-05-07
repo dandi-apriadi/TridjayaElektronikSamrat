@@ -168,6 +168,13 @@ async fn main() {
             let manager = Arc::new(manager);
             state = state.with_session_manager(manager.clone());
 
+            // Spawn the periodic health-monitor (every 30s) and session-
+            // persistence (every 5min) loops. Without this, connection drops
+            // are only detected on the next outbound send and Baileys session
+            // credentials are never re-encrypted to the database after the
+            // initial pairing event, so a crash would lose them.
+            manager.clone().start_background_tasks();
+
             // Best-effort: try to restore previously-paired sessions so they
             // come back online automatically after a restart.
             let restore_manager = manager.clone();
