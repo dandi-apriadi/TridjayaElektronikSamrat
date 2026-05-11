@@ -28,6 +28,7 @@ struct PixelWithStats {
     pub name: String,
     pub business_manager_id: Option<String>,
     pub status: String,
+    #[serde(skip_serializing)]
     pub access_token: String,
     pub created_by: String,
     pub config: String,

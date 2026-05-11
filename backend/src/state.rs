@@ -95,6 +95,21 @@ impl AppState {
         } else {
             // Fallback to in-memory rate limiting if Redis is not available
             tracing::warn!("Redis not available, using in-memory rate limiting for IP");
+            const MAX_REQUESTS_PER_MINUTE: usize = 100;
+            let now = chrono::Utc::now();
+            let threshold = now - chrono::Duration::minutes(1);
+
+            let mut attempts = self.login_ip_attempts.write().await;
+            let entry = attempts.entry(ip.to_string()).or_default();
+
+            // Remove old attempts outside the window
+            entry.retain(|ts| *ts > threshold);
+
+            if entry.len() >= MAX_REQUESTS_PER_MINUTE {
+                return Err(crate::response::AppError::TooManyRequests);
+            }
+
+            entry.push(now);
             Ok(())
         }
     }

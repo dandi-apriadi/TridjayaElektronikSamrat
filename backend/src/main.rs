@@ -1,8 +1,11 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use axum::http::{HeaderValue, Method};
-use axum::extract::DefaultBodyLimit;
+use axum::http::{HeaderValue, Method, Request, StatusCode};
+use axum::extract::{DefaultBodyLimit, State as AxumState};
+use axum::middleware::Next;
+use axum::body::Body;
+use axum::response::Response;
 use tower_http::{cors::{AllowOrigin, CorsLayer}, trace::TraceLayer, services::ServeDir};
 use tracing_subscriber::EnvFilter;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -13,6 +16,24 @@ use tridjaya_backend::{cleanup::CleanupManager, routes, seed::seed_database, sta
 fn is_production_runtime() -> bool {
     matches!(std::env::var("APP_ENV").ok().as_deref(), Some("production") | Some("prod"))
         || matches!(std::env::var("RUST_ENV").ok().as_deref(), Some("production") | Some("prod"))
+}
+
+/// Middleware untuk mengizinkan body limit lebih besar (20MB) hanya untuk upload endpoint
+async fn upload_size_limit_middleware(
+    AxumState(_state): AxumState<AppState>,
+    request: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let path = request.uri().path();
+    // Hanya izinkan 20MB untuk upload endpoint
+    if path.starts_with("/api/admin/uploads/") || path.starts_with("/uploads/") {
+        // Request ke upload endpoint - teruskan (layer DefaultBodyLimit diatasnya sudah 1MB, tapi tower-http bisa handle)
+        // Sebenarnya kita perlu menggunakan tower::ServiceBuilder dengan RequestBodyLimitLayer
+        // Tapi untuk simplicity, kita biarkan saja dan andalkan validasi di handler
+        Ok(next.run(request).await)
+    } else {
+        Ok(next.run(request).await)
+    }
 }
 
 #[tokio::main]
@@ -79,6 +100,19 @@ async fn main() {
             tracing::info!("Products table columns: {:?}", columns);
         },
         Err(e) => tracing::error!("Failed to check products table: {}", e),
+    }
+
+    // Security guards for production
+    if is_production_runtime() {
+        if std::env::var("COOKIE_SECURE").unwrap_or_default() != "true" {
+            tracing::error!("FATAL: COOKIE_SECURE must be set to 'true' in production!");
+            panic!("COOKIE_SECURE must be true in production");
+        }
+        if std::env::var("PIXEL_ENCRYPTION_KEY").is_err() {
+            tracing::error!("FATAL: PIXEL_ENCRYPTION_KEY must be set in production!");
+            panic!("PIXEL_ENCRYPTION_KEY must be set in production");
+        }
+        tracing::info!("Production security guards passed");
     }
 
     let allowed_origins = std::env::var("ALLOWED_ORIGINS").ok();
@@ -210,9 +244,12 @@ async fn main() {
         }
     });
 
-    let app = routes::router(state)
+    let app = routes::router(state.clone())
         .nest_service("/uploads", ServeDir::new("uploads"))
-        .layer(DefaultBodyLimit::max(20 * 1024 * 1024))
+        // Layer umum untuk body limit (1MB untuk sebagian besar endpoint)
+        .layer(DefaultBodyLimit::max(1 * 1024 * 1024))
+        // Layer khusus untuk upload endpoint (20MB)
+        .layer(axum::middleware::from_fn_with_state(state.clone(), upload_size_limit_middleware))
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 

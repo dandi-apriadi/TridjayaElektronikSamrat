@@ -33,7 +33,7 @@ export function getTelemetrySessionId(): string {
     return existingSession;
   }
 
-  const id = `v2-${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+  const id = `v2-${crypto.randomUUID().replace(/-/g, '').substring(0, 20)}`;
   window.localStorage.setItem('trx_session', id);
   return id;
 }

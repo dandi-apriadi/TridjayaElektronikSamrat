@@ -240,12 +240,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'tridjaya-auth',
-      // Hanya persist info user (untuk menjaga UX saat reload). Access token
-      // sengaja TIDAK dipersist; refresh token disimpan di HttpOnly cookie
+      // TIDAK persist user data ke localStorage untuk keamanan.
+      // Access token sengaja TIDAK dipersist; refresh token disimpan di HttpOnly cookie
       // oleh backend dan dipulihkan via restoreSession() saat aplikasi mount.
-      partialize: (state) => ({
-        user: state.user,
-      }),
+      // User data akan di-fetch ulang setelah refresh token valid.
+      partialize: () => ({}), // Tidak persist apa pun
     }
   )
 );

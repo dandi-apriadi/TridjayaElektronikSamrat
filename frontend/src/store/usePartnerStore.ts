@@ -46,8 +46,8 @@ export const usePartnerStore = create<PartnerState>((set, get) => ({
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
         if (value !== null && value !== undefined) {
-          if (key === 'logo' && value instanceof File) {
-            formData.append('logo', value);
+          if (key === 'logo' && (value as unknown) instanceof File) {
+            formData.append('logo', value as unknown as File);
           } else {
             formData.append(key, String(value));
           }
@@ -80,8 +80,8 @@ export const usePartnerStore = create<PartnerState>((set, get) => ({
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
         if (value !== null && value !== undefined) {
-          if (key === 'logo' && value instanceof File) {
-            formData.append('logo', value);
+          if (key === 'logo' && (value as unknown) instanceof File) {
+            formData.append('logo', value as unknown as File);
           } else {
             formData.append(key, String(value));
           }

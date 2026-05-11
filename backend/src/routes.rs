@@ -24,7 +24,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/login", post(login))
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/verify-email", post(verify_email))
-        .route("/api/auth/refresh", post(refresh))
+        .route("/api/auth/refresh", post(refresh_with_rate_limit))
         .route("/api/auth/forgot-password", post(forgot_password))
         .route("/api/auth/reset-password", post(reset_password))
         .route("/api/notifications", get(list_notifications))
@@ -384,7 +384,13 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Res
 }
 
 async fn refresh(State(state): State<AppState>, headers: HeaderMap, body: axum::body::Bytes) -> axum::response::Response {
-    let payload: RefreshRequest = serde_json::from_slice(&body).unwrap_or(RefreshRequest { refresh_token: "".to_string() });
+    let payload: RefreshRequest = match serde_json::from_slice(&body) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("Invalid refresh request body: {}", e);
+            return json_ok("Invalid request body", json!({ "authenticated": false }));
+        }
+    };
     
     let refresh_token = if payload.refresh_token.trim().is_empty() {
         match extract_cookie_token(&headers, "refresh_token") {
@@ -409,6 +415,34 @@ async fn refresh(State(state): State<AppState>, headers: HeaderMap, body: axum::
             response
         }
     }
+}
+
+/// Wrapper untuk refresh dengan rate limiting (10 request per menit per IP)
+async fn refresh_with_rate_limit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<axum::response::Response, AppError> {
+    let client_ip = extract_client_ip(&headers);
+    if let Some(ip) = client_ip.as_deref() {
+        const MAX_REFRESH_PER_MINUTE: usize = 10;
+        let now = chrono::Utc::now();
+        let threshold = now - chrono::Duration::minutes(1);
+
+        let mut attempts = state.login_ip_attempts.write().await;
+        let entry = attempts.entry(format!("refresh:{}", ip)).or_default();
+
+        // Remove old attempts outside the window
+        entry.retain(|ts| *ts > threshold);
+
+        if entry.len() >= MAX_REFRESH_PER_MINUTE {
+            return Err(AppError::TooManyRequests);
+        }
+
+        entry.push(now);
+    }
+
+    Ok(refresh(State(state), headers, body).await)
 }
 
 async fn forgot_password(

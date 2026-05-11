@@ -488,7 +488,6 @@ async fn execute_bomber(
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/wa/send", post(send_message))
-        .route("/api/wa/campaigns/:id/metrics", get(get_campaign_metrics))
         .route("/api/wa/bomber", post(execute_bomber))
         .with_state(state)
 }
