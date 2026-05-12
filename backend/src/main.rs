@@ -205,7 +205,7 @@ async fn main() {
         tridjaya_backend::bridge_event_processor::run(bridge_pool, bridge_event_rx).await;
     });
 
-    // Start BlastEngine (replaces Fonnte-based wa_worker)
+    // Start BlastEngine (advanced, uses Redis + Baileys bridge)
     if let (Some(qm), Some(redis_arc)) = (&state.queue_manager, &state.redis) {
         let redis_conn = redis_arc.read().await.clone();
         let media_handler = tridjaya_backend::media_handler::MediaHandler::new(redis_conn);
@@ -223,6 +223,14 @@ async fn main() {
     } else {
         tracing::warn!("BlastEngine not started — Redis or queue manager not available");
     }
+
+    // Start WA Worker (Fonnte-based, polls DB directly for running campaigns)
+    // This is the reliable fallback that sends messages even without Redis/Baileys
+    let wa_worker_state = state.clone();
+    tokio::spawn(async move {
+        tridjaya_backend::wa_worker::start_wa_worker(wa_worker_state).await;
+    });
+    tracing::info!("WA Fonnte Worker started (polls every 10s)");
 
     // Start Meta CAPI retry job (every 60 seconds)
     let retry_state = state.clone();

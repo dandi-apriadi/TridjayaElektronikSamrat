@@ -2677,19 +2677,17 @@ async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Pa
         return Err(AppError::Validation { errors: vec!["No pending recipients to send to".to_string()] });
     }
 
-    // 3. Get connected WA accounts
-    let account_ids: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM wa_accounts WHERE enabled = 1 AND status = 'connected'"
+    // 3. Validate at least one WA account with Fonnte token is enabled
+    let account_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1"
     )
-    .fetch_all(&state.pool)
+    .fetch_one(&state.pool)
     .await
     .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
 
-    if account_ids.is_empty() {
-        return Err(AppError::Validation { errors: vec!["No connected WA accounts available. Connect at least one account first.".to_string()] });
+    if account_count.0 == 0 {
+        return Err(AppError::Validation { errors: vec!["No enabled WA accounts available. Enable at least one account.".to_string()] });
     }
-
-    let account_id_list: Vec<String> = account_ids.into_iter().map(|r| r.0).collect();
 
     // 4. Update campaign status to running
     sqlx::query(
@@ -2703,43 +2701,41 @@ async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Pa
         AppError::Internal
     })?;
 
-    // 5. Enqueue recipients to Redis queue for BlastEngine to process
-    let enqueued: usize;
-    if let Some(qm) = &state.queue_manager {
-        let enqueue_result = qm.enqueue_campaign(&id, &account_id_list).await
-            .map_err(|e| e.to_string());
+    tracing::info!("Campaign {} started by {} with {} pending recipients", id, user.email, pending_count.0);
 
-        match enqueue_result {
-            Ok(count) => {
-                enqueued = count;
-                tracing::info!("Campaign {} enqueued {} recipients across {} accounts", id, count, account_id_list.len());
-            }
-            Err(err_msg) => {
-                tracing::error!("Failed to enqueue campaign {}: {}", id, err_msg);
-                // Revert campaign status since enqueue failed
-                let _ = sqlx::query("UPDATE wa_campaigns SET status = 'draft' WHERE id = ?")
-                    .bind(&id)
-                    .execute(&state.pool)
-                    .await;
-                return Err(AppError::Validation { errors: vec![format!("Failed to enqueue campaign: {}", err_msg)] });
+    // 5. Optionally enqueue to Redis for BlastEngine (if available)
+    let mut enqueued: usize = 0;
+    if let Some(qm) = &state.queue_manager {
+        let account_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT id FROM wa_accounts WHERE enabled = 1"
+        )
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+        let account_id_list: Vec<String> = account_ids.into_iter().map(|r| r.0).collect();
+        if !account_id_list.is_empty() {
+            match qm.enqueue_campaign(&id, &account_id_list).await {
+                Ok(count) => {
+                    enqueued = count;
+                    tracing::info!("Campaign {} also enqueued {} recipients to Redis", id, count);
+                }
+                Err(e) => {
+                    tracing::warn!("Redis enqueue failed for campaign {}: {} — wa_worker will handle it", id, e);
+                }
             }
         }
-    } else {
-        tracing::error!("Queue manager not available — Redis not connected");
-        // Revert
-        let _ = sqlx::query("UPDATE wa_campaigns SET status = 'draft' WHERE id = ?")
-            .bind(&id)
-            .execute(&state.pool)
-            .await;
-        return Err(AppError::Validation { errors: vec!["Message queue is not available. Ensure Redis is running.".to_string()] });
     }
 
+    // The wa_worker background task will pick up this campaign and send messages
+    // even if Redis enqueue failed or is unavailable.
+
     Ok(json_ok(
-        format!("WA campaign started by {} ({} recipients enqueued)", user.email, enqueued),
+        format!("WA campaign started by {} ({} recipients pending)", user.email, pending_count.0),
         json!({
             "item": fetch_wa_campaign_summary(&state, &id).await?,
             "enqueued": enqueued,
-            "accounts_used": account_id_list.len(),
+            "pending": pending_count.0,
         }),
     ))
 }
