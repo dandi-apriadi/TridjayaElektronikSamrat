@@ -53,7 +53,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wa/blast-contacts/import-to-campaign/{campaign_id}", post(import_blast_contacts_to_campaign))
         .route("/api/wa/webhooks", get(wa_webhook_handlers::list_webhooks).post(wa_webhook_handlers::create_webhook))
         .route("/api/wa/webhooks/{id}", patch(wa_webhook_handlers::update_webhook).delete(wa_webhook_handlers::delete_webhook))
-        .route("/api/wa/webhooks/fonnte", post(handle_fonnte_webhook))
         .route("/api/wa/chatbot-rules", get(chatbot_routes::list_chatbot_rules).post(chatbot_routes::create_chatbot_rule))
         .route("/api/wa/chatbot-rules/bulk", patch(chatbot_routes::bulk_update_chatbot_rules))
         .route("/api/wa/chatbot-rules/{id}", patch(chatbot_routes::update_chatbot_rule).delete(chatbot_routes::delete_chatbot_rule))
@@ -1184,15 +1183,49 @@ struct WaRecipientSummaryResponse {
 }
 
 fn normalize_phone(value: &str) -> Option<String> {
+    // Strip all non-digit characters (spaces, dashes, dots, parentheses, plus sign)
     let digits: String = value
         .chars()
         .filter(|ch| ch.is_ascii_digit())
         .collect();
-    if digits.len() < 8 {
-        None
-    } else {
-        Some(digits)
+
+    if digits.is_empty() {
+        return None;
     }
+
+    // Normalize to Indonesian format: 62xxxxxxxxxx
+    let normalized = if digits.starts_with("62") {
+        // Already in international format: 628xxx
+        digits
+    } else if digits.starts_with("0") {
+        // Local format: 08xxx → 628xxx
+        format!("62{}", &digits[1..])
+    } else if digits.starts_with("8") {
+        // Without prefix: 8xxx → 628xxx
+        format!("62{}", digits)
+    } else if digits.len() >= 10 && digits.starts_with("62") {
+        // Already correct
+        digits
+    } else {
+        // Unknown format, try prepending 62 if it looks like a local number
+        if digits.len() >= 9 && digits.len() <= 13 {
+            format!("62{}", digits)
+        } else {
+            digits
+        }
+    };
+
+    // Validate: Indonesian numbers should be 10-15 digits total (with 62 prefix)
+    if normalized.len() < 10 || normalized.len() > 15 {
+        return None;
+    }
+
+    // Must start with 62
+    if !normalized.starts_with("62") {
+        return None;
+    }
+
+    Some(normalized)
 }
 
 fn parse_json_value(text: Option<String>) -> Value {
@@ -2563,11 +2596,22 @@ async fn upload_wa_recipients_excel(
 
     // Parse header to find column indices
     let header: Vec<String> = rows[0].iter().map(|h| h.to_lowercase().trim().to_string()).collect();
-    let phone_idx = header.iter().position(|h| h == "phone" || h == "nomor" || h == "no_hp" || h == "whatsapp" || h == "no hp" || h == "nohp");
+    let phone_idx = header.iter().position(|h| h == "phone" || h == "wa" || h == "nomor" || h == "no_hp" || h == "whatsapp" || h == "no hp" || h == "nohp" || h == "hp" || h == "telepon" || h == "no")
+        .or_else(|| {
+            // Fallback: find first column that contains phone-like data in row 1
+            if rows.len() > 1 {
+                rows[1].iter().position(|cell| {
+                    let digits: String = cell.chars().filter(|c| c.is_ascii_digit()).collect();
+                    digits.len() >= 9 && digits.len() <= 15
+                })
+            } else {
+                None
+            }
+        });
 
     let phone_idx = phone_idx.ok_or_else(|| {
         AppError::Validation { errors: vec![
-            "Column 'phone' not found in header. Expected: phone, nomor, no_hp, whatsapp, or no hp".to_string()
+            "Kolom nomor telepon tidak ditemukan. Header yang didukung: phone, wa, nomor, no_hp, whatsapp, hp, telepon, no".to_string()
         ] }
     })?;
 
@@ -2677,7 +2721,7 @@ async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Pa
         return Err(AppError::Validation { errors: vec!["No pending recipients to send to".to_string()] });
     }
 
-    // 3. Validate at least one WA account with Fonnte token is enabled
+    // 3. Validate at least one WA account is enabled
     let account_count: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1"
     )
@@ -2972,56 +3016,6 @@ async fn update_wa_recipient(
     }
 
     Ok(json_ok("Recipient updated", json!({ "id": id })))
-}
-
-#[derive(Deserialize, Debug)]
-struct FonnteWebhookPayload {
-    id: String, // message_id
-    status: String,
-    target: String,
-    message: Option<String>,
-}
-
-async fn handle_fonnte_webhook(
-    State(state): State<AppState>,
-    Json(payload): Json<FonnteWebhookPayload>,
-) -> Result<ResponseBody, AppError> {
-    tracing::info!("Fonnte Webhook received: {:?}", payload);
-
-    // Fonnte sends status updates. We need to match the message_id with our dispatch logs.
-    let log: Option<(String, String)> = sqlx::query_as("SELECT recipient_id, campaign_id FROM wa_dispatch_logs WHERE message_id = ? LIMIT 1")
-        .bind(&payload.id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-    if let Some((recipient_id, _campaign_id)) = log {
-        let now = Utc::now().to_rfc3339();
-        
-        let query = match payload.status.to_lowercase().as_str() {
-            "delivered" => "UPDATE wa_recipients SET delivered_at = ? WHERE id = ?",
-            "read" => "UPDATE wa_recipients SET read_at = ? WHERE id = ?",
-            "failed" => "UPDATE wa_recipients SET status = 'failed', last_error = ? WHERE id = ?",
-            _ => "",
-        };
-
-        if !query.is_empty() {
-            let bind_val = if payload.status == "failed" {
-                payload.message.unwrap_or_else(|| "Unknown failure".to_string())
-            } else {
-                now
-            };
-
-            sqlx::query(query)
-                .bind(bind_val)
-                .bind(&recipient_id)
-                .execute(&state.pool)
-                .await
-                .map_err(|_| AppError::Internal)?;
-        }
-    }
-
-    Ok(json_ok("Webhook processed", json!({ "status": "ok" })))
 }
 
 async fn resend_verification(
@@ -7494,11 +7488,25 @@ async fn upload_blast_contacts_excel(
     let header = &rows[0];
     let phone_col = header.iter().position(|h| {
         let h = h.to_lowercase().trim().to_string();
-        h == "phone" || h == "no" || h == "nomor" || h == "no_hp" || h == "no hp" || h == "telepon" || h == "hp"
+        h == "phone" || h == "wa" || h == "whatsapp" || h == "nomor" || h == "no_hp" || h == "no hp" || h == "telepon" || h == "hp" || h == "nohp"
+    }).or_else(|| {
+        // Try "no" as fallback (common in Indonesian spreadsheets)
+        header.iter().position(|h| h.to_lowercase().trim() == "no")
+    }).or_else(|| {
+        // Last resort: find first column with phone-like data in row 1
+        if rows.len() > 1 {
+            rows[1].iter().position(|cell| {
+                let digits: String = cell.chars().filter(|c| c.is_ascii_digit()).collect();
+                digits.len() >= 9 && digits.len() <= 15
+            })
+        } else {
+            None
+        }
     }).unwrap_or(0);
+
     let name_col = header.iter().position(|h| {
         let h = h.to_lowercase().trim().to_string();
-        h == "name" || h == "nama" || h == "nama_konsumen" || h == "nama konsumen" || h == "customer"
+        h == "name" || h == "nama" || h == "nama_konsumen" || h == "nama konsumen" || h == "customer" || h == "pelanggan" || h == "konsumen"
     });
 
     let mut inserted = 0i64;
