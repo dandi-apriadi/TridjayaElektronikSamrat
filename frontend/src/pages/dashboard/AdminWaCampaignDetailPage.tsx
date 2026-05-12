@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, Send, RefreshCw,
   CheckCircle2, AlertTriangle, Clock, Copy, XCircle,
-  Plus, Trash2, Check, Eye
+  Plus, Trash2, Check, Eye, FileSpreadsheet, Loader2
 } from 'lucide-react';
 import AddWaRecipientModal from '../../components/dashboard/AddWaRecipientModal';
 import { useAuthStore } from '../../store/authStore';
@@ -33,6 +33,8 @@ const AdminWaCampaignDetailPage: React.FC = () => {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [recipientFilter, setRecipientFilter] = useState<'all' | 'pending' | 'sent' | 'failed' | 'delivered' | 'read'>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -70,8 +72,13 @@ const AdminWaCampaignDetailPage: React.FC = () => {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed to start campaign');
-      toast.success('Campaign dimulai', 'Campaign sedang berjalan');
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const errMsg = data?.errors?.join(', ') || data?.message || 'Failed to start campaign';
+        throw new Error(errMsg);
+      }
+      const enqueued = data?.data?.enqueued || 0;
+      toast.success('Campaign dimulai', `${enqueued} penerima sedang diproses`);
       await fetchCampaignData();
     } catch (error) {
       toast.error('Gagal memulai campaign', error instanceof Error ? error.message : 'Unknown error');
@@ -92,6 +99,42 @@ const AdminWaCampaignDetailPage: React.FC = () => {
       fetchCampaignData();
     } catch (error) {
       toast.error('Gagal', 'Terjadi kesalahan saat menghapus');
+    }
+  };
+
+  const handleUploadExcel = async (file: File) => {
+    if (!id) return;
+    const validExt = file.name.match(/\.(xlsx|xls|csv)$/i);
+    if (!validExt) {
+      toast.error('Format tidak didukung', 'Upload file Excel (.xlsx, .xls) atau CSV (.csv)');
+      return;
+    }
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`/api/wa/campaigns/${id}/recipients/upload-excel`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        body: formData,
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const errMsg = data?.errors?.join(', ') || data?.message || 'Gagal upload file';
+        throw new Error(errMsg);
+      }
+      const ins = data?.data?.inserted || 0;
+      const skip = data?.data?.skipped || 0;
+      const inv = data?.data?.invalid?.length || 0;
+      let msg = `${ins} recipients ditambahkan`;
+      if (skip > 0) msg += `, ${skip} di-skip (duplikat)`;
+      if (inv > 0) msg += `, ${inv} nomor invalid`;
+      toast.success('Import berhasil', msg);
+      fetchCampaignData();
+    } catch (error) {
+      toast.error('Gagal upload', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -155,6 +198,24 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>Tambah Penerima</span>
           </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-xl hover:bg-primary/20 transition-all font-bold disabled:opacity-50"
+          >
+            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+            <span>Import Excel</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={(e) => {
+              if (e.target.files?.[0]) handleUploadExcel(e.target.files[0]);
+              e.target.value = '';
+            }}
+            className="hidden"
+          />
           {campaign.status === 'draft' && (
             <button
               onClick={handleStart}

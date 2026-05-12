@@ -24,3 +24,11 @@ backend/login_test.json
 backend/server_pid.txt
 backup_images/
 security_reports/
+
+# WhatsApp session data
+backend/sessions/
+backend/baileys-bridge/sessions/
+
+# Scratch / temp files
+scratch_head.csv
+*.rs.bak

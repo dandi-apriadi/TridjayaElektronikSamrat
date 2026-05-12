@@ -4,27 +4,39 @@ import { motion } from 'framer-motion';
 /**
  * CircuitBackground — animated SVG circuit grid for public pages.
  *
- * Bug fix: animations were stopping after a few seconds because:
- * 1. The performance monitor was incorrectly flagging normal devices as "slow"
- *    and permanently switching to static mode.
- * 2. Browser tab throttling paused CSS animations when the tab was inactive.
- *
- * Fix:
- * - Remove the aggressive performance monitor (only respect prefers-reduced-motion)
- * - Use Page Visibility API to force-restart CSS animations when tab becomes active again
- * - Add `animation-play-state: running` explicitly to prevent browser pausing
+ * Performance optimizations:
+ * - Detect mobile/low-power devices and reduce animations
+ * - Use CSS containment for better rendering performance
+ * - Disable complex framer-motion animations on mobile
  */
 const CircuitBackground: React.FC = () => {
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Detect mobile/low-power devices
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkMobile = () => {
+      const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+      const isSmallScreen = window.innerWidth < 768;
+      const isLowPower = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+      setIsMobile(isTouchDevice || isSmallScreen || isLowPower);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const shouldReduceAnimations = prefersReducedMotion || isMobile;
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Restart CSS animations when the tab becomes visible again
   // (browsers throttle/pause animations in background tabs)
   useEffect(() => {
-    if (prefersReducedMotion) return;
+    if (shouldReduceAnimations) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && containerRef.current) {
@@ -43,7 +55,7 @@ const CircuitBackground: React.FC = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [prefersReducedMotion]);
+  }, [shouldReduceAnimations]);
 
   return (
     <div
@@ -105,8 +117,8 @@ const CircuitBackground: React.FC = () => {
               className="text-primary/10 dark:text-sky-300/20"
             />
 
-            {/* Animated Living Traces */}
-            {!prefersReducedMotion && (
+            {/* Animated Living Traces - disabled on mobile */}
+            {!shouldReduceAnimations && (
               <path
                 d="M 12 0 V 12 H 25 M 0 20 H 10 V 25"
                 fill="none"
@@ -115,7 +127,7 @@ const CircuitBackground: React.FC = () => {
                 className="text-primary dark:text-sky-300 electric-line"
               />
             )}
-            {!prefersReducedMotion && (
+            {!shouldReduceAnimations && (
               <path
                 d="M 10 0 V 5 H 20 V 12 M 5 25 V 20 H 0"
                 fill="none"
@@ -125,19 +137,19 @@ const CircuitBackground: React.FC = () => {
               />
             )}
 
-            {/* Connection Nodes */}
+            {/* Connection Nodes - static on mobile */}
             <circle
               cx="5"
               cy="10"
               r="0.3"
-              className={`text-primary/40 dark:text-sky-300/70 fill-current${!prefersReducedMotion ? ' node-pulse' : ''}`}
+              className={`text-primary/40 dark:text-sky-300/70 fill-current${!shouldReduceAnimations ? ' node-pulse' : ''}`}
             />
             <circle
               cx="20"
               cy="12"
               r="0.3"
-              className={`text-secondary/40 dark:text-blue-400/70 fill-current${!prefersReducedMotion ? ' node-pulse' : ''}`}
-              style={!prefersReducedMotion ? { animationDelay: '1s' } : undefined}
+              className={`text-secondary/40 dark:text-blue-400/70 fill-current${!shouldReduceAnimations ? ' node-pulse' : ''}`}
+              style={!shouldReduceAnimations ? { animationDelay: '1s' } : undefined}
             />
           </pattern>
 
@@ -156,17 +168,17 @@ const CircuitBackground: React.FC = () => {
         {/* Global Grid */}
         <rect width="100" height="100" fill="url(#circuit-grid-optimized)" />
 
-        {/* Surge Pulses */}
-        {!prefersReducedMotion && (
+        {/* Surge Pulses - disabled on mobile for performance */}
+        {!shouldReduceAnimations && (
           <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="dark:hidden" />
         )}
-        {!prefersReducedMotion && (
+        {!shouldReduceAnimations && (
           <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="dark:hidden" />
         )}
-        {!prefersReducedMotion && (
+        {!shouldReduceAnimations && (
           <SurgePulse d="M 0 40 H 20 V 60 H 40 V 10 H 70 V 90 H 100" delay={0} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
         )}
-        {!prefersReducedMotion && (
+        {!shouldReduceAnimations && (
           <SurgePulse d="M 100 20 H 80 V 50 H 50 V 80 H 0" delay={5} className="hidden dark:block" gradient="url(#surge-gradient-dark)" />
         )}
       </svg>

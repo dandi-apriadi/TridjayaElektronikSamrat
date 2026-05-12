@@ -35,10 +35,19 @@ fn decode_hex(s: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
+/// Cached encryption key — loaded once from `PIXEL_ENCRYPTION_KEY` env var.
+static ENCRYPTION_KEY: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+
+/// Returns the cached encryption key, loading it from the environment on first
+/// call. Subsequent calls return the cached value without any env lookup.
+pub fn get_encryption_key() -> [u8; 32] {
+    *ENCRYPTION_KEY.get_or_init(load_encryption_key_from_env)
+}
+
 /// Reads the `PIXEL_ENCRYPTION_KEY` environment variable (32-byte hex string)
 /// and returns the decoded key bytes. Falls back to a dev-only default key
 /// (32 zero bytes) if the variable is missing or invalid, logging a warning.
-pub fn get_encryption_key() -> [u8; 32] {
+fn load_encryption_key_from_env() -> [u8; 32] {
     match std::env::var("PIXEL_ENCRYPTION_KEY") {
         Ok(hex_str) => {
             let hex_str = hex_str.trim();

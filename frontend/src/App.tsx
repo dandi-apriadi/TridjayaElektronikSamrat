@@ -7,8 +7,9 @@ import {
   useLocation,
 } from 'react-router-dom';
 import Layout from './components/layout/Layout';
-import HomePage from './pages/HomePage';
 import { useTelemetryTracker } from './store/useTelemetryTracker';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
 import { usePageTitle } from './hooks/usePageTitle';
 
 import { NotificationContainer } from './components/ui/Notification';
@@ -176,12 +177,34 @@ const App: React.FC = () => {
     
     // Restore session from HttpOnly cookies (if available)
     useAuthStore.getState().restoreSession();
-    
-    // Fetch initial product, promo, and blog data
-    useProductStore.getState().fetchProducts();
-    usePromoStore.getState().fetchPromos();
-    useBlogStore.getState().fetchPosts();
-    usePartnerStore.getState().fetchPartners();
+
+    // Fetch only essential data for initial load
+    // Other data will be fetched on-demand by individual pages
+    const { fetchProducts } = useProductStore.getState();
+
+    // Use requestIdleCallback untuk non-critical data fetching
+    const fetchNonCritical = () => {
+      const { fetchPromos } = usePromoStore.getState();
+      const { fetchPosts } = useBlogStore.getState();
+      const { fetchPartners } = usePartnerStore.getState();
+
+      // Delay non-essential data fetching
+      setTimeout(() => {
+        fetchPromos().catch(() => {});
+        fetchPosts().catch(() => {});
+        fetchPartners().catch(() => {});
+      }, 2000); // Delay 2 seconds after initial load
+    };
+
+    // Fetch products immediately (needed for homepage)
+    fetchProducts().catch(() => {});
+
+    // Schedule non-critical data fetching
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(fetchNonCritical, { timeout: 3000 });
+    } else {
+      setTimeout(fetchNonCritical, 1000);
+    }
   }, [setTheme]);
 
   return (

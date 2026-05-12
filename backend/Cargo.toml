@@ -123,6 +123,7 @@ hmac = "0.12"
 hex = "0.4"
 regex = "1.11"
 url = "2.5"
+calamine = "0.26"
 
 [dev-dependencies]
 proptest = "1.5"

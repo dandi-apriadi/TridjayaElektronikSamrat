@@ -113,6 +113,11 @@ export interface WaAccount {
   name: string;
   gatewayConfig: Record<string, any>;
   enabled: boolean;
+  status?: 'connected' | 'disconnected' | 'connecting' | 'qr_ready' | 'reconnecting' | 'error';
+  phoneNumber?: string;
+  lastConnectedAt?: string;
+  lastError?: string;
+  messageCountToday?: number;
   createdBy?: string;
   createdAt?: string;
 }

@@ -8,7 +8,7 @@ use crate::{
 use axum::{
     extract::{Path, State},
     http::HeaderMap,
-    routing::{get, post},
+    routing::post,
     Json, Router,
 };
 use chrono::{Duration, Utc};
@@ -36,7 +36,7 @@ pub struct SendMessageResponse {
 }
 
 /// API token record from database
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 struct ApiTokenRecord {
     id: String,
     user_id: String,
@@ -45,12 +45,15 @@ struct ApiTokenRecord {
     permissions: Option<String>, // JSON array
     expires_at: Option<String>,
     last_used_at: Option<String>,
+    token_prefix: Option<String>,
 }
 
 /// Verify API token from Authorization header
 /// **Validates: Requirements 9.2, 9.3**
 /// 
-/// Extracts Bearer token, verifies hash using Argon2id, checks expiration
+/// Extracts Bearer token, uses SHA-256 prefix for fast lookup, then verifies
+/// Argon2id hash on the single matching row. Falls back to scanning legacy
+/// tokens without a prefix.
 async fn verify_api_token(
     state: &AppState,
     headers: &HeaderMap,
@@ -71,15 +74,16 @@ async fn verify_api_token(
     }
 
     let token = token.trim();
+    let prefix = crate::api_tokens::compute_token_prefix(token);
 
-    // Hash the provided token using Argon2id
-    // Note: For API tokens, we need to query all tokens and verify each hash
-    // This is less efficient but necessary for Argon2id verification
-    let tokens: Vec<ApiTokenRecord> = sqlx::query_as(
-        "SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at 
-         FROM wa_api_tokens 
-         WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP"
+    // Fast path: query by SHA-256 prefix (O(1) via index)
+    let candidates: Vec<ApiTokenRecord> = sqlx::query_as(
+        "SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, token_prefix
+         FROM wa_api_tokens
+         WHERE token_prefix = ?
+           AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
     )
+    .bind(&prefix)
     .fetch_all(&state.pool)
     .await
     .map_err(|e| {
@@ -87,12 +91,44 @@ async fn verify_api_token(
         AppError::Internal
     })?;
 
-    // Verify token against each hash
+    // Verify Argon2 hash only against the (typically 1) candidate(s)
     let mut matched_token: Option<ApiTokenRecord> = None;
-    for token_record in tokens {
+    for token_record in &candidates {
         if crate::auth::verify_password(token, &token_record.token_hash) {
-            matched_token = Some(token_record);
+            matched_token = Some(token_record.clone());
             break;
+        }
+    }
+
+    // Fallback: legacy tokens without prefix
+    if matched_token.is_none() && candidates.is_empty() {
+        let legacy_tokens: Vec<ApiTokenRecord> = sqlx::query_as(
+            "SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, token_prefix
+             FROM wa_api_tokens
+             WHERE token_prefix IS NULL
+               AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)"
+        )
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching legacy API tokens: {}", e);
+            AppError::Internal
+        })?;
+
+        for token_record in &legacy_tokens {
+            if crate::auth::verify_password(token, &token_record.token_hash) {
+                // Backfill prefix for this legacy token
+                let _ = sqlx::query(
+                    "UPDATE wa_api_tokens SET token_prefix = ? WHERE id = ?",
+                )
+                .bind(&prefix)
+                .bind(&token_record.id)
+                .execute(&state.pool)
+                .await;
+
+                matched_token = Some(token_record.clone());
+                break;
+            }
         }
     }
 
@@ -485,11 +521,10 @@ async fn execute_bomber(
 }
 
 /// Create router for API routes
-pub fn router(state: AppState) -> Router {
+pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/wa/send", post(send_message))
         .route("/api/wa/bomber", post(execute_bomber))
-        .with_state(state)
 }
 
 #[cfg(test)]

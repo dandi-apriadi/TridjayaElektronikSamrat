@@ -36,11 +36,15 @@ pub struct AppState {
     pub api_rate_limiter: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
     /// Redis connection manager for rate limiting (optional, initialized when Redis is available)
     pub redis: Option<Arc<RwLock<ConnectionManager>>>,
+    /// Bridge client for managing Baileys WhatsApp sessions
+    pub bridge_client: Arc<crate::bridge::BridgeClient>,
 }
 
 impl AppState {
-    pub fn new(pool: SqlitePool, cache: Arc<crate::cache::CacheManager>) -> Self {
-        Self {
+    pub fn new(pool: SqlitePool, cache: Arc<crate::cache::CacheManager>) -> (Self, tokio::sync::mpsc::UnboundedReceiver<crate::bridge::BridgeEvent>) {
+        let (bridge_client, event_rx) = crate::bridge::BridgeClient::new();
+        
+        let state = Self {
             pool,
             access_sessions: Arc::new(RwLock::new(HashMap::new())),
             refresh_sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -60,7 +64,9 @@ impl AppState {
             queue_manager: None,
             api_rate_limiter: Arc::new(RwLock::new(HashMap::new())),
             redis: None,
-        }
+            bridge_client: Arc::new(bridge_client),
+        };
+        (state, event_rx)
     }
 
     pub fn with_queue_manager(mut self, queue_manager: Arc<crate::queue_manager::QueueManager>) -> Self {

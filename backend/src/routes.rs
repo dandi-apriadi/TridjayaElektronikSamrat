@@ -8,9 +8,9 @@ use crate::pixel;
 use crate::wa_webhook_handlers;
 use crate::chatbot_routes;
 use crate::api_routes;
+use crate::wa_gateway;
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
-use std::fs;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -19,8 +19,8 @@ pub fn router(state: AppState) -> Router {
     let main_router = Router::new()
         .route("/health", get(health))
         .route("/api/partners", get(list_partners))
-        .route("/api/admin/partners", get(list_admin_partners).post(create_partner))
-        .route("/api/admin/partners/{id}", patch(update_partner).delete(delete_partner))
+        .route("/api/admin/partners", get(list_admin_partners))
+        .route("/api/admin/partners/{id}", delete(delete_partner))
         .route("/api/auth/login", post(login))
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/verify-email", post(verify_email))
@@ -43,6 +43,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wa/campaigns/{id}", get(get_wa_campaign).patch(update_wa_campaign).delete(delete_wa_campaign))
         .route("/api/wa/campaigns/{id}/recipients", post(add_wa_recipients))
         .route("/api/wa/campaigns/{id}/recipients/from-leads", post(add_wa_recipients_from_leads))
+        .route("/api/wa/recipients/template", get(download_recipients_template))
         .route("/api/wa/campaigns/{id}/start", post(start_wa_campaign))
         .route("/api/wa/campaigns/{id}/status", get(get_wa_campaign_status))
         .route("/api/wa/campaigns/{id}/metrics", get(get_wa_campaign_metrics))
@@ -54,7 +55,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wa/chatbot-rules/bulk", patch(chatbot_routes::bulk_update_chatbot_rules))
         .route("/api/wa/chatbot-rules/{id}", patch(chatbot_routes::update_chatbot_rule).delete(chatbot_routes::delete_chatbot_rule))
         .route("/api/reward-tiers", get(list_reward_tiers))
-        .route("/api/admin/uploads/image", post(upload_admin_image))
+        .route("/api/admin/uploads/private/{filename}", get(serve_private_upload))
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
         .route("/api/admin/catalogs/bulk", post(bulk_products))
         .route("/api/catalogs/{id}", get(get_catalog).patch(update_catalog).delete(delete_catalog))
@@ -84,7 +85,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/agent/claims", get(list_claims).post(create_claim))
         .route("/api/agent/support-tickets", get(list_support_tickets).post(create_support_ticket))
         .route("/api/leaderboard", get(list_leaderboard))
-        .route("/api/agent-registrations", post(submit_agent_registration))
+        // agent-registrations POST is in upload_routes (20MB body limit)
         .route("/api/admin/agent-registrations", get(list_agent_registrations))
         .route("/api/admin/agent-registrations/{id}/status", patch(update_agent_registration_status))
         .route("/api/admin/claims", get(list_all_claims))
@@ -113,11 +114,27 @@ pub fn router(state: AppState) -> Router {
         .route("/api/pixel-analytics/campaigns/{id}", get(pixel::analytics_handlers::get_campaign_analytics))
         .route("/api/pixel-analytics/agent", get(pixel::analytics_handlers::get_agent_pixel_analytics))
         .route("/api/pixel-analytics/sales", get(pixel::analytics_handlers::get_sales_pixel_analytics))
-        .route("/api/pixel-analytics/editor", get(pixel::analytics_handlers::get_editor_pixel_analytics))
-        .with_state(state.clone());
+        .route("/api/pixel-analytics/editor", get(pixel::analytics_handlers::get_editor_pixel_analytics));
+
+    // Upload routes with larger body limit (20MB) for multipart file uploads
+    let upload_routes = Router::new()
+        .route("/api/admin/uploads/image", post(upload_admin_image))
+        .route("/api/admin/partners", post(create_partner))
+        .route("/api/admin/partners/{id}", patch(update_partner))
+        .route("/api/agent-registrations", post(submit_agent_registration))
+        .route("/api/wa/campaigns/{id}/recipients/upload-excel", post(upload_wa_recipients_excel))
+        .layer(axum::extract::DefaultBodyLimit::max(20 * 1024 * 1024));
+
+    let main_router = main_router.merge(upload_routes);
 
     // Merge with API routes (for N8N integration)
-    main_router.merge(api_routes::router(state))
+    let main_router = main_router.merge(api_routes::router());
+    
+    // Merge with WA Gateway API (self-hosted gateway)
+    let main_router = main_router.merge(wa_gateway::router());
+    
+    // Apply state after all merges
+    main_router.with_state(state)
 }
 
 async fn health(State(state): State<AppState>) -> ResponseBody {
@@ -1117,11 +1134,16 @@ enum WaRecipientsPayload {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct WaSummaryResponse {
     id: String,
     name: String,
     gateway_config: Value,
     enabled: bool,
+    status: Option<String>,
+    phone_number: Option<String>,
+    last_error: Option<String>,
+    message_count_today: Option<i64>,
     created_by: Option<String>,
     created_at: Option<String>,
 }
@@ -2019,11 +2041,49 @@ async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, m
     Ok(json_ok("Image uploaded", json!({ "url": url })))
 }
 
+/// Serve files from uploads/private/ — requires admin auth
+async fn serve_private_upload(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(filename): Path<String>,
+) -> Result<axum::response::Response, AppError> {
+    use axum::response::IntoResponse;
+
+    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    // Sanitize filename: only allow alphanumeric, dash, underscore, dot
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err(AppError::Validation { errors: vec!["Invalid filename".to_string()] });
+    }
+    if !filename.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err(AppError::Validation { errors: vec!["Invalid filename".to_string()] });
+    }
+
+    let file_path = format!("uploads/private/{}", filename);
+    let data = tokio::fs::read(&file_path).await.map_err(|_| AppError::NotFound)?;
+
+    let content_type = if filename.ends_with(".webp") {
+        "image/webp"
+    } else if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if filename.ends_with(".png") {
+        "image/png"
+    } else {
+        "application/octet-stream"
+    };
+
+    Ok((
+        [(axum::http::header::CONTENT_TYPE, content_type),
+         (axum::http::header::CACHE_CONTROL, "private, max-age=300")],
+        data,
+    ).into_response())
+}
+
 async fn list_wa_accounts(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
 
-    let rows = sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>)>(
-        "SELECT id, name, gateway_config, enabled, created_by, created_at FROM wa_accounts ORDER BY created_at DESC",
+    let rows = sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
+        "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at FROM wa_accounts ORDER BY created_at DESC",
     )
     .fetch_all(&state.pool)
     .await
@@ -2034,11 +2094,15 @@ async fn list_wa_accounts(State(state): State<AppState>, headers: HeaderMap) -> 
 
     let items = rows
         .into_iter()
-        .map(|(id, name, gateway_config, enabled, created_by, created_at)| WaSummaryResponse {
+        .map(|(id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at)| WaSummaryResponse {
             id,
             name,
             gateway_config: parse_json_value(gateway_config),
             enabled,
+            status,
+            phone_number,
+            last_error,
+            message_count_today,
             created_by,
             created_at,
         })
@@ -2362,10 +2426,267 @@ async fn add_wa_recipients(
     ))
 }
 
+/// Download a CSV template for bulk recipient import
+async fn download_recipients_template(headers: HeaderMap, State(state): State<AppState>) -> Result<axum::response::Response, AppError> {
+    use axum::response::IntoResponse;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    // Generate CSV template with BOM for Excel compatibility
+    let bom = "\u{FEFF}";
+    let csv_content = format!(
+        "{}phone,name,var1,var2\n628123456789,Budi Santoso,value1,value2\n628987654321,Andi Wijaya,value1,value2\n",
+        bom
+    );
+
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+            (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"wa_recipients_template.csv\""),
+            (axum::http::header::CACHE_CONTROL, "no-cache"),
+        ],
+        csv_content,
+    ).into_response())
+}
+
+/// Upload recipients from an Excel (.xlsx/.xls) or CSV file
+async fn upload_wa_recipients_excel(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    mut multipart: Multipart,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    // Verify campaign exists
+    let campaign_exists: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM wa_campaigns WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+
+    if campaign_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Load campaign config for dedupe
+    let campaign_config: Option<String> = sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+
+    let config_value = parse_json_value(campaign_config);
+    let dedupe_days = wa_config_dedupe_days(&config_value);
+
+    // Read the uploaded file
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_name = String::new();
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Multipart error: {}", e);
+        AppError::Internal
+    })? {
+        if field.name().unwrap_or_default() == "file" {
+            file_name = field.file_name().unwrap_or("upload.xlsx").to_string();
+            file_bytes = Some(field.bytes().await.map_err(|e| {
+                tracing::error!("Failed to read file bytes: {}", e);
+                AppError::Internal
+            })?.to_vec());
+            break;
+        }
+    }
+
+    let file_bytes = file_bytes.ok_or_else(|| {
+        AppError::Validation { errors: vec!["No file uploaded. Please attach an Excel or CSV file.".to_string()] }
+    })?;
+
+    let is_csv = file_name.ends_with(".csv");
+
+    // Parse rows from file
+    let rows: Vec<Vec<String>> = if is_csv {
+        // Parse CSV
+        let content = String::from_utf8_lossy(&file_bytes);
+        let mut csv_rows = Vec::new();
+        for line in content.lines() {
+            let line = line.trim().trim_start_matches('\u{FEFF}');
+            if line.is_empty() { continue; }
+            let cols: Vec<String> = line.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect();
+            csv_rows.push(cols);
+        }
+        csv_rows
+    } else {
+        // Parse Excel using calamine
+        use calamine::{Reader, open_workbook_auto_from_rs};
+        use std::io::Cursor;
+        let cursor = Cursor::new(&file_bytes);
+        let mut workbook = open_workbook_auto_from_rs(cursor).map_err(|e| {
+            tracing::error!("Failed to open Excel file: {}", e);
+            AppError::Validation { errors: vec![format!("Failed to read Excel file: {}", e)] }
+        })?;
+
+        let sheet_name = workbook.sheet_names().first().cloned().unwrap_or_default();
+        let range = workbook.worksheet_range(&sheet_name).map_err(|e| {
+            tracing::error!("Failed to read Excel sheet: {}", e);
+            AppError::Validation { errors: vec![format!("Failed to read sheet: {}", e)] }
+        })?;
+
+        let mut excel_rows = Vec::new();
+        for row in range.rows() {
+            let cols: Vec<String> = row.iter().map(|cell| {
+                use calamine::Data;
+                match cell {
+                    Data::String(s) => s.clone(),
+                    Data::Float(f) => {
+                        if *f == (*f as i64) as f64 { format!("{}", *f as i64) } else { format!("{}", f) }
+                    }
+                    Data::Int(i) => format!("{}", i),
+                    Data::Bool(b) => format!("{}", b),
+                    _ => String::new(),
+                }
+            }).collect();
+            excel_rows.push(cols);
+        }
+        excel_rows
+    };
+
+    if rows.len() < 2 {
+        return Err(AppError::Validation { errors: vec!["File must have a header row and at least one data row.".to_string()] });
+    }
+
+    // Parse header to find column indices
+    let header: Vec<String> = rows[0].iter().map(|h| h.to_lowercase().trim().to_string()).collect();
+    let phone_idx = header.iter().position(|h| h == "phone" || h == "nomor" || h == "no_hp" || h == "whatsapp" || h == "no hp" || h == "nohp");
+
+    let phone_idx = phone_idx.ok_or_else(|| {
+        AppError::Validation { errors: vec![
+            "Column 'phone' not found in header. Expected: phone, nomor, no_hp, whatsapp, or no hp".to_string()
+        ] }
+    })?;
+
+    // All other columns become variables
+    let var_columns: Vec<(usize, String)> = header.iter().enumerate()
+        .filter(|(i, _)| *i != phone_idx)
+        .map(|(i, name)| (i, name.clone()))
+        .collect();
+
+    let mut inserted = 0_i64;
+    let mut skipped = 0_i64;
+    let mut invalid = Vec::new();
+
+    for (row_num, row) in rows.iter().enumerate().skip(1) {
+        let phone_raw = row.get(phone_idx).map(|s| s.trim().to_string()).unwrap_or_default();
+        if phone_raw.is_empty() { continue; }
+
+        let phone = match normalize_phone(&phone_raw) {
+            Some(p) => p,
+            None => {
+                invalid.push(format!("Baris {}: nomor tidak valid '{}'", row_num + 1, phone_raw));
+                continue;
+            }
+        };
+
+        // Build variables JSON from other columns
+        let mut vars = serde_json::Map::new();
+        for (col_idx, col_name) in &var_columns {
+            let val = row.get(*col_idx).map(|s| s.trim().to_string()).unwrap_or_default();
+            if !val.is_empty() {
+                vars.insert(col_name.clone(), serde_json::Value::String(val));
+            }
+        }
+        let variables = serde_json::Value::Object(vars).to_string();
+
+        // Dedupe check
+        let dedupe_window = format!("-{} day", dedupe_days.max(1));
+        let duplicate_exists: Option<i64> = sqlx::query_scalar(
+            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= datetime('now', ?) LIMIT 1",
+        )
+        .bind(&phone)
+        .bind(&dedupe_window)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+
+        let status = if duplicate_exists.is_some() { "skipped" } else { "pending" };
+        if duplicate_exists.is_some() { skipped += 1; } else { inserted += 1; }
+
+        let recipient_id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO wa_recipients (id, campaign_id, phone, variables_json, status) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&recipient_id)
+        .bind(&id)
+        .bind(&phone)
+        .bind(&variables)
+        .bind(status)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+    }
+
+    let mut msg = format!("{} recipients imported, {} skipped (dedupe)", inserted, skipped);
+    if !invalid.is_empty() {
+        msg = format!("{}. {} invalid rows.", msg, invalid.len());
+    }
+
+    Ok(json_ok(
+        msg,
+        json!({
+            "inserted": inserted,
+            "skipped": skipped,
+            "invalid": invalid,
+            "total_rows": rows.len() - 1,
+        }),
+    ))
+}
+
 async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
 
-    let result = sqlx::query(
+    // 1. Validate campaign exists and is not already running
+    let campaign_status: Option<(String,)> = sqlx::query_as(
+        "SELECT status FROM wa_campaigns WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+
+    let campaign_status = campaign_status.ok_or(AppError::NotFound)?;
+    if campaign_status.0 == "running" {
+        return Err(AppError::Validation { errors: vec!["Campaign is already running".to_string()] });
+    }
+
+    // 2. Validate there are pending recipients
+    let pending_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'pending'"
+    )
+    .bind(&id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+
+    if pending_count.0 == 0 {
+        return Err(AppError::Validation { errors: vec!["No pending recipients to send to".to_string()] });
+    }
+
+    // 3. Get connected WA accounts
+    let account_ids: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM wa_accounts WHERE enabled = 1 AND status = 'connected'"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+
+    if account_ids.is_empty() {
+        return Err(AppError::Validation { errors: vec!["No connected WA accounts available. Connect at least one account first.".to_string()] });
+    }
+
+    let account_id_list: Vec<String> = account_ids.into_iter().map(|r| r.0).collect();
+
+    // 4. Update campaign status to running
+    sqlx::query(
         "UPDATE wa_campaigns SET status = 'running', started_at = COALESCE(started_at, CURRENT_TIMESTAMP) WHERE id = ?",
     )
     .bind(&id)
@@ -2376,13 +2697,44 @@ async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Pa
         AppError::Internal
     })?;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound);
+    // 5. Enqueue recipients to Redis queue for BlastEngine to process
+    let enqueued: usize;
+    if let Some(qm) = &state.queue_manager {
+        let enqueue_result = qm.enqueue_campaign(&id, &account_id_list).await
+            .map_err(|e| e.to_string());
+
+        match enqueue_result {
+            Ok(count) => {
+                enqueued = count;
+                tracing::info!("Campaign {} enqueued {} recipients across {} accounts", id, count, account_id_list.len());
+            }
+            Err(err_msg) => {
+                tracing::error!("Failed to enqueue campaign {}: {}", id, err_msg);
+                // Revert campaign status since enqueue failed
+                let _ = sqlx::query("UPDATE wa_campaigns SET status = 'draft' WHERE id = ?")
+                    .bind(&id)
+                    .execute(&state.pool)
+                    .await;
+                return Err(AppError::Validation { errors: vec![format!("Failed to enqueue campaign: {}", err_msg)] });
+            }
+        }
+    } else {
+        tracing::error!("Queue manager not available — Redis not connected");
+        // Revert
+        let _ = sqlx::query("UPDATE wa_campaigns SET status = 'draft' WHERE id = ?")
+            .bind(&id)
+            .execute(&state.pool)
+            .await;
+        return Err(AppError::Validation { errors: vec!["Message queue is not available. Ensure Redis is running.".to_string()] });
     }
 
     Ok(json_ok(
-        format!("WA campaign started by {}", user.email),
-        json!({ "item": fetch_wa_campaign_summary(&state, &id).await? }),
+        format!("WA campaign started by {} ({} recipients enqueued)", user.email, enqueued),
+        json!({
+            "item": fetch_wa_campaign_summary(&state, &id).await?,
+            "enqueued": enqueued,
+            "accounts_used": account_id_list.len(),
+        }),
     ))
 }
 
@@ -6115,16 +6467,17 @@ async fn submit_agent_registration(State(state): State<AppState>, headers: Heade
                     }
                     let img = decode_uploaded_image(&data)?;
 
+                    std::fs::create_dir_all("uploads/private").ok();
                     let file_id = uuid::Uuid::new_v4().to_string();
                     let file_name = format!("{}_profile.webp", file_id);
-                    let file_path = format!("uploads/{}", file_name);
+                    let file_path = format!("uploads/private/{}", file_name);
 
                     img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
                         tracing::error!("Failed to save profile photo as webp: {}", e);
                         AppError::Internal
                     })?;
 
-                    profile_photo_url = Some(format!("/uploads/{}", file_name));
+                    profile_photo_url = Some(format!("/api/admin/uploads/private/{}", file_name));
                 }
             },
             "ktpPhoto" => {
@@ -6137,21 +6490,17 @@ async fn submit_agent_registration(State(state): State<AppState>, headers: Heade
                     }
                     let img = decode_uploaded_image(&data)?;
 
+                    std::fs::create_dir_all("uploads/private").ok();
                     let file_id = uuid::Uuid::new_v4().to_string();
                     let file_name = format!("{}_ktp.webp", file_id);
-                    let file_path = format!("uploads/{}", file_name);
+                    let file_path = format!("uploads/private/{}", file_name);
 
                     img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
                         tracing::error!("Failed to save KTP photo as webp: {}", e);
                         AppError::Internal
                     })?;
 
-                    // TODO(security): KTP saat ini di-serve dari ServeDir publik untuk
-                    // kompatibilitas dashboard admin yang memuat <img src>. UUID nama file
-                    // sulit ditebak, namun idealnya KTP dilayani via endpoint admin
-                    // ber-auth dengan signed URL singkat. Tidak diubah agar tidak merusak
-                    // halaman AdminAgentsPage saat ini.
-                    ktp_photo_url = Some(format!("/uploads/{}", file_name));
+                    ktp_photo_url = Some(format!("/api/admin/uploads/private/{}", file_name));
                 }
             },
             _ => {}

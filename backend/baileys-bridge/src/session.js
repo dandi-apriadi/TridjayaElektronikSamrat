@@ -93,11 +93,11 @@ export class BaileysSession {
 
     this.sock = makeWASocket({
       version,
-      logger: pino({ level: process.env.BAILEYS_LOG_LEVEL || 'silent' }),
+      logger: pino({ level: process.env.BAILEYS_LOG_LEVEL || 'silent' }, pino.destination(2)),
       printQRInTerminal: false, // We'll handle QR code ourselves
       auth: {
         creds: this.authState.state.creds,
-        keys: makeCacheableSignalKeyStore(this.authState.state.keys, pino({ level: 'silent' }))
+        keys: makeCacheableSignalKeyStore(this.authState.state.keys, pino({ level: 'silent' }, pino.destination(2)))
       },
       msgRetryCounterCache: this.msgRetryCounterCache,
       generateHighQualityLinkPreview: true,

@@ -167,15 +167,15 @@ impl BlastEngine {
     /// Create a new BlastEngine
     pub fn new(
         config: BlastEngineConfig,
-        queue_manager: QueueManager,
-        bridge_client: BridgeClient,
+        queue_manager: Arc<QueueManager>,
+        bridge_client: Arc<BridgeClient>,
         pool: SqlitePool,
         media_handler: MediaHandler,
     ) -> Self {
         Self {
             config,
-            queue_manager: Arc::new(queue_manager),
-            bridge_client: Arc::new(bridge_client),
+            queue_manager,
+            bridge_client,
             pool,
             rate_limits: Arc::new(RwLock::new(HashMap::new())),
             account_semaphores: Arc::new(RwLock::new(HashMap::new())),
@@ -669,24 +669,27 @@ impl BlastEngine {
         media_data: Option<&crate::media_handler::MediaFile>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let params = if let Some(media) = media_data {
-            // Send media message with caption
+            // Send media message with caption via send_media
             serde_json::json!({
+                "session_id": message.account_id,
                 "phone": message.phone,
-                "message": processed_text, // Used as caption
-                "media_url": message.media_url,
                 "media_type": format!("{:?}", media.media_type).to_lowercase(),
-                "media_mime": media.mime_type,
+                "media_path": message.media_url,
+                "caption": processed_text,
             })
         } else {
             // Send text-only message
             serde_json::json!({
+                "session_id": message.account_id,
                 "phone": message.phone,
                 "message": processed_text,
             })
         };
 
+        let method = if media_data.is_some() { "send_media" } else { "send_message" };
+
         let result = self.bridge_client
-            .send_request(&message.account_id, "send_message".to_string(), params)
+            .send_request(&message.account_id, method.to_string(), params)
             .await?;
 
         debug!("Bridge send result: {:?}", result);

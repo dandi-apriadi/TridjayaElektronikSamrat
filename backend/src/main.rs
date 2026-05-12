@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use axum::http::{HeaderValue, Method, Request, StatusCode};
-use axum::extract::{DefaultBodyLimit, State as AxumState};
+use axum::extract::DefaultBodyLimit;
 use axum::middleware::Next;
 use axum::body::Body;
 use axum::response::Response;
@@ -18,22 +18,16 @@ fn is_production_runtime() -> bool {
         || matches!(std::env::var("RUST_ENV").ok().as_deref(), Some("production") | Some("prod"))
 }
 
-/// Middleware untuk mengizinkan body limit lebih besar (20MB) hanya untuk upload endpoint
-async fn upload_size_limit_middleware(
-    AxumState(_state): AxumState<AppState>,
+/// Middleware to block public access to /uploads/private/ directory
+async fn block_private_uploads(
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
-    // Hanya izinkan 20MB untuk upload endpoint
-    if path.starts_with("/api/admin/uploads/") || path.starts_with("/uploads/") {
-        // Request ke upload endpoint - teruskan (layer DefaultBodyLimit diatasnya sudah 1MB, tapi tower-http bisa handle)
-        // Sebenarnya kita perlu menggunakan tower::ServiceBuilder dengan RequestBodyLimitLayer
-        // Tapi untuk simplicity, kita biarkan saja dan andalkan validasi di handler
-        Ok(next.run(request).await)
-    } else {
-        Ok(next.run(request).await)
+    if path.starts_with("/uploads/private/") || path.starts_with("/uploads/private") {
+        return Err(StatusCode::FORBIDDEN);
     }
+    Ok(next.run(request).await)
 }
 
 #[tokio::main]
@@ -175,7 +169,8 @@ async fn main() {
         }
     };
 
-    let mut state = AppState::new(pool, cache).with_redis(redis_conn);
+    let (state, bridge_event_rx) = AppState::new(pool, cache);
+    let mut state = state.with_redis(redis_conn);
     if let Some(qm) = queue_manager {
         state = state.with_queue_manager(qm);
     }
@@ -204,11 +199,30 @@ async fn main() {
         }
     });
 
-    // Start WA Worker
-    let wa_state = state.clone();
+    // Start Bridge Event Processor (handles QR, connected, message_received, etc.)
+    let bridge_pool = state.pool.clone();
     tokio::spawn(async move {
-        tridjaya_backend::wa_worker::start_wa_worker(wa_state).await;
+        tridjaya_backend::bridge_event_processor::run(bridge_pool, bridge_event_rx).await;
     });
+
+    // Start BlastEngine (replaces Fonnte-based wa_worker)
+    if let (Some(qm), Some(redis_arc)) = (&state.queue_manager, &state.redis) {
+        let redis_conn = redis_arc.read().await.clone();
+        let media_handler = tridjaya_backend::media_handler::MediaHandler::new(redis_conn);
+        let blast_engine = tridjaya_backend::blast_engine::BlastEngine::new(
+            tridjaya_backend::blast_engine::BlastEngineConfig::default(),
+            qm.clone(),
+            state.bridge_client.clone(),
+            state.pool.clone(),
+            media_handler,
+        );
+        tokio::spawn(async move {
+            blast_engine.start().await;
+        });
+        tracing::info!("BlastEngine started with Baileys bridge");
+    } else {
+        tracing::warn!("BlastEngine not started — Redis or queue manager not available");
+    }
 
     // Start Meta CAPI retry job (every 60 seconds)
     let retry_state = state.clone();
@@ -246,10 +260,9 @@ async fn main() {
 
     let app = routes::router(state.clone())
         .nest_service("/uploads", ServeDir::new("uploads"))
-        // Layer umum untuk body limit (1MB untuk sebagian besar endpoint)
+        .layer(axum::middleware::from_fn(block_private_uploads))
+        // Default body limit: 1MB for most endpoints
         .layer(DefaultBodyLimit::max(1 * 1024 * 1024))
-        // Layer khusus untuk upload endpoint (20MB)
-        .layer(axum::middleware::from_fn_with_state(state.clone(), upload_size_limit_middleware))
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 

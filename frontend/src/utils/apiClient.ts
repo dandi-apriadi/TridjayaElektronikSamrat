@@ -47,14 +47,21 @@ export async function apiFetch(
     };
   }
 
-  // Add bearer token if available and not skipped
+  // Add bearer token only to authenticated API endpoints (not public/telemetry/uploads)
   if (!skipAuth) {
-    const accessToken = useAuthStore.getState().accessToken;
-    if (accessToken) {
-      finalOptions.headers = {
-        ...finalOptions.headers,
-        Authorization: `Bearer ${accessToken}`,
-      };
+    const isAuthenticatedEndpoint =
+      endpoint.startsWith('/api/') &&
+      !endpoint.startsWith('/api/telemetry/') &&
+      !endpoint.startsWith('/api/public/') &&
+      !endpoint.startsWith('/api/agent-registrations');
+    if (isAuthenticatedEndpoint) {
+      const accessToken = useAuthStore.getState().accessToken;
+      if (accessToken) {
+        finalOptions.headers = {
+          ...finalOptions.headers,
+          Authorization: `Bearer ${accessToken}`,
+        };
+      }
     }
   }
 

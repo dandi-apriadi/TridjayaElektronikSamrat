@@ -4,6 +4,7 @@ use rand::Rng;
 use rand_core::OsRng;
 use redis::{aio::ConnectionManager, AsyncCommands, RedisError};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
@@ -20,6 +21,7 @@ pub struct ApiTokenRecord {
     pub expires_at: Option<String>,
     pub last_used_at: Option<String>,
     pub created_at: String,
+    pub token_prefix: Option<String>,
 }
 
 impl ApiTokenRecord {
@@ -110,6 +112,9 @@ pub async fn generate_api_token(
     rand::thread_rng().fill(&mut token_bytes);
     let plain_token = base64::engine::general_purpose::STANDARD.encode(&token_bytes);
 
+    // Compute SHA-256 prefix for fast indexed lookup (first 16 hex chars = 8 bytes)
+    let token_prefix = compute_token_prefix(&plain_token);
+
     // Hash token using Argon2id
     let salt = SaltString::generate(&mut OsRng);
     let token_hash = argon2::Argon2::default()
@@ -129,8 +134,8 @@ pub async fn generate_api_token(
 
     sqlx::query(
         r#"
-        INSERT INTO wa_api_tokens (id, user_id, token_hash, name, permissions, expires_at, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO wa_api_tokens (id, user_id, token_hash, name, permissions, expires_at, token_prefix, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         "#,
     )
     .bind(&token_id)
@@ -139,6 +144,7 @@ pub async fn generate_api_token(
     .bind(&name)
     .bind(&permissions_json)
     .bind(&expires_at_str)
+    .bind(&token_prefix)
     .execute(pool)
     .await?;
 
@@ -170,19 +176,23 @@ pub async fn validate_api_token(
     pool: &SqlitePool,
     token: &str,
 ) -> Result<ApiTokenRecord, TokenError> {
-    // Fetch all tokens (we need to check hashes)
-    let tokens: Vec<ApiTokenRecord> = sqlx::query_as(
+    let prefix = compute_token_prefix(token);
+
+    // Try fast path: query by prefix (O(1) via index)
+    let candidates: Vec<ApiTokenRecord> = sqlx::query_as(
         r#"
-        SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, created_at
+        SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, created_at, token_prefix
         FROM wa_api_tokens
+        WHERE token_prefix = ?
         "#,
     )
+    .bind(&prefix)
     .fetch_all(pool)
     .await?;
 
-    // Find matching token by verifying hash
+    // Verify Argon2 hash only against the (typically 1) candidate(s)
     let mut matched_token: Option<ApiTokenRecord> = None;
-    for token_record in tokens {
+    for token_record in &candidates {
         let parsed_hash = match PasswordHash::new(&token_record.token_hash) {
             Ok(hash) => hash,
             Err(_) => continue,
@@ -192,8 +202,45 @@ pub async fn validate_api_token(
             .verify_password(token.as_bytes(), &parsed_hash)
             .is_ok()
         {
-            matched_token = Some(token_record);
+            matched_token = Some(token_record.clone());
             break;
+        }
+    }
+
+    // Fallback: if no match by prefix (legacy tokens without prefix), scan all
+    if matched_token.is_none() && candidates.is_empty() {
+        let all_tokens: Vec<ApiTokenRecord> = sqlx::query_as(
+            r#"
+            SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, created_at, token_prefix
+            FROM wa_api_tokens
+            WHERE token_prefix IS NULL
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        for token_record in &all_tokens {
+            let parsed_hash = match PasswordHash::new(&token_record.token_hash) {
+                Ok(hash) => hash,
+                Err(_) => continue,
+            };
+
+            if argon2::Argon2::default()
+                .verify_password(token.as_bytes(), &parsed_hash)
+                .is_ok()
+            {
+                // Backfill prefix for this legacy token
+                let _ = sqlx::query(
+                    "UPDATE wa_api_tokens SET token_prefix = ? WHERE id = ?",
+                )
+                .bind(&prefix)
+                .bind(&token_record.id)
+                .execute(pool)
+                .await;
+
+                matched_token = Some(token_record.clone());
+                break;
+            }
         }
     }
 
@@ -220,6 +267,15 @@ pub async fn validate_api_token(
     tracing::debug!("Validated API token {} for user {}", token_record.id, token_record.user_id);
 
     Ok(token_record)
+}
+
+/// Compute a short SHA-256 prefix of a plain token for fast indexed lookup.
+/// Returns the first 16 hex characters of the SHA-256 hash (64-bit uniqueness).
+pub fn compute_token_prefix(plain_token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(plain_token.as_bytes());
+    let hash = hasher.finalize();
+    format!("{:x}", hash)[..16].to_string()
 }
 
 /// Check IP-based rate limit using Redis sliding window
@@ -402,6 +458,7 @@ mod tests {
                 permissions TEXT,
                 expires_at DATETIME,
                 last_used_at DATETIME,
+                token_prefix TEXT,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
@@ -449,7 +506,7 @@ mod tests {
 
         // Verify token was stored
         let record: ApiTokenRecord = sqlx::query_as(
-            "SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, created_at FROM wa_api_tokens WHERE id = ?",
+            "SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, created_at, token_prefix FROM wa_api_tokens WHERE id = ?",
         )
         .bind(&token_id)
         .fetch_one(&pool)
@@ -493,7 +550,7 @@ mod tests {
 
         // Verify last_used_at was updated
         let updated_record: ApiTokenRecord = sqlx::query_as(
-            "SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, created_at FROM wa_api_tokens WHERE id = ?",
+            "SELECT id, user_id, token_hash, name, permissions, expires_at, last_used_at, created_at, token_prefix FROM wa_api_tokens WHERE id = ?",
         )
         .bind(&record.id)
         .fetch_one(&pool)

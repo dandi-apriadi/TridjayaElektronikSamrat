@@ -19,18 +19,10 @@ import { createInterface } from 'readline';
 import pino from 'pino';
 import { BaileysSession } from './session.js';
 
-// Initialize logger
+// Initialize logger — MUST write to stderr so stdout stays pure JSON-RPC
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: false,
-      translateTime: 'SYS:standard',
-      ignore: 'pid,hostname'
-    }
-  }
-});
+}, pino.destination(2)); // fd 2 = stderr
 
 // Store active sessions
 const sessions = new Map();

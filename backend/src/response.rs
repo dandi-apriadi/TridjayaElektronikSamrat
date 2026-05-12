@@ -53,6 +53,12 @@ pub fn json_ok<T: Serialize>(message: impl Into<String>, data: T) -> Response {
     Json(ApiResponse::ok(message, data)).into_response()
 }
 
+pub fn json_created<T: Serialize>(message: impl Into<String>, data: T) -> Response {
+    (StatusCode::CREATED, Json(ApiResponse::ok(message, data))).into_response()
+}
+
+pub type ResponseBody = Response;
+
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("validation failed")]
@@ -77,12 +83,24 @@ pub enum AppError {
         cooldown_expires_at: String,
         remaining_seconds: i64,
     },
+    #[error("bad request: {0}")]
+    BadRequest(String),
+    #[error("database error: {0}")]
+    Database(String),
+}
+
+impl AppError {
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
+    }
 }
 
 impl AppError {
     fn status(&self) -> StatusCode {
         match self {
             Self::Validation { .. } => StatusCode::BAD_REQUEST,
+            Self::BadRequest(_) => StatusCode::BAD_REQUEST,
+            Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
@@ -97,6 +115,8 @@ impl AppError {
     fn message(&self) -> String {
         match self {
             Self::Validation { .. } => "Validation failed".to_string(),
+            Self::BadRequest(msg) => msg.clone(),
+            Self::Database(msg) => format!("Database error: {}", msg),
             Self::Unauthorized => "Authentication required".to_string(),
             Self::Forbidden => "Access denied".to_string(),
             Self::NotFound => "Resource not found".to_string(),

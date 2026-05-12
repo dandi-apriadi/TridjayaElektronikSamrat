@@ -11,6 +11,7 @@ pub mod wa_worker;
 pub mod pixel;
 pub mod redis_manager;
 pub mod bridge;
+pub mod bridge_event_processor;
 pub mod session_manager;
 pub mod spintax;
 pub mod media_handler;
@@ -28,6 +29,7 @@ pub mod validation;
 pub mod api_tokens;
 pub mod campaign_config;
 pub mod cleanup;
+pub mod wa_gateway;
 
 // Sub-modules for routes
 pub mod api_routes;

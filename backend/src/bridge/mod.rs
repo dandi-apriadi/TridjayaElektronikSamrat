@@ -15,12 +15,12 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock, Semaphore};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
@@ -35,7 +35,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_CONCURRENT_PROCESSES: usize = 50;
 
 /// Path to the Baileys bridge Node.js script
-const BAILEYS_BRIDGE_PATH: &str = "backend/baileys-bridge/src/index.js";
+const BAILEYS_BRIDGE_PATH: &str = "baileys-bridge/src/index.js";
 
 /// JSON-RPC error codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,8 +121,8 @@ pub type BridgeResult<T> = Result<T, BridgeError>;
 /// Bridge process handle
 struct BridgeProcess {
     session_id: String,
-    child: Child,
-    stdin: ChildStdin,
+    child: std::process::Child,
+    stdin: std::process::ChildStdin,
     response_channels: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
     event_tx: mpsc::UnboundedSender<BridgeEvent>,
     next_request_id: Arc<AtomicU64>,
@@ -133,9 +133,9 @@ impl BridgeProcess {
     /// Create a new bridge process
     fn new(
         session_id: String,
-        child: Child,
-        stdin: ChildStdin,
-        stdout: ChildStdout,
+        child: std::process::Child,
+        stdin: std::process::ChildStdin,
+        stdout: tokio::process::ChildStdout,
         event_tx: mpsc::UnboundedSender<BridgeEvent>,
     ) -> Self {
         let response_channels = Arc::new(Mutex::new(HashMap::new()));
@@ -164,15 +164,16 @@ impl BridgeProcess {
     /// Read stdout from Node.js process and route responses/notifications
     async fn read_stdout(
         session_id: String,
-        stdout: ChildStdout,
+        stdout: tokio::process::ChildStdout,
         response_channels: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
         event_tx: mpsc::UnboundedSender<BridgeEvent>,
     ) {
         let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
         
-        for line in reader.lines() {
-            match line {
-                Ok(line) => {
+        loop {
+            match lines.next_line().await {
+                Ok(Some(line)) => {
                     if line.trim().is_empty() {
                         continue;
                     }
@@ -212,6 +213,10 @@ impl BridgeProcess {
                     } else {
                         warn!(session_id = %session_id, line = %line, "Failed to parse JSON-RPC message");
                     }
+                }
+                Ok(None) => {
+                    info!(session_id = %session_id, "Stdout stream ended (process exited)");
+                    break;
                 }
                 Err(e) => {
                     error!(session_id = %session_id, error = %e, "Error reading stdout");
@@ -392,19 +397,22 @@ impl BridgeClient {
         info!(session_id = %session_id, "Spawning Node.js bridge process");
         
         // Spawn Node.js process
-        let mut child = Command::new(&self.node_path)
+        let mut child = std::process::Command::new(&self.node_path)
             .arg(&self.bridge_script_path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit()) // Inherit stderr for debugging
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit()) // Inherit stderr for debugging
             .spawn()
             .map_err(|e| BridgeError::SpawnFailed(e.to_string()))?;
         
         let stdin = child.stdin.take()
             .ok_or_else(|| BridgeError::SpawnFailed("Failed to capture stdin".to_string()))?;
         
-        let stdout = child.stdout.take()
+        // Convert std stdout to tokio async reader
+        let std_stdout = child.stdout.take()
             .ok_or_else(|| BridgeError::SpawnFailed("Failed to capture stdout".to_string()))?;
+        let stdout = tokio::process::ChildStdout::from_std(std_stdout)
+            .map_err(|e| BridgeError::SpawnFailed(format!("Failed to convert stdout to async: {}", e)))?;
         
         // Create bridge process
         let process = BridgeProcess::new(

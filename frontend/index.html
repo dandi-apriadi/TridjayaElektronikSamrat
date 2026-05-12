@@ -6,6 +6,32 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Preconnect to API and CDN for faster loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="/api" />
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/src/main.tsx" as="script" type="module" />
+
+    <!-- Critical CSS inline untuk first paint -->
+    <style>
+      /* Critical CSS untuk mencegah FOUC (Flash of Unstyled Content) */
+      html { background-color: #0a1628; }
+      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+      #root { min-height: 100vh; }
+      /* Loading state */
+      .initial-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #0a1628;
+        color: #60a5fa;
+      }
+    </style>
+
     <title>Tridjaya — Distributor Elektronik Manado</title>
   </head>
   <body>
