@@ -130,11 +130,13 @@ const AdminWaCampaignFormPage: React.FC = () => {
 
       if (!res.ok) throw new Error('Failed to save campaign');
       const data = await res.json();
-      const newId = data.data?.id;
+      const newId = data.data?.item?.id || data.data?.id;
 
       toast.success('Berhasil', 'Campaign tersimpan');
-      if (isNew) {
+      if (isNew && newId) {
         navigate(`/dashboard/admin/wa/campaign/${newId}`, { replace: true });
+      } else if (isNew) {
+        toast.error('Campaign tersimpan tapi ID tidak ditemukan');
       } else {
         fetchCampaign();
       }
