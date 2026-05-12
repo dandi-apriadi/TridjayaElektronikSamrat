@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Plus, Search, MessageCircle, Send, Clock, 
-  CheckCircle2, Eye, Pause, Smartphone, Database
+  CheckCircle2, Eye, Pause, Smartphone, Database, Trash2
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
@@ -68,6 +68,21 @@ const AdminWaCampaignsPage: React.FC = () => {
     const sent = c.recipientSent || 0;
     const skipped = c.recipientSkipped || 0;
     return Math.round(((sent + skipped) / total) * 100);
+  };
+
+  const handleDeleteCampaign = async (campaignId: string, campaignName: string) => {
+    if (!window.confirm(`Hapus campaign "${campaignName}"? Semua data penerima juga akan dihapus.`)) return;
+    try {
+      const res = await fetch(`/api/wa/campaigns/${campaignId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error('Gagal menghapus');
+      toast.success('Campaign dihapus');
+      fetchCampaigns();
+    } catch (error) {
+      toast.error('Gagal menghapus campaign', error instanceof Error ? error.message : '');
+    }
   };
 
   if (isLoading && campaigns.length === 0) {
@@ -210,13 +225,22 @@ const AdminWaCampaignsPage: React.FC = () => {
                         {new Date(campaign.createdAt || '').toLocaleDateString('id-ID')}
                       </td>
                       <td className="px-4 py-3">
-                        <Link
-                          to={`/dashboard/admin/wa/campaign/${campaign.id}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-primary hover:bg-primary/10 rounded transition-colors"
-                        >
-                          <Eye className="w-4 h-4" />
-                          <span className="text-xs">Lihat</span>
-                        </Link>
+                        <div className="flex items-center gap-1">
+                          <Link
+                            to={`/dashboard/admin/wa/campaign/${campaign.id}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-primary hover:bg-primary/10 rounded transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span className="text-xs">Lihat</span>
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteCampaign(campaign.id, campaign.name)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="text-xs">Hapus</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
