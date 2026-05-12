@@ -72,6 +72,7 @@ const AdminWaCampaignsPage = lazy(() => import('./pages/dashboard/AdminWaCampaig
 const AdminWaCampaignFormPage = lazy(() => import('./pages/dashboard/AdminWaCampaignFormPage'));
 const AdminWaCampaignDetailPage = lazy(() => import('./pages/dashboard/AdminWaCampaignDetailPage'));
 const AdminWaAccountsPage = lazy(() => import('./pages/dashboard/AdminWaAccountsPage.tsx'));
+const AdminWaBlastContactsPage = lazy(() => import('./pages/dashboard/AdminWaBlastContactsPage'));
 const SalesDeliveryPage = lazy(() => import('./pages/dashboard/SalesDeliveryPage'));
 const SalesReferralPage = lazy(() => import('./pages/dashboard/SalesReferralPage'));
 const AdminSalesPage = lazy(() => import('./pages/dashboard/AdminSalesPage'));
@@ -534,6 +535,14 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="admin">
                 {lazyPage(AdminWaAccountsPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/wa/blast-contacts"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminWaBlastContactsPage)}
               </RoleGuard>
             }
           />

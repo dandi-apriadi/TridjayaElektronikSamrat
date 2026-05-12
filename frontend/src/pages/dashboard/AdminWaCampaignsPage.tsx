@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Plus, Search, MessageCircle, Send, Clock, 
-  CheckCircle2, Eye, Pause, Smartphone
+  CheckCircle2, Eye, Pause, Smartphone, Database
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
@@ -87,6 +87,13 @@ const AdminWaCampaignsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <h1 className="text-2xl font-display font-bold text-on-surface">WA Campaign Manager</h1>
         <div className="flex gap-2">
+          <Link
+            to="/dashboard/admin/wa/blast-contacts"
+            className="flex items-center gap-2 px-4 py-2 border border-primary/30 bg-primary/10 rounded-xl hover:bg-primary/20 transition-all text-primary font-bold"
+          >
+            <Database className="w-4 h-4" />
+            <span>Database</span>
+          </Link>
           <Link
             to="/dashboard/admin/wa/accounts"
             className="flex items-center gap-2 px-4 py-2 border border-outline-variant/30 rounded-xl hover:bg-surface-high transition-all text-on-surface-variant hover:text-on-surface"

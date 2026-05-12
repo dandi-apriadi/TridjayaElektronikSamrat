@@ -181,6 +181,34 @@ const AdminWaCampaignFormPage: React.FC = () => {
     }
   };
 
+  const handleImportFromDatabase = async () => {
+    if (isNew) {
+      toast.error('Simpan campaign dulu', 'Simpan campaign terlebih dahulu');
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const res = await fetch(`/api/wa/blast-contacts/import-to-campaign/${id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ all: true }),
+      });
+      if (!res.ok) throw new Error('Gagal import dari database');
+      const data = await res.json();
+      const ins = data.data?.inserted || 0;
+      const skip = data.data?.skipped || 0;
+      toast.success('Import berhasil', `${ins} penerima ditambahkan${skip > 0 ? `, ${skip} di-skip (duplikat)` : ''}`);
+      fetchCampaign();
+    } catch (error) {
+      toast.error('Gagal import', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleUploadRecipients = async (file: File) => {
     if (isNew) {
       toast.error('Simpan campaign dulu', 'Simpan campaign terlebih dahulu sebelum upload penerima');
@@ -507,6 +535,32 @@ const AdminWaCampaignFormPage: React.FC = () => {
                       </motion.div>
                     )}
                   </AnimatePresence>
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 border-t border-outline-variant/20" />
+                  <span className="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">atau</span>
+                  <div className="flex-1 border-t border-outline-variant/20" />
+                </div>
+
+                {/* Import from Database */}
+                <div className="p-4 bg-surface-high/20 border border-outline-variant/10 rounded-xl space-y-4">
+                  <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-widest flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    Import dari Database Kontak
+                  </h3>
+                  <p className="text-[10px] text-on-surface-variant/60">
+                    Gunakan kontak yang sudah tersimpan di database blast Anda.
+                  </p>
+                  <button
+                    onClick={handleImportFromDatabase}
+                    disabled={isUploading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 border border-primary/20 text-primary rounded-xl hover:bg-primary/20 transition-all font-bold text-sm"
+                  >
+                    <Users className="w-4 h-4" />
+                    Import Semua Kontak dari Database
+                  </button>
                 </div>
 
                 {/* Divider */}

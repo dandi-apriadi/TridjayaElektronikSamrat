@@ -3,7 +3,7 @@ use crate::{
     response::{json_ok, AppError},
     state::{AppState, UserPublic, UserRecord},
 };
-use axum::{extract::{Path, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{delete, get, post, patch}, Json, Router};
+use axum::{extract::{Path, Query, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{delete, get, post, patch}, Json, Router};
 use crate::pixel;
 use crate::wa_webhook_handlers;
 use crate::chatbot_routes;
@@ -48,6 +48,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/wa/campaigns/{id}/status", get(get_wa_campaign_status))
         .route("/api/wa/campaigns/{id}/metrics", get(get_wa_campaign_metrics))
         .route("/api/wa/recipients/{id}", patch(update_wa_recipient).delete(delete_wa_recipient))
+        .route("/api/wa/blast-contacts", get(list_blast_contacts).post(create_blast_contact))
+        .route("/api/wa/blast-contacts/{id}", patch(update_blast_contact).delete(delete_blast_contact))
+        .route("/api/wa/blast-contacts/import-to-campaign/{campaign_id}", post(import_blast_contacts_to_campaign))
         .route("/api/wa/webhooks", get(wa_webhook_handlers::list_webhooks).post(wa_webhook_handlers::create_webhook))
         .route("/api/wa/webhooks/{id}", patch(wa_webhook_handlers::update_webhook).delete(wa_webhook_handlers::delete_webhook))
         .route("/api/wa/webhooks/fonnte", post(handle_fonnte_webhook))
@@ -123,6 +126,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/admin/partners/{id}", patch(update_partner))
         .route("/api/agent-registrations", post(submit_agent_registration))
         .route("/api/wa/campaigns/{id}/recipients/upload-excel", post(upload_wa_recipients_excel))
+        .route("/api/wa/blast-contacts/upload-excel", post(upload_blast_contacts_excel))
         .layer(axum::extract::DefaultBodyLimit::max(20 * 1024 * 1024));
 
     let main_router = main_router.merge(upload_routes);
@@ -7252,6 +7256,375 @@ async fn update_job_application_status(State(state): State<AppState>, headers: H
     Ok(json_ok("Application status updated", json!({ "id": id, "updated": true })))
 }
 
+
+// ─── Blast Contacts Database ──────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct BlastContactPayload {
+    phone: String,
+    name: Option<String>,
+    labels: Option<String>,
+    notes: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct BlastContactsQuery {
+    page: Option<i64>,
+    per_page: Option<i64>,
+    search: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ImportBlastContactsPayload {
+    contact_ids: Option<Vec<String>>,
+    all: Option<bool>,
+}
+
+async fn list_blast_contacts(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<BlastContactsQuery>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(50).min(200);
+    let offset = (page - 1) * per_page;
+
+    let (total, items) = if let Some(search) = &query.search {
+        let search_pattern = format!("%{}%", search.trim());
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM wa_blast_contacts WHERE user_id = ? AND (phone LIKE ? OR name LIKE ?)"
+        )
+            .bind(&user.id).bind(&search_pattern).bind(&search_pattern)
+            .fetch_one(&state.pool).await.map_err(|_| AppError::Internal)?;
+
+        let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
+            "SELECT id, phone, name, labels, notes, created_at, updated_at FROM wa_blast_contacts WHERE user_id = ? AND (phone LIKE ? OR name LIKE ?) ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        )
+            .bind(&user.id).bind(&search_pattern).bind(&search_pattern)
+            .bind(per_page).bind(offset)
+            .fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?;
+        (total, rows)
+    } else {
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM wa_blast_contacts WHERE user_id = ?"
+        )
+            .bind(&user.id)
+            .fetch_one(&state.pool).await.map_err(|_| AppError::Internal)?;
+
+        let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
+            "SELECT id, phone, name, labels, notes, created_at, updated_at FROM wa_blast_contacts WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        )
+            .bind(&user.id).bind(per_page).bind(offset)
+            .fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?;
+        (total, rows)
+    };
+
+    let contacts: Vec<serde_json::Value> = items.iter().map(|(id, phone, name, labels, notes, created_at, updated_at)| {
+        json!({
+            "id": id,
+            "phone": phone,
+            "name": name,
+            "labels": labels,
+            "notes": notes,
+            "created_at": created_at,
+            "updated_at": updated_at,
+        })
+    }).collect();
+
+    Ok(json_ok("Blast contacts fetched", json!({
+        "items": contacts,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    })))
+}
+
+async fn create_blast_contact(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<BlastContactPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+
+    let phone = match normalize_phone(&payload.phone) {
+        Some(p) => p,
+        None => return Err(AppError::Validation { errors: vec!["Nomor telepon tidak valid".to_string()] }),
+    };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let name = payload.name.unwrap_or_default();
+    let labels = payload.labels.unwrap_or_default();
+    let notes = payload.notes.unwrap_or_default();
+
+    sqlx::query(
+        "INSERT INTO wa_blast_contacts (id, user_id, phone, name, labels, notes) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, phone) DO UPDATE SET name = excluded.name, labels = excluded.labels, notes = excluded.notes, updated_at = CURRENT_TIMESTAMP"
+    )
+        .bind(&id).bind(&user.id).bind(&phone).bind(&name).bind(&labels).bind(&notes)
+        .execute(&state.pool).await.map_err(|e| {
+            tracing::error!("DB error creating blast contact: {}", e);
+            AppError::Internal
+        })?;
+
+    Ok(json_ok("Contact saved", json!({ "id": id, "phone": phone })))
+}
+
+async fn update_blast_contact(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<BlastContactPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+
+    let phone = match normalize_phone(&payload.phone) {
+        Some(p) => p,
+        None => return Err(AppError::Validation { errors: vec!["Nomor telepon tidak valid".to_string()] }),
+    };
+
+    let name = payload.name.unwrap_or_default();
+    let labels = payload.labels.unwrap_or_default();
+    let notes = payload.notes.unwrap_or_default();
+
+    let result = sqlx::query(
+        "UPDATE wa_blast_contacts SET phone = ?, name = ?, labels = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?"
+    )
+        .bind(&phone).bind(&name).bind(&labels).bind(&notes).bind(&id).bind(&user.id)
+        .execute(&state.pool).await.map_err(|_| AppError::Internal)?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Contact updated", json!({ "id": id })))
+}
+
+async fn delete_blast_contact(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+
+    let result = sqlx::query("DELETE FROM wa_blast_contacts WHERE id = ? AND user_id = ?")
+        .bind(&id).bind(&user.id)
+        .execute(&state.pool).await.map_err(|_| AppError::Internal)?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Contact deleted", json!({ "id": id })))
+}
+
+async fn upload_blast_contacts_excel(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_name = String::new();
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Multipart error: {}", e);
+        AppError::Internal
+    })? {
+        if field.name().unwrap_or_default() == "file" {
+            file_name = field.file_name().unwrap_or("upload.xlsx").to_string();
+            file_bytes = Some(field.bytes().await.map_err(|e| {
+                tracing::error!("Failed to read file bytes: {}", e);
+                AppError::Internal
+            })?.to_vec());
+            break;
+        }
+    }
+
+    let file_bytes = file_bytes.ok_or_else(|| {
+        AppError::Validation { errors: vec!["No file uploaded".to_string()] }
+    })?;
+
+    let is_csv = file_name.ends_with(".csv");
+
+    let rows: Vec<Vec<String>> = if is_csv {
+        let content = String::from_utf8_lossy(&file_bytes);
+        let mut csv_rows = Vec::new();
+        for line in content.lines() {
+            let line = line.trim().trim_start_matches('\u{FEFF}');
+            if line.is_empty() { continue; }
+            let cols: Vec<String> = line.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect();
+            csv_rows.push(cols);
+        }
+        csv_rows
+    } else {
+        use calamine::{Reader, open_workbook_auto_from_rs};
+        use std::io::Cursor;
+        let cursor = Cursor::new(&file_bytes);
+        let mut workbook = open_workbook_auto_from_rs(cursor).map_err(|e| {
+            AppError::Validation { errors: vec![format!("Failed to read Excel file: {}", e)] }
+        })?;
+
+        let sheet_name = workbook.sheet_names().first().cloned().unwrap_or_default();
+        let range = workbook.worksheet_range(&sheet_name).map_err(|e| {
+            AppError::Validation { errors: vec![format!("Failed to read sheet: {}", e)] }
+        })?;
+
+        let mut excel_rows = Vec::new();
+        for row in range.rows() {
+            let cols: Vec<String> = row.iter().map(|cell| {
+                use calamine::Data;
+                match cell {
+                    Data::String(s) => s.clone(),
+                    Data::Float(f) => {
+                        if *f == (*f as i64) as f64 { format!("{}", *f as i64) } else { format!("{}", f) }
+                    }
+                    Data::Int(i) => format!("{}", i),
+                    Data::Bool(b) => format!("{}", b),
+                    _ => String::new(),
+                }
+            }).collect();
+            excel_rows.push(cols);
+        }
+        excel_rows
+    };
+
+    if rows.is_empty() {
+        return Err(AppError::Validation { errors: vec!["File kosong".to_string()] });
+    }
+
+    // Find phone and name columns from header
+    let header = &rows[0];
+    let phone_col = header.iter().position(|h| {
+        let h = h.to_lowercase().trim().to_string();
+        h == "phone" || h == "no" || h == "nomor" || h == "no_hp" || h == "no hp" || h == "telepon" || h == "hp"
+    }).unwrap_or(0);
+    let name_col = header.iter().position(|h| {
+        let h = h.to_lowercase().trim().to_string();
+        h == "name" || h == "nama" || h == "nama_konsumen" || h == "nama konsumen" || h == "customer"
+    });
+
+    let mut inserted = 0i64;
+    let mut skipped = 0i64;
+    let mut invalid = Vec::new();
+
+    for (idx, row) in rows.iter().enumerate().skip(1) {
+        let phone_raw = row.get(phone_col).map(|s| s.trim().to_string()).unwrap_or_default();
+        if phone_raw.is_empty() { continue; }
+
+        let phone = match normalize_phone(&phone_raw) {
+            Some(p) => p,
+            None => {
+                invalid.push(format!("Baris {}: {} tidak valid", idx + 1, phone_raw));
+                continue;
+            }
+        };
+
+        let name = name_col.and_then(|c| row.get(c)).map(|s| s.trim().to_string()).unwrap_or_default();
+        let id = uuid::Uuid::new_v4().to_string();
+
+        let result = sqlx::query(
+            "INSERT INTO wa_blast_contacts (id, user_id, phone, name) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, phone) DO UPDATE SET name = CASE WHEN excluded.name != '' THEN excluded.name ELSE wa_blast_contacts.name END, updated_at = CURRENT_TIMESTAMP"
+        )
+            .bind(&id).bind(&user.id).bind(&phone).bind(&name)
+            .execute(&state.pool).await;
+
+        match result {
+            Ok(r) => {
+                if r.rows_affected() > 0 { inserted += 1; } else { skipped += 1; }
+            }
+            Err(_) => { skipped += 1; }
+        }
+    }
+
+    Ok(json_ok("Import completed", json!({
+        "inserted": inserted,
+        "skipped": skipped,
+        "invalid": invalid,
+        "total_rows": rows.len() - 1,
+    })))
+}
+
+async fn import_blast_contacts_to_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(campaign_id): Path<String>,
+    Json(payload): Json<ImportBlastContactsPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    // Verify campaign exists
+    let campaign_exists: Option<(String,)> = sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool).await.map_err(|_| AppError::Internal)?;
+    if campaign_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Get campaign config for dedupe
+    let campaign_config: Option<String> = sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool).await.map_err(|_| AppError::Internal)?;
+    let config_value = parse_json_value(campaign_config);
+    let dedupe_days = wa_config_dedupe_days(&config_value);
+
+    // Fetch contacts
+    let contacts: Vec<(String, String, String)> = if payload.all.unwrap_or(false) {
+        sqlx::query_as("SELECT id, phone, name FROM wa_blast_contacts WHERE user_id = ?")
+            .bind(&user.id)
+            .fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?
+    } else {
+        let ids = payload.contact_ids.unwrap_or_default();
+        if ids.is_empty() {
+            return Err(AppError::Validation { errors: vec!["Pilih kontak atau gunakan all: true".to_string()] });
+        }
+        let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let query_str = format!(
+            "SELECT id, phone, name FROM wa_blast_contacts WHERE user_id = ? AND id IN ({})", placeholders
+        );
+        let mut q = sqlx::query_as::<_, (String, String, String)>(&query_str).bind(&user.id);
+        for id in &ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?
+    };
+
+    let mut inserted = 0i64;
+    let mut skipped = 0i64;
+
+    for (_contact_id, phone, name) in &contacts {
+        let recipient_id = uuid::Uuid::new_v4().to_string();
+        let vars = json!({ "name": name }).to_string();
+        let dedupe_window = format!("-{} day", dedupe_days.max(1));
+
+        let duplicate_exists: Option<i64> = sqlx::query_scalar(
+            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= datetime('now', ?) LIMIT 1"
+        )
+            .bind(phone).bind(&dedupe_window)
+            .fetch_optional(&state.pool).await.map_err(|_| AppError::Internal)?;
+
+        let status = if duplicate_exists.is_some() { "skipped" } else { "pending" };
+
+        let result = sqlx::query(
+            "INSERT OR IGNORE INTO wa_recipients (id, campaign_id, phone, variables_json, status) VALUES (?, ?, ?, ?, ?)"
+        )
+            .bind(&recipient_id).bind(&campaign_id).bind(phone).bind(&vars).bind(status)
+            .execute(&state.pool).await.map_err(|_| AppError::Internal)?;
+
+        if result.rows_affected() > 0 {
+            if status == "pending" { inserted += 1; } else { skipped += 1; }
+        } else {
+            skipped += 1;
+        }
+    }
+
+    Ok(json_ok("Contacts imported to campaign", json!({
+        "inserted": inserted,
+        "skipped": skipped,
+        "total": contacts.len(),
+    })))
+}
 
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────
