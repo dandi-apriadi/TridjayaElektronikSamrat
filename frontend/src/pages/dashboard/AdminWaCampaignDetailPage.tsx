@@ -150,6 +150,25 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     }
   };
 
+  const handleDeleteCampaign = async () => {
+    if (!id) return;
+    if (!window.confirm('Hapus campaign ini beserta semua data penerima? Tindakan ini tidak bisa dibatalkan.')) return;
+    setIsActionLoading(true);
+    try {
+      const res = await fetch(`/api/wa/campaigns/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error('Gagal menghapus campaign');
+      toast.success('Campaign dihapus');
+      navigate('/dashboard/admin/wa/campaigns');
+    } catch (error) {
+      toast.error('Gagal menghapus', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   // Database contacts functions
   const fetchDbContacts = async () => {
     setIsLoadingDb(true);
@@ -325,6 +344,14 @@ const AdminWaCampaignDetailPage: React.FC = () => {
               <span>Mulai Campaign</span>
             </button>
           )}
+          <button
+            onClick={handleDeleteCampaign}
+            disabled={isActionLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/20 transition-all font-bold disabled:opacity-50"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Hapus</span>
+          </button>
         </div>
       </div>
 
