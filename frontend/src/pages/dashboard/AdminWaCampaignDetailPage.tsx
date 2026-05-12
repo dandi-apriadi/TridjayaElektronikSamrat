@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Send, RefreshCw,
   CheckCircle2, AlertTriangle, Clock, Copy, XCircle,
-  Plus, Trash2, Check, Eye, FileSpreadsheet, Loader2
+  Plus, Trash2, Check, Eye, FileSpreadsheet, Loader2,
+  Database, Users, Search, ChevronDown, ChevronUp
 } from 'lucide-react';
 import AddWaRecipientModal from '../../components/dashboard/AddWaRecipientModal';
 import { useAuthStore } from '../../store/authStore';
@@ -37,6 +38,17 @@ const AdminWaCampaignDetailPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Database contacts state
+  const [showDbContacts, setShowDbContacts] = useState(false);
+  const [dbContacts, setDbContacts] = useState<Array<{ id: string; phone: string; name: string; labels: string }>>([]);
+  const [dbTotal, setDbTotal] = useState(0);
+  const [dbSearch, setDbSearch] = useState('');
+  const [dbPage, setDbPage] = useState(1);
+  const [dbSelectedIds, setDbSelectedIds] = useState<Set<string>>(new Set());
+  const [isImporting, setIsImporting] = useState(false);
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const dbPerPage = 15;
 
   useEffect(() => {
     if (id) {
@@ -138,6 +150,86 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     }
   };
 
+  // Database contacts functions
+  const fetchDbContacts = async () => {
+    setIsLoadingDb(true);
+    try {
+      const params = new URLSearchParams({ page: String(dbPage), per_page: String(dbPerPage) });
+      if (dbSearch.trim()) params.set('search', dbSearch.trim());
+      const res = await fetch(`/api/wa/blast-contacts?${params}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setDbContacts(data.data?.items || []);
+      setDbTotal(data.data?.total || 0);
+    } catch {
+      toast.error('Gagal memuat database kontak');
+    } finally {
+      setIsLoadingDb(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showDbContacts) fetchDbContacts();
+  }, [showDbContacts, dbPage, dbSearch]);
+
+  const toggleDbSelect = (contactId: string) => {
+    const next = new Set(dbSelectedIds);
+    if (next.has(contactId)) next.delete(contactId); else next.add(contactId);
+    setDbSelectedIds(next);
+  };
+
+  const toggleDbSelectAll = () => {
+    if (dbSelectedIds.size === dbContacts.length) {
+      setDbSelectedIds(new Set());
+    } else {
+      setDbSelectedIds(new Set(dbContacts.map(c => c.id)));
+    }
+  };
+
+  const selectAllDb = () => {
+    // Select all contacts (not just current page)
+    setDbSelectedIds(new Set(['__ALL__']));
+  };
+
+  const handleImportSelected = async () => {
+    if (!id) return;
+    if (dbSelectedIds.size === 0) {
+      toast.error('Pilih kontak', 'Pilih minimal satu kontak untuk di-import');
+      return;
+    }
+    setIsImporting(true);
+    try {
+      const isAll = dbSelectedIds.has('__ALL__');
+      const body = isAll
+        ? { all: true }
+        : { contact_ids: Array.from(dbSelectedIds) };
+
+      const res = await fetch(`/api/wa/blast-contacts/import-to-campaign/${id}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('Gagal import');
+      const data = await res.json();
+      const ins = data.data?.inserted || 0;
+      const skip = data.data?.skipped || 0;
+      toast.success('Import berhasil', `${ins} penerima ditambahkan${skip > 0 ? `, ${skip} di-skip` : ''}`);
+      setDbSelectedIds(new Set());
+      fetchCampaignData();
+    } catch (error) {
+      toast.error('Gagal import', error instanceof Error ? error.message : '');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const dbTotalPages = Math.ceil(dbTotal / dbPerPage);
+
   const filtered = recipients.filter(r => {
     if (recipientFilter === 'all') return true;
     if (recipientFilter === 'delivered') return !!r.deliveredAt;
@@ -206,6 +298,13 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
             <span>Import Excel</span>
           </button>
+          <button
+            onClick={() => setShowDbContacts(!showDbContacts)}
+            className={`flex items-center gap-2 px-4 py-2 border rounded-xl transition-all font-bold ${showDbContacts ? 'bg-secondary/20 text-secondary border-secondary/30' : 'bg-surface-high/30 text-on-surface-variant border-outline-variant/30 hover:bg-surface-high hover:text-on-surface'}`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Database</span>
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -263,6 +362,141 @@ const AdminWaCampaignDetailPage: React.FC = () => {
           </motion.div>
         ))}
       </div>
+
+      {/* Database Contacts Panel */}
+      <AnimatePresence>
+        {showDbContacts && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="glass-card rounded-2xl border border-secondary/20 overflow-hidden">
+              <div className="p-4 border-b border-outline-variant/10 bg-secondary/5">
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-secondary" />
+                    <h2 className="text-lg font-display font-bold text-on-surface">Database Kontak</h2>
+                    <span className="text-xs font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded-full border border-secondary/20">
+                      {dbTotal} kontak
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-on-surface-variant" />
+                      <input
+                        type="text"
+                        placeholder="Cari..."
+                        value={dbSearch}
+                        onChange={e => { setDbSearch(e.target.value); setDbPage(1); }}
+                        className="pl-8 pr-3 py-1.5 bg-surface-high/50 border border-outline-variant/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary/20 text-on-surface text-xs w-40"
+                      />
+                    </div>
+                    {dbSelectedIds.size > 0 && (
+                      <button
+                        onClick={handleImportSelected}
+                        disabled={isImporting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 gradient-primary text-surface rounded-lg hover:shadow-neon-cyan transition-all font-bold text-xs disabled:opacity-50"
+                      >
+                        {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        Import {dbSelectedIds.has('__ALL__') ? `Semua (${dbTotal})` : `(${dbSelectedIds.size})`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Select All / Select Page controls */}
+              <div className="px-4 py-2 bg-surface-container/30 border-b border-outline-variant/10 flex items-center gap-3">
+                <button
+                  onClick={toggleDbSelectAll}
+                  className={`text-xs font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                    dbSelectedIds.size === dbContacts.length && dbContacts.length > 0
+                      ? 'bg-secondary/20 text-secondary border-secondary/30'
+                      : 'bg-surface-high/50 text-on-surface-variant border-outline-variant/30 hover:bg-surface-high'
+                  }`}
+                >
+                  {dbSelectedIds.size === dbContacts.length && dbContacts.length > 0 ? '✓ Halaman ini' : 'Pilih Halaman'}
+                </button>
+                <button
+                  onClick={selectAllDb}
+                  className={`text-xs font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                    dbSelectedIds.has('__ALL__')
+                      ? 'bg-primary/20 text-primary border-primary/30'
+                      : 'bg-surface-high/50 text-on-surface-variant border-outline-variant/30 hover:bg-surface-high'
+                  }`}
+                >
+                  {dbSelectedIds.has('__ALL__') ? `✓ Semua (${dbTotal})` : `Pilih Semua (${dbTotal})`}
+                </button>
+                {dbSelectedIds.size > 0 && !dbSelectedIds.has('__ALL__') && (
+                  <span className="text-[10px] text-on-surface-variant">{dbSelectedIds.size} terpilih</span>
+                )}
+              </div>
+
+              {/* Contacts list */}
+              <div className="max-h-[350px] overflow-y-auto">
+                {isLoadingDb ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-secondary" />
+                  </div>
+                ) : dbContacts.length === 0 ? (
+                  <div className="text-center py-8 text-on-surface-variant text-sm">
+                    {dbSearch ? 'Tidak ditemukan' : 'Belum ada kontak di database. Tambahkan di menu Database.'}
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-surface-container/50 border-b border-outline-variant/10 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left w-10">
+                          <input
+                            type="checkbox"
+                            checked={!dbSelectedIds.has('__ALL__') && dbSelectedIds.size === dbContacts.length && dbContacts.length > 0}
+                            onChange={toggleDbSelectAll}
+                            className="rounded border-outline-variant/50"
+                          />
+                        </th>
+                        <th className="px-4 py-2 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Nomor</th>
+                        <th className="px-4 py-2 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Nama</th>
+                        <th className="px-4 py-2 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Label</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dbContacts.map(c => (
+                        <tr
+                          key={c.id}
+                          className={`border-b border-outline-variant/5 hover:bg-surface-high/20 transition-colors cursor-pointer ${
+                            dbSelectedIds.has(c.id) || dbSelectedIds.has('__ALL__') ? 'bg-secondary/5' : ''
+                          }`}
+                          onClick={() => !dbSelectedIds.has('__ALL__') && toggleDbSelect(c.id)}
+                        >
+                          <td className="px-4 py-2">
+                            <input
+                              type="checkbox"
+                              checked={dbSelectedIds.has(c.id) || dbSelectedIds.has('__ALL__')}
+                              onChange={() => !dbSelectedIds.has('__ALL__') && toggleDbSelect(c.id)}
+                              className="rounded border-outline-variant/50"
+                            />
+                          </td>
+                          <td className="px-4 py-2 font-mono text-on-surface text-xs">{c.phone}</td>
+                          <td className="px-4 py-2 text-on-surface font-medium text-xs">{c.name || '-'}</td>
+                          <td className="px-4 py-2 text-on-surface-variant text-[10px]">{c.labels || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {dbTotalPages > 1 && (
+                <div className="p-3 border-t border-outline-variant/10 bg-surface-container/30">
+                  <Pagination currentPage={dbPage} totalPages={dbTotalPages} onPageChange={setDbPage} />
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="glass-card rounded-2xl border border-outline-variant/10 overflow-hidden">
         <div className="p-4 border-b border-outline-variant/10 bg-surface-container/30">
