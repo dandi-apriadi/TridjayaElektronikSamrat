@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
-import { usePersistedState } from '../../hooks/usePersistedState';
 import type { WaCampaign } from '../../types';
 import Pagination from '../../components/ui/Pagination';
 
@@ -25,16 +24,17 @@ const AdminWaCampaignsPage: React.FC = () => {
   const { accessToken } = useAuthStore();
   const [campaigns, setCampaigns] = useState<WaCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [search, setSearch] = usePersistedState('adminWaCampaigns:search', '');
-  const [statusFilter, setStatusFilter] = usePersistedState('adminWaCampaigns:statusFilter', 'semua');
-  const [currentPage, setCurrentPage] = usePersistedState('adminWaCampaigns:page', 1);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('semua');
+  const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   useEffect(() => {
     fetchCampaigns();
-  }, []);
+  }, [accessToken]);
 
   const fetchCampaigns = async () => {
+    if (!accessToken) return;
     setIsLoading(true);
     try {
       const res = await fetch('/api/wa/campaigns', {
@@ -42,7 +42,8 @@ const AdminWaCampaignsPage: React.FC = () => {
       });
       if (!res.ok) throw new Error('Failed to fetch campaigns');
       const data = await res.json();
-      setCampaigns(data.data?.items || []);
+      const items = data.data?.items || data.items || [];
+      setCampaigns(Array.isArray(items) ? items : []);
     } catch (error) {
       toast.error('Gagal memuat campaign', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -51,7 +52,9 @@ const AdminWaCampaignsPage: React.FC = () => {
   };
 
   const filtered = campaigns.filter(c => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
+    if (!c) return false;
+    const campaignName = (c.name || '').toLowerCase();
+    const matchSearch = campaignName.includes((search || '').toLowerCase());
     const matchStatus = statusFilter === 'semua' || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -60,12 +63,27 @@ const AdminWaCampaignsPage: React.FC = () => {
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
   const getProgressPercent = (c: WaCampaign) => {
-    if (c.recipientTotal === 0) return 0;
-    return Math.round(((c.recipientSent + c.recipientSkipped) / c.recipientTotal) * 100);
+    const total = c.recipientTotal || 0;
+    if (total === 0) return 0;
+    const sent = c.recipientSent || 0;
+    const skipped = c.recipientSkipped || 0;
+    return Math.round(((sent + skipped) / total) * 100);
   };
+
+  if (isLoading && campaigns.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] p-6">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-on-surface-variant text-sm">Memuat campaign...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6 p-6">
+      {/* Page content */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <h1 className="text-2xl font-display font-bold text-on-surface">WA Campaign Manager</h1>
         <div className="flex gap-2">
@@ -89,15 +107,15 @@ const AdminWaCampaignsPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Total', value: campaigns.length, icon: <MessageCircle className="w-5 h-5" /> },
-          { label: 'Running', value: campaigns.filter(c => c.status === 'running').length, icon: <Send className="w-5 h-5" /> },
-          { label: 'Total Recipients', value: campaigns.reduce((sum, c) => sum + c.recipientTotal, 0), icon: <CheckCircle2 className="w-5 h-5" /> },
-          { label: 'Sent', value: campaigns.reduce((sum, c) => sum + c.recipientSent, 0), icon: <CheckCircle2 className="w-5 h-5 text-green-600" /> },
+          { label: 'Running', value: campaigns.filter(c => c?.status === 'running').length, icon: <Send className="w-5 h-5" /> },
+          { label: 'Total Recipients', value: campaigns.reduce((sum, c) => sum + (c?.recipientTotal || 0), 0), icon: <CheckCircle2 className="w-5 h-5" /> },
+          { label: 'Sent', value: campaigns.reduce((sum, c) => sum + (c?.recipientSent || 0), 0), icon: <CheckCircle2 className="w-5 h-5 text-green-600" /> },
         ].map((stat, i) => (
           <motion.div key={i} variants={iv} className="glass-card rounded-2xl p-4 border border-outline-variant/10">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-body text-on-surface-variant">{stat.label}</p>
-                <p className="text-2xl font-display font-bold text-on-surface mt-1">{stat.value.toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-display font-bold text-on-surface mt-1">{(stat.value || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="text-primary/60">{stat.icon}</div>
             </div>
@@ -171,7 +189,7 @@ const AdminWaCampaignsPage: React.FC = () => {
                           {campaign.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-on-surface-variant font-body">{campaign.recipientTotal.toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-3 text-right text-on-surface-variant font-body">{(campaign.recipientTotal || 0).toLocaleString('id-ID')}</td>
                       <td className="px-4 py-3">
                         <div className="w-32 bg-surface-highest rounded-full h-1.5">
                           <div

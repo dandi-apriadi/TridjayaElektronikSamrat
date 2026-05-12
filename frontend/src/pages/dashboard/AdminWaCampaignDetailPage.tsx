@@ -256,7 +256,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-body text-on-surface-variant">{stat.label}</p>
-                <p className="text-2xl font-display font-bold text-on-surface mt-1">{stat.value.toLocaleString('id-ID')}</p>
+                <p className="text-2xl font-display font-bold text-on-surface mt-1">{(stat.value || 0).toLocaleString('id-ID')}</p>
               </div>
               <div className="mt-1">{stat.icon}</div>
             </div>

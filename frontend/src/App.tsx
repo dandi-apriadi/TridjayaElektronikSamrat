@@ -8,6 +8,7 @@ import {
 } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import { useTelemetryTracker } from './store/useTelemetryTracker';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 import { usePageTitle } from './hooks/usePageTitle';
@@ -176,7 +177,12 @@ const App: React.FC = () => {
     }
     
     // Restore session from HttpOnly cookies (if available)
-    useAuthStore.getState().restoreSession();
+    console.log('[Auth] Attempting to restore session...');
+    useAuthStore.getState().restoreSession().then(() => {
+      console.log('[Auth] Session restoration attempt completed');
+    }).catch(err => {
+      console.error('[Auth] Session restoration crashed:', err);
+    });
 
     // Fetch only essential data for initial load
     // Other data will be fetched on-demand by individual pages
@@ -211,9 +217,10 @@ const App: React.FC = () => {
     <Router>
       <RouteListener />
       <NotificationContainer />
-      <Suspense fallback={<RouteLoading />}>
-        <Routes>
-        <Route path="/" element={<Layout />}>
+      <ErrorBoundary>
+        <Suspense fallback={<RouteLoading />}>
+          <Routes>
+            <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="produk" element={<CatalogPage />} />
           <Route path="produk/:slug" element={<ProductDetailPage />} />
@@ -751,6 +758,7 @@ const App: React.FC = () => {
         />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </Router>
   );
 };

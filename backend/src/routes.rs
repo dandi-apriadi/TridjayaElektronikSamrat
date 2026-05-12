@@ -335,7 +335,7 @@ fn build_refresh_cookie(token: &str, remember: bool) -> String {
     let secure_attr = if secure { "; Secure" } else { "" };
     let max_age = if remember { 2592000 } else { 604800 }; // 30 days vs 7 days
     format!(
-        "refresh_token={}; HttpOnly; Path=/api/auth; Max-Age={}; SameSite={}{}",
+        "refresh_token={}; HttpOnly; Path=/; Max-Age={}; SameSite={}{}",
         token, max_age, same_site, secure_attr
     )
 }
@@ -345,7 +345,7 @@ fn build_clear_refresh_cookie() -> String {
     let same_site = if secure { "None" } else { "Lax" };
     let secure_attr = if secure { "; Secure" } else { "" };
     format!(
-        "refresh_token=; HttpOnly; Path=/api/auth; Max-Age=0; SameSite={}{}",
+        "refresh_token=; HttpOnly; Path=/; Max-Age=0; SameSite={}{}",
         same_site, secure_attr
     )
 }
@@ -1149,6 +1149,7 @@ struct WaSummaryResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct WaCampaignSummaryResponse {
     id: String,
     name: String,
@@ -1164,6 +1165,7 @@ struct WaCampaignSummaryResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct WaRecipientSummaryResponse {
     id: String,
     phone: String,
