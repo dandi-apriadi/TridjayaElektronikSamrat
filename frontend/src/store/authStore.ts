@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type UserRole = 'admin' | 'agent' | 'sales' | 'editor' | 'operator' | 'super_admin';
 
@@ -65,7 +64,6 @@ const API_URL = '/api';
  * - Bearer token fallback for compatibility
  */
 export const useAuthStore = create<AuthState>()(
-  persist(
     (set) => ({
       user: null,
       isAuthenticated: false,
@@ -241,14 +239,6 @@ export const useAuthStore = create<AuthState>()(
           return false;
         }
       }
-    }),
-    {
-      name: 'tridjaya-auth',
-      // TIDAK persist user data ke localStorage untuk keamanan.
-      // Access token sengaja TIDAK dipersist; refresh token disimpan di HttpOnly cookie
-      // oleh backend dan dipulihkan via restoreSession() saat aplikasi mount.
-      // User data akan di-fetch ulang setelah refresh token valid.
-      partialize: () => ({}), // Tidak persist apa pun
     }
   )
 );
