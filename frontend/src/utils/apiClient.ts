@@ -25,10 +25,12 @@ export async function apiFetch(
 ): Promise<Response> {
   const { skipAuth = false, ...fetchOptions } = options;
 
-  // Build URL
+  // Build URL - use relative path for /api endpoints to leverage proxy and ensure cookies work
   const url = endpoint.startsWith('http')
     ? endpoint
-    : `${API_BASE_URL}${endpoint}`;
+    : endpoint.startsWith('/api')
+      ? endpoint
+      : `${API_BASE_URL}${endpoint}`;
 
   // Set default options
   const finalOptions: RequestInit = {

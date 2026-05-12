@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { API_BASE_URL } from '../utils/apiClient';
 
 export type UserRole = 'admin' | 'agent' | 'sales' | 'editor' | 'operator' | 'super_admin';
 
@@ -51,7 +50,12 @@ interface AuthState {
   updatePassword: (old: string, newP: string) => Promise<boolean>;
 }
 
-const API_URL = `${API_BASE_URL}/api`;
+/**
+ * Untuk auth endpoints, gunakan relative URL agar request melewati Vite proxy
+ * (development) atau same-origin (production). Ini memastikan HttpOnly cookies
+ * dikirim dengan benar karena tidak ada cross-origin issue.
+ */
+const API_URL = '/api';
 
 /**
  * HttpOnly Cookie Auth Strategy:

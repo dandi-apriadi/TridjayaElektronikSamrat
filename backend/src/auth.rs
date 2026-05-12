@@ -217,7 +217,23 @@ pub async fn login_with_request(
     };
 
     state.access_sessions.write().await.insert(access_token.clone(), access_session);
-    state.refresh_sessions.write().await.insert(refresh_token.clone(), refresh_session);
+    state.refresh_sessions.write().await.insert(refresh_token.clone(), refresh_session.clone());
+
+    // Persist refresh session to database for survival across restarts
+    if let Err(e) = sqlx::query(
+        "INSERT INTO refresh_sessions (token, user_id, role, expires_at, remember) VALUES (?, ?, ?, ?, ?)"
+    )
+        .bind(&refresh_token)
+        .bind(&user.id)
+        .bind(&role.to_string())
+        .bind(refresh_expires_at.to_rfc3339())
+        .bind(remember)
+        .execute(&state.pool)
+        .await
+    {
+        tracing::error!("Failed to persist refresh session: {}", e);
+    }
+
     state.audit("auth.login.success", Some(&user.email)).await;
 
     Ok(AuthPayload {
@@ -234,11 +250,51 @@ pub async fn refresh_with_request(
     state: &AppState,
     request: RefreshRequest,
 ) -> Result<AuthPayload, AppError> {
+    // First check in-memory cache
     let session = {
         let sessions = state.refresh_sessions.read().await;
         sessions.get(&request.refresh_token).cloned()
-    }
-    .ok_or(AppError::Unauthorized)?;
+    };
+
+    // If not in memory, try to load from database (survives backend restarts)
+    let session = match session {
+        Some(s) => s,
+        None => {
+            let row: Option<(String, String, String, String, bool)> = sqlx::query_as(
+                "SELECT token, user_id, role, expires_at, remember FROM refresh_sessions WHERE token = ?"
+            )
+                .bind(&request.refresh_token)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("DB error loading refresh session: {}", e);
+                    AppError::Internal
+                })?;
+
+            match row {
+                Some((token, user_id, role_str, expires_at_str, remember)) => {
+                    let expires_at = chrono::DateTime::parse_from_rfc3339(&expires_at_str)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now());
+                    let role = Role::from_str(&role_str).unwrap_or(Role::Agent);
+                    let restored = RefreshSession {
+                        token,
+                        user_id,
+                        role,
+                        expires_at,
+                        remember,
+                    };
+                    // Cache it in memory for subsequent requests
+                    state.refresh_sessions.write().await.insert(
+                        request.refresh_token.clone(),
+                        restored.clone(),
+                    );
+                    restored
+                }
+                None => return Err(AppError::Unauthorized),
+            }
+        }
+    };
 
     if session.expires_at < Utc::now() {
         return Err(AppError::Unauthorized);
@@ -275,17 +331,39 @@ pub async fn refresh_with_request(
             expires_at: Utc::now() + Duration::minutes(15),
         },
     );
+    let new_refresh_expires = Utc::now() + Duration::days(refresh_days);
+    let new_refresh_session = RefreshSession {
+        token: refresh_token.clone(),
+        user_id: user.id.clone(),
+        role: current_role,
+        expires_at: new_refresh_expires,
+        remember: session.remember,
+    };
     state.refresh_sessions.write().await.insert(
         refresh_token.clone(),
-        RefreshSession {
-            token: refresh_token.clone(),
-            user_id: user.id.clone(),
-            role: current_role,
-            expires_at: Utc::now() + Duration::days(refresh_days),
-            remember: session.remember,
-        },
+        new_refresh_session,
     );
     state.refresh_sessions.write().await.remove(&request.refresh_token);
+
+    // Persist new refresh session and remove old one from database
+    let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token = ?")
+        .bind(&request.refresh_token)
+        .execute(&state.pool)
+        .await;
+    if let Err(e) = sqlx::query(
+        "INSERT INTO refresh_sessions (token, user_id, role, expires_at, remember) VALUES (?, ?, ?, ?, ?)"
+    )
+        .bind(&refresh_token)
+        .bind(&user.id)
+        .bind(&user.role)
+        .bind(new_refresh_expires.to_rfc3339())
+        .bind(session.remember)
+        .execute(&state.pool)
+        .await
+    {
+        tracing::error!("Failed to persist new refresh session: {}", e);
+    }
+
     state.audit("auth.refresh", Some(&user.email)).await;
 
     Ok(AuthPayload {
@@ -308,6 +386,12 @@ pub async fn logout_with_headers(state: &AppState, headers: &HeaderMap) -> Resul
 
     state.refresh_sessions.write().await.remove(&session.refresh_token);
     
+    // Remove from database as well
+    let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token = ?")
+        .bind(&session.refresh_token)
+        .execute(&state.pool)
+        .await;
+
     // Audit logout
     let user_email: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
         .bind(&session.user_id)

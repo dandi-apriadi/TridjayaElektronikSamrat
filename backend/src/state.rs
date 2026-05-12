@@ -178,6 +178,11 @@ impl AppState {
             let mut refresh = self.refresh_sessions.write().await;
             refresh.retain(|_, session| session.user_id != user_id);
         }
+        // Also remove from database
+        let _ = sqlx::query("DELETE FROM refresh_sessions WHERE user_id = ?")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await;
     }
 
     pub async fn cleanup_expired_sessions(&self) {
@@ -190,6 +195,11 @@ impl AppState {
             let mut refresh = self.refresh_sessions.write().await;
             refresh.retain(|_, session| session.expires_at > now);
         }
+        // Clean expired sessions from database
+        let _ = sqlx::query("DELETE FROM refresh_sessions WHERE expires_at < ?")
+            .bind(now.to_rfc3339())
+            .execute(&self.pool)
+            .await;
         {
             let mut tel = self.telemetry_attempts.write().await;
             tel.retain(|_, attempts| {
