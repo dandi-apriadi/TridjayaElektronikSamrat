@@ -141,7 +141,7 @@ export interface WaRecipient {
   phone: string;
   name?: string;
   variables: Record<string, any>;
-  status: 'pending' | 'sent' | 'skipped' | 'failed';
+  status: 'pending' | 'sent' | 'skipped' | 'failed' | 'delivered' | 'read';
   lastAttemptAt?: string;
   deliveredAt?: string;
   readAt?: string;

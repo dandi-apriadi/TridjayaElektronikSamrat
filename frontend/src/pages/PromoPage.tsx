@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ticket, ArrowRight, Zap, Clock, Info, Share2 } from 'lucide-react';
-import { formatPrice } from '../data';
+import { formatPrice } from '../utils/formatters';
 import { Badge, SectionHeader, PartnerLogos } from '../components/ui';
 import { usePromoStore } from '../store/usePromoStore';
 import { recordTelemetry } from '../utils/telemetry';

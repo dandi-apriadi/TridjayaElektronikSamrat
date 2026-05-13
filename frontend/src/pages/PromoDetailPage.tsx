@@ -2,7 +2,7 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Clock, Zap, ArrowRight, Shield, Info } from 'lucide-react';
-import { formatPrice } from '../data';
+import { formatPrice } from '../utils/formatters';
 import { SectionHeader } from '../components/ui';
 import { usePromoStore } from '../store/usePromoStore';
 import { useProductStore } from '../store/useProductStore';

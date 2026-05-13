@@ -5,7 +5,7 @@ import {
   Shield, CreditCard, Phone, Share2, Star, Clock
 } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
-import { formatPrice } from '../data';
+import { formatPrice } from '../utils/formatters';
 import { useProductStore } from '../store/useProductStore';
 import CreditSimulator from '../components/CreditSimulator';
 import type { CreditPlan } from '../types';

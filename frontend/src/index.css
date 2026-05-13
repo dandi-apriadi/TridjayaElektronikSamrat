@@ -1656,6 +1656,28 @@ body.light-mode .bg-blob {
 
 /* Performance: disable heavy blur on devices that can't handle it */
 @media (max-width: 768px) {
+  .electric-grid,
+  .scan-ring,
+  .bg-blob,
+  .pulse-primary,
+  .reveal-fade {
+    animation: none !important;
+  }
+
+  .electric-grid,
+  .bg-blob {
+    display: none !important;
+  }
+
+  .page-shell::before {
+    background: none !important;
+  }
+
+  .reveal-fade {
+    filter: none !important;
+    transform: none !important;
+  }
+
   .glass-card,
   .glass-dark,
   .glass-premium {

@@ -9,7 +9,7 @@ import {
   ChefHat, Wind, Coffee, Table as TableIcon, Archive, Speaker
 } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
-import { formatPrice } from '../../data';
+import { formatPrice } from '../../utils/formatters';
 import type { Product } from '../../types';
 import { useNotificationStore } from '../../store/useNotificationStore';
 import { useProductStore } from '../../store/useProductStore';

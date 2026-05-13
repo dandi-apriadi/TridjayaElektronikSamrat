@@ -183,6 +183,7 @@ export class BaileysSession {
         this.connected = true;
         this.reconnectAttempts = 0; // Reset reconnect counter
         this.qrCode = null; // Clear QR code
+        await this.handleCredsUpdate();
         
         this.logger.info('Connection established');
         this.sendEvent('connected', {
@@ -263,8 +264,7 @@ export class BaileysSession {
    */
   async handleCredsUpdate() {
     try {
-      // Auth state is automatically saved by useMultiFileAuthState
-      // We just need to notify that credentials were updated
+      await this.authState.saveCreds();
       this.logger.debug('Credentials updated');
       
       // Serialize and send to parent for database storage

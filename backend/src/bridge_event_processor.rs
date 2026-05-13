@@ -62,6 +62,34 @@ async fn handle_event(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx
     }
 }
 
+fn normalize_wa_phone(value: &str) -> Option<String> {
+    let without_jid = value
+        .split('@')
+        .next()
+        .unwrap_or(value)
+        .split(':')
+        .next()
+        .unwrap_or(value);
+    let digits: String = without_jid
+        .chars()
+        .filter(|ch| ch.is_ascii_digit())
+        .collect();
+
+    if digits.is_empty() {
+        return None;
+    }
+
+    if digits.starts_with("62") {
+        Some(digits)
+    } else if let Some(stripped) = digits.strip_prefix('0') {
+        Some(format!("62{}", stripped))
+    } else if digits.starts_with('8') {
+        Some(format!("62{}", digits))
+    } else {
+        Some(digits)
+    }
+}
+
 /// Store QR code in wa_session_health for the frontend to poll
 async fn handle_qr_generated(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let qr = event.data.get("qr").and_then(|v| v.as_str()).unwrap_or("");
@@ -300,6 +328,22 @@ async fn handle_message_received(
     .execute(pool)
     .await?;
 
+    if let Some(normalized_sender) = normalize_wa_phone(sender) {
+        sqlx::query(
+            "UPDATE wa_recipients
+             SET replied_at = COALESCE(replied_at, CURRENT_TIMESTAMP)
+             WHERE replied_at IS NULL
+               AND (
+                 phone = ?
+                 OR replace(replace(replace(replace(replace(phone, '+', ''), '-', ''), ' ', ''), '(', ''), ')', '') = ?
+               )",
+        )
+        .bind(&normalized_sender)
+        .bind(&normalized_sender)
+        .execute(pool)
+        .await?;
+    }
+
     Ok(())
 }
 
@@ -358,11 +402,37 @@ async fn handle_message_status(pool: &SqlitePool, event: &BridgeEvent) -> Result
             "read_at"
         };
         let query = format!(
-            "UPDATE wa_recipients SET {} = CURRENT_TIMESTAMP
+            "UPDATE wa_recipients SET {} = COALESCE({}, CURRENT_TIMESTAMP)
              WHERE id IN (SELECT recipient_id FROM wa_dispatch_logs WHERE message_id = ?)",
-            column
+            column, column
         );
-        sqlx::query(&query).bind(message_id).execute(pool).await?;
+        let result = sqlx::query(&query).bind(message_id).execute(pool).await?;
+
+        if result.rows_affected() == 0 {
+            if let Some(recipient) = data
+                .get("recipient")
+                .and_then(|value| value.as_str())
+                .and_then(normalize_wa_phone)
+            {
+                let fallback_query = format!(
+                    "UPDATE wa_recipients
+                     SET {} = COALESCE({}, CURRENT_TIMESTAMP)
+                     WHERE id = (
+                       SELECT recipient_id
+                       FROM wa_dispatch_logs
+                       WHERE replace(replace(replace(replace(replace(phone, '+', ''), '-', ''), ' ', ''), '(', ''), ')', '') = ?
+                         AND status = 'success'
+                       ORDER BY created_at DESC
+                       LIMIT 1
+                     )",
+                    column, column
+                );
+                sqlx::query(&fallback_query)
+                    .bind(&recipient)
+                    .execute(pool)
+                    .await?;
+            }
+        }
     }
 
     Ok(())

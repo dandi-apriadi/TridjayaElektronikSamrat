@@ -212,38 +212,11 @@ impl CleanupManager {
     async fn close_idle_whatsapp_connections(
         &self,
     ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
-        let threshold = Utc::now() - chrono::Duration::hours(self.config.idle_connection_hours);
-        let idle_accounts: Vec<String> = sqlx::query_scalar(
-            r#"
-            SELECT id
-            FROM wa_accounts
-            WHERE status = 'connected'
-              AND datetime(created_at) < datetime(?)
-            "#,
-        )
-        .bind(threshold.to_rfc3339())
-        .fetch_all(&self.pool)
-        .await
-        .unwrap_or_default();
-
-        let mut closed = 0usize;
-        for account_id in idle_accounts {
-            if let Some(bridge) = &self.bridge {
-                if let Err(e) = bridge.kill_process(&account_id).await {
-                    warn!(account_id = %account_id, error = %e, "Failed to close idle WhatsApp connection");
-                    continue;
-                }
-            }
-
-            let _ = sqlx::query("UPDATE wa_accounts SET status = 'disconnected' WHERE id = ?")
-                .bind(&account_id)
-                .execute(&self.pool)
-                .await;
-
-            closed += 1;
-        }
-
-        Ok(closed)
+        debug!(
+            idle_connection_hours = self.config.idle_connection_hours,
+            "Skipping automatic WhatsApp idle disconnect; sessions are kept alive until user disconnects"
+        );
+        Ok(0)
     }
 
     async fn close_all_whatsapp_connections(

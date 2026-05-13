@@ -151,7 +151,11 @@ impl SpintaxProcessor {
                             });
                         }
 
-                        let var_name: String = chars[var_start..i].iter().collect();
+                        let var_name: String = chars[var_start..i]
+                            .iter()
+                            .collect::<String>()
+                            .trim()
+                            .to_string();
                         if var_name.is_empty() {
                             return Err(SpintaxError::SyntaxError {
                                 position: var_start - 2,
@@ -345,6 +349,7 @@ impl SpintaxProcessor {
                 SpintaxNode::Variable(name) => {
                     let value = variables
                         .get(name)
+                        .or_else(|| variables.get(&name.to_lowercase()))
                         .ok_or_else(|| SpintaxError::VariableNotFound { name: name.clone() })?;
                     result.push_str(value);
                 }
@@ -383,6 +388,17 @@ mod tests {
     fn test_variable_replacement() {
         let mut processor = SpintaxProcessor::new();
         let template = "Hello {{name}}, welcome!";
+        let mut variables = HashMap::new();
+        variables.insert("name".to_string(), "John".to_string());
+
+        let result = processor.process(template, &variables).unwrap();
+        assert_eq!(result, "Hello John, welcome!");
+    }
+
+    #[test]
+    fn test_variable_replacement_trims_placeholder_name() {
+        let mut processor = SpintaxProcessor::new();
+        let template = "Hello {{ name }}, welcome!";
         let mut variables = HashMap::new();
         variables.insert("name".to_string(), "John".to_string());
 

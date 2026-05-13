@@ -39,14 +39,13 @@ async fn block_private_uploads(request: Request<Body>, next: Next) -> Result<Res
 async fn restore_wa_sessions(state: AppState) {
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-    let accounts: Vec<(String, String)> = match sqlx::query_as(
+    let accounts: Vec<(String, Option<String>)> = match sqlx::query_as(
         "SELECT id, credentials
          FROM wa_accounts
          WHERE enabled = 1
-           AND credentials IS NOT NULL
-           AND length(credentials) > 0
            AND (
              status IN ('connected', 'connecting', 'reconnecting', 'qr_ready', 'error')
+             OR (status = 'disconnected' AND last_error IS NOT NULL)
              OR EXISTS (
                SELECT 1 FROM wa_session_health
                WHERE wa_session_health.session_id = wa_accounts.id
@@ -72,6 +71,25 @@ async fn restore_wa_sessions(state: AppState) {
     tracing::info!(count = accounts.len(), "Restoring WA sessions on startup");
 
     for (session_id, credentials) in accounts {
+        let has_db_credentials = credentials
+            .as_deref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false);
+        let has_local_credentials = [
+            PathBuf::from("sessions").join(&session_id).join("creds.json"),
+            PathBuf::from("backend").join("sessions").join(&session_id).join("creds.json"),
+        ]
+        .iter()
+        .any(|path| path.exists());
+
+        if !has_db_credentials && !has_local_credentials {
+            tracing::warn!(
+                session_id = %session_id,
+                "Skipping WA startup restore because no DB or local Baileys credentials exist"
+            );
+            continue;
+        }
+
         if let Err(e) = sqlx::query(
             "UPDATE wa_accounts SET status = 'reconnecting', last_error = NULL WHERE id = ?",
         )
@@ -88,16 +106,14 @@ async fn restore_wa_sessions(state: AppState) {
                 .spawn_process(session_id.clone())
                 .await?;
 
+            let mut params = serde_json::json!({ "session_id": session_id.clone() });
+            if let Some(credentials) = credentials.as_ref().filter(|value| !value.trim().is_empty()) {
+                params["credentials"] = serde_json::Value::String(credentials.clone());
+            }
+
             state
                 .bridge_client
-                .send_request(
-                    &session_id,
-                    "init_session".to_string(),
-                    serde_json::json!({
-                        "session_id": session_id,
-                        "credentials": credentials,
-                    }),
-                )
+                .send_request(&session_id, "init_session".to_string(), params)
                 .await?;
 
             Ok::<(), tridjaya_backend::bridge::BridgeError>(())

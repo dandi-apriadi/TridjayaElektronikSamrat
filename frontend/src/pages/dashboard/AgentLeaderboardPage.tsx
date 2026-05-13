@@ -19,11 +19,6 @@ import { useAgentStore } from '../../store/useAgentStore';
 import Pagination from '../../components/ui/Pagination';
 import { usePersistedState } from '../../hooks/usePersistedState';
 
-// Data will be fetched from the backend via useAgentStore. No static fallback data.
-// Fallback data removed; we will rely on fetched leaderboard data.
-const fallbackLeaderboardData: any[] = [];
-
-
 const rewardTierMeta: Record<string, { icon: typeof Medal; color: string; bgColor: string; benefits: string[] }> = {
   silver: {
     icon: Medal,
@@ -44,9 +39,6 @@ const rewardTierMeta: Record<string, { icon: typeof Medal; color: string; bgColo
     benefits: ['Komisi Extra 5%', 'Exclusive Gathering', 'Trip Liburan Tahunan'],
   },
 };
-
-// No static fallback reward tiers; data will be fetched from the backend.
-const fallbackRewardTiers: any[] = [];
 
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
@@ -96,7 +88,10 @@ const AgentLeaderboardPage: React.FC = () => {
   const currentPoints = stats?.points || 0;
   const currentUserEntry = effectiveLeaderboard.find((entry) => entry.id === user?.id);
   const currentRank = currentUserEntry ? effectiveLeaderboard.findIndex((entry) => entry.id === user?.id) + 1 : null;
-  const effectiveRewardTiers = rewardTiers.length > 0 ? rewardTiers : fallbackRewardTiers;
+  const effectiveRewardTiers = rewardTiers;
+  const firstPlace = filteredLeaderboard[0];
+  const secondPlace = filteredLeaderboard[1];
+  const thirdPlace = filteredLeaderboard[2];
 
   const nextTierProgress = useMemo(() => {
     const sorted = [...effectiveRewardTiers].filter((tier) => tier.isActive).sort((a, b) => a.thresholdPoints - b.thresholdPoints);
@@ -169,24 +164,26 @@ const AgentLeaderboardPage: React.FC = () => {
           {/* ── Top 3 Podium ───────────────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end pt-10">
             {/* 2nd Place */}
-            <motion.div 
-              variants={itemVariants}
-              whileHover={{ y: -8 }}
-              className="glass-card rounded-2xl p-6 text-center order-2 md:order-1 relative"
-            >
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-slate-300 overflow-hidden shadow-xl">
-                <img src={filteredLeaderboard[1]?.avatar || (fallbackLeaderboardData[1]?.avatar || '')} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="mt-8">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-400/10 text-slate-400 font-bold text-label-sm mb-3">
-                  <Star className="w-3.5 h-3.5 fill-current" /> Rank 2
+            {secondPlace ? (
+              <motion.div 
+                variants={itemVariants}
+                whileHover={{ y: -8 }}
+                className="glass-card rounded-2xl p-6 text-center order-2 md:order-1 relative"
+              >
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-slate-300 overflow-hidden shadow-xl">
+                  <img src={secondPlace.avatar} alt="" className="w-full h-full object-cover" />
                 </div>
-                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[1]?.name || (fallbackLeaderboardData[1]?.name || '-')}</h4>
-                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[1]?.city || (fallbackLeaderboardData[1]?.city || '-')}</div>
-                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[1]?.points || (fallbackLeaderboardData[1]?.points || 0)).toLocaleString()} pts</div>
-                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[1]?.totalSales || (fallbackLeaderboardData[1]?.totalSales || 0)} Sales (Month)</div>
-              </div>
-            </motion.div>
+                <div className="mt-8">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-400/10 text-slate-400 font-bold text-label-sm mb-3">
+                    <Star className="w-3.5 h-3.5 fill-current" /> Rank 2
+                  </div>
+                  <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{secondPlace.name}</h4>
+                  <div className="text-label-xs text-on-surface-variant mb-4">{secondPlace.city || '-'}</div>
+                  <div className="text-headline-sm font-bold text-primary">{secondPlace.points.toLocaleString()} pts</div>
+                  <div className="text-label-xs text-on-surface-variant mt-1">{secondPlace.totalSales} Sales (Month)</div>
+                </div>
+              </motion.div>
+            ) : null}
 
             {/* 1st Place */}
             <motion.div 
@@ -195,7 +192,7 @@ const AgentLeaderboardPage: React.FC = () => {
               className="glass-card rounded-2xl p-8 text-center order-1 md:order-2 border-primary/30 relative"
             >
               <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full border-4 border-amber-400 overflow-hidden shadow-2xl shadow-amber-400/20">
-                <img src={filteredLeaderboard[0]?.avatar || (fallbackLeaderboardData[0]?.avatar || '')} alt="" className="w-full h-full object-cover" />
+                <img src={firstPlace.avatar} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-amber-400/40 to-transparent pointer-events-none" />
               </div>
               <div className="absolute -top-6 right-1/4 translate-x-1/2">
@@ -207,32 +204,34 @@ const AgentLeaderboardPage: React.FC = () => {
                 <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-amber-400 text-surface font-bold text-label-md mb-4 shadow-lg shadow-amber-400/20">
                    THE CHAMPION
                 </div>
-                <h4 className="font-display text-headline-sm font-bold text-on-surface mb-1">{filteredLeaderboard[0]?.name || (fallbackLeaderboardData[0]?.name || '-')}</h4>
-                <div className="text-body-sm text-on-surface-variant mb-6">{filteredLeaderboard[0]?.city || (fallbackLeaderboardData[0]?.city || '-')}</div>
-                <div className="text-display-sm font-bold gradient-text-primary mb-2">{(filteredLeaderboard[0]?.points || (fallbackLeaderboardData[0]?.points || 0)).toLocaleString()} pts</div>
-                <div className="text-title-sm font-bold text-secondary">{filteredLeaderboard[0]?.totalSales || (fallbackLeaderboardData[0]?.totalSales || 0)} Successful Sales</div>
+                <h4 className="font-display text-headline-sm font-bold text-on-surface mb-1">{firstPlace.name}</h4>
+                <div className="text-body-sm text-on-surface-variant mb-6">{firstPlace.city || '-'}</div>
+                <div className="text-display-sm font-bold gradient-text-primary mb-2">{firstPlace.points.toLocaleString()} pts</div>
+                <div className="text-title-sm font-bold text-secondary">{firstPlace.totalSales} Successful Sales</div>
               </div>
             </motion.div>
 
             {/* 3rd Place */}
-            <motion.div 
-              variants={itemVariants}
-              whileHover={{ y: -8 }}
-              className="glass-card rounded-2xl p-6 text-center order-3 relative"
-            >
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-orange-700 overflow-hidden shadow-xl">
-                <img src={filteredLeaderboard[2]?.avatar || (fallbackLeaderboardData[2]?.avatar || '')} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="mt-8">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-700/10 text-orange-700 font-bold text-label-sm mb-3">
-                  <Star className="w-3.5 h-3.5 fill-current" /> Rank 3
+            {thirdPlace ? (
+              <motion.div 
+                variants={itemVariants}
+                whileHover={{ y: -8 }}
+                className="glass-card rounded-2xl p-6 text-center order-3 relative"
+              >
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 border-orange-700 overflow-hidden shadow-xl">
+                  <img src={thirdPlace.avatar} alt="" className="w-full h-full object-cover" />
                 </div>
-                <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{filteredLeaderboard[2]?.name || (fallbackLeaderboardData[2]?.name || '-')}</h4>
-                <div className="text-label-xs text-on-surface-variant mb-4">{filteredLeaderboard[2]?.city || (fallbackLeaderboardData[2]?.city || '-')}</div>
-                <div className="text-headline-sm font-bold text-primary">{(filteredLeaderboard[2]?.points || (fallbackLeaderboardData[2]?.points || 0)).toLocaleString()} pts</div>
-                <div className="text-label-xs text-on-surface-variant mt-1">{filteredLeaderboard[2]?.totalSales || (fallbackLeaderboardData[2]?.totalSales || 0)} Sales (Month)</div>
-              </div>
-            </motion.div>
+                <div className="mt-8">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-700/10 text-orange-700 font-bold text-label-sm mb-3">
+                    <Star className="w-3.5 h-3.5 fill-current" /> Rank 3
+                  </div>
+                  <h4 className="font-display text-title-md font-bold text-on-surface mb-1 truncate">{thirdPlace.name}</h4>
+                  <div className="text-label-xs text-on-surface-variant mb-4">{thirdPlace.city || '-'}</div>
+                  <div className="text-headline-sm font-bold text-primary">{thirdPlace.points.toLocaleString()} pts</div>
+                  <div className="text-label-xs text-on-surface-variant mt-1">{thirdPlace.totalSales} Sales (Month)</div>
+                </div>
+              </motion.div>
+            ) : null}
           </div>
 
           {/* ── Your Personal Ranking ──────────────────── */}
@@ -341,7 +340,7 @@ const AgentLeaderboardPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
           <div className="lg:col-span-6 space-y-6">
             {dynamicRewardTiers.map(tier => {
-              const progress = Math.min(100, (tier.current / tier.thresholdPoints) * 100);
+              const progress = tier.thresholdPoints <= 0 ? 100 : Math.min(100, (tier.current / tier.thresholdPoints) * 100);
               const TierIcon = tier.meta.icon;
               const isUnlocked = progress === 100;
 
@@ -366,7 +365,7 @@ const AgentLeaderboardPage: React.FC = () => {
                         </div>
                         <div className="text-right">
                            <div className="text-title-md font-bold text-on-surface">{isUnlocked ? 'UNLOCKED' : `${tier.current.toLocaleString()} / ${tier.thresholdPoints.toLocaleString()}`}</div>
-                           <div className="text-label-xs text-on-surface-variant mt-1">{isUnlocked ? 'Telah mencapai target' : `${(tier.thresholdPoints - tier.current).toLocaleString()} pts tersisa`}</div>
+                           <div className="text-label-xs text-on-surface-variant mt-1">{isUnlocked ? 'Telah mencapai target' : `${Math.max(0, tier.thresholdPoints - tier.current).toLocaleString()} pts tersisa`}</div>
                         </div>
                       </div>
 

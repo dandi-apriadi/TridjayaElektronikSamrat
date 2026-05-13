@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, Tag, ArrowRight, Search } from 'lucide-react';
@@ -9,8 +9,6 @@ import blogHeroImg from '../assets/images/blog-hero.webp';
 import { getImageUrl } from '../utils/apiClient';
 import { recordTelemetry } from '../utils/telemetry';
 import { usePersistedState } from '../hooks/usePersistedState';
-
-const categories = ['Semua', 'Review', 'Tips & Trik', 'Edukasi', 'Home Styling'];
 
 const PostCard: React.FC<{ post: BlogPost; index: number; featured?: boolean }> = ({ post, index, featured }) => {
   if (featured) {
@@ -135,6 +133,12 @@ const BlogPage: React.FC = () => {
 
   const featured = posts.find((p) => p.featured);
   const others = posts.filter((p) => !p.featured);
+  const categories = useMemo(() => {
+    const fromPosts = posts
+      .map((post) => post.category?.trim())
+      .filter((category): category is string => Boolean(category));
+    return ['Semua', ...Array.from(new Set(fromPosts))];
+  }, [posts]);
 
   if (isLoading) {
     return (

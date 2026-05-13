@@ -11,22 +11,19 @@ import {
   CreditCard,
   Gauge,
   MapPin,
-  Quote,
   Shield,
   Sofa,
   Sparkles,
   Smartphone,
-  Star,
   Truck,
   Utensils,
   Wrench,
   Zap,
 } from 'lucide-react';
-import { PartnerLogos, ProductCard, SectionHeader, StatsRow } from '../components/ui';
+import { PartnerLogos, ProductCard, SectionHeader } from '../components/ui';
 import { recordTelemetry } from '../utils/telemetry';
 import { useProductStore } from '../store/useProductStore';
 import type { Product } from '../types';
-import { products as fallbackProducts } from '../data';
 
 import heroLatteBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-latte.webp';
 import heroCappuccinoBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-cappuccino.webp';
@@ -688,8 +685,7 @@ const ServiceRibbon = () => (
 
 const ProductStorySection = () => {
   const { products, isLoading, error, fetchProducts } = useProductStore();
-  const storySource = products.length > 0 ? products : fallbackProducts;
-  const storyProducts = useMemo(() => getProductStoryItems(storySource), [storySource]);
+  const storyProducts = useMemo(() => getProductStoryItems(products), [products]);
 
   useEffect(() => {
     if (products.length === 0 && !isLoading && !error) {
@@ -899,206 +895,9 @@ const WhyUs = () => (
           </motion.div>
         ))}
       </div>
-      <div className="mt-14">
-        <StatsRow />
-      </div>
     </div>
   </section>
 );
-
-const testimonials = [
-  {
-    name: 'Ricky Tumewu',
-    role: 'Pelanggan Setia',
-    location: 'Manado',
-    avatar: 'RT',
-    rating: 5,
-    text: 'Proses kredit sangat cepat, hanya 1 hari langsung disetujui. Sepeda listrik Saige yang saya beli kualitasnya luar biasa. Terima kasih Tridjaya!',
-    product: 'Sepeda Listrik Saige',
-    color: 'from-blue-500 to-cyan-500',
-  },
-  {
-    name: 'Melisa Wangko',
-    role: 'Ibu Rumah Tangga',
-    location: 'Bahu, Manado',
-    avatar: 'MW',
-    rating: 5,
-    text: 'Kulkas LG yang saya beli sudah 2 tahun, masih bagus dan hemat listrik. Pelayanan toko ramah dan harga bersaing. Pasti belanja lagi di sini!',
-    product: 'Kulkas LG',
-    color: 'from-violet-500 to-purple-500',
-  },
-  {
-    name: 'Benny Kalangi',
-    role: 'Pengusaha',
-    location: 'Samrat, Manado',
-    avatar: 'BK',
-    rating: 5,
-    text: 'Sudah 3 kali beli di Tridjaya, mulai dari AC, TV, sampai mesin cuci. Garansi resmi dan after-sales service terbaik di Manado!',
-    product: 'AC Sharp, TV, Mesin Cuci',
-    color: 'from-emerald-500 to-teal-500',
-  },
-  {
-    name: 'Yanti Polii',
-    role: 'Guru',
-    location: 'Manado',
-    avatar: 'YP',
-    rating: 5,
-    text: 'DP 0% beneran ada! Saya kira cuma promosi, ternyata bisa. Cicilan ringan dan proses mudah. Sofa impian saya akhirnya terwujud!',
-    product: 'Sofa Premium',
-    color: 'from-rose-500 to-pink-500',
-  },
-  {
-    name: 'Doni Maramis',
-    role: 'Karyawan Swasta',
-    location: 'Manado',
-    avatar: 'DM',
-    rating: 5,
-    text: 'Beli motor listrik Goda di sini, harga terbaik se-Manado. Staf sangat membantu menjelaskan spesifikasi dan pilihan kredit yang sesuai budget.',
-    product: 'Motor Listrik Goda',
-    color: 'from-amber-500 to-orange-500',
-  },
-  {
-    name: 'Sinta Roring',
-    role: 'Mahasiswi',
-    location: 'Manado',
-    avatar: 'SR',
-    rating: 5,
-    text: 'Handphone baru dengan cicilan ringan, proses cepat tanpa ribet. Toko bersih, produk lengkap, dan staf yang sabar melayani. Recommended banget!',
-    product: 'Smartphone',
-    color: 'from-sky-500 to-blue-500',
-  },
-];
-
-const TestimonialSection = () => {
-  const [active, setActive] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-
-  useEffect(() => {
-    if (!isAutoPlaying) return;
-    const timer = setInterval(() => {
-      setActive(prev => (prev + 1) % testimonials.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [isAutoPlaying]);
-
-  const prev = () => {
-    setIsAutoPlaying(false);
-    setActive(i => (i - 1 + testimonials.length) % testimonials.length);
-  };
-  const next = () => {
-    setIsAutoPlaying(false);
-    setActive(i => (i + 1) % testimonials.length);
-  };
-
-  return (
-    <section className="landing-section section-padding bg-surface-container/30 overflow-hidden">
-      <div className="container-custom">
-        <SectionHeader
-          eyebrow="Testimoni"
-          title="Dipercaya Ribuan Pelanggan"
-          subtitle="Cerita nyata dari pelanggan yang sudah merasakan kemudahan berbelanja di Tridjaya."
-          align="center"
-        />
-
-        <div className="mt-14 relative">
-          {/* Main testimonial card */}
-          <div className="relative max-w-3xl mx-auto">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={active}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-                className="relative rounded-3xl border border-outline-variant/30 bg-surface p-8 md:p-12 shadow-lg"
-              >
-                {/* Quote icon */}
-                <div className={`absolute -top-5 left-10 h-10 w-10 rounded-2xl bg-gradient-to-br ${testimonials[active].color} flex items-center justify-center shadow-lg`}>
-                  <Quote className="h-5 w-5 text-white fill-white" />
-                </div>
-
-                {/* Stars */}
-                <div className="flex gap-1 mb-6">
-                  {[...Array(testimonials[active].rating)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-
-                {/* Text */}
-                <p className="text-on-surface text-lg leading-relaxed font-medium">
-                  "{testimonials[active].text}"
-                </p>
-
-                {/* Product badge */}
-                <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-surface-container px-4 py-1.5 border border-outline-variant/30">
-                  <div className={`h-2 w-2 rounded-full bg-gradient-to-r ${testimonials[active].color}`} />
-                  <span className="text-xs font-semibold text-on-surface-variant">{testimonials[active].product}</span>
-                </div>
-
-                {/* Author */}
-                <div className="mt-8 flex items-center gap-4">
-                  <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${testimonials[active].color} flex items-center justify-center text-white font-black text-sm shadow-md`}>
-                    {testimonials[active].avatar}
-                  </div>
-                  <div>
-                    <p className="font-bold text-on-surface">{testimonials[active].name}</p>
-                    <p className="text-sm text-on-surface-variant">{testimonials[active].role} · {testimonials[active].location}</p>
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Navigation arrows */}
-            <button
-              onClick={prev}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-5 h-10 w-10 rounded-full border border-outline-variant/40 bg-surface shadow-md flex items-center justify-center text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={next}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-5 h-10 w-10 rounded-full border border-outline-variant/40 bg-surface shadow-md flex items-center justify-center text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Dot indicators */}
-          <div className="mt-8 flex justify-center gap-2">
-            {testimonials.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => { setIsAutoPlaying(false); setActive(i); }}
-                className={`rounded-full transition-all duration-300 ${
-                  i === active
-                    ? 'w-6 h-2 bg-primary'
-                    : 'w-2 h-2 bg-outline-variant/50 hover:bg-primary/50'
-                }`}
-              />
-            ))}
-          </div>
-
-          {/* Avatar strip */}
-          <div className="mt-10 flex justify-center gap-3">
-            {testimonials.map((t, i) => (
-              <button
-                key={i}
-                onClick={() => { setIsAutoPlaying(false); setActive(i); }}
-                className={`h-10 w-10 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center text-white font-black text-xs transition-all duration-300 ${
-                  i === active
-                    ? 'scale-110 shadow-lg ring-2 ring-primary/50 ring-offset-2 ring-offset-surface'
-                    : 'opacity-50 hover:opacity-80'
-                }`}
-              >
-                {t.avatar}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
 
 const CTASection = () => (
   <section className="landing-section relative overflow-hidden bg-surface py-24">
@@ -1223,7 +1022,6 @@ const HomePage: React.FC = () => (
     <SmartRideSection />
     <TrendingProducts />
     <WhyUs />
-    <TestimonialSection />
     <section className="landing-section section-padding-sm bg-surface">
       <div className="container-custom">
         <SectionHeader

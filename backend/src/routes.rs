@@ -21,6 +21,7 @@ use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub fn router(state: AppState) -> Router {
     // Create the main router with all existing routes
@@ -3248,7 +3249,19 @@ async fn upload_wa_recipients_excel(
                 .map(|s| s.trim().to_string())
                 .unwrap_or_default();
             if !val.is_empty() {
-                vars.insert(col_name.clone(), serde_json::Value::String(val));
+                vars.insert(col_name.clone(), serde_json::Value::String(val.clone()));
+                let normalized_col = col_name.trim().to_lowercase();
+                if normalized_col != *col_name {
+                    vars.entry(normalized_col.clone())
+                        .or_insert_with(|| serde_json::Value::String(val.clone()));
+                }
+                if matches!(
+                    normalized_col.as_str(),
+                    "nama" | "nama_lengkap" | "full_name" | "customer_name" | "customername"
+                ) {
+                    vars.entry("name".to_string())
+                        .or_insert_with(|| serde_json::Value::String(val));
+                }
             }
         }
         let variables = serde_json::Value::Object(vars).to_string();
@@ -3308,6 +3321,97 @@ async fn upload_wa_recipients_excel(
     ))
 }
 
+fn has_local_wa_credentials(session_id: &str) -> bool {
+    [
+        PathBuf::from("sessions").join(session_id).join("creds.json"),
+        PathBuf::from("backend").join("sessions").join(session_id).join("creds.json"),
+    ]
+    .iter()
+    .any(|path| path.exists())
+}
+
+async fn restore_enabled_wa_sessions(state: &AppState) -> Result<(), AppError> {
+    let accounts: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT id, credentials, status FROM wa_accounts WHERE enabled = 1",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error loading WA accounts for restore: {}", e);
+        AppError::Internal
+    })?;
+
+    if accounts.is_empty() {
+        return Ok(());
+    }
+
+    let active_sessions = state.bridge_client.get_active_sessions().await;
+
+    for (session_id, credentials, status) in accounts {
+        if active_sessions.iter().any(|active| active == &session_id) {
+            continue;
+        }
+
+        let has_db_credentials = credentials
+            .as_deref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false);
+        let has_local_credentials = has_local_wa_credentials(&session_id);
+
+        if !has_db_credentials && !has_local_credentials {
+            continue;
+        }
+
+        tracing::info!(
+            session_id = %session_id,
+            previous_status = ?status,
+            has_db_credentials,
+            has_local_credentials,
+            "Attempting automatic WA session restore before starting campaign"
+        );
+
+        sqlx::query("UPDATE wa_accounts SET status = 'reconnecting', last_error = NULL WHERE id = ?")
+            .bind(&session_id)
+            .execute(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error marking WA account reconnecting: {}", e);
+                AppError::Internal
+            })?;
+
+        if let Err(e) = state.bridge_client.spawn_process(session_id.clone()).await {
+            tracing::warn!(session_id = %session_id, error = %e, "Failed to spawn WA bridge during automatic restore");
+            let _ = sqlx::query("UPDATE wa_accounts SET status = 'error', last_error = ? WHERE id = ?")
+                .bind(format!("Automatic restore spawn failed: {}", e))
+                .bind(&session_id)
+                .execute(&state.pool)
+                .await;
+            continue;
+        }
+
+        let mut params = json!({ "session_id": session_id.clone() });
+        if let Some(credentials) = credentials.as_ref().filter(|value| !value.trim().is_empty()) {
+            params["credentials"] = Value::String(credentials.clone());
+        }
+
+        if let Err(e) = state
+            .bridge_client
+            .send_request(&session_id, "init_session".to_string(), params)
+            .await
+        {
+            tracing::warn!(session_id = %session_id, error = %e, "Failed to initialize WA session during automatic restore");
+            let _ = state.bridge_client.kill_process(&session_id).await;
+            let _ = sqlx::query("UPDATE wa_accounts SET status = 'error', last_error = ? WHERE id = ?")
+                .bind(format!("Automatic restore init failed: {}", e))
+                .bind(&session_id)
+                .execute(&state.pool)
+                .await;
+        }
+    }
+
+    Ok(())
+}
+
 async fn start_wa_campaign(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -3357,7 +3461,7 @@ async fn start_wa_campaign(
     }
 
     // 3. Validate at least one WA account is enabled and connected
-    let account_count: (i64,) = sqlx::query_as(
+    let mut account_count: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1 AND status = 'connected'",
     )
     .fetch_one(&state.pool)
@@ -3368,7 +3472,30 @@ async fn start_wa_campaign(
     })?;
 
     if account_count.0 == 0 {
-        return Err(AppError::Validation { errors: vec!["Tidak ada akun WhatsApp yang connected. Scan QR / hubungkan akun WA terlebih dahulu sebelum memulai campaign.".to_string()] });
+        restore_enabled_wa_sessions(&state).await?;
+
+        let restore_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
+        while tokio::time::Instant::now() < restore_deadline {
+            account_count = sqlx::query_as(
+                "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1 AND status = 'connected'",
+            )
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error: {}", e);
+                AppError::Internal
+            })?;
+
+            if account_count.0 > 0 {
+                break;
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+
+    if account_count.0 == 0 {
+        return Err(AppError::Validation { errors: vec!["Tidak ada akun WhatsApp yang connected. Sistem sudah mencoba memulihkan session otomatis dari penyimpanan lokal, tetapi belum berhasil. Jika akun pernah logout dari WhatsApp, scan QR ulang diperlukan.".to_string()] });
     }
 
     // 4. Update campaign status to running
@@ -3574,7 +3701,7 @@ async fn get_wa_campaign_status(
     let campaign = fetch_wa_campaign_summary(&state, &id).await?;
 
     let recipient_rows = sqlx::query_as::<_, (String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>(
-        "SELECT id, phone, variables_json, status, last_attempt_at, delivered_at, read_at, replied_at, last_error, created_at FROM wa_recipients WHERE campaign_id = ? ORDER BY created_at DESC LIMIT 250",
+        "SELECT id, phone, variables_json, status, last_attempt_at, delivered_at, read_at, replied_at, last_error, created_at FROM wa_recipients WHERE campaign_id = ? ORDER BY created_at DESC",
     )
     .bind(&id)
     .fetch_all(&state.pool)

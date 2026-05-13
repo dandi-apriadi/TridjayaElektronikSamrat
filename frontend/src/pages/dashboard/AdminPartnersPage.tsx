@@ -4,7 +4,7 @@ import Pagination from '../../components/ui/Pagination';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { usePartnerStore } from '../../store/usePartnerStore';
 import type { PartnerItem } from '../../types';
-import { apiFetch, getImageUrl } from '../../utils/apiClient';
+import { getImageUrl } from '../../utils/apiClient';
 
 type PartnerForm = {
   name: string;
@@ -28,7 +28,7 @@ const AdminPartnersPage: React.FC = () => {
   const [form, setForm] = useState<PartnerForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingLogo] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 

@@ -7,7 +7,6 @@ import { agentLeadSchema, getFirstZodIssue } from '../../validators/adminSchemas
 import { toast } from '../../store/useNotificationStore';
 import type { Lead } from '../../store/useAgentStore';
 
-const products = ['Goda GD120', 'Winfly W200', 'Smart TV OLED 55"', 'Sofa Premium L', 'Sofa Flexi 2', 'AC Inverter 1.5PK', 'Lainnya'];
 const sources = ['WhatsApp', 'Instagram', 'Facebook', 'Referral Teman', 'Walk-in', 'Blog/Website', 'Lainnya'];
 
 const AgentPushProspekPage: React.FC = () => {
@@ -33,10 +32,8 @@ const AgentPushProspekPage: React.FC = () => {
     fetchProducts();
   }, [fetchLeads, fetchStats, fetchProducts]);
 
-  // Combined product list
   const allProductsList = React.useMemo(() => {
-    const fromStore = storeProducts.map(p => p.name);
-    return [...new Set([...fromStore, ...products])];
+    return [...new Set(storeProducts.map(p => p.name).filter(Boolean))];
   }, [storeProducts]);
 
   const filteredProducts = allProductsList.filter(p => 
@@ -212,18 +209,9 @@ const AgentPushProspekPage: React.FC = () => {
                       ))
                     ) : (
                       <div className="px-3 py-4 text-center">
-                        <p className="text-label-sm text-on-surface-variant mb-2">Produk tidak ditemukan</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setForm(prev => ({ ...prev, product: productSearch }));
-                            setIsDropdownOpen(false);
-                            setProductSearch('');
-                          }}
-                          className="text-label-sm font-bold text-primary hover:underline"
-                        >
-                          Gunakan "{productSearch}" sebagai input manual
-                        </button>
+                        <p className="text-label-sm text-on-surface-variant">
+                          Produk tidak ditemukan di database.
+                        </p>
                       </div>
                     )}
                   </div>

@@ -2,19 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Headphones, MessageCircle, Phone, Mail, Clock,
-  CheckCircle2, AlertCircle, ArrowUpRight, BookOpen, Zap,
+  CheckCircle2, AlertCircle, ArrowUpRight, Zap,
 } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
 import { useAgentStore } from '../../store/useAgentStore';
 import { toast } from '../../store/useNotificationStore';
-
-const faqs = [
-  { q: 'Kapan komisi saya dikreditkan ke saldo?', a: 'Komisi dikreditkan H+1 setelah transaksi dikonfirmasi dan pembayaran diterima oleh sistem.' },
-  { q: 'Berapa minimum penarikan saldo?', a: 'Minimum penarikan adalah Rp 500.000. Proses cair dalam 1×24 jam kerja setelah admin menyetujui.' },
-  { q: 'Bagaimana cara mendapatkan materil promosi (foto/video)?', a: 'Unduh melalui menu Product Knowledge, atau minta langsung ke admin melalui tombol chat support.' },
-  { q: 'Bagaimana cara mengaktifkan link referral saya?', a: 'Link referral otomatis aktif saat akun agen disetujui. Cek di menu Referral & Link di sidebar.' },
-  { q: 'Saya lupa password. Apa yang harus dilakukan?', a: 'Hubungi admin melalui WhatsApp di bawah. Reset password hanya bisa dilakukan oleh admin sistem.' },
-];
 
 const priorityCls: Record<string, string> = {
   high:   'bg-error/15 text-error',
@@ -32,7 +24,6 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transit
 
 const AgentSupportPage: React.FC = () => {
   const { supportTickets, fetchSupportTickets, createSupportTicket, isLoading } = useAgentStore();
-  const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(null);
   const [newTicketSubject, setNewTicketSubject] = useState('');
   const [newTicketMsg, setNewTicketMsg] = useState('');
   const [newTicketPriority, setNewTicketPriority] = useState<'low' | 'medium' | 'high'>('medium');
@@ -246,32 +237,6 @@ const AgentSupportPage: React.FC = () => {
           )}
         </motion.div>
       </div>
-
-      {/* FAQ */}
-      <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-        <div className="flex items-center gap-2 mb-5">
-          <BookOpen className="w-5 h-5 text-primary" />
-          <h3 className="font-display text-title-md font-bold text-on-surface">FAQ — Pertanyaan Umum</h3>
-        </div>
-        <div className="space-y-2">
-          {faqs.map((faq, i) => (
-            <div key={i} className="rounded-xl border border-outline-variant/10 overflow-hidden">
-              <button type="button" onClick={() => setOpenFaqIdx(openFaqIdx === i ? null : i)}
-                className="w-full flex items-center justify-between p-4 text-left hover:bg-surface-high/30 transition-colors gap-4">
-                <span className="font-semibold text-on-surface text-body-sm">{faq.q}</span>
-                <span className={`text-lg text-primary flex-shrink-0 transition-transform ${openFaqIdx === i ? 'rotate-45' : ''}`}>+</span>
-              </button>
-              {openFaqIdx === i && (
-                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                  className="px-4 pb-4 text-body-sm text-on-surface-variant border-t border-outline-variant/10 pt-3">
-                  {faq.a}
-                </motion.div>
-              )}
-            </div>
-          ))}
-        </div>
-      </motion.div>
     </motion.div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, Users, ShoppingCart, DollarSign, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays } from 'date-fns';
 
 /* ─── Variants ─────────────────────────────────────── */
@@ -17,8 +17,6 @@ const itemVariants = {
     transition: { type: 'spring' as const, stiffness: 110, damping: 18 },
   },
 };
-
-const COLORS = ['#8FF5FF', '#A2F31F', '#F31F7B', '#FFD700', '#FF8C00', '#9932CC', '#00FA9A', '#FF4500'];
 
 interface PixelAnalytics {
   pixel_id: string;

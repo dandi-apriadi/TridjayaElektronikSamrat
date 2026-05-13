@@ -8,7 +8,7 @@ import logoHorizontal from '../../assets/images/logo-horizontal.webp';
 
 import { useProductStore } from '../../store/useProductStore';
 import { getImageUrl } from '../../utils/apiClient';
-import { formatPrice } from '../../data';
+import { formatPrice } from '../../utils/formatters';
 
 const getCategoryIcon = (cat: string) => {
   const c = cat.toLowerCase();

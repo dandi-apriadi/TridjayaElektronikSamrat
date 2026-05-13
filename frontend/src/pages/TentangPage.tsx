@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Users, MapPin, Zap, Star, TrendingUp, Handshake } from 'lucide-react';
-import { Badge, SectionHeader, StatsRow, PartnerLogos } from '../components/ui';
+import { Badge, SectionHeader, PartnerLogos } from '../components/ui';
 import sofaImg from '../assets/images/sofa.webp';
 import blogHeroImg from '../assets/images/blog-hero.webp';
 
@@ -168,13 +168,6 @@ const TentangPage: React.FC = () => {
               </motion.div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Stats */}
-      <section className="section-padding bg-surface-low/95">
-        <div className="container-custom">
-          <StatsRow />
         </div>
       </section>
 

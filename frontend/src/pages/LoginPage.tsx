@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Building2, Lock, Mail, ShieldCheck, Sparkles, Zap, Loader2, ChevronRight, CheckCircle2 } from 'lucide-react';
@@ -34,6 +34,17 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showHeavyBackground, setShowHeavyBackground] = useState(false);
+
+  useEffect(() => {
+    const checkViewport = () => {
+      setShowHeavyBackground(window.innerWidth >= 768);
+    };
+
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -75,35 +86,38 @@ const LoginPage: React.FC = () => {
 
       {/* Animated Background Elements - Match public pages */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <CircuitBackground />
-        
-        <motion.div 
-          animate={{ 
-            y: [-20, 20, -20],
-            x: [-10, 10, -10],
-            scale: [1, 1.1, 1],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-32 -left-32 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]" 
-        />
-        <motion.div 
-          animate={{ 
-            y: [20, -20, 20],
-            x: [10, -10, 10],
-            scale: [1.1, 1, 1.1],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/3 right-0 w-[500px] h-[500px] bg-secondary/10 rounded-full blur-[100px]" 
-        />
-        <motion.div 
-          animate={{ 
-            y: [-30, 30, -30],
-            x: [20, -20, 20],
-          }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-0 left-1/3 w-[400px] h-[400px] bg-tertiary/10 rounded-full blur-[120px]" 
-        />
-        <div className="absolute inset-0 mesh-bg opacity-30" />
+        {showHeavyBackground && (
+          <>
+            <CircuitBackground />
+            <motion.div 
+              animate={{ 
+                y: [-20, 20, -20],
+                x: [-10, 10, -10],
+                scale: [1, 1.1, 1],
+              }}
+              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-32 -left-32 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]" 
+            />
+            <motion.div 
+              animate={{ 
+                y: [20, -20, 20],
+                x: [10, -10, 10],
+                scale: [1.1, 1, 1.1],
+              }}
+              transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-1/3 right-0 w-[500px] h-[500px] bg-secondary/10 rounded-full blur-[100px]" 
+            />
+            <motion.div 
+              animate={{ 
+                y: [-30, 30, -30],
+                x: [20, -20, 20],
+              }}
+              transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute bottom-0 left-1/3 w-[400px] h-[400px] bg-tertiary/10 rounded-full blur-[120px]" 
+            />
+            <div className="absolute inset-0 mesh-bg opacity-30" />
+          </>
+        )}
       </div>
 
       <div className="relative z-10 container-custom min-h-screen flex items-center py-28 lg:py-32">

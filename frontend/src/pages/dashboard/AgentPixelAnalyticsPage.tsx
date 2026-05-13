@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, Activity, Users, ShoppingCart, DollarSign, ArrowUpRight, TrendingUp } from 'lucide-react';
+import { BarChart3, Activity, Users, ShoppingCart, DollarSign, TrendingUp } from 'lucide-react';
 import { format, subDays } from 'date-fns';
-import MetricsCard from '../../components/pixel/MetricsCard';
 import CampaignTable from '../../components/pixel/CampaignTable';
 
 /* ─── Variants ─────────────────────────────────────── */

@@ -35,7 +35,7 @@ const Layout: React.FC = () => {
       <div className="fixed inset-0 bg-surface z-[-2]" />
 
       {/* Layer -1: Circuit Animation */}
-      <CircuitBackground />
+      {!isMobile && <CircuitBackground />}
 
       {/* Layer 0: Main Content */}
       <div className="relative z-0 flex flex-col min-h-screen">

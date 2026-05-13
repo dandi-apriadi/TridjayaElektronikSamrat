@@ -5,7 +5,7 @@ import {
   ArrowLeft, Send, RefreshCw, Pause,
   CheckCircle2, AlertTriangle, Clock, Copy, XCircle,
   Plus, Trash2, Check, Eye, FileSpreadsheet, Loader2,
-  Database, Search
+  Database, Search, MessageCircle, ExternalLink, Edit3, Save
 } from 'lucide-react';
 import AddWaRecipientModal from '../../components/dashboard/AddWaRecipientModal';
 import { useAuthStore } from '../../store/authStore';
@@ -17,9 +17,13 @@ import { readApiError } from '../../utils/apiError';
 const statusColorMap: Record<string, string> = {
   pending: 'bg-surface-high text-on-surface-variant border border-outline-variant/30',
   sent: 'bg-secondary/20 text-secondary border border-secondary/30',
+  delivered: 'bg-secondary/15 text-secondary border border-secondary/20',
+  read: 'bg-primary/15 text-primary border border-primary/20',
   skipped: 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30',
   failed: 'bg-red-500/20 text-red-400 border border-red-500/30',
 };
+
+type RecipientFilter = 'all' | 'pending' | 'sent' | 'failed' | 'delivered' | 'read' | 'replied' | 'skipped';
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const iv = { hidden: { y: 12, opacity: 0 }, visible: { y: 0, opacity: 1 } };
@@ -33,9 +37,16 @@ const AdminWaCampaignDetailPage: React.FC = () => {
   const [recipients, setRecipients] = useState<WaRecipient[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  const [recipientFilter, setRecipientFilter] = useState<'all' | 'pending' | 'sent' | 'failed' | 'delivered' | 'read'>('all');
+  const [recipientFilter, setRecipientFilter] = useState<RecipientFilter>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isEditingCampaign, setIsEditingCampaign] = useState(false);
+  const [editCampaignName, setEditCampaignName] = useState('');
+  const [editMessageTemplate, setEditMessageTemplate] = useState('');
+  const [editDedupeDays, setEditDedupeDays] = useState(30);
+  const [isSavingCampaign, setIsSavingCampaign] = useState(false);
+  const isEditingCampaignRef = useRef(false);
+  const isCampaignEditDirtyRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -50,6 +61,18 @@ const AdminWaCampaignDetailPage: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const dbPerPage = 15;
+
+  useEffect(() => {
+    isEditingCampaignRef.current = isEditingCampaign;
+  }, [isEditingCampaign]);
+
+  const syncCampaignEditFields = (nextCampaign: WaCampaign) => {
+    if (isEditingCampaignRef.current || isCampaignEditDirtyRef.current) return;
+    const cfg = nextCampaign.config || {};
+    setEditCampaignName(nextCampaign.name || '');
+    setEditMessageTemplate(cfg.message_template || cfg.messageTemplate || '');
+    setEditDedupeDays(Number(cfg.dedupe_days ?? cfg.dedupeDays ?? 30));
+  };
 
   useEffect(() => {
     if (id) {
@@ -68,8 +91,10 @@ const AdminWaCampaignDetailPage: React.FC = () => {
       });
       if (!res.ok) throw new Error(await readApiError(res, 'Gagal memuat campaign'));
       const data = await res.json();
-      setCampaign(data.data?.campaign || null);
+      const nextCampaign = data.data?.campaign || null;
+      setCampaign(nextCampaign);
       setRecipients(data.data?.recipients || []);
+      if (nextCampaign) syncCampaignEditFields(nextCampaign);
     } catch (error) {
       toast.error('Gagal memuat campaign', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -291,6 +316,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     if (recipientFilter === 'all') return true;
     if (recipientFilter === 'delivered') return !!r.deliveredAt;
     if (recipientFilter === 'read') return !!r.readAt;
+    if (recipientFilter === 'replied') return !!r.repliedAt;
     return r.status === recipientFilter;
   });
   const filterCounts = {
@@ -299,7 +325,53 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     sent: recipients.filter(r => r.status === 'sent').length,
     delivered: recipients.filter(r => !!r.deliveredAt).length,
     read: recipients.filter(r => !!r.readAt).length,
+    replied: recipients.filter(r => !!r.repliedAt).length,
     failed: recipients.filter(r => r.status === 'failed').length,
+    skipped: recipients.filter(r => r.status === 'skipped').length,
+  };
+
+  const handleSaveCampaignEdit = async () => {
+    if (!id || !campaign) return;
+    if (!editCampaignName.trim()) {
+      toast.error('Nama campaign wajib diisi');
+      return;
+    }
+    if (!editMessageTemplate.trim()) {
+      toast.error('Isi pesan wajib diisi', 'Template pesan campaign tidak boleh kosong');
+      return;
+    }
+
+    setIsSavingCampaign(true);
+    try {
+      const nextConfig = {
+        ...(campaign.config || {}),
+        message_template: editMessageTemplate.trim(),
+        dedupe_days: Math.max(0, Number(editDedupeDays) || 0),
+      };
+
+      const res = await fetch(`/api/wa/campaigns/${id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editCampaignName.trim(),
+          config: nextConfig,
+        }),
+      });
+
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menyimpan campaign'));
+      toast.success('Campaign diperbarui', 'Data campaign berhasil disimpan');
+      isEditingCampaignRef.current = false;
+      isCampaignEditDirtyRef.current = false;
+      setIsEditingCampaign(false);
+      await fetchCampaignData();
+    } catch (error) {
+      toast.error('Gagal menyimpan campaign', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsSavingCampaign(false);
+    }
   };
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -314,6 +386,37 @@ const AdminWaCampaignDetailPage: React.FC = () => {
       || variables.customer_name
       || variables.customerName
       || 'No Name';
+  };
+
+  const getWaChatUrl = (phone: string) => {
+    const digits = phone.replace(/\D/g, '');
+    const normalized = digits.startsWith('0')
+      ? `62${digits.slice(1)}`
+      : digits.startsWith('8')
+        ? `62${digits}`
+        : digits;
+    return `https://wa.me/${normalized}`;
+  };
+
+  const openCampaignEditor = () => {
+    if (!campaign) return;
+    const cfg = campaign.config || {};
+    isEditingCampaignRef.current = true;
+    isCampaignEditDirtyRef.current = false;
+    setEditCampaignName(campaign.name || '');
+    setEditMessageTemplate(cfg.message_template || cfg.messageTemplate || '');
+    setEditDedupeDays(Number(cfg.dedupe_days ?? cfg.dedupeDays ?? 30));
+    setIsEditingCampaign(true);
+  };
+
+  const closeCampaignEditor = () => {
+    isEditingCampaignRef.current = false;
+    isCampaignEditDirtyRef.current = false;
+    setIsEditingCampaign(false);
+  };
+
+  const markCampaignEditDirty = () => {
+    isCampaignEditDirtyRef.current = true;
   };
 
   if (!campaign) {
@@ -359,6 +462,13 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             title="Refresh"
           >
             <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={openCampaignEditor}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-high/30 text-on-surface-variant border border-outline-variant/30 rounded-xl hover:bg-surface-high hover:text-on-surface transition-all font-bold"
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>Edit Campaign</span>
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
@@ -455,6 +565,105 @@ const AdminWaCampaignDetailPage: React.FC = () => {
           </motion.div>
         ))}
       </div>
+
+      <AnimatePresence>
+        {isEditingCampaign && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="glass-card rounded-2xl border border-primary/20 overflow-hidden"
+          >
+            <div className="p-4 border-b border-outline-variant/10 bg-primary/5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-display font-bold text-on-surface inline-flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-primary" /> Edit Data Campaign
+                </h2>
+                <p className="text-xs text-on-surface-variant mt-1">Perubahan pesan berlaku untuk penerima yang belum diproses.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCampaignEditor}
+                className="p-2 rounded-lg bg-surface-high/50 text-on-surface-variant hover:text-on-surface transition-colors"
+                title="Tutup editor"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_180px] gap-4">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                    Nama Campaign
+                  </label>
+                  <input
+                    type="text"
+                    value={editCampaignName}
+                    onChange={(event) => {
+                      markCampaignEditDirty();
+                      setEditCampaignName(event.target.value);
+                    }}
+                    className="w-full px-3 py-2.5 bg-surface-high/50 border border-outline-variant/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-on-surface"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                    Isi Pesan Campaign
+                  </label>
+                  <textarea
+                    rows={7}
+                    value={editMessageTemplate}
+                    onChange={(event) => {
+                      markCampaignEditDirty();
+                      setEditMessageTemplate(event.target.value);
+                    }}
+                    className="w-full px-3 py-2.5 bg-surface-high/50 border border-outline-variant/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-on-surface font-mono text-xs resize-y"
+                    placeholder="Contoh: Halo {{name}}, promo hari ini..."
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                    Dedupe Days
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editDedupeDays}
+                    onChange={(event) => {
+                      markCampaignEditDirty();
+                      setEditDedupeDays(Number(event.target.value));
+                    }}
+                    className="w-full px-3 py-2.5 bg-surface-high/50 border border-outline-variant/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-on-surface"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveCampaignEdit}
+                  disabled={isSavingCampaign}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 gradient-primary text-surface rounded-xl hover:shadow-neon-cyan transition-all font-bold disabled:opacity-50"
+                >
+                  {isSavingCampaign ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Simpan
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeCampaignEditor}
+                  className="w-full px-4 py-3 bg-surface-high/50 text-on-surface-variant border border-outline-variant/30 rounded-xl hover:text-on-surface transition-all font-bold"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Database Contacts Panel */}
       <AnimatePresence>
@@ -602,6 +811,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
                 { value: 'sent', label: 'Sent', count: filterCounts.sent },
                 { value: 'delivered', label: 'Delivered', count: filterCounts.delivered },
                 { value: 'read', label: 'Read', count: filterCounts.read },
+                { value: 'replied', label: 'Reply', count: filterCounts.replied },
                 { value: 'failed', label: 'Gagal', count: filterCounts.failed },
               ].map(item => (
                 <button
@@ -632,6 +842,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
                 <option value="sent">Terkirim (Sent)</option>
                 <option value="delivered">Diterima (Delivered)</option>
                 <option value="read">Dibaca (Read)</option>
+                <option value="replied">Membalas (Reply)</option>
                 <option value="failed">Gagal</option>
                 <option value="skipped">Dilewati</option>
               </select>
@@ -651,7 +862,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
                     No recipients found
                   </td>
                 </tr>
@@ -680,6 +891,12 @@ const AdminWaCampaignDetailPage: React.FC = () => {
                             Read
                           </div>
                         )}
+                        {recipient.repliedAt && (
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-green-500/15 text-green-400 border border-green-500/20">
+                            <MessageCircle className="w-3 h-3" />
+                            Reply
+                          </div>
+                        )}
                         {recipient.lastError && (
                           <div className="text-[9px] text-red-400 font-medium italic mt-1 block max-w-[150px] truncate" title={recipient.lastError}>
                             {recipient.lastError}
@@ -688,10 +905,20 @@ const AdminWaCampaignDetailPage: React.FC = () => {
                       </div>
                       <div className="mt-1 text-[9px] text-on-surface-variant">
                          Sent: {recipient.lastAttemptAt ? new Date(recipient.lastAttemptAt).toLocaleString('id-ID') : '-'}
+                         {recipient.repliedAt ? ` • Reply: ${new Date(recipient.repliedAt).toLocaleString('id-ID')}` : ''}
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
+                        <a
+                          href={getWaChatUrl(recipient.phone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 hover:bg-green-500/10 rounded-lg text-on-surface-variant hover:text-green-400 transition-colors"
+                          title="Buka chat WhatsApp"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
                         <button
                           onClick={() => {
                             const vars = JSON.stringify(recipient.variables, null, 2);

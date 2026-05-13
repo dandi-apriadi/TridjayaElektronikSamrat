@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Users, ShoppingCart, DollarSign, TrendingUp, Award } from 'lucide-react';
+import { Activity, Users, ShoppingCart, DollarSign, TrendingUp } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import ConversionFunnel from '../../components/pixel/ConversionFunnel';
-import MetricsCard from '../../components/pixel/MetricsCard';
 import CampaignTable from '../../components/pixel/CampaignTable';
 
 /* ─── Variants ─────────────────────────────────────── */

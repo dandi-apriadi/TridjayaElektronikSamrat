@@ -12,7 +12,6 @@ import Pagination from '../../components/ui/Pagination';
 import { usePersistedState } from '../../hooks/usePersistedState';
 import { getImageUrl } from '../../utils/apiClient';
 
-const categories = ['Semua', 'bike', 'electronics', 'furniture'];
 const statuses   = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
 
 const statusStyle: Record<string, string> = {
@@ -101,6 +100,12 @@ const AdminCatalogPage: React.FC = () => {
   const totalViews    = products.reduce((s, p) => s + (p.views || 0), 0);
   const totalLeads    = products.reduce((s, p) => s + (p.leads || 0), 0);
   const totalConversions = products.reduce((s, p) => s + (p.conversions || 0), 0);
+  const categories = React.useMemo(() => {
+    const productCategories = products
+      .map((product) => product.category?.trim())
+      .filter((item): item is string => Boolean(item));
+    return ['Semua', ...Array.from(new Set(productCategories))];
+  }, [products]);
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">

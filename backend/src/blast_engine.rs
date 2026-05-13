@@ -492,10 +492,10 @@ impl BlastEngine {
 
         // Handle send result (Requirements 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8)
         match send_result {
-            Ok(_) => {
+            Ok(wa_message_id) => {
                 info!(
                     "Successfully sent message {} to {} via account {}",
-                    message.message_id, message.phone, account_id
+                    wa_message_id, message.phone, account_id
                 );
 
                 // Mark recipient as sent (Requirement 10.1)
@@ -504,7 +504,7 @@ impl BlastEngine {
                 }
 
                 // Log dispatch success (Requirement 10.4)
-                if let Err(e) = self.log_dispatch_success(&message).await {
+                if let Err(e) = self.log_dispatch_success(&message, &wa_message_id).await {
                     error!("Failed to log dispatch success: {}", e);
                 }
 
@@ -739,7 +739,7 @@ impl BlastEngine {
                 .fetch_optional(&self.pool)
                 .await?;
 
-        let variables = if let Some((Some(variables_json),)) = recipient {
+        let mut variables: HashMap<String, String> = if let Some((Some(variables_json),)) = recipient {
             serde_json::from_str(&variables_json).unwrap_or_else(|e| {
                 warn!("Failed to parse recipient variables JSON: {}", e);
                 HashMap::new()
@@ -748,7 +748,25 @@ impl BlastEngine {
             HashMap::new()
         };
 
+        Self::normalize_recipient_variables(&mut variables);
+
         Ok(variables)
+    }
+
+    fn normalize_recipient_variables(variables: &mut HashMap<String, String>) {
+        let existing = variables.clone();
+        for (key, value) in existing {
+            let normalized_key = key.trim().to_lowercase();
+            if normalized_key != key {
+                variables.entry(normalized_key.clone()).or_insert(value.clone());
+            }
+            if matches!(
+                normalized_key.as_str(),
+                "nama" | "nama_lengkap" | "full_name" | "customer_name" | "customername"
+            ) {
+                variables.entry("name".to_string()).or_insert(value);
+            }
+        }
     }
 
     /// Process message template with spintax
@@ -803,7 +821,7 @@ impl BlastEngine {
         message: &crate::redis_manager::QueueMessage,
         processed_text: &str,
         media_data: Option<&crate::media_handler::MediaFile>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let params = if let Some(media) = media_data {
             // Send media message with caption via send_media
             serde_json::json!({
@@ -834,7 +852,13 @@ impl BlastEngine {
             .await?;
 
         debug!("Bridge send result: {:?}", result);
-        Ok(())
+        let wa_message_id = result
+            .get("message_id")
+            .and_then(|value| value.as_str())
+            .unwrap_or(&message.message_id)
+            .to_string();
+
+        Ok(wa_message_id)
     }
 
     /// Mark recipient as sent in database
@@ -1026,6 +1050,7 @@ impl BlastEngine {
     async fn log_dispatch_success(
         &self,
         message: &crate::redis_manager::QueueMessage,
+        wa_message_id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if message.campaign_id != "api_send" {
             let existing_success: i64 = sqlx::query_scalar(
@@ -1055,7 +1080,7 @@ impl BlastEngine {
         .bind(&message.recipient_id)
         .bind(&message.phone)
         .bind(&message.account_id)
-        .bind(&message.message_id)
+        .bind(wa_message_id)
         .execute(&self.pool)
         .await?;
 

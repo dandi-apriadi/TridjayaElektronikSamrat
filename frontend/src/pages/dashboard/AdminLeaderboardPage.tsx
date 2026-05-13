@@ -30,13 +30,6 @@ import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useAgentStore } from '../../store/useAgentStore';
 import { usePersistedState } from '../../hooks/usePersistedState';
 
-// Fallback data for reward tiers if backend returns empty
-const fallbackRewardTiers = [
-  { id: 'silver', name: 'Silver Tier', thresholdPoints: 0, isActive: true },
-  { id: 'gold', name: 'Gold Tier', thresholdPoints: 5000, isActive: true },
-  { id: 'diamond', name: 'Diamond Tier', thresholdPoints: 15000, isActive: true },
-];
-
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -92,7 +85,7 @@ const AdminLeaderboardPage: React.FC = () => {
       });
    }, [claims, registrations]);
 
-   const effectiveRewardTiers = rewardTiers.length > 0 ? rewardTiers : fallbackRewardTiers;
+   const effectiveRewardTiers = rewardTiers;
 
    const resolveTierId = (points: number) => {
       const sorted = [...effectiveRewardTiers].sort((left, right) => left.thresholdPoints - right.thresholdPoints);
@@ -125,7 +118,7 @@ const AdminLeaderboardPage: React.FC = () => {
             city: agent.city || '-',
             points: agent.points,
             growth: `+${agent.totalSales} sales`,
-            tier: agent.tierName || effectiveRewardTiers.find((tier) => tier.id === resolveTierId(agent.points))?.name || 'Silver Tier',
+            tier: agent.tierName || effectiveRewardTiers.find((tier) => tier.id === resolveTierId(agent.points))?.name || 'Belum ada tier',
          }));
    }, [effectiveRewardTiers, leaderboard]);
 

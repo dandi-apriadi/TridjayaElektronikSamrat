@@ -19,10 +19,9 @@ const CircuitBackground: React.FC = () => {
 
   React.useEffect(() => {
     const checkMobile = () => {
-      const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
       const isSmallScreen = window.innerWidth < 768;
-      const isLowPower = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
-      setIsMobile(isTouchDevice || isSmallScreen || isLowPower);
+      const isLowPower = Boolean(navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+      setIsMobile(isSmallScreen || isLowPower);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -56,6 +55,10 @@ const CircuitBackground: React.FC = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [shouldReduceAnimations]);
+
+  if (isMobile) {
+    return null;
+  }
 
   return (
     <div
