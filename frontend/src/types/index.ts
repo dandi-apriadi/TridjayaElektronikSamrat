@@ -139,6 +139,7 @@ export interface WaCampaign {
 export interface WaRecipient {
   id: string;
   phone: string;
+  name?: string;
   variables: Record<string, any>;
   status: 'pending' | 'sent' | 'skipped' | 'failed';
   lastAttemptAt?: string;

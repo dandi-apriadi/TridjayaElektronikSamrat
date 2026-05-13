@@ -1423,6 +1423,7 @@ struct WaCampaignSummaryResponse {
 struct WaRecipientSummaryResponse {
     id: String,
     phone: String,
+    name: Option<String>,
     variables: Value,
     status: String,
     last_attempt_at: Option<String>,
@@ -1431,6 +1432,26 @@ struct WaRecipientSummaryResponse {
     replied_at: Option<String>,
     last_error: Option<String>,
     created_at: Option<String>,
+}
+
+fn recipient_display_name(variables: &Value) -> Option<String> {
+    let object = variables.as_object()?;
+    for key in [
+        "name",
+        "nama",
+        "Nama",
+        "NAMA",
+        "customer_name",
+        "customerName",
+    ] {
+        if let Some(value) = object.get(key).and_then(|v| v.as_str()) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
 }
 
 fn normalize_phone(value: &str) -> Option<String> {
@@ -3580,6 +3601,7 @@ async fn get_wa_campaign_status(
             )| WaRecipientSummaryResponse {
                 id,
                 phone,
+                name: recipient_display_name(&parse_json_value(variables.clone())),
                 variables: parse_json_value(variables),
                 status,
                 last_attempt_at,

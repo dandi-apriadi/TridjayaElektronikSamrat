@@ -410,10 +410,21 @@ impl BlastEngine {
                 .fetch_optional(&self.pool)
                 .await?;
 
-        if matches!(campaign_status.as_deref(), Some("paused")) {
+        if campaign_id != "api_send" && !matches!(campaign_status.as_deref(), Some("running")) {
             info!(
-                "Skipping queued message {} because campaign {} is paused",
-                message.message_id, campaign_id
+                "Skipping queued message {} because campaign {} status is {:?}",
+                message.message_id, campaign_id, campaign_status
+            );
+            return Ok(());
+        }
+
+        if self
+            .recipient_already_sent(&recipient_id, &campaign_id)
+            .await?
+        {
+            info!(
+                "Skipping queued message {} because recipient {} was already sent",
+                message.message_id, recipient_id
             );
             return Ok(());
         }
@@ -846,6 +857,35 @@ impl BlastEngine {
         Ok(())
     }
 
+    async fn recipient_already_sent(
+        &self,
+        recipient_id: &str,
+        campaign_id: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if campaign_id == "api_send" {
+            return Ok(false);
+        }
+
+        let already_sent: i64 = sqlx::query_scalar(
+            "SELECT CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM wa_recipients
+                    WHERE id = ? AND status = 'sent'
+                )
+                OR EXISTS (
+                    SELECT 1 FROM wa_dispatch_logs
+                    WHERE recipient_id = ? AND status = 'success'
+                )
+                THEN 1 ELSE 0 END",
+        )
+        .bind(recipient_id)
+        .bind(recipient_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(already_sent == 1)
+    }
+
     /// Mark recipient as failed in database
     ///
     /// **Validates: Requirements 10.1**
@@ -987,6 +1027,23 @@ impl BlastEngine {
         &self,
         message: &crate::redis_manager::QueueMessage,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if message.campaign_id != "api_send" {
+            let existing_success: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM wa_dispatch_logs WHERE recipient_id = ? AND status = 'success'",
+            )
+            .bind(&message.recipient_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+            if existing_success > 0 {
+                debug!(
+                    "Skipping duplicate success dispatch log for recipient {}",
+                    message.recipient_id
+                );
+                return Ok(());
+            }
+        }
+
         let log_id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO wa_dispatch_logs 

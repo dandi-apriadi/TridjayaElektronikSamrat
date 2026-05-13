@@ -82,30 +82,13 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     
     // If campaign was already completed/paused/failed, confirm restart
     if (campaign?.status && campaign.status !== 'draft') {
-      if (!window.confirm('Campaign ini akan dimulai ulang dari awal. Semua penerima yang belum terkirim akan diproses. Lanjutkan?')) return;
+      if (!window.confirm('Campaign akan memproses penerima yang masih pending saja. Nomor yang sudah terkirim tidak akan dikirim ulang. Lanjutkan?')) return;
     }
 
     setIsActionLoading(true);
     console.log('[Campaign] Starting campaign:', id, 'current status:', campaign?.status);
     
     try {
-      // If campaign is completed/paused/running, reset recipients to pending first
-      if (campaign?.status === 'completed' || campaign?.status === 'paused' || campaign?.status === 'running') {
-        console.log('[Campaign] Resetting recipients to pending...');
-        const resetRes = await fetch(`/api/wa/campaigns/${id}/reset`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        });
-        if (!resetRes.ok) {
-          const errMsg = await readApiError(resetRes, 'Gagal reset recipients');
-          console.error('[Campaign] Reset failed:', errMsg);
-          // Try to start anyway — backend might handle it
-        } else {
-          const resetData = await resetRes.json().catch(() => null);
-          console.log('[Campaign] Reset result:', resetData);
-        }
-      }
-
       console.log('[Campaign] Calling start endpoint...');
       const res = await fetch(`/api/wa/campaigns/${id}/start`, {
         method: 'POST',
@@ -310,8 +293,28 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     if (recipientFilter === 'read') return !!r.readAt;
     return r.status === recipientFilter;
   });
+  const filterCounts = {
+    all: recipients.length,
+    pending: recipients.filter(r => r.status === 'pending').length,
+    sent: recipients.filter(r => r.status === 'sent').length,
+    delivered: recipients.filter(r => !!r.deliveredAt).length,
+    read: recipients.filter(r => !!r.readAt).length,
+    failed: recipients.filter(r => r.status === 'failed').length,
+  };
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
+
+  const displayRecipientName = (recipient: WaRecipient) => {
+    const variables = recipient.variables || {};
+    return recipient.name
+      || variables.name
+      || variables.nama
+      || variables.Nama
+      || variables.NAMA
+      || variables.customer_name
+      || variables.customerName
+      || 'No Name';
+  };
 
   if (!campaign) {
     return (
@@ -593,6 +596,29 @@ const AdminWaCampaignDetailPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <h2 className="text-lg font-display font-bold text-on-surface">Recipients ({filtered.length})</h2>
             <div className="flex gap-2">
+              {[
+                { value: 'all', label: 'Semua', count: filterCounts.all },
+                { value: 'pending', label: 'Pending', count: filterCounts.pending },
+                { value: 'sent', label: 'Sent', count: filterCounts.sent },
+                { value: 'delivered', label: 'Delivered', count: filterCounts.delivered },
+                { value: 'read', label: 'Read', count: filterCounts.read },
+                { value: 'failed', label: 'Gagal', count: filterCounts.failed },
+              ].map(item => (
+                <button
+                  key={item.value}
+                  onClick={() => {
+                    setRecipientFilter(item.value as typeof recipientFilter);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    recipientFilter === item.value
+                      ? 'bg-primary/15 text-primary border-primary/30'
+                      : 'bg-surface-high/30 text-on-surface-variant border-outline-variant/30 hover:bg-surface-high hover:text-on-surface'
+                  }`}
+                >
+                  {item.label} ({item.count})
+                </button>
+              ))}
               <select
                 value={recipientFilter}
                 onChange={e => {
@@ -633,7 +659,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
                 paginated.map((recipient) => (
                   <tr key={recipient.id} className="border-b border-outline-variant/5 hover:bg-surface-high/20 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-bold text-on-surface text-body-sm">{recipient.variables.name || 'No Name'}</div>
+                      <div className="font-bold text-on-surface text-body-sm">{displayRecipientName(recipient)}</div>
                       <div className="text-[10px] text-on-surface-variant font-mono">{recipient.phone}</div>
                     </td>
                     <td className="px-4 py-3">
