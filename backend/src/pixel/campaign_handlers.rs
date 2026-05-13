@@ -1,11 +1,11 @@
 use crate::{
     auth::{authorize, Role},
+    pixel::models::{
+        CampaignRecord, CreateCampaignRequest, CreateCustomConversionRequest,
+        CustomConversionRecord, UpdateCampaignRequest,
+    },
     response::{json_ok, AppError},
     state::AppState,
-    pixel::models::{
-        CampaignRecord, CreateCampaignRequest, UpdateCampaignRequest,
-        CreateCustomConversionRequest, CustomConversionRecord,
-    },
 };
 use axum::{
     extract::{Path, Query, State},
@@ -200,15 +200,14 @@ pub async fn get_campaign(
 ) -> Result<axum::response::Response, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
-    let record: Option<CampaignRecord> =
-        sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to fetch campaign: {}", e);
-                AppError::Internal
-            })?;
+    let record: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch campaign: {}", e);
+            AppError::Internal
+        })?;
 
     let record = record.ok_or(AppError::NotFound)?;
 
@@ -241,15 +240,14 @@ pub async fn update_campaign(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch existing campaign
-    let existing: Option<CampaignRecord> =
-        sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching campaign for update: {}", e);
-                AppError::Internal
-            })?;
+    let existing: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching campaign for update: {}", e);
+            AppError::Internal
+        })?;
 
     let existing = existing.ok_or(AppError::NotFound)?;
 
@@ -386,15 +384,14 @@ pub async fn delete_campaign(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch existing campaign
-    let existing: Option<CampaignRecord> =
-        sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching campaign for delete: {}", e);
-                AppError::Internal
-            })?;
+    let existing: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching campaign for delete: {}", e);
+            AppError::Internal
+        })?;
 
     let existing = existing.ok_or(AppError::NotFound)?;
 
@@ -490,15 +487,14 @@ pub async fn create_custom_conversion(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch campaign by id
-    let campaign: Option<CampaignRecord> =
-        sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
-            .bind(&campaign_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching campaign: {}", e);
-                AppError::Internal
-            })?;
+    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching campaign: {}", e);
+            AppError::Internal
+        })?;
 
     let campaign = campaign.ok_or(AppError::NotFound)?;
 
@@ -576,15 +572,14 @@ pub async fn list_custom_conversions(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch campaign
-    let campaign: Option<CampaignRecord> =
-        sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
-            .bind(&campaign_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching campaign: {}", e);
-                AppError::Internal
-            })?;
+    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching campaign: {}", e);
+            AppError::Internal
+        })?;
 
     let campaign = campaign.ok_or(AppError::NotFound)?;
 
@@ -593,15 +588,16 @@ pub async fn list_custom_conversions(
         return Err(AppError::Forbidden);
     }
 
-    let records: Vec<CustomConversionRecord> =
-        sqlx::query_as("SELECT * FROM custom_conversions WHERE campaign_id = ? ORDER BY created_at ASC")
-            .bind(&campaign_id)
-            .fetch_all(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to list custom conversions: {}", e);
-                AppError::Internal
-            })?;
+    let records: Vec<CustomConversionRecord> = sqlx::query_as(
+        "SELECT * FROM custom_conversions WHERE campaign_id = ? ORDER BY created_at ASC",
+    )
+    .bind(&campaign_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to list custom conversions: {}", e);
+        AppError::Internal
+    })?;
 
     Ok(json_ok("Custom conversions retrieved", records))
 }
@@ -616,15 +612,14 @@ pub async fn update_custom_conversion(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch campaign
-    let campaign: Option<CampaignRecord> =
-        sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
-            .bind(&campaign_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching campaign: {}", e);
-                AppError::Internal
-            })?;
+    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching campaign: {}", e);
+            AppError::Internal
+        })?;
 
     let campaign = campaign.ok_or(AppError::NotFound)?;
 
@@ -634,17 +629,16 @@ pub async fn update_custom_conversion(
     }
 
     // Fetch the conversion
-    let existing: Option<CustomConversionRecord> = sqlx::query_as(
-        "SELECT * FROM custom_conversions WHERE id = ? AND campaign_id = ?",
-    )
-    .bind(&conversion_id)
-    .bind(&campaign_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error fetching custom conversion: {}", e);
-        AppError::Internal
-    })?;
+    let existing: Option<CustomConversionRecord> =
+        sqlx::query_as("SELECT * FROM custom_conversions WHERE id = ? AND campaign_id = ?")
+            .bind(&conversion_id)
+            .bind(&campaign_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error fetching custom conversion: {}", e);
+                AppError::Internal
+            })?;
 
     let existing = existing.ok_or(AppError::NotFound)?;
 
@@ -738,15 +732,14 @@ pub async fn delete_custom_conversion(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch campaign
-    let campaign: Option<CampaignRecord> =
-        sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
-            .bind(&campaign_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching campaign: {}", e);
-                AppError::Internal
-            })?;
+    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching campaign: {}", e);
+            AppError::Internal
+        })?;
 
     let campaign = campaign.ok_or(AppError::NotFound)?;
 
@@ -756,17 +749,16 @@ pub async fn delete_custom_conversion(
     }
 
     // Fetch the conversion
-    let existing: Option<CustomConversionRecord> = sqlx::query_as(
-        "SELECT * FROM custom_conversions WHERE id = ? AND campaign_id = ?",
-    )
-    .bind(&conversion_id)
-    .bind(&campaign_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error fetching custom conversion: {}", e);
-        AppError::Internal
-    })?;
+    let existing: Option<CustomConversionRecord> =
+        sqlx::query_as("SELECT * FROM custom_conversions WHERE id = ? AND campaign_id = ?")
+            .bind(&conversion_id)
+            .bind(&campaign_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error fetching custom conversion: {}", e);
+                AppError::Internal
+            })?;
 
     let _existing = existing.ok_or(AppError::NotFound)?;
 
@@ -778,7 +770,10 @@ pub async fn delete_custom_conversion(
     .execute(&state.pool)
     .await
     .map_err(|e| {
-        tracing::error!("Failed to nullify custom_conversion_id on conversions: {}", e);
+        tracing::error!(
+            "Failed to nullify custom_conversion_id on conversions: {}",
+            e
+        );
         AppError::Internal
     })?;
 
@@ -1090,9 +1085,18 @@ mod tests {
         }
 
         let mut conversions = vec![
-            ConversionRow { id: "conv-1", custom_conversion_id: Some("cc-42") },
-            ConversionRow { id: "conv-2", custom_conversion_id: Some("cc-42") },
-            ConversionRow { id: "conv-3", custom_conversion_id: Some("cc-99") }, // different CC
+            ConversionRow {
+                id: "conv-1",
+                custom_conversion_id: Some("cc-42"),
+            },
+            ConversionRow {
+                id: "conv-2",
+                custom_conversion_id: Some("cc-42"),
+            },
+            ConversionRow {
+                id: "conv-3",
+                custom_conversion_id: Some("cc-99"),
+            }, // different CC
         ];
 
         let target_cc_id = "cc-42";
@@ -1106,13 +1110,11 @@ mod tests {
 
         // Verify: rows that referenced cc-42 now have NULL FK
         assert_eq!(
-            conversions[0].custom_conversion_id,
-            None,
+            conversions[0].custom_conversion_id, None,
             "conv-1 should have custom_conversion_id = NULL after delete"
         );
         assert_eq!(
-            conversions[1].custom_conversion_id,
-            None,
+            conversions[1].custom_conversion_id, None,
             "conv-2 should have custom_conversion_id = NULL after delete"
         );
 
@@ -1124,6 +1126,10 @@ mod tests {
         );
 
         // Verify: conversion rows still exist (not deleted)
-        assert_eq!(conversions.len(), 3, "All conversion rows must be preserved");
+        assert_eq!(
+            conversions.len(),
+            3,
+            "All conversion rows must be preserved"
+        );
     }
 }

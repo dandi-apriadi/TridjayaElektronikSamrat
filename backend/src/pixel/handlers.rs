@@ -1,7 +1,5 @@
 use crate::{
     auth::{authorize, Role},
-    response::{json_ok, AppError},
-    state::AppState,
     pixel::{
         crypto::{encrypt_token, get_encryption_key},
         models::{
@@ -9,6 +7,8 @@ use crate::{
             UpdatePixelRequest,
         },
     },
+    response::{json_ok, AppError},
+    state::AppState,
 };
 use axum::{
     extract::{Path, State},
@@ -100,15 +100,14 @@ pub async fn create_pixel(
     let user = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
 
     // Validate pixel_id uniqueness
-    let existing: Option<(String,)> =
-        sqlx::query_as("SELECT id FROM pixels WHERE pixel_id = ?")
-            .bind(&req.pixel_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error checking pixel_id uniqueness: {}", e);
-                AppError::Internal
-            })?;
+    let existing: Option<(String,)> = sqlx::query_as("SELECT id FROM pixels WHERE pixel_id = ?")
+        .bind(&req.pixel_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking pixel_id uniqueness: {}", e);
+            AppError::Internal
+        })?;
 
     if existing.is_some() {
         return Err(AppError::Conflict);
@@ -406,15 +405,14 @@ pub async fn assign_admin(
     let user = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
 
     // Validate pixel exists
-    let pixel_exists: Option<(String,)> =
-        sqlx::query_as("SELECT id FROM pixels WHERE id = ?")
-            .bind(&pixel_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error checking pixel existence: {}", e);
-                AppError::Internal
-            })?;
+    let pixel_exists: Option<(String,)> = sqlx::query_as("SELECT id FROM pixels WHERE id = ?")
+        .bind(&pixel_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking pixel existence: {}", e);
+            AppError::Internal
+        })?;
 
     if pixel_exists.is_none() {
         return Err(AppError::NotFound);
@@ -503,15 +501,14 @@ pub async fn assign_admin(
     .await?;
 
     // Return the created record
-    let record: PixelAdminRecord =
-        sqlx::query_as("SELECT * FROM pixel_admins WHERE id = ?")
-            .bind(&assignment_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to fetch created pixel_admin: {}", e);
-                AppError::Internal
-            })?;
+    let record: PixelAdminRecord = sqlx::query_as("SELECT * FROM pixel_admins WHERE id = ?")
+        .bind(&assignment_id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch created pixel_admin: {}", e);
+            AppError::Internal
+        })?;
 
     Ok(json_ok("Admin assigned", record))
 }
@@ -524,17 +521,15 @@ pub async fn revoke_admin(
 ) -> Result<axum::response::Response, AppError> {
     let actor = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM pixel_admins WHERE pixel_id = ? AND user_id = ?",
-    )
-    .bind(&pixel_id)
-    .bind(&user_id)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to delete pixel_admin: {}", e);
-        AppError::Internal
-    })?;
+    let result = sqlx::query("DELETE FROM pixel_admins WHERE pixel_id = ? AND user_id = ?")
+        .bind(&pixel_id)
+        .bind(&user_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete pixel_admin: {}", e);
+            AppError::Internal
+        })?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -738,7 +733,10 @@ mod tests {
 
         // Duplicate found → Conflict
         assert!(
-            matches!(check_duplicate(Some("existing-id")), Err(AppError::Conflict)),
+            matches!(
+                check_duplicate(Some("existing-id")),
+                Err(AppError::Conflict)
+            ),
             "Expected Conflict when duplicate assignment exists"
         );
 

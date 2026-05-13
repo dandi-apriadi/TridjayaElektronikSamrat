@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
+import { readApiError } from '../../utils/apiError';
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const iv = { hidden: { y: 12, opacity: 0 }, visible: { y: 0, opacity: 1 } };
@@ -81,7 +82,7 @@ const AdminWaCampaignFormPage: React.FC = () => {
       const res = await fetch(`/api/wa/campaigns/${id}/status`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed to fetch campaign');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memuat campaign'));
       const data = await res.json();
       const c = data.data?.campaign;
       if (c) {
@@ -128,7 +129,7 @@ const AdminWaCampaignFormPage: React.FC = () => {
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to save campaign');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menyimpan campaign'));
       const data = await res.json();
       const newId = data.data?.item?.id || data.data?.id;
 
@@ -170,7 +171,7 @@ const AdminWaCampaignFormPage: React.FC = () => {
       const res = await fetch('/api/wa/recipients/template', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed to download template');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal download template'));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -198,7 +199,7 @@ const AdminWaCampaignFormPage: React.FC = () => {
         },
         body: JSON.stringify({ all: true }),
       });
-      if (!res.ok) throw new Error('Gagal import dari database');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal import dari database'));
       const data = await res.json();
       const ins = data.data?.inserted || 0;
       const skip = data.data?.skipped || 0;
@@ -233,11 +234,10 @@ const AdminWaCampaignFormPage: React.FC = () => {
         body: formData,
       });
 
-      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const errMsg = data?.errors?.join(', ') || data?.message || 'Gagal upload file';
-        throw new Error(errMsg);
+        throw new Error(await readApiError(res, 'Gagal upload file'));
       }
+      const data = await res.json().catch(() => null);
       const ins = data?.data?.inserted || 0;
       const skip = data?.data?.skipped || 0;
       const inv = data?.data?.invalid?.length || 0;
@@ -276,7 +276,7 @@ const AdminWaCampaignFormPage: React.FC = () => {
         }),
       });
 
-      if (!res.ok) throw new Error('Gagal menyimpan penerima');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menyimpan penerima'));
       const data = await res.json();
       toast.success('Berhasil', `${data.data?.addedCount || manualRecipients.length} penerima ditambahkan`);
       setManualRecipients([]);

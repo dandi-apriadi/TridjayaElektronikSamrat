@@ -1,11 +1,11 @@
-use tridjaya_backend::api_tokens::{
-    generate_api_token, validate_api_token, check_ip_rate_limit, check_token_rate_limit,
-    TokenError, RateLimitError,
-};
-use sqlx::sqlite::SqlitePoolOptions;
-use redis::aio::ConnectionManager;
 use chrono::Utc;
+use redis::aio::ConnectionManager;
+use sqlx::sqlite::SqlitePoolOptions;
 use tokio::time::{sleep, Duration};
+use tridjaya_backend::api_tokens::{
+    check_ip_rate_limit, check_token_rate_limit, generate_api_token, validate_api_token,
+    RateLimitError, TokenError,
+};
 
 async fn setup_test_db() -> sqlx::SqlitePool {
     let pool = SqlitePoolOptions::new()
@@ -72,8 +72,8 @@ async fn setup_test_db() -> sqlx::SqlitePool {
 }
 
 async fn setup_test_redis() -> ConnectionManager {
-    let client = redis::Client::open("redis://127.0.0.1:6379")
-        .expect("Failed to create Redis client");
+    let client =
+        redis::Client::open("redis://127.0.0.1:6379").expect("Failed to create Redis client");
     ConnectionManager::new(client)
         .await
         .expect("Failed to connect to Redis")
@@ -113,13 +113,12 @@ async fn test_token_generation_and_validation_flow() {
     assert!(perms.contains(&"wa_webhook_manage".to_string()));
 
     // Verify last_used_at was updated
-    let updated_record: (Option<String>,) = sqlx::query_as(
-        "SELECT last_used_at FROM wa_api_tokens WHERE id = ?",
-    )
-    .bind(&token_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let updated_record: (Option<String>,) =
+        sqlx::query_as("SELECT last_used_at FROM wa_api_tokens WHERE id = ?")
+            .bind(&token_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     assert!(updated_record.0.is_some(), "last_used_at should be updated");
 }
@@ -348,9 +347,8 @@ async fn test_concurrent_rate_limit_checks() {
     let mut handles = vec![];
     for _ in 0..50 {
         let mut redis_clone = redis.clone();
-        let handle = tokio::spawn(async move {
-            check_ip_rate_limit(&mut redis_clone, "10.0.0.5").await
-        });
+        let handle =
+            tokio::spawn(async move { check_ip_rate_limit(&mut redis_clone, "10.0.0.5").await });
         handles.push(handle);
     }
 
@@ -362,7 +360,10 @@ async fn test_concurrent_rate_limit_checks() {
         }
     }
 
-    assert_eq!(success_count, 50, "All 50 concurrent requests should succeed");
+    assert_eq!(
+        success_count, 50,
+        "All 50 concurrent requests should succeed"
+    );
 
     // Verify count is exactly 50
     let count: usize = redis::cmd("ZCARD")
@@ -400,7 +401,11 @@ async fn test_token_permissions_serialization() {
 
     assert_eq!(retrieved_perms.len(), 3);
     for perm in permissions {
-        assert!(retrieved_perms.contains(&perm), "Permission {} should be present", perm);
+        assert!(
+            retrieved_perms.contains(&perm),
+            "Permission {} should be present",
+            perm
+        );
     }
 }
 

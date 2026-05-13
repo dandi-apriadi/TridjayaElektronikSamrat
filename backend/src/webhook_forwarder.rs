@@ -1,8 +1,8 @@
 /**
  * Webhook Forwarder - Forward incoming WhatsApp messages to N8N
- * 
+ *
  * **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8**
- * 
+ *
  * This module implements the webhook forwarding system that:
  * - Handles incoming message events from Baileys bridge
  * - Constructs JSON payloads with message metadata
@@ -12,7 +12,6 @@
  * - Logs webhook delivery to wa_webhook_logs table
  * - Batches messages in 500ms window for efficiency
  */
-
 use crate::bridge::BridgeEvent;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -131,12 +130,9 @@ impl WebhookForwarder {
     }
 
     /// Start the webhook forwarder event loop
-    /// 
+    ///
     /// **Validates: Requirements 5.1, 5.8**
-    pub async fn start(
-        &self,
-        mut event_rx: mpsc::UnboundedReceiver<BridgeEvent>,
-    ) {
+    pub async fn start(&self, mut event_rx: mpsc::UnboundedReceiver<BridgeEvent>) {
         info!("Starting Webhook Forwarder");
 
         // Spawn batch flusher task
@@ -169,7 +165,7 @@ impl WebhookForwarder {
     }
 
     /// Handle incoming message event
-    /// 
+    ///
     /// **Validates: Requirements 5.1, 5.2, 5.8**
     async fn handle_incoming_message(
         &self,
@@ -223,7 +219,7 @@ impl WebhookForwarder {
     }
 
     /// Batch flusher loop - sends batched messages after window expires
-    /// 
+    ///
     /// **Validates: Requirements 5.8**
     async fn batch_flusher_loop(&self) {
         let batch_window = Duration::from_millis(self.config.batch_window_ms);
@@ -251,7 +247,7 @@ impl WebhookForwarder {
     }
 
     /// Flush batched messages for an account
-    /// 
+    ///
     /// **Validates: Requirements 5.1, 5.2, 5.8**
     async fn flush_batch(
         &self,
@@ -298,7 +294,8 @@ impl WebhookForwarder {
         };
 
         // Send webhook with retry logic
-        self.send_webhook_with_retry(&webhook_config, payload).await?;
+        self.send_webhook_with_retry(&webhook_config, payload)
+            .await?;
 
         Ok(())
     }
@@ -308,15 +305,16 @@ impl WebhookForwarder {
         &self,
         account_id: &str,
     ) -> Result<WebhookConfig, Box<dyn std::error::Error + Send + Sync>> {
-        let config: Option<(String, String, String, String, bool, Option<String>)> = sqlx::query_as(
-            "SELECT id, account_id, webhook_url, secret_key, enabled, retry_config 
+        let config: Option<(String, String, String, String, bool, Option<String>)> =
+            sqlx::query_as(
+                "SELECT id, account_id, webhook_url, secret_key, enabled, retry_config 
              FROM wa_webhooks 
              WHERE account_id = ? AND enabled = 1 
-             LIMIT 1"
-        )
-        .bind(account_id)
-        .fetch_optional(&self.pool)
-        .await?;
+             LIMIT 1",
+            )
+            .bind(account_id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         if let Some((id, account_id, webhook_url, secret_key, enabled, retry_config)) = config {
             Ok(WebhookConfig {
@@ -333,7 +331,7 @@ impl WebhookForwarder {
     }
 
     /// Send webhook with retry logic
-    /// 
+    ///
     /// **Validates: Requirements 5.3, 5.4, 5.5, 5.6**
     async fn send_webhook_with_retry(
         &self,
@@ -350,7 +348,10 @@ impl WebhookForwarder {
         let max_attempts = retry_config.max_retries + 1; // Initial attempt + retries
 
         loop {
-            match self.send_webhook_attempt(webhook_config, &payload, attempt).await {
+            match self
+                .send_webhook_attempt(webhook_config, &payload, attempt)
+                .await
+            {
                 Ok(response_status) => {
                     info!(
                         webhook_id = %webhook_config.id,
@@ -408,7 +409,10 @@ impl WebhookForwarder {
 
                     // Calculate exponential backoff delay (Requirement 5.5)
                     let delay_seconds = self.config.initial_retry_delay_seconds as f64
-                        * self.config.retry_backoff_multiplier.powi((attempt - 1) as i32);
+                        * self
+                            .config
+                            .retry_backoff_multiplier
+                            .powi((attempt - 1) as i32);
 
                     warn!(
                         webhook_id = %webhook_config.id,
@@ -426,7 +430,7 @@ impl WebhookForwarder {
     }
 
     /// Send single webhook attempt
-    /// 
+    ///
     /// **Validates: Requirements 5.2, 5.3, 5.4**
     async fn send_webhook_attempt(
         &self,
@@ -470,7 +474,7 @@ impl WebhookForwarder {
     }
 
     /// Generate HMAC-SHA256 signature for webhook authentication
-    /// 
+    ///
     /// **Validates: Requirements 5.3**
     fn generate_hmac_signature(&self, payload: &str, secret_key: &str) -> String {
         use hmac::{Hmac, Mac};
@@ -488,7 +492,7 @@ impl WebhookForwarder {
     }
 
     /// Log webhook delivery to database
-    /// 
+    ///
     /// **Validates: Requirements 5.6**
     async fn log_webhook_delivery(
         &self,
@@ -537,8 +541,8 @@ mod tests {
         use hmac::{Hmac, Mac};
         type HmacSha256 = Hmac<Sha256>;
 
-        let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-            .expect("HMAC can take key of any size");
+        let mut mac =
+            HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
         mac.update(payload.as_bytes());
 
         let result = mac.finalize();
@@ -566,8 +570,15 @@ mod tests {
         let signature = generate_test_signature(payload, secret);
 
         // Signature should be a 64-character hex string (SHA256 = 32 bytes = 64 hex chars)
-        assert_eq!(signature.len(), 64, "HMAC-SHA256 signature should be 64 hex characters");
-        assert!(signature.chars().all(|c| c.is_ascii_hexdigit()), "Signature should only contain hex digits");
+        assert_eq!(
+            signature.len(),
+            64,
+            "HMAC-SHA256 signature should be 64 hex characters"
+        );
+        assert!(
+            signature.chars().all(|c| c.is_ascii_hexdigit()),
+            "Signature should only contain hex digits"
+        );
     }
 
     /// Test signature generation is deterministic
@@ -580,8 +591,11 @@ mod tests {
         // Same input should produce same signature
         let signature1 = generate_test_signature(payload, secret);
         let signature2 = generate_test_signature(payload, secret);
-        
-        assert_eq!(signature1, signature2, "Same payload and secret should produce identical signatures");
+
+        assert_eq!(
+            signature1, signature2,
+            "Same payload and secret should produce identical signatures"
+        );
     }
 
     /// Test signature generation with different secrets produces different signatures
@@ -594,8 +608,11 @@ mod tests {
 
         let signature1 = generate_test_signature(payload, secret1);
         let signature2 = generate_test_signature(payload, secret2);
-        
-        assert_ne!(signature1, signature2, "Different secrets should produce different signatures");
+
+        assert_ne!(
+            signature1, signature2,
+            "Different secrets should produce different signatures"
+        );
     }
 
     /// Test signature generation with different payloads produces different signatures
@@ -608,8 +625,11 @@ mod tests {
 
         let signature1 = generate_test_signature(payload1, secret);
         let signature2 = generate_test_signature(payload2, secret);
-        
-        assert_ne!(signature1, signature2, "Different payloads should produce different signatures");
+
+        assert_ne!(
+            signature1, signature2,
+            "Different payloads should produce different signatures"
+        );
     }
 
     /// Test signature generation with empty payload
@@ -620,8 +640,12 @@ mod tests {
         let secret = "test_secret_key";
 
         let signature = generate_test_signature(payload, secret);
-        
-        assert_eq!(signature.len(), 64, "Empty payload should still produce valid 64-char signature");
+
+        assert_eq!(
+            signature.len(),
+            64,
+            "Empty payload should still produce valid 64-char signature"
+        );
         assert!(signature.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
@@ -633,8 +657,12 @@ mod tests {
         let secret = "test_secret_key";
 
         let signature = generate_test_signature(payload, secret);
-        
-        assert_eq!(signature.len(), 64, "Payload with special characters should produce valid signature");
+
+        assert_eq!(
+            signature.len(),
+            64,
+            "Payload with special characters should produce valid signature"
+        );
         assert!(signature.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
@@ -647,8 +675,12 @@ mod tests {
         let secret = "test_secret_key";
 
         let signature = generate_test_signature(&payload, secret);
-        
-        assert_eq!(signature.len(), 64, "Long payload should produce valid 64-char signature");
+
+        assert_eq!(
+            signature.len(),
+            64,
+            "Long payload should produce valid 64-char signature"
+        );
         assert!(signature.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
@@ -660,8 +692,12 @@ mod tests {
         let long_secret = "x".repeat(1000);
 
         let signature = generate_test_signature(payload, &long_secret);
-        
-        assert_eq!(signature.len(), 64, "Long secret should produce valid 64-char signature");
+
+        assert_eq!(
+            signature.len(),
+            64,
+            "Long secret should produce valid 64-char signature"
+        );
         assert!(signature.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
@@ -678,7 +714,7 @@ mod tests {
 
         let signature = generate_test_signature(payload, secret);
         let is_valid = verify_test_signature(payload, secret, &signature);
-        
+
         assert!(is_valid, "Valid signature should verify successfully");
     }
 
@@ -691,7 +727,7 @@ mod tests {
         let invalid_signature = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
         let is_valid = verify_test_signature(payload, secret, invalid_signature);
-        
+
         assert!(!is_valid, "Invalid signature should fail verification");
     }
 
@@ -705,8 +741,11 @@ mod tests {
 
         let signature = generate_test_signature(original_payload, secret);
         let is_valid = verify_test_signature(tampered_payload, secret, &signature);
-        
-        assert!(!is_valid, "Signature should fail verification when payload is tampered");
+
+        assert!(
+            !is_valid,
+            "Signature should fail verification when payload is tampered"
+        );
     }
 
     /// Test signature verification with wrong secret
@@ -719,8 +758,11 @@ mod tests {
 
         let signature = generate_test_signature(payload, correct_secret);
         let is_valid = verify_test_signature(payload, wrong_secret, &signature);
-        
-        assert!(!is_valid, "Signature should fail verification with wrong secret");
+
+        assert!(
+            !is_valid,
+            "Signature should fail verification with wrong secret"
+        );
     }
 
     /// Test signature verification with malformed signature (wrong length)
@@ -732,8 +774,11 @@ mod tests {
         let malformed_signature = "abc123"; // Too short
 
         let is_valid = verify_test_signature(payload, secret, malformed_signature);
-        
-        assert!(!is_valid, "Malformed signature (wrong length) should fail verification");
+
+        assert!(
+            !is_valid,
+            "Malformed signature (wrong length) should fail verification"
+        );
     }
 
     /// Test signature verification with non-hex characters
@@ -745,8 +790,11 @@ mod tests {
         let non_hex_signature = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz";
 
         let is_valid = verify_test_signature(payload, secret, non_hex_signature);
-        
-        assert!(!is_valid, "Signature with non-hex characters should fail verification");
+
+        assert!(
+            !is_valid,
+            "Signature with non-hex characters should fail verification"
+        );
     }
 
     /// Test signature verification with empty signature
@@ -758,7 +806,7 @@ mod tests {
         let empty_signature = "";
 
         let is_valid = verify_test_signature(payload, secret, empty_signature);
-        
+
         assert!(!is_valid, "Empty signature should fail verification");
     }
 
@@ -771,10 +819,10 @@ mod tests {
 
         let signature = generate_test_signature(payload, secret);
         let uppercase_signature = signature.to_uppercase();
-        
+
         // Our implementation uses lowercase hex, so uppercase should fail
         let is_valid = verify_test_signature(payload, secret, &uppercase_signature);
-        
+
         assert!(!is_valid, "Signature verification should be case-sensitive");
     }
 
@@ -788,10 +836,10 @@ mod tests {
     fn test_invalid_signature_handling_missing() {
         let payload = r#"{"messages":[{"sender":"1234567890","message":"test"}]}"#;
         let secret = "test_secret_key";
-        
+
         // Simulate missing signature by using empty string
         let is_valid = verify_test_signature(payload, secret, "");
-        
+
         assert!(!is_valid, "Missing signature should be treated as invalid");
     }
 
@@ -804,11 +852,14 @@ mod tests {
 
         let signature = generate_test_signature(payload, secret);
         let signature_with_whitespace = format!("  {}  ", signature);
-        
+
         // Signature with whitespace should fail (no trimming)
         let is_valid = verify_test_signature(payload, secret, &signature_with_whitespace);
-        
-        assert!(!is_valid, "Signature with whitespace should fail verification");
+
+        assert!(
+            !is_valid,
+            "Signature with whitespace should fail verification"
+        );
     }
 
     /// Test handling of signature with prefix
@@ -820,10 +871,10 @@ mod tests {
 
         let signature = generate_test_signature(payload, secret);
         let signature_with_prefix = format!("sha256={}", signature);
-        
+
         // Signature with prefix should fail
         let is_valid = verify_test_signature(payload, secret, &signature_with_prefix);
-        
+
         assert!(!is_valid, "Signature with prefix should fail verification");
     }
 
@@ -836,9 +887,9 @@ mod tests {
 
         let signature = generate_test_signature(payload, secret);
         let truncated_signature = &signature[..32]; // Only first half
-        
+
         let is_valid = verify_test_signature(payload, secret, truncated_signature);
-        
+
         assert!(!is_valid, "Truncated signature should fail verification");
     }
 

@@ -1,8 +1,8 @@
 /**
  * Blast Engine - Anti-Ban Message Processing Engine
- * 
+ *
  * **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8**
- * 
+ *
  * This module implements the core message sending engine with anti-ban features:
  * - Worker pool with configurable size (default 10 workers)
  * - Batch processing: fetch 5 messages per worker iteration
@@ -13,7 +13,6 @@
  * - Round-robin account distribution
  * - Message order randomization within batch
  */
-
 use crate::bridge::BridgeClient;
 use crate::media_handler::MediaHandler;
 use crate::queue_manager::QueueManager;
@@ -96,7 +95,11 @@ impl AccountRateLimit {
     /// Get UTC midnight timestamp for today
     fn get_today_midnight() -> i64 {
         let now = chrono::Utc::now();
-        now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp()
+        now.date_naive()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp()
     }
 
     /// Check if rate limit allows sending
@@ -187,7 +190,7 @@ impl BlastEngine {
     }
 
     /// Start the blast engine with worker pool
-    /// 
+    ///
     /// **Validates: Requirements 14.1, 14.2, 14.6**
     pub async fn start(&self) {
         info!(
@@ -213,7 +216,10 @@ impl BlastEngine {
             handles.push(handle);
         }
 
-        info!("Blast Engine started with {} workers", self.config.worker_count);
+        info!(
+            "Blast Engine started with {} workers",
+            self.config.worker_count
+        );
 
         // Wait for all workers to complete (or until shutdown)
         for handle in handles {
@@ -240,7 +246,7 @@ impl BlastEngine {
     }
 
     /// Worker loop - continuously fetch and process message batches
-    /// 
+    ///
     /// **Validates: Requirements 14.1, 14.2, 14.3, 14.6**
     async fn worker_loop(&self, worker_id: usize) {
         info!("Worker {} started", worker_id);
@@ -261,6 +267,12 @@ impl BlastEngine {
                 health.insert(worker_id, true);
             }
 
+            if worker_id == 0 {
+                if let Err(e) = self.queue_manager.process_retry_queue().await {
+                    error!("Worker {} failed to process retry queue: {}", worker_id, e);
+                }
+            }
+
             // Fetch batch from queue (try high priority first, then normal, then low)
             let batch = self.fetch_batch_with_priority(worker_id).await;
 
@@ -270,7 +282,11 @@ impl BlastEngine {
                 continue;
             }
 
-            debug!("Worker {} fetched batch of {} messages", worker_id, batch.len());
+            debug!(
+                "Worker {} fetched batch of {} messages",
+                worker_id,
+                batch.len()
+            );
 
             // Process batch
             if let Err(e) = self.process_batch(worker_id, batch).await {
@@ -289,38 +305,56 @@ impl BlastEngine {
     }
 
     /// Fetch batch with priority ordering
-    /// 
+    ///
     /// **Validates: Requirements 14.2**
-    async fn fetch_batch_with_priority(&self, worker_id: usize) -> Vec<crate::redis_manager::QueueMessage> {
+    async fn fetch_batch_with_priority(
+        &self,
+        worker_id: usize,
+    ) -> Vec<crate::redis_manager::QueueMessage> {
         // Try high priority first
-        if let Ok(batch) = self.queue_manager
+        if let Ok(batch) = self
+            .queue_manager
             .dequeue_batch_any(Priority::High, self.config.batch_size)
             .await
         {
             if !batch.is_empty() {
-                debug!("Worker {} fetched {} high priority messages", worker_id, batch.len());
+                debug!(
+                    "Worker {} fetched {} high priority messages",
+                    worker_id,
+                    batch.len()
+                );
                 return batch;
             }
         }
 
         // Try normal priority
-        if let Ok(batch) = self.queue_manager
+        if let Ok(batch) = self
+            .queue_manager
             .dequeue_batch_any(Priority::Normal, self.config.batch_size)
             .await
         {
             if !batch.is_empty() {
-                debug!("Worker {} fetched {} normal priority messages", worker_id, batch.len());
+                debug!(
+                    "Worker {} fetched {} normal priority messages",
+                    worker_id,
+                    batch.len()
+                );
                 return batch;
             }
         }
 
         // Try low priority
-        if let Ok(batch) = self.queue_manager
+        if let Ok(batch) = self
+            .queue_manager
             .dequeue_batch_any(Priority::Low, self.config.batch_size)
             .await
         {
             if !batch.is_empty() {
-                debug!("Worker {} fetched {} low priority messages", worker_id, batch.len());
+                debug!(
+                    "Worker {} fetched {} low priority messages",
+                    worker_id,
+                    batch.len()
+                );
                 return batch;
             }
         }
@@ -329,7 +363,7 @@ impl BlastEngine {
     }
 
     /// Process a batch of messages
-    /// 
+    ///
     /// **Validates: Requirements 3.8, 14.3**
     async fn process_batch(
         &self,
@@ -343,7 +377,11 @@ impl BlastEngine {
         let mut rng = rand::rngs::StdRng::from_entropy();
         batch.shuffle(&mut rng);
 
-        debug!("Worker {} processing randomized batch of {} messages", worker_id, batch.len());
+        debug!(
+            "Worker {} processing randomized batch of {} messages",
+            worker_id,
+            batch.len()
+        );
 
         // Process messages sequentially to avoid Send issues
         for message in batch {
@@ -356,7 +394,7 @@ impl BlastEngine {
     }
 
     /// Process a single message with anti-ban features
-    /// 
+    ///
     /// **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 4.1, 4.2, 4.3, 4.4, 4.5, 7.5, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 14.4**
     async fn process_single_message(
         &self,
@@ -365,6 +403,20 @@ impl BlastEngine {
         let account_id = message.account_id.clone();
         let recipient_id = message.recipient_id.clone();
         let campaign_id = message.campaign_id.clone();
+
+        let campaign_status: Option<String> =
+            sqlx::query_scalar("SELECT status FROM wa_campaigns WHERE id = ?")
+                .bind(&campaign_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if matches!(campaign_status.as_deref(), Some("paused")) {
+            info!(
+                "Skipping queued message {} because campaign {} is paused",
+                message.message_id, campaign_id
+            );
+            return Ok(());
+        }
 
         // Get or create semaphore for account (limit concurrent sends per account)
         let semaphore = {
@@ -387,20 +439,25 @@ impl BlastEngine {
         // Fetch recipient variables from database for spintax processing (Requirement 4.4)
         let recipient_variables = self.fetch_recipient_variables(&recipient_id).await?;
 
+        let message_template = self.resolve_message_template(&message).await;
+
         // Process message template with spintax (Requirements 4.1, 4.2, 4.3, 4.4, 4.5)
-        let processed_message = self.process_message_template(
-            &message.message_text,
-            &recipient_variables,
-        ).await?;
+        let processed_message = self
+            .process_message_template(&message_template, &recipient_variables)
+            .await?;
 
         // Handle media if present (Requirement 7.5)
         let media_data = if let Some(media_url) = &message.media_url {
             match self.download_and_process_media(media_url).await {
                 Ok(data) => Some(data),
                 Err(e) => {
-                    error!("Failed to process media for message {}: {}", message.message_id, e);
+                    error!(
+                        "Failed to process media for message {}: {}",
+                        message.message_id, e
+                    );
                     // Mark recipient as failed with media error
-                    self.mark_recipient_failed(&recipient_id, "media_error").await?;
+                    self.mark_recipient_failed(&recipient_id, "media_error")
+                        .await?;
                     return Err(format!("Media processing failed: {}", e).into());
                 }
             }
@@ -412,11 +469,9 @@ impl BlastEngine {
         self.simulate_typing(&account_id, &message.phone).await?;
 
         // Compose and send message (text + media + caption)
-        let send_result = self.send_composed_message(
-            &message,
-            &processed_message,
-            media_data.as_ref(),
-        ).await;
+        let send_result = self
+            .send_composed_message(&message, &processed_message, media_data.as_ref())
+            .await;
 
         // Record send in rate limiter
         self.record_send(&account_id).await;
@@ -443,32 +498,53 @@ impl BlastEngine {
                 }
 
                 // Check if campaign is completed and update status
-                if let Err(e) = self.check_and_update_campaign_completion(&campaign_id).await {
+                if let Err(e) = self
+                    .check_and_update_campaign_completion(&campaign_id)
+                    .await
+                {
                     error!("Failed to check campaign completion: {}", e);
                 }
             }
             Err(e) => {
+                let error_message = e.to_string();
                 error!(
                     "Failed to send message {} to {}: {}",
-                    message.message_id, message.phone, e
+                    message.message_id, message.phone, error_message
                 );
 
+                if let Err(update_err) = self
+                    .update_recipient_attempt_error(&recipient_id, &error_message)
+                    .await
+                {
+                    error!(
+                        "Failed to update recipient {} attempt error: {}",
+                        recipient_id, update_err
+                    );
+                }
+
                 // Retry logic (Requirement 2.5, 2.6)
-                let requeued = self.queue_manager
+                let requeued = self
+                    .queue_manager
                     .requeue_with_retry(message.clone(), Priority::Normal)
                     .await?;
 
                 if !requeued {
                     // Max retries exceeded, mark as failed
-                    if let Err(e) = self.mark_recipient_failed(&recipient_id, "max_retries_exceeded").await {
+                    if let Err(e) = self
+                        .mark_recipient_failed(&recipient_id, &error_message)
+                        .await
+                    {
                         error!("Failed to mark recipient {} as failed: {}", recipient_id, e);
                     }
-                    if let Err(e) = self.log_dispatch_failure(&message, &e.to_string()).await {
+                    if let Err(e) = self.log_dispatch_failure(&message, &error_message).await {
                         error!("Failed to log dispatch failure: {}", e);
                     }
 
                     // Check if campaign is completed
-                    if let Err(e) = self.check_and_update_campaign_completion(&campaign_id).await {
+                    if let Err(e) = self
+                        .check_and_update_campaign_completion(&campaign_id)
+                        .await
+                    {
                         error!("Failed to check campaign completion: {}", e);
                     }
                 }
@@ -478,8 +554,39 @@ impl BlastEngine {
         Ok(())
     }
 
+    async fn resolve_message_template(
+        &self,
+        message: &crate::redis_manager::QueueMessage,
+    ) -> String {
+        if !message.message_text.trim().is_empty() || message.campaign_id == "api_send" {
+            return message.message_text.clone();
+        }
+
+        let config: Option<(Option<String>,)> =
+            sqlx::query_as("SELECT config FROM wa_campaigns WHERE id = ?")
+                .bind(&message.campaign_id)
+                .fetch_optional(&self.pool)
+                .await
+                .ok()
+                .flatten();
+
+        config
+            .and_then(|(raw,)| raw)
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+            .and_then(|value| value.get("message_template").and_then(|v| v.as_str()).map(str::to_string))
+            .filter(|template| !template.trim().is_empty())
+            .unwrap_or_else(|| {
+                warn!(
+                    campaign_id = %message.campaign_id,
+                    recipient_id = %message.recipient_id,
+                    "Queued WA message has empty template and campaign config has no message_template"
+                );
+                "Halo, ini pesan dari Tridjaya.".to_string()
+            })
+    }
+
     /// Enforce rate limits for account
-    /// 
+    ///
     /// **Validates: Requirements 3.3, 3.6, 3.7**
     async fn enforce_rate_limits(
         &self,
@@ -488,8 +595,10 @@ impl BlastEngine {
         loop {
             let can_send = {
                 let mut limits = self.rate_limits.write().await;
-                let limit = limits.entry(account_id.to_string()).or_insert_with(AccountRateLimit::new);
-                
+                let limit = limits
+                    .entry(account_id.to_string())
+                    .or_insert_with(AccountRateLimit::new);
+
                 if limit.can_send(self.config.rate_limit_per_minute, self.config.daily_limit) {
                     true
                 } else {
@@ -502,14 +611,18 @@ impl BlastEngine {
                         return Err(format!(
                             "Account {} reached daily limit of {} messages",
                             account_id, self.config.daily_limit
-                        ).into());
+                        )
+                        .into());
                     }
-                    
+
                     // Minute rate limit exceeded, need to wait
                     let wait_time = limit.time_until_reset();
                     debug!(
                         "Account {} rate limited, waiting {:?} (sent {}/{})",
-                        account_id, wait_time, limit.minute_count, self.config.rate_limit_per_minute
+                        account_id,
+                        wait_time,
+                        limit.minute_count,
+                        self.config.rate_limit_per_minute
                     );
                     false
                 }
@@ -522,9 +635,12 @@ impl BlastEngine {
             // Wait for rate limit window to reset
             let wait_time = {
                 let limits = self.rate_limits.read().await;
-                limits.get(account_id).map(|l| l.time_until_reset()).unwrap_or(Duration::from_secs(60))
+                limits
+                    .get(account_id)
+                    .map(|l| l.time_until_reset())
+                    .unwrap_or(Duration::from_secs(60))
             };
-            
+
             sleep(wait_time).await;
         }
 
@@ -532,7 +648,7 @@ impl BlastEngine {
     }
 
     /// Apply smart delay between messages from same account
-    /// 
+    ///
     /// **Validates: Requirements 3.1**
     async fn apply_smart_delay(&self, account_id: &str) {
         let delay_needed = {
@@ -541,7 +657,7 @@ impl BlastEngine {
                 if let Some(last_send) = limit.last_send_at {
                     let elapsed = Instant::now().duration_since(last_send);
                     let min_delay = Duration::from_secs(self.config.min_delay_seconds);
-                    
+
                     if elapsed < min_delay {
                         Some(min_delay - elapsed)
                     } else {
@@ -556,7 +672,10 @@ impl BlastEngine {
         };
 
         if let Some(delay) = delay_needed {
-            debug!("Applying smart delay {:?} for account {}", delay, account_id);
+            debug!(
+                "Applying smart delay {:?} for account {}",
+                delay, account_id
+            );
             sleep(delay).await;
         }
 
@@ -564,12 +683,15 @@ impl BlastEngine {
         use rand::SeedableRng;
         let mut rng = rand::rngs::StdRng::from_entropy();
         let jitter = rng.gen_range(self.config.min_delay_seconds..=self.config.max_delay_seconds);
-        debug!("Applying random jitter {}s for account {}", jitter, account_id);
+        debug!(
+            "Applying random jitter {}s for account {}",
+            jitter, account_id
+        );
         sleep(Duration::from_secs(jitter)).await;
     }
 
     /// Simulate typing indicator before sending
-    /// 
+    ///
     /// **Validates: Requirements 3.2**
     async fn simulate_typing(
         &self,
@@ -578,9 +700,13 @@ impl BlastEngine {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         use rand::SeedableRng;
         let mut rng = rand::rngs::StdRng::from_entropy();
-        let typing_duration = rng.gen_range(self.config.min_typing_seconds..=self.config.max_typing_seconds);
-        
-        debug!("Simulating typing for {}s on account {}", typing_duration, account_id);
+        let typing_duration =
+            rng.gen_range(self.config.min_typing_seconds..=self.config.max_typing_seconds);
+
+        debug!(
+            "Simulating typing for {}s on account {}",
+            typing_duration, account_id
+        );
         sleep(Duration::from_secs(typing_duration)).await;
 
         // TODO: Send actual typing indicator via bridge when Baileys supports it
@@ -590,18 +716,17 @@ impl BlastEngine {
     }
 
     /// Fetch recipient variables from database for spintax processing
-    /// 
+    ///
     /// **Validates: Requirements 4.4**
     async fn fetch_recipient_variables(
         &self,
         recipient_id: &str,
     ) -> Result<HashMap<String, String>, Box<dyn std::error::Error + Send + Sync>> {
-        let recipient: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT variables_json FROM wa_recipients WHERE id = ?"
-        )
-        .bind(recipient_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let recipient: Option<(Option<String>,)> =
+            sqlx::query_as("SELECT variables_json FROM wa_recipients WHERE id = ?")
+                .bind(recipient_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         let variables = if let Some((Some(variables_json),)) = recipient {
             serde_json::from_str(&variables_json).unwrap_or_else(|e| {
@@ -616,7 +741,7 @@ impl BlastEngine {
     }
 
     /// Process message template with spintax
-    /// 
+    ///
     /// **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5**
     async fn process_message_template(
         &self,
@@ -624,7 +749,7 @@ impl BlastEngine {
         variables: &HashMap<String, String>,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let mut processor = self.spintax_processor.lock().await;
-        
+
         match processor.process(template, variables) {
             Ok(processed) => {
                 debug!("Processed spintax template: {} chars", processed.len());
@@ -640,27 +765,27 @@ impl BlastEngine {
     }
 
     /// Download and process media for campaign
-    /// 
+    ///
     /// **Validates: Requirements 7.5**
     async fn download_and_process_media(
         &self,
         media_url: &str,
     ) -> Result<crate::media_handler::MediaFile, Box<dyn std::error::Error + Send + Sync>> {
         let mut handler = self.media_handler.lock().await;
-        
+
         // Download and cache media (with cache check)
         let media = handler.download_and_cache_media(media_url, None).await?;
-        
+
         info!(
             "Processed media: type={:?}, size={} bytes",
             media.media_type, media.size_bytes
         );
-        
+
         Ok(media)
     }
 
     /// Compose and send message with text, media, and caption
-    /// 
+    ///
     /// **Validates: Requirements 7.5**
     async fn send_composed_message(
         &self,
@@ -686,9 +811,14 @@ impl BlastEngine {
             })
         };
 
-        let method = if media_data.is_some() { "send_media" } else { "send_message" };
+        let method = if media_data.is_some() {
+            "send_media"
+        } else {
+            "send_message"
+        };
 
-        let result = self.bridge_client
+        let result = self
+            .bridge_client
             .send_request(&message.account_id, method.to_string(), params)
             .await?;
 
@@ -697,7 +827,7 @@ impl BlastEngine {
     }
 
     /// Mark recipient as sent in database
-    /// 
+    ///
     /// **Validates: Requirements 10.1**
     async fn mark_recipient_sent(
         &self,
@@ -706,7 +836,7 @@ impl BlastEngine {
         sqlx::query(
             "UPDATE wa_recipients 
              SET status = 'sent', last_attempt_at = CURRENT_TIMESTAMP 
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(recipient_id)
         .execute(&self.pool)
@@ -717,7 +847,7 @@ impl BlastEngine {
     }
 
     /// Mark recipient as failed in database
-    /// 
+    ///
     /// **Validates: Requirements 10.1**
     async fn mark_recipient_failed(
         &self,
@@ -726,19 +856,23 @@ impl BlastEngine {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         sqlx::query(
             "UPDATE wa_recipients 
-             SET status = 'failed', last_attempt_at = CURRENT_TIMESTAMP 
-             WHERE id = ?"
+             SET status = 'failed', last_attempt_at = CURRENT_TIMESTAMP, last_error = ?
+             WHERE id = ?",
         )
+        .bind(error_reason)
         .bind(recipient_id)
         .execute(&self.pool)
         .await?;
 
-        debug!("Marked recipient {} as failed: {}", recipient_id, error_reason);
+        debug!(
+            "Marked recipient {} as failed: {}",
+            recipient_id, error_reason
+        );
         Ok(())
     }
 
     /// Check if campaign is completed and update status
-    /// 
+    ///
     /// **Validates: Requirements 10.8**
     async fn check_and_update_campaign_completion(
         &self,
@@ -752,7 +886,7 @@ impl BlastEngine {
         // Check if all recipients are processed (sent, failed, or skipped)
         let pending_count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM wa_recipients 
-             WHERE campaign_id = ? AND status = 'pending'"
+             WHERE campaign_id = ? AND status = 'pending'",
         )
         .bind(campaign_id)
         .fetch_one(&self.pool)
@@ -763,7 +897,7 @@ impl BlastEngine {
             sqlx::query(
                 "UPDATE wa_campaigns 
                  SET status = 'completed' 
-                 WHERE id = ?"
+                 WHERE id = ?",
             )
             .bind(campaign_id)
             .execute(&self.pool)
@@ -771,6 +905,24 @@ impl BlastEngine {
 
             info!("Campaign {} marked as completed", campaign_id);
         }
+
+        Ok(())
+    }
+
+    async fn update_recipient_attempt_error(
+        &self,
+        recipient_id: &str,
+        error_reason: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        sqlx::query(
+            "UPDATE wa_recipients 
+             SET last_attempt_at = CURRENT_TIMESTAMP, last_error = ?
+             WHERE id = ?",
+        )
+        .bind(error_reason)
+        .bind(recipient_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
@@ -786,7 +938,8 @@ impl BlastEngine {
             "media_url": message.media_url,
         });
 
-        let result = self.bridge_client
+        let result = self
+            .bridge_client
             .send_request(&message.account_id, "send_message".to_string(), params)
             .await?;
 
@@ -797,12 +950,14 @@ impl BlastEngine {
     /// Record send in rate limiter
     async fn record_send(&self, account_id: &str) {
         let mut limits = self.rate_limits.write().await;
-        let limit = limits.entry(account_id.to_string()).or_insert_with(AccountRateLimit::new);
+        let limit = limits
+            .entry(account_id.to_string())
+            .or_insert_with(AccountRateLimit::new);
         limit.record_send();
     }
 
     /// Update account send counters in database
-    /// 
+    ///
     /// **Validates: Requirements 3.6, 3.7**
     async fn update_account_counters(
         &self,
@@ -818,7 +973,7 @@ impl BlastEngine {
                      THEN datetime('now') 
                      ELSE last_reset_at 
                  END
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(account_id)
         .execute(&self.pool)
@@ -836,7 +991,7 @@ impl BlastEngine {
         sqlx::query(
             "INSERT INTO wa_dispatch_logs 
              (id, campaign_id, recipient_id, phone, wa_account_id, status, message_id, created_at) 
-             VALUES (?, ?, ?, ?, ?, 'success', ?, CURRENT_TIMESTAMP)"
+             VALUES (?, ?, ?, ?, ?, 'success', ?, CURRENT_TIMESTAMP)",
         )
         .bind(&log_id)
         .bind(&message.campaign_id)
@@ -858,11 +1013,11 @@ impl BlastEngine {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let log_id = uuid::Uuid::new_v4().to_string();
         let meta = serde_json::json!({ "error": error }).to_string();
-        
+
         sqlx::query(
             "INSERT INTO wa_dispatch_logs 
              (id, campaign_id, recipient_id, phone, wa_account_id, status, meta, created_at) 
-             VALUES (?, ?, ?, ?, ?, 'failed', ?, CURRENT_TIMESTAMP)"
+             VALUES (?, ?, ?, ?, ?, 'failed', ?, CURRENT_TIMESTAMP)",
         )
         .bind(&log_id)
         .bind(&message.campaign_id)
@@ -884,7 +1039,7 @@ impl BlastEngine {
     }
 
     /// Get worker health status
-    /// 
+    ///
     /// **Validates: Requirements 14.6, 14.7**
     pub async fn get_worker_health(&self) -> HashMap<usize, bool> {
         let health = self.worker_health.read().await;
@@ -898,7 +1053,10 @@ impl BlastEngine {
     }
 
     /// Get rate limit status for account
-    pub async fn get_account_rate_limit_status(&self, account_id: &str) -> Option<(u32, u32, u32, u32)> {
+    pub async fn get_account_rate_limit_status(
+        &self,
+        account_id: &str,
+    ) -> Option<(u32, u32, u32, u32)> {
         let limits = self.rate_limits.read().await;
         limits.get(account_id).map(|limit| {
             (
@@ -918,13 +1076,13 @@ mod tests {
     #[test]
     fn test_account_rate_limit_minute_window() {
         let mut limit = AccountRateLimit::new();
-        
+
         // Should allow sends up to rate limit
         for _ in 0..20 {
             assert!(limit.can_send(20, 1000));
             limit.record_send();
         }
-        
+
         // Should block after rate limit
         assert!(!limit.can_send(20, 1000));
     }
@@ -932,10 +1090,10 @@ mod tests {
     #[test]
     fn test_account_rate_limit_daily_limit() {
         let mut limit = AccountRateLimit::new();
-        
+
         // Simulate reaching daily limit
         limit.daily_count = 1000;
-        
+
         // Should block even if minute window allows
         assert!(!limit.can_send(20, 1000));
     }
@@ -943,7 +1101,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = BlastEngineConfig::default();
-        
+
         assert_eq!(config.worker_count, 10);
         assert_eq!(config.batch_size, 5);
         assert_eq!(config.min_delay_seconds, 5);
@@ -960,19 +1118,19 @@ mod tests {
     #[tokio::test]
     async fn test_spintax_processing() {
         use crate::spintax::SpintaxProcessor;
-        
+
         let mut processor = SpintaxProcessor::new();
         let mut variables = HashMap::new();
         variables.insert("name".to_string(), "John".to_string());
         variables.insert("product".to_string(), "Laptop".to_string());
-        
+
         let template = "{Hello|Hi} {{name}}, check out our {amazing|great} {{product}}!";
         let result = processor.process(template, &variables).unwrap();
-        
+
         // Verify variables are replaced
         assert!(result.contains("John"));
         assert!(result.contains("Laptop"));
-        
+
         // Verify spintax options are selected
         assert!(result.starts_with("Hello") || result.starts_with("Hi"));
         assert!(result.contains("amazing") || result.contains("great"));
@@ -984,7 +1142,7 @@ mod tests {
     fn test_recipient_variables_parsing() {
         let variables_json = r#"{"name": "Alice", "city": "Jakarta", "discount": "20%"}"#;
         let variables: HashMap<String, String> = serde_json::from_str(variables_json).unwrap();
-        
+
         assert_eq!(variables.get("name").unwrap(), "Alice");
         assert_eq!(variables.get("city").unwrap(), "Jakarta");
         assert_eq!(variables.get("discount").unwrap(), "20%");
@@ -996,10 +1154,10 @@ mod tests {
     fn test_media_message_composition() {
         let message_text = "Check out this product!";
         let media_url = Some("https://example.com/image.jpg".to_string());
-        
+
         // Verify media URL is present
         assert!(media_url.is_some());
-        
+
         // Verify message text can be used as caption
         assert!(!message_text.is_empty());
     }
@@ -1013,7 +1171,7 @@ mod tests {
         let pending_recipients = 0;
         let sent_recipients = 85;
         let failed_recipients = 15;
-        
+
         // Campaign should be marked as completed when no pending recipients
         assert_eq!(pending_recipients, 0);
         assert_eq!(sent_recipients + failed_recipients, total_recipients);
@@ -1133,7 +1291,7 @@ mod integration_tests {
                 status TEXT NOT NULL DEFAULT 'draft',
                 created_by TEXT,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -1153,7 +1311,7 @@ mod integration_tests {
                 read_at DATETIME,
                 replied_at DATETIME,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -1171,7 +1329,7 @@ mod integration_tests {
                 message_id TEXT,
                 meta TEXT,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -1188,7 +1346,7 @@ mod integration_tests {
                 daily_send_count INTEGER NOT NULL DEFAULT 0,
                 last_reset_at DATETIME,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -1202,7 +1360,12 @@ mod integration_tests {
     async fn create_test_blast_engine(
         pool: SqlitePool,
         config: BlastEngineConfig,
-    ) -> (TestBlastEngine, QueueManager, RedisManager, Arc<MockBridgeClient>) {
+    ) -> (
+        TestBlastEngine,
+        QueueManager,
+        RedisManager,
+        Arc<MockBridgeClient>,
+    ) {
         // Create Redis manager (requires Redis server running)
         let redis = RedisManager::new("redis://127.0.0.1:6379")
             .await
@@ -1268,7 +1431,9 @@ mod integration_tests {
                 let mut semaphores = self.account_semaphores.write().await;
                 semaphores
                     .entry(account_id.clone())
-                    .or_insert_with(|| Arc::new(Semaphore::new(self.config.max_concurrent_per_account)))
+                    .or_insert_with(|| {
+                        Arc::new(Semaphore::new(self.config.max_concurrent_per_account))
+                    })
                     .clone()
             };
 
@@ -1284,24 +1449,26 @@ mod integration_tests {
             let recipient_variables = self.fetch_recipient_variables(&recipient_id).await?;
 
             // Process message template with spintax
-            let processed_message = self.process_message_template(
-                &message.message_text,
-                &recipient_variables,
-            ).await?;
+            let processed_message = self
+                .process_message_template(&message.message_text, &recipient_variables)
+                .await?;
 
             // Simulate typing
             self.simulate_typing(&account_id, &message.phone).await?;
 
             // Send via mock bridge
-            let send_result = self.mock_bridge.send_request(
-                &account_id,
-                "send_message".to_string(),
-                serde_json::json!({
-                    "phone": message.phone,
-                    "message": processed_message,
-                    "media_url": message.media_url,
-                }),
-            ).await;
+            let send_result = self
+                .mock_bridge
+                .send_request(
+                    &account_id,
+                    "send_message".to_string(),
+                    serde_json::json!({
+                        "phone": message.phone,
+                        "message": processed_message,
+                        "media_url": message.media_url,
+                    }),
+                )
+                .await;
 
             // Record send in rate limiter
             self.record_send(&account_id).await;
@@ -1314,17 +1481,21 @@ mod integration_tests {
                 Ok(_) => {
                     self.mark_recipient_sent(&recipient_id).await?;
                     self.log_dispatch_success(&message).await?;
-                    self.check_and_update_campaign_completion(&campaign_id).await?;
+                    self.check_and_update_campaign_completion(&campaign_id)
+                        .await?;
                 }
                 Err(e) => {
-                    let requeued = self.queue_manager
+                    let requeued = self
+                        .queue_manager
                         .requeue_with_retry(message.clone(), Priority::Normal)
                         .await?;
 
                     if !requeued {
-                        self.mark_recipient_failed(&recipient_id, "max_retries_exceeded").await?;
+                        self.mark_recipient_failed(&recipient_id, "max_retries_exceeded")
+                            .await?;
                         self.log_dispatch_failure(&message, &e.to_string()).await?;
-                        self.check_and_update_campaign_completion(&campaign_id).await?;
+                        self.check_and_update_campaign_completion(&campaign_id)
+                            .await?;
                     }
                 }
             }
@@ -1333,17 +1504,24 @@ mod integration_tests {
         }
 
         // Helper methods (copied from BlastEngine)
-        async fn enforce_rate_limits(&self, account_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn enforce_rate_limits(
+            &self,
+            account_id: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             loop {
                 let can_send = {
                     let mut limits = self.rate_limits.write().await;
-                    let limit = limits.entry(account_id.to_string()).or_insert_with(AccountRateLimit::new);
-                    
+                    let limit = limits
+                        .entry(account_id.to_string())
+                        .or_insert_with(AccountRateLimit::new);
+
                     if limit.can_send(self.config.rate_limit_per_minute, self.config.daily_limit) {
                         true
                     } else {
                         if limit.daily_count >= self.config.daily_limit {
-                            return Err(format!("Account {} reached daily limit", account_id).into());
+                            return Err(
+                                format!("Account {} reached daily limit", account_id).into()
+                            );
                         }
                         false
                     }
@@ -1355,9 +1533,12 @@ mod integration_tests {
 
                 let wait_time = {
                     let limits = self.rate_limits.read().await;
-                    limits.get(account_id).map(|l| l.time_until_reset()).unwrap_or(Duration::from_secs(60))
+                    limits
+                        .get(account_id)
+                        .map(|l| l.time_until_reset())
+                        .unwrap_or(Duration::from_secs(60))
                 };
-                
+
                 sleep(wait_time).await;
             }
             Ok(())
@@ -1370,7 +1551,7 @@ mod integration_tests {
                     if let Some(last_send) = limit.last_send_at {
                         let elapsed = tokio::time::Instant::now().duration_since(last_send);
                         let min_delay = Duration::from_secs(self.config.min_delay_seconds);
-                        
+
                         if elapsed < min_delay {
                             Some(min_delay - elapsed)
                         } else {
@@ -1390,25 +1571,33 @@ mod integration_tests {
 
             use rand::SeedableRng;
             let mut rng = rand::rngs::StdRng::from_entropy();
-            let jitter = rng.gen_range(self.config.min_delay_seconds..=self.config.max_delay_seconds);
+            let jitter =
+                rng.gen_range(self.config.min_delay_seconds..=self.config.max_delay_seconds);
             sleep(Duration::from_secs(jitter)).await;
         }
 
-        async fn simulate_typing(&self, _account_id: &str, _phone: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn simulate_typing(
+            &self,
+            _account_id: &str,
+            _phone: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             use rand::SeedableRng;
             let mut rng = rand::rngs::StdRng::from_entropy();
-            let typing_duration = rng.gen_range(self.config.min_typing_seconds..=self.config.max_typing_seconds);
+            let typing_duration =
+                rng.gen_range(self.config.min_typing_seconds..=self.config.max_typing_seconds);
             sleep(Duration::from_secs(typing_duration)).await;
             Ok(())
         }
 
-        async fn fetch_recipient_variables(&self, recipient_id: &str) -> Result<HashMap<String, String>, Box<dyn std::error::Error + Send + Sync>> {
-            let recipient: Option<(Option<String>,)> = sqlx::query_as(
-                "SELECT variables_json FROM wa_recipients WHERE id = ?"
-            )
-            .bind(recipient_id)
-            .fetch_optional(&self.pool)
-            .await?;
+        async fn fetch_recipient_variables(
+            &self,
+            recipient_id: &str,
+        ) -> Result<HashMap<String, String>, Box<dyn std::error::Error + Send + Sync>> {
+            let recipient: Option<(Option<String>,)> =
+                sqlx::query_as("SELECT variables_json FROM wa_recipients WHERE id = ?")
+                    .bind(recipient_id)
+                    .fetch_optional(&self.pool)
+                    .await?;
 
             let variables = if let Some((Some(variables_json),)) = recipient {
                 serde_json::from_str(&variables_json).unwrap_or_else(|_| HashMap::new())
@@ -1419,7 +1608,11 @@ mod integration_tests {
             Ok(variables)
         }
 
-        async fn process_message_template(&self, template: &str, variables: &HashMap<String, String>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        async fn process_message_template(
+            &self,
+            template: &str,
+            variables: &HashMap<String, String>,
+        ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
             let mut processor = self.spintax_processor.lock().await;
             match processor.process(template, variables) {
                 Ok(processed) => Ok(processed),
@@ -1429,16 +1622,21 @@ mod integration_tests {
 
         async fn record_send(&self, account_id: &str) {
             let mut limits = self.rate_limits.write().await;
-            let limit = limits.entry(account_id.to_string()).or_insert_with(AccountRateLimit::new);
+            let limit = limits
+                .entry(account_id.to_string())
+                .or_insert_with(AccountRateLimit::new);
             limit.record_send();
         }
 
-        async fn update_account_counters(&self, account_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn update_account_counters(
+            &self,
+            account_id: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             sqlx::query(
                 "UPDATE wa_accounts 
                  SET hourly_send_count = hourly_send_count + 1,
                      daily_send_count = daily_send_count + 1
-                 WHERE id = ?"
+                 WHERE id = ?",
             )
             .bind(account_id)
             .execute(&self.pool)
@@ -1446,11 +1644,14 @@ mod integration_tests {
             Ok(())
         }
 
-        async fn mark_recipient_sent(&self, recipient_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn mark_recipient_sent(
+            &self,
+            recipient_id: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             sqlx::query(
                 "UPDATE wa_recipients 
                  SET status = 'sent', last_attempt_at = CURRENT_TIMESTAMP 
-                 WHERE id = ?"
+                 WHERE id = ?",
             )
             .bind(recipient_id)
             .execute(&self.pool)
@@ -1458,11 +1659,15 @@ mod integration_tests {
             Ok(())
         }
 
-        async fn mark_recipient_failed(&self, recipient_id: &str, _error_reason: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn mark_recipient_failed(
+            &self,
+            recipient_id: &str,
+            _error_reason: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             sqlx::query(
                 "UPDATE wa_recipients 
                  SET status = 'failed', last_attempt_at = CURRENT_TIMESTAMP 
-                 WHERE id = ?"
+                 WHERE id = ?",
             )
             .bind(recipient_id)
             .execute(&self.pool)
@@ -1470,7 +1675,10 @@ mod integration_tests {
             Ok(())
         }
 
-        async fn log_dispatch_success(&self, message: &crate::redis_manager::QueueMessage) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn log_dispatch_success(
+            &self,
+            message: &crate::redis_manager::QueueMessage,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let log_id = uuid::Uuid::new_v4().to_string();
             sqlx::query(
                 "INSERT INTO wa_dispatch_logs 
@@ -1488,14 +1696,18 @@ mod integration_tests {
             Ok(())
         }
 
-        async fn log_dispatch_failure(&self, message: &crate::redis_manager::QueueMessage, error: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn log_dispatch_failure(
+            &self,
+            message: &crate::redis_manager::QueueMessage,
+            error: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let log_id = uuid::Uuid::new_v4().to_string();
             let meta = serde_json::json!({ "error": error }).to_string();
-            
+
             sqlx::query(
                 "INSERT INTO wa_dispatch_logs 
                  (id, campaign_id, recipient_id, phone, wa_account_id, status, meta, created_at) 
-                 VALUES (?, ?, ?, ?, ?, 'failed', ?, CURRENT_TIMESTAMP)"
+                 VALUES (?, ?, ?, ?, ?, 'failed', ?, CURRENT_TIMESTAMP)",
             )
             .bind(&log_id)
             .bind(&message.campaign_id)
@@ -1508,14 +1720,17 @@ mod integration_tests {
             Ok(())
         }
 
-        async fn check_and_update_campaign_completion(&self, campaign_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn check_and_update_campaign_completion(
+            &self,
+            campaign_id: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if campaign_id == "api_send" {
                 return Ok(());
             }
 
             let pending_count: (i64,) = sqlx::query_as(
                 "SELECT COUNT(*) FROM wa_recipients 
-                 WHERE campaign_id = ? AND status = 'pending'"
+                 WHERE campaign_id = ? AND status = 'pending'",
             )
             .bind(campaign_id)
             .fetch_one(&self.pool)
@@ -1525,7 +1740,7 @@ mod integration_tests {
                 sqlx::query(
                     "UPDATE wa_campaigns 
                      SET status = 'completed' 
-                     WHERE id = ?"
+                     WHERE id = ?",
                 )
                 .bind(campaign_id)
                 .execute(&self.pool)
@@ -1535,12 +1750,15 @@ mod integration_tests {
             Ok(())
         }
 
-        fn get_account_rate_limit_status(&self, account_id: &str) -> impl std::future::Future<Output = Option<(u32, u32, u32, u32)>> + Send {
+        fn get_account_rate_limit_status(
+            &self,
+            account_id: &str,
+        ) -> impl std::future::Future<Output = Option<(u32, u32, u32, u32)>> + Send {
             let rate_limits = self.rate_limits.clone();
             let account_id = account_id.to_string();
             let rate_limit_per_minute = self.config.rate_limit_per_minute;
             let daily_limit = self.config.daily_limit;
-            
+
             async move {
                 let limits = rate_limits.read().await;
                 limits.get(&account_id).map(|limit| {
@@ -1564,26 +1782,24 @@ mod integration_tests {
 
         // Create test campaign
         let campaign_id = uuid::Uuid::new_v4().to_string();
-        sqlx::query(
-            "INSERT INTO wa_campaigns (id, name, status) VALUES (?, ?, 'active')"
-        )
-        .bind(&campaign_id)
-        .bind("Test Campaign")
-        .execute(&pool)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO wa_campaigns (id, name, status) VALUES (?, ?, 'active')")
+            .bind(&campaign_id)
+            .bind("Test Campaign")
+            .execute(&pool)
+            .await
+            .unwrap();
 
         // Create test recipients
         let _recipient_ids: Vec<String> = (0..10)
             .map(|i| {
                 let recipient_id = uuid::Uuid::new_v4().to_string();
                 let phone = format!("+628123456789{:02}", i);
-                
+
                 tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current().block_on(async {
                         sqlx::query(
                             "INSERT INTO wa_recipients (id, campaign_id, phone, status) 
-                             VALUES (?, ?, ?, 'pending')"
+                             VALUES (?, ?, ?, 'pending')",
                         )
                         .bind(&recipient_id)
                         .bind(&campaign_id)
@@ -1593,7 +1809,7 @@ mod integration_tests {
                         .unwrap();
                     })
                 });
-                
+
                 recipient_id
             })
             .collect();
@@ -1602,7 +1818,7 @@ mod integration_tests {
         let account_id = "test_account_1";
         sqlx::query(
             "INSERT INTO wa_accounts (id, phone, name, status) 
-             VALUES (?, '+6281234567890', 'Test Account', 'connected')"
+             VALUES (?, '+6281234567890', 'Test Account', 'connected')",
         )
         .bind(account_id)
         .execute(&pool)
@@ -1622,10 +1838,8 @@ mod integration_tests {
             max_concurrent_per_account: 3,
         };
 
-        let (engine, queue_manager, mut redis, mock_bridge) = create_test_blast_engine(
-            pool.clone(),
-            config,
-        ).await;
+        let (engine, queue_manager, mut redis, mock_bridge) =
+            create_test_blast_engine(pool.clone(), config).await;
 
         // Enqueue campaign
         let enqueued = queue_manager
@@ -1640,7 +1854,7 @@ mod integration_tests {
                 .dequeue_batch(account_id, Priority::Normal, 5)
                 .await
                 .unwrap();
-            
+
             if !batch.is_empty() {
                 for message in batch {
                     engine.process_single_message(message).await.unwrap();
@@ -1649,11 +1863,15 @@ mod integration_tests {
         }
 
         // Verify all messages were sent
-        assert_eq!(mock_bridge.get_send_count(), 10, "Should send all 10 messages");
+        assert_eq!(
+            mock_bridge.get_send_count(),
+            10,
+            "Should send all 10 messages"
+        );
 
         // Verify recipients are marked as sent
         let sent_count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'sent'"
+            "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'sent'",
         )
         .bind(&campaign_id)
         .fetch_one(&pool)
@@ -1662,18 +1880,20 @@ mod integration_tests {
         assert_eq!(sent_count.0, 10, "All recipients should be marked as sent");
 
         // Verify campaign is marked as completed
-        let campaign_status: (String,) = sqlx::query_as(
-            "SELECT status FROM wa_campaigns WHERE id = ?"
-        )
-        .bind(&campaign_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert_eq!(campaign_status.0, "completed", "Campaign should be completed");
+        let campaign_status: (String,) =
+            sqlx::query_as("SELECT status FROM wa_campaigns WHERE id = ?")
+                .bind(&campaign_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            campaign_status.0, "completed",
+            "Campaign should be completed"
+        );
 
         // Verify dispatch logs
         let log_count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM wa_dispatch_logs WHERE campaign_id = ? AND status = 'success'"
+            "SELECT COUNT(*) FROM wa_dispatch_logs WHERE campaign_id = ? AND status = 'success'",
         )
         .bind(&campaign_id)
         .fetch_one(&pool)
@@ -1705,17 +1925,15 @@ mod integration_tests {
             max_concurrent_per_account: 1,
         };
 
-        let (engine, queue_manager, mut redis, mock_bridge) = create_test_blast_engine(
-            pool.clone(),
-            config.clone(),
-        ).await;
+        let (engine, queue_manager, mut redis, mock_bridge) =
+            create_test_blast_engine(pool.clone(), config.clone()).await;
 
         let account_id = "test_account_rate_limit";
-        
+
         // Create test account
         sqlx::query(
             "INSERT INTO wa_accounts (id, phone, name, status) 
-             VALUES (?, '+6281234567891', 'Rate Limit Test', 'connected')"
+             VALUES (?, '+6281234567891', 'Rate Limit Test', 'connected')",
         )
         .bind(account_id)
         .execute(&pool)
@@ -1738,33 +1956,41 @@ mod integration_tests {
 
         // Process first 5 messages (should succeed)
         let _start_time = tokio::time::Instant::now();
-        
+
         for _ in 0..5 {
             let batch = queue_manager
                 .dequeue_batch(account_id, Priority::Normal, 1)
                 .await
                 .unwrap();
-            
+
             if let Some(message) = batch.first() {
-                engine.process_single_message(message.clone()).await.unwrap();
+                engine
+                    .process_single_message(message.clone())
+                    .await
+                    .unwrap();
             }
         }
 
-        assert_eq!(mock_bridge.get_send_count(), 5, "Should send first 5 messages");
+        assert_eq!(
+            mock_bridge.get_send_count(),
+            5,
+            "Should send first 5 messages"
+        );
 
         // Try to process 6th message - should be rate limited
         let batch = queue_manager
             .dequeue_batch(account_id, Priority::Normal, 1)
             .await
             .unwrap();
-        
+
         if let Some(message) = batch.first() {
             // This should wait for rate limit window to reset
             let result = tokio::time::timeout(
                 Duration::from_secs(2),
-                engine.process_single_message(message.clone())
-            ).await;
-            
+                engine.process_single_message(message.clone()),
+            )
+            .await;
+
             // Should timeout because rate limit blocks
             assert!(result.is_err(), "Should timeout due to rate limiting");
         }
@@ -1772,7 +1998,7 @@ mod integration_tests {
         // Verify rate limit status
         let rate_status = engine.get_account_rate_limit_status(account_id).await;
         assert!(rate_status.is_some(), "Should have rate limit status");
-        
+
         let (minute_count, minute_limit, daily_count, _) = rate_status.unwrap();
         assert_eq!(minute_count, 5, "Should have 5 messages in current minute");
         assert_eq!(minute_limit, 5, "Minute limit should be 5");
@@ -1801,10 +2027,8 @@ mod integration_tests {
             max_concurrent_per_account: 3,
         };
 
-        let (engine, queue_manager, mut redis, mock_bridge) = create_test_blast_engine(
-            pool.clone(),
-            config,
-        ).await;
+        let (engine, queue_manager, mut redis, mock_bridge) =
+            create_test_blast_engine(pool.clone(), config).await;
 
         // Configure mock to fail initially
         mock_bridge.set_should_fail(true);
@@ -1816,7 +2040,7 @@ mod integration_tests {
         // Create test account
         sqlx::query(
             "INSERT INTO wa_accounts (id, phone, name, status) 
-             VALUES (?, '+6281234567892', 'Retry Test', 'connected')"
+             VALUES (?, '+6281234567892', 'Retry Test', 'connected')",
         )
         .bind(account_id)
         .execute(&pool)
@@ -1825,7 +2049,7 @@ mod integration_tests {
 
         // Create campaign and recipient
         sqlx::query(
-            "INSERT INTO wa_campaigns (id, name, status) VALUES (?, 'Retry Test', 'active')"
+            "INSERT INTO wa_campaigns (id, name, status) VALUES (?, 'Retry Test', 'active')",
         )
         .bind(&campaign_id)
         .execute(&pool)
@@ -1834,7 +2058,7 @@ mod integration_tests {
 
         sqlx::query(
             "INSERT INTO wa_recipients (id, campaign_id, phone, status) 
-             VALUES (?, ?, '+6281234567892', 'pending')"
+             VALUES (?, ?, '+6281234567892', 'pending')",
         )
         .bind(&recipient_id)
         .bind(&campaign_id)
@@ -1859,13 +2083,17 @@ mod integration_tests {
             .dequeue_batch(account_id, Priority::Normal, 1)
             .await
             .unwrap();
-        
+
         assert_eq!(batch.len(), 1, "Should have 1 message");
         let message = batch[0].clone();
-        
+
         let result = engine.process_single_message(message.clone()).await;
         assert!(result.is_err(), "First send should fail");
-        assert_eq!(mock_bridge.get_send_count(), 0, "Should not send on failure");
+        assert_eq!(
+            mock_bridge.get_send_count(),
+            0,
+            "Should not send on failure"
+        );
 
         // Process retry queue to move message back
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1878,7 +2106,7 @@ mod integration_tests {
             .dequeue_batch(account_id, Priority::Normal, 1)
             .await
             .unwrap();
-        
+
         if let Some(message) = batch.first() {
             assert_eq!(message.retry_count, 1, "Should have retry_count = 1");
             let result = engine.process_single_message(message.clone()).await;
@@ -1895,7 +2123,7 @@ mod integration_tests {
             .dequeue_batch(account_id, Priority::Normal, 1)
             .await
             .unwrap();
-        
+
         if let Some(message) = batch.first() {
             assert_eq!(message.retry_count, 2, "Should have retry_count = 2");
             let result = engine.process_single_message(message.clone()).await;
@@ -1904,14 +2132,16 @@ mod integration_tests {
         }
 
         // Verify recipient is marked as sent
-        let recipient_status: (String,) = sqlx::query_as(
-            "SELECT status FROM wa_recipients WHERE id = ?"
-        )
-        .bind(&recipient_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert_eq!(recipient_status.0, "sent", "Recipient should be marked as sent");
+        let recipient_status: (String,) =
+            sqlx::query_as("SELECT status FROM wa_recipients WHERE id = ?")
+                .bind(&recipient_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            recipient_status.0, "sent",
+            "Recipient should be marked as sent"
+        );
 
         // Cleanup
         redis.clear_account_queues(account_id).await.unwrap();
@@ -1925,10 +2155,8 @@ mod integration_tests {
         let pool = setup_test_db().await;
 
         let config = BlastEngineConfig::default();
-        let (engine, queue_manager, mut redis, mock_bridge) = create_test_blast_engine(
-            pool.clone(),
-            config,
-        ).await;
+        let (engine, queue_manager, mut redis, mock_bridge) =
+            create_test_blast_engine(pool.clone(), config).await;
 
         let account_id = "test_account_completion";
         let campaign_id = uuid::Uuid::new_v4().to_string();
@@ -1936,7 +2164,7 @@ mod integration_tests {
         // Create test account
         sqlx::query(
             "INSERT INTO wa_accounts (id, phone, name, status) 
-             VALUES (?, '+6281234567893', 'Completion Test', 'connected')"
+             VALUES (?, '+6281234567893', 'Completion Test', 'connected')",
         )
         .bind(account_id)
         .execute(&pool)
@@ -1945,7 +2173,7 @@ mod integration_tests {
 
         // Create campaign
         sqlx::query(
-            "INSERT INTO wa_campaigns (id, name, status) VALUES (?, 'Completion Test', 'active')"
+            "INSERT INTO wa_campaigns (id, name, status) VALUES (?, 'Completion Test', 'active')",
         )
         .bind(&campaign_id)
         .execute(&pool)
@@ -1957,7 +2185,7 @@ mod integration_tests {
             let recipient_id = uuid::Uuid::new_v4().to_string();
             sqlx::query(
                 "INSERT INTO wa_recipients (id, campaign_id, phone, status) 
-                 VALUES (?, ?, ?, 'pending')"
+                 VALUES (?, ?, ?, 'pending')",
             )
             .bind(&recipient_id)
             .bind(&campaign_id)
@@ -1968,13 +2196,12 @@ mod integration_tests {
         }
 
         // Verify campaign is not completed initially
-        let campaign_status: (String,) = sqlx::query_as(
-            "SELECT status FROM wa_campaigns WHERE id = ?"
-        )
-        .bind(&campaign_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let campaign_status: (String,) =
+            sqlx::query_as("SELECT status FROM wa_campaigns WHERE id = ?")
+                .bind(&campaign_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(campaign_status.0, "active", "Campaign should be active");
 
         // Enqueue and process all messages
@@ -1987,24 +2214,26 @@ mod integration_tests {
             .dequeue_batch(account_id, Priority::Normal, 5)
             .await
             .unwrap();
-        
+
         for message in batch {
             engine.process_single_message(message).await.unwrap();
         }
 
         // Verify campaign is now completed
-        let campaign_status: (String,) = sqlx::query_as(
-            "SELECT status FROM wa_campaigns WHERE id = ?"
-        )
-        .bind(&campaign_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert_eq!(campaign_status.0, "completed", "Campaign should be completed");
+        let campaign_status: (String,) =
+            sqlx::query_as("SELECT status FROM wa_campaigns WHERE id = ?")
+                .bind(&campaign_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            campaign_status.0, "completed",
+            "Campaign should be completed"
+        );
 
         // Verify all recipients are sent
         let sent_count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'sent'"
+            "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'sent'",
         )
         .bind(&campaign_id)
         .fetch_one(&pool)
@@ -2036,17 +2265,15 @@ mod integration_tests {
             max_concurrent_per_account: 1,
         };
 
-        let (engine, queue_manager, mut redis, mock_bridge) = create_test_blast_engine(
-            pool.clone(),
-            config,
-        ).await;
+        let (engine, queue_manager, mut redis, mock_bridge) =
+            create_test_blast_engine(pool.clone(), config).await;
 
         let account_id = "test_account_delay";
 
         // Create test account
         sqlx::query(
             "INSERT INTO wa_accounts (id, phone, name, status) 
-             VALUES (?, '+6281234567894', 'Delay Test', 'connected')"
+             VALUES (?, '+6281234567894', 'Delay Test', 'connected')",
         )
         .bind(account_id)
         .execute(&pool)
@@ -2069,15 +2296,18 @@ mod integration_tests {
 
         // Process messages and measure time
         let start_time = tokio::time::Instant::now();
-        
+
         for _ in 0..3 {
             let batch = queue_manager
                 .dequeue_batch(account_id, Priority::Normal, 1)
                 .await
                 .unwrap();
-            
+
             if let Some(message) = batch.first() {
-                engine.process_single_message(message.clone()).await.unwrap();
+                engine
+                    .process_single_message(message.clone())
+                    .await
+                    .unwrap();
             }
         }
 
@@ -2093,7 +2323,11 @@ mod integration_tests {
             elapsed
         );
 
-        assert_eq!(mock_bridge.get_send_count(), 3, "Should send all 3 messages");
+        assert_eq!(
+            mock_bridge.get_send_count(),
+            3,
+            "Should send all 3 messages"
+        );
 
         // Cleanup
         redis.clear_account_queues(account_id).await.unwrap();

@@ -119,7 +119,7 @@ fn generate_secret_key() -> String {
 /// Validate webhook URL format
 fn validate_webhook_url(url: &str) -> Result<(), AppError> {
     let url_trimmed = url.trim();
-    
+
     if url_trimmed.is_empty() {
         return Err(AppError::Validation {
             errors: vec!["Webhook URL tidak boleh kosong".to_string()],
@@ -132,7 +132,9 @@ fn validate_webhook_url(url: &str) -> Result<(), AppError> {
             // Only allow HTTP and HTTPS schemes
             if parsed.scheme() != "http" && parsed.scheme() != "https" {
                 return Err(AppError::Validation {
-                    errors: vec!["Webhook URL harus menggunakan protokol HTTP atau HTTPS".to_string()],
+                    errors: vec![
+                        "Webhook URL harus menggunakan protokol HTTP atau HTTPS".to_string()
+                    ],
                 });
             }
             Ok(())
@@ -230,16 +232,15 @@ pub async fn create_webhook(
     test_webhook_url(&payload.webhook_url).await?;
 
     // Verify account exists
-    let account_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM wa_accounts WHERE id = ?)"
-    )
-    .bind(&payload.account_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error checking account: {}", e);
-        AppError::Internal
-    })?;
+    let account_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wa_accounts WHERE id = ?)")
+            .bind(&payload.account_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking account: {}", e);
+                AppError::Internal
+            })?;
 
     if !account_exists {
         return Err(AppError::Validation {
@@ -252,9 +253,10 @@ pub async fn create_webhook(
     let secret_key = generate_secret_key();
 
     // Serialize retry config to JSON
-    let retry_config_json = payload.retry_config.as_ref().map(|config| {
-        serde_json::to_string(config).unwrap_or_default()
-    });
+    let retry_config_json = payload
+        .retry_config
+        .as_ref()
+        .map(|config| serde_json::to_string(config).unwrap_or_default());
 
     // Insert webhook config
     sqlx::query(
@@ -279,7 +281,10 @@ pub async fn create_webhook(
 
     state.audit("wa.webhook.created", Some(&webhook_id)).await;
 
-    Ok(json_ok("Webhook berhasil dibuat", json!({ "webhook": webhook })))
+    Ok(json_ok(
+        "Webhook berhasil dibuat",
+        json!({ "webhook": webhook }),
+    ))
 }
 
 /// GET /api/wa/webhooks - List webhooks with pagination
@@ -289,13 +294,19 @@ pub async fn list_webhooks(
     Query(query): Query<ListWebhooksQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_webhook_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     let limit = query.limit.min(100).max(1);
     let offset = (query.page.max(1) - 1) * limit;
 
     // Build query based on filters
-    let (webhooks, total): (Vec<WebhookResponse>, i64) = if let Some(account_id) = query.account_id {
+    let (webhooks, total): (Vec<WebhookResponse>, i64) = if let Some(account_id) = query.account_id
+    {
         let rows = sqlx::query_as::<_, (String, String, String, String, bool, Option<String>, String, Option<String>)>(
             "SELECT id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at
              FROM wa_webhooks
@@ -313,29 +324,43 @@ pub async fn list_webhooks(
             AppError::Internal
         })?;
 
-        let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM wa_webhooks WHERE account_id = ?"
-        )
-        .bind(&account_id)
-        .fetch_one(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error counting webhooks: {}", e);
-            AppError::Internal
-        })?;
+        let total: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM wa_webhooks WHERE account_id = ?")
+                .bind(&account_id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("DB error counting webhooks: {}", e);
+                    AppError::Internal
+                })?;
 
-        let webhooks = rows.into_iter().map(|(id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at)| {
-            WebhookResponse {
-                id,
-                account_id,
-                webhook_url,
-                secret_key_masked: mask_secret_key(&secret_key),
-                enabled,
-                retry_config: retry_config.and_then(|json| serde_json::from_str(&json).ok()),
-                created_at,
-                updated_at,
-            }
-        }).collect();
+        let webhooks = rows
+            .into_iter()
+            .map(
+                |(
+                    id,
+                    account_id,
+                    webhook_url,
+                    secret_key,
+                    enabled,
+                    retry_config,
+                    created_at,
+                    updated_at,
+                )| {
+                    WebhookResponse {
+                        id,
+                        account_id,
+                        webhook_url,
+                        secret_key_masked: mask_secret_key(&secret_key),
+                        enabled,
+                        retry_config: retry_config
+                            .and_then(|json| serde_json::from_str(&json).ok()),
+                        created_at,
+                        updated_at,
+                    }
+                },
+            )
+            .collect();
 
         (webhooks, total)
     } else {
@@ -362,18 +387,33 @@ pub async fn list_webhooks(
                 AppError::Internal
             })?;
 
-        let webhooks = rows.into_iter().map(|(id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at)| {
-            WebhookResponse {
-                id,
-                account_id,
-                webhook_url,
-                secret_key_masked: mask_secret_key(&secret_key),
-                enabled,
-                retry_config: retry_config.and_then(|json| serde_json::from_str(&json).ok()),
-                created_at,
-                updated_at,
-            }
-        }).collect();
+        let webhooks = rows
+            .into_iter()
+            .map(
+                |(
+                    id,
+                    account_id,
+                    webhook_url,
+                    secret_key,
+                    enabled,
+                    retry_config,
+                    created_at,
+                    updated_at,
+                )| {
+                    WebhookResponse {
+                        id,
+                        account_id,
+                        webhook_url,
+                        secret_key_masked: mask_secret_key(&secret_key),
+                        enabled,
+                        retry_config: retry_config
+                            .and_then(|json| serde_json::from_str(&json).ok()),
+                        created_at,
+                        updated_at,
+                    }
+                },
+            )
+            .collect();
 
         (webhooks, total)
     };
@@ -390,7 +430,7 @@ pub async fn list_webhooks(
                 "total": total,
                 "total_pages": total_pages
             }
-        })
+        }),
     ))
 }
 
@@ -405,16 +445,14 @@ pub async fn update_webhook(
     let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
 
     // Verify webhook exists
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM wa_webhooks WHERE id = ?)"
-    )
-    .bind(&id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error checking webhook: {}", e);
-        AppError::Internal
-    })?;
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wa_webhooks WHERE id = ?)")
+        .bind(&id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking webhook: {}", e);
+            AppError::Internal
+        })?;
 
     if !exists {
         return Err(AppError::NotFound);
@@ -481,7 +519,10 @@ pub async fn update_webhook(
 
     state.audit("wa.webhook.updated", Some(&id)).await;
 
-    Ok(json_ok("Webhook berhasil diupdate", json!({ "webhook": webhook })))
+    Ok(json_ok(
+        "Webhook berhasil diupdate",
+        json!({ "webhook": webhook }),
+    ))
 }
 
 /// DELETE /api/wa/webhooks/{id} - Delete webhook config
@@ -509,17 +550,17 @@ pub async fn delete_webhook(
 
     state.audit("wa.webhook.deleted", Some(&id)).await;
 
-    Ok(json_ok("Webhook berhasil dihapus", json!({ "deleted": true })))
+    Ok(json_ok(
+        "Webhook berhasil dihapus",
+        json!({ "deleted": true }),
+    ))
 }
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
-async fn fetch_webhook_by_id(
-    state: &AppState,
-    id: &str,
-) -> Result<WebhookResponse, AppError> {
+async fn fetch_webhook_by_id(state: &AppState, id: &str) -> Result<WebhookResponse, AppError> {
     let row = sqlx::query_as::<_, (String, String, String, String, bool, Option<String>, String, Option<String>)>(
         "SELECT id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at
          FROM wa_webhooks
@@ -535,7 +576,8 @@ async fn fetch_webhook_by_id(
     })?
     .ok_or(AppError::NotFound)?;
 
-    let (id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at) = row;
+    let (id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at) =
+        row;
 
     Ok(WebhookResponse {
         id,

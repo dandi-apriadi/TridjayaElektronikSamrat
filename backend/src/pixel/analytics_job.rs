@@ -63,8 +63,8 @@ fn current_period(period_type: &str) -> (String, String) {
             (monday.to_string(), next_monday.to_string())
         }
         "monthly" => {
-            let first_of_month = NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
-                .unwrap_or(today);
+            let first_of_month =
+                NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap_or(today);
             // First day of next month.
             let (next_year, next_month) = if today.month() == 12 {
                 (today.year() + 1, 1u32)
@@ -294,7 +294,10 @@ mod tests {
             "2024-01-16 01:00:00", // after period
         ];
         let count = aggregate_total_events(&events, "2024-01-15", "2024-01-16");
-        assert_eq!(count, 2, "Only events at or after start and before end are counted");
+        assert_eq!(
+            count, 2,
+            "Only events at or after start and before end are counted"
+        );
     }
 
     #[test]
@@ -367,14 +370,7 @@ mod tests {
     #[test]
     fn conversion_rate_property_never_exceeds_one_for_valid_inputs() {
         // Property: conversion_rate <= 1.0 when conversions <= total_events.
-        let cases: Vec<(u64, u64)> = vec![
-            (1, 0),
-            (1, 1),
-            (10, 3),
-            (100, 100),
-            (1000, 999),
-            (5, 5),
-        ];
+        let cases: Vec<(u64, u64)> = vec![(1, 0), (1, 1), (10, 3), (100, 100), (1000, 999), (5, 5)];
         for (total, conv) in cases {
             let rate = compute_conversion_rate(total, conv);
             assert!(
@@ -482,9 +478,9 @@ mod tests {
             ) {
                 // Ensure conversions <= total_events for valid test cases
                 let conversions = conversions.min(total_events);
-                
+
                 let rate = compute_conversion_rate(total_events, conversions);
-                
+
                 // Property: conversion_rate must be in [0.0, 1.0]
                 prop_assert!(
                     rate >= 0.0 && rate <= 1.0,
@@ -500,10 +496,10 @@ mod tests {
             ) {
                 // Ensure conversions <= total_events for valid test cases
                 let conversions = conversions.min(total_events);
-                
+
                 let rate = compute_conversion_rate(total_events, conversions);
                 let expected = conversions as f64 / total_events as f64;
-                
+
                 // Property: conversion_rate = conversions / total_events when total_events > 0
                 prop_assert!(
                     (rate - expected).abs() < 1e-10,
@@ -517,7 +513,7 @@ mod tests {
                 conversions in 0u64..10000,
             ) {
                 let rate = compute_conversion_rate(0, conversions);
-                
+
                 // Property: conversion_rate = 0.0 when total_events = 0
                 prop_assert_eq!(
                     rate, 0.0,
@@ -562,7 +558,7 @@ mod tests {
             ) {
                 let total_events = events.len();
                 let unique_users = count_unique_users(&events);
-                
+
                 // Property: unique_users <= total_events
                 prop_assert!(
                     unique_users <= total_events,
@@ -580,10 +576,10 @@ mod tests {
                 let events: Vec<(Option<String>, Option<String>)> = (0..count)
                     .map(|i| (Some(format!("fbp_{}", i)), None))
                     .collect();
-                
+
                 let total_events = events.len();
                 let unique_users = count_unique_users(&events);
-                
+
                 // Property: when all events have distinct identifiers, unique_users = total_events
                 prop_assert_eq!(
                     unique_users, total_events,
@@ -599,9 +595,9 @@ mod tests {
                 let events: Vec<(Option<String>, Option<String>)> = (0..count)
                     .map(|_| (Some("same_fbp".to_string()), None))
                     .collect();
-                
+
                 let unique_users = count_unique_users(&events);
-                
+
                 // Property: when all events have the same identifier, unique_users = 1
                 prop_assert_eq!(
                     unique_users, 1,
@@ -617,9 +613,9 @@ mod tests {
                 let events: Vec<(Option<String>, Option<String>)> = (0..count)
                     .map(|_| (None, None))
                     .collect();
-                
+
                 let unique_users = count_unique_users(&events);
-                
+
                 // Property: when no events have identifiers, unique_users = 0
                 prop_assert_eq!(
                     unique_users, 0,
@@ -640,10 +636,10 @@ mod tests {
                     .into_iter()
                     .map(|user_id| (None, user_id))
                     .collect();
-                
+
                 let total_events = events.len();
                 let unique_users = count_unique_users(&events);
-                
+
                 // Property: unique_users <= total_events even when using user_id fallback
                 prop_assert!(
                     unique_users <= total_events,

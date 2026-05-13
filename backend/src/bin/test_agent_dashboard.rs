@@ -1,6 +1,6 @@
+use serde_json::json;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::Row;
-use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -44,11 +44,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let events: i64 = row.get("total_events");
         let conversions: i64 = row.get("conversions");
         let revenue: f64 = row.get("total_revenue");
-        
+
         println!("- Campaign: {}", name);
         println!("  Events: {}", events);
         println!("  Conversions: {}", conversions);
-        println!("  Revenue: {} {}", revenue, row.get::<String, _>("currency"));
+        println!(
+            "  Revenue: {} {}",
+            revenue,
+            row.get::<String, _>("currency")
+        );
     }
 
     Ok(())

@@ -110,11 +110,11 @@ pub struct CampaignConfigSchema {
 
 impl CampaignConfigSchema {
     /// Parse campaign configuration from JSON string
-    /// 
+    ///
     /// **Validates: Requirements 16.1, 16.2**
     pub fn parse(json_str: &str) -> Result<Self, ConfigError> {
-        let value: Value = serde_json::from_str(json_str)
-            .map_err(|e| ConfigError::InvalidJson(e.to_string()))?;
+        let value: Value =
+            serde_json::from_str(json_str).map_err(|e| ConfigError::InvalidJson(e.to_string()))?;
 
         Self::parse_value(&value)
     }
@@ -188,12 +188,13 @@ impl CampaignConfigSchema {
             if media_obj.is_null() {
                 None
             } else {
-                let media_obj = media_obj.as_object().ok_or_else(|| {
-                    ConfigError::InvalidFieldValue {
-                        field: "media_config".to_string(),
-                        reason: "must be an object or null".to_string(),
-                    }
-                })?;
+                let media_obj =
+                    media_obj
+                        .as_object()
+                        .ok_or_else(|| ConfigError::InvalidFieldValue {
+                            field: "media_config".to_string(),
+                            reason: "must be an object or null".to_string(),
+                        })?;
 
                 let media_type_str = media_obj
                     .get("media_type")
@@ -210,7 +211,10 @@ impl CampaignConfigSchema {
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
-                Some(MediaConfig { media_type, media_url })
+                Some(MediaConfig {
+                    media_type,
+                    media_url,
+                })
             }
         } else {
             None
@@ -225,7 +229,7 @@ impl CampaignConfigSchema {
     }
 
     /// Validate spintax syntax
-    /// 
+    ///
     /// **Validates: Requirements 16.2**
     fn validate_spintax_syntax(template: &str) -> Result<(), ConfigError> {
         let mut depth = 0;
@@ -277,16 +281,17 @@ impl CampaignConfigSchema {
         }
 
         if max_depth > 3 {
-            return Err(ConfigError::SpintaxSyntaxError(
-                format!("Nesting depth {} exceeds maximum of 3", max_depth),
-            ));
+            return Err(ConfigError::SpintaxSyntaxError(format!(
+                "Nesting depth {} exceeds maximum of 3",
+                max_depth
+            )));
         }
 
         Ok(())
     }
 
     /// Convert config to pretty-printed JSON
-    /// 
+    ///
     /// **Validates: Requirements 16.3, 16.8**
     pub fn to_pretty_json(&self) -> String {
         let value = json!({
@@ -423,8 +428,14 @@ mod tests {
         }"#;
 
         let config = CampaignConfigSchema::parse(json).unwrap();
-        assert_eq!(config.media_config.as_ref().unwrap().media_type, MediaTypeEnum::Image);
-        assert_eq!(config.media_config.as_ref().unwrap().media_url, Some("https://example.com/image.jpg".to_string()));
+        assert_eq!(
+            config.media_config.as_ref().unwrap().media_type,
+            MediaTypeEnum::Image
+        );
+        assert_eq!(
+            config.media_config.as_ref().unwrap().media_url,
+            Some("https://example.com/image.jpg".to_string())
+        );
     }
 
     #[test]
@@ -552,7 +563,7 @@ mod tests {
         let config = CampaignConfigSchema::parse(json).unwrap();
         let pretty = config.to_pretty_json();
         let reparsed = CampaignConfigSchema::parse(&pretty).unwrap();
-        
+
         assert_eq!(config, reparsed);
     }
 }

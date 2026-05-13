@@ -1,3 +1,4 @@
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use rand::Rng;
@@ -8,7 +9,6 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
-use base64::Engine;
 
 /// API token record from database
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -230,13 +230,11 @@ pub async fn validate_api_token(
                 .is_ok()
             {
                 // Backfill prefix for this legacy token
-                let _ = sqlx::query(
-                    "UPDATE wa_api_tokens SET token_prefix = ? WHERE id = ?",
-                )
-                .bind(&prefix)
-                .bind(&token_record.id)
-                .execute(pool)
-                .await;
+                let _ = sqlx::query("UPDATE wa_api_tokens SET token_prefix = ? WHERE id = ?")
+                    .bind(&prefix)
+                    .bind(&token_record.id)
+                    .execute(pool)
+                    .await;
 
                 matched_token = Some(token_record.clone());
                 break;
@@ -264,7 +262,11 @@ pub async fn validate_api_token(
     .execute(pool)
     .await?;
 
-    tracing::debug!("Validated API token {} for user {}", token_record.id, token_record.user_id);
+    tracing::debug!(
+        "Validated API token {} for user {}",
+        token_record.id,
+        token_record.user_id
+    );
 
     Ok(token_record)
 }
@@ -483,8 +485,8 @@ mod tests {
     }
 
     async fn setup_test_redis() -> ConnectionManager {
-        let client = redis::Client::open("redis://127.0.0.1:6379")
-            .expect("Failed to create Redis client");
+        let client =
+            redis::Client::open("redis://127.0.0.1:6379").expect("Failed to create Redis client");
         ConnectionManager::new(client)
             .await
             .expect("Failed to connect to Redis")
@@ -706,7 +708,10 @@ mod tests {
 
         // Should be able to make requests again
         let result = check_ip_rate_limit(&mut redis, "192.168.1.3").await;
-        assert!(result.is_ok(), "Request should be allowed after window reset");
+        assert!(
+            result.is_ok(),
+            "Request should be allowed after window reset"
+        );
     }
 
     #[tokio::test]
@@ -721,9 +726,10 @@ mod tests {
         let mut handles = vec![];
         for _ in 0..50 {
             let mut redis_clone = redis.clone();
-            let handle = tokio::spawn(async move {
-                check_ip_rate_limit(&mut redis_clone, "192.168.1.4").await
-            });
+            let handle =
+                tokio::spawn(
+                    async move { check_ip_rate_limit(&mut redis_clone, "192.168.1.4").await },
+                );
             handles.push(handle);
         }
 
@@ -735,7 +741,10 @@ mod tests {
             }
         }
 
-        assert_eq!(success_count, 50, "All 50 concurrent requests should succeed");
+        assert_eq!(
+            success_count, 50,
+            "All 50 concurrent requests should succeed"
+        );
 
         // Verify count is exactly 50
         let count: usize = redis

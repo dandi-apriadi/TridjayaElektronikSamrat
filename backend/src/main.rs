@@ -1,28 +1,34 @@
+use axum::body::Body;
+use axum::extract::DefaultBodyLimit;
+use axum::http::{HeaderValue, Method, Request, StatusCode};
+use axum::middleware::Next;
+use axum::response::Response;
+use dotenvy::dotenv;
+use sqlx::sqlite::SqlitePoolOptions;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use axum::http::{HeaderValue, Method, Request, StatusCode};
-use axum::extract::DefaultBodyLimit;
-use axum::middleware::Next;
-use axum::body::Body;
-use axum::response::Response;
-use tower_http::{cors::{AllowOrigin, CorsLayer}, trace::TraceLayer, services::ServeDir};
+use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
+    services::ServeDir,
+    trace::TraceLayer,
+};
 use tracing_subscriber::EnvFilter;
-use sqlx::sqlite::SqlitePoolOptions;
-use dotenvy::dotenv;
 
 use tridjaya_backend::{cleanup::CleanupManager, routes, seed::seed_database, state::AppState};
 
 fn is_production_runtime() -> bool {
-    matches!(std::env::var("APP_ENV").ok().as_deref(), Some("production") | Some("prod"))
-        || matches!(std::env::var("RUST_ENV").ok().as_deref(), Some("production") | Some("prod"))
+    matches!(
+        std::env::var("APP_ENV").ok().as_deref(),
+        Some("production") | Some("prod")
+    ) || matches!(
+        std::env::var("RUST_ENV").ok().as_deref(),
+        Some("production") | Some("prod")
+    )
 }
 
 /// Middleware to block public access to /uploads/private/ directory
-async fn block_private_uploads(
-    request: Request<Body>,
-    next: Next,
-) -> Result<Response, StatusCode> {
+async fn block_private_uploads(request: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let path = request.uri().path();
     if path.starts_with("/uploads/private/") || path.starts_with("/uploads/private") {
         return Err(StatusCode::FORBIDDEN);
@@ -30,19 +36,103 @@ async fn block_private_uploads(
     Ok(next.run(request).await)
 }
 
+async fn restore_wa_sessions(state: AppState) {
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    let accounts: Vec<(String, String)> = match sqlx::query_as(
+        "SELECT id, credentials
+         FROM wa_accounts
+         WHERE enabled = 1
+           AND credentials IS NOT NULL
+           AND length(credentials) > 0
+           AND (
+             status IN ('connected', 'connecting', 'reconnecting', 'qr_ready', 'error')
+             OR EXISTS (
+               SELECT 1 FROM wa_session_health
+               WHERE wa_session_health.session_id = wa_accounts.id
+                 AND wa_session_health.status = 'connected'
+             )
+           )",
+    )
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::error!("Failed to load WA sessions for restore: {}", e);
+            return;
+        }
+    };
+
+    if accounts.is_empty() {
+        tracing::info!("No WA sessions need startup restore");
+        return;
+    }
+
+    tracing::info!(count = accounts.len(), "Restoring WA sessions on startup");
+
+    for (session_id, credentials) in accounts {
+        if let Err(e) = sqlx::query(
+            "UPDATE wa_accounts SET status = 'reconnecting', last_error = NULL WHERE id = ?",
+        )
+        .bind(&session_id)
+        .execute(&state.pool)
+        .await
+        {
+            tracing::warn!(session_id = %session_id, error = %e, "Failed to mark WA session as reconnecting");
+        }
+
+        let restore_result = async {
+            state
+                .bridge_client
+                .spawn_process(session_id.clone())
+                .await?;
+
+            state
+                .bridge_client
+                .send_request(
+                    &session_id,
+                    "init_session".to_string(),
+                    serde_json::json!({
+                        "session_id": session_id,
+                        "credentials": credentials,
+                    }),
+                )
+                .await?;
+
+            Ok::<(), tridjaya_backend::bridge::BridgeError>(())
+        }
+        .await;
+
+        if let Err(e) = restore_result {
+            tracing::error!(session_id = %session_id, error = %e, "Failed to restore WA session");
+
+            let _ =
+                sqlx::query("UPDATE wa_accounts SET status = 'error', last_error = ? WHERE id = ?")
+                    .bind(format!("Startup restore failed: {}", e))
+                    .bind(&session_id)
+                    .execute(&state.pool)
+                    .await;
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    
+
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_target(false)
         .compact()
         .init();
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
+    let database_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
     tracing::info!("Connecting to database...");
-    
+
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
@@ -70,29 +160,44 @@ async fn main() {
     }
 
     // Diagnostic: Check if columns exist
-    match sqlx::query("PRAGMA table_info(agent_registrations)").fetch_all(&pool).await {
+    match sqlx::query("PRAGMA table_info(agent_registrations)")
+        .fetch_all(&pool)
+        .await
+    {
         Ok(rows) => {
-            let columns: Vec<String> = rows.iter().map(|r: &sqlx::sqlite::SqliteRow| {
-                use sqlx::Row;
-                r.get::<String, _>("name")
-            }).collect();
+            let columns: Vec<String> = rows
+                .iter()
+                .map(|r: &sqlx::sqlite::SqliteRow| {
+                    use sqlx::Row;
+                    r.get::<String, _>("name")
+                })
+                .collect();
             tracing::info!("Agent registration columns: {:?}", columns);
-            
+
             // Check count
-            let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM agent_registrations").fetch_one(&pool).await.unwrap_or((0,));
+            let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM agent_registrations")
+                .fetch_one(&pool)
+                .await
+                .unwrap_or((0,));
             tracing::info!("Total agent registrations in DB: {}", count_row.0);
-        },
+        }
         Err(e) => tracing::error!("Failed to check agent_registrations table: {}", e),
     }
 
-    match sqlx::query("PRAGMA table_info(products)").fetch_all(&pool).await {
+    match sqlx::query("PRAGMA table_info(products)")
+        .fetch_all(&pool)
+        .await
+    {
         Ok(rows) => {
-            let columns: Vec<String> = rows.iter().map(|r: &sqlx::sqlite::SqliteRow| {
-                use sqlx::Row;
-                r.get::<String, _>("name")
-            }).collect();
+            let columns: Vec<String> = rows
+                .iter()
+                .map(|r: &sqlx::sqlite::SqliteRow| {
+                    use sqlx::Row;
+                    r.get::<String, _>("name")
+                })
+                .collect();
             tracing::info!("Products table columns: {:?}", columns);
-        },
+        }
         Err(e) => tracing::error!("Failed to check products table: {}", e),
     }
 
@@ -128,28 +233,46 @@ async fn main() {
     }
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
-        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE, Method::OPTIONS])
-        .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ])
         .allow_credentials(true);
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     tracing::info!("Connecting to Redis at {}...", redis_url);
-    
-    let redis_client = redis::Client::open(redis_url.clone()).map_err(|e| {
-        tracing::error!("Invalid Redis URL {}: {}", redis_url, e);
-        e
-    }).expect("Invalid Redis URL");
+
+    let redis_client = redis::Client::open(redis_url.clone())
+        .map_err(|e| {
+            tracing::error!("Invalid Redis URL {}: {}", redis_url, e);
+            e
+        })
+        .expect("Invalid Redis URL");
 
     let redis_conn = redis::aio::ConnectionManager::new(redis_client)
         .await
         .map_err(|e| {
-            tracing::error!("CRITICAL: Failed to connect to Redis at {}. Is redis-server running? Error: {}", redis_url, e);
+            tracing::error!(
+                "CRITICAL: Failed to connect to Redis at {}. Is redis-server running? Error: {}",
+                redis_url,
+                e
+            );
             e
         })
         .expect("Failed to create Redis connection manager");
 
-    let cache = std::sync::Arc::new(tridjaya_backend::cache::CacheManager::new(redis_conn.clone()));
-    
+    let cache = std::sync::Arc::new(tridjaya_backend::cache::CacheManager::new(
+        redis_conn.clone(),
+    ));
+
     // Start adaptive sync in background
     let cache_clone = cache.clone();
     tokio::spawn(async move {
@@ -160,11 +283,15 @@ async fn main() {
     let queue_manager = match tridjaya_backend::redis_manager::RedisManager::new(&redis_url).await {
         Ok(redis_manager) => {
             tracing::info!("Redis manager initialized for queue management");
-            let qm = tridjaya_backend::queue_manager::QueueManager::new(redis_manager, pool.clone());
+            let qm =
+                tridjaya_backend::queue_manager::QueueManager::new(redis_manager, pool.clone());
             Some(std::sync::Arc::new(qm))
         }
         Err(e) => {
-            tracing::warn!("Failed to initialize queue manager: {}. API send endpoint will be unavailable.", e);
+            tracing::warn!(
+                "Failed to initialize queue manager: {}. API send endpoint will be unavailable.",
+                e
+            );
             None
         }
     };
@@ -173,6 +300,18 @@ async fn main() {
     let mut state = state.with_redis(redis_conn);
     if let Some(qm) = queue_manager {
         state = state.with_queue_manager(qm);
+    }
+
+    if let Some(qm) = state.queue_manager.clone() {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+            loop {
+                interval.tick().await;
+                if let Err(e) = qm.recover_running_campaigns().await {
+                    tracing::warn!("WA queue recovery failed: {}", e);
+                }
+            }
+        });
     }
 
     let cleanup_manager = Arc::new(CleanupManager::new(
@@ -205,6 +344,11 @@ async fn main() {
         tridjaya_backend::bridge_event_processor::run(bridge_pool, bridge_event_rx).await;
     });
 
+    let restore_state = state.clone();
+    tokio::spawn(async move {
+        restore_wa_sessions(restore_state).await;
+    });
+
     // Start BlastEngine (advanced, uses Redis + Baileys bridge)
     if let (Some(qm), Some(redis_arc)) = (&state.queue_manager, &state.redis) {
         let redis_conn = redis_arc.read().await.clone();
@@ -224,14 +368,6 @@ async fn main() {
         tracing::warn!("BlastEngine not started — Redis or queue manager not available");
     }
 
-    // Start WA Worker (Fonnte-based, polls DB directly for running campaigns)
-    // This is the reliable fallback that sends messages even without Redis/Baileys
-    let wa_worker_state = state.clone();
-    tokio::spawn(async move {
-        tridjaya_backend::wa_worker::start_wa_worker(wa_worker_state).await;
-    });
-    tracing::info!("WA Fonnte Worker started (polls every 10s)");
-
     // Start Meta CAPI retry job (every 60 seconds)
     let retry_state = state.clone();
     tokio::spawn(async move {
@@ -240,7 +376,9 @@ async fn main() {
             interval.tick().await;
             let start = std::time::Instant::now();
             tracing::info!("Meta CAPI retry job starting...");
-            if let Err(e) = tridjaya_backend::pixel::meta_capi::retry_failed_events(&retry_state.pool).await {
+            if let Err(e) =
+                tridjaya_backend::pixel::meta_capi::retry_failed_events(&retry_state.pool).await
+            {
                 tracing::error!("Meta CAPI retry job failed: {}", e);
             } else {
                 // Update last_retry_run timestamp
@@ -260,7 +398,9 @@ async fn main() {
             if let Err(e) = tridjaya_backend::pixel::analytics_job::run_analytics_aggregation(
                 &analytics_state.pool,
                 &analytics_state,
-            ).await {
+            )
+            .await
+            {
                 tracing::error!("Analytics aggregation job error: {}", e);
             }
         }

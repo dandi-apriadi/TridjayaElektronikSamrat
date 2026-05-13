@@ -1,15 +1,14 @@
 /**
  * WhatsApp Message Status Tracker
- * 
+ *
  * **Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.7**
- * 
+ *
  * This module implements message status tracking for delivery and read receipts:
  * - Handles status update events from Baileys bridge (sent, delivered, read)
  * - Updates wa_recipients table with timestamps
  * - Updates wa_dispatch_logs with status transitions for audit trail
  * - Tracks replied_at timestamp when recipient replies
  */
-
 use crate::bridge::BridgeEvent;
 use sqlx::SqlitePool;
 use tokio::sync::mpsc;
@@ -33,7 +32,7 @@ impl MessageStatus {
             MessageStatus::Read => "read",
         }
     }
-    
+
     /// Parse status from string
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
@@ -66,12 +65,9 @@ impl WaStatusTracker {
     }
 
     /// Start the status tracker event loop
-    /// 
+    ///
     /// **Validates: Requirements 10.1, 10.2, 10.3, 10.4**
-    pub async fn start(
-        &self,
-        mut event_rx: mpsc::UnboundedReceiver<BridgeEvent>,
-    ) {
+    pub async fn start(&self, mut event_rx: mpsc::UnboundedReceiver<BridgeEvent>) {
         info!("Starting WhatsApp Status Tracker");
 
         // Process incoming events
@@ -98,7 +94,7 @@ impl WaStatusTracker {
     }
 
     /// Handle message status update event
-    /// 
+    ///
     /// **Validates: Requirements 10.1, 10.2, 10.3, 10.4**
     async fn handle_status_update(
         &self,
@@ -153,7 +149,7 @@ impl WaStatusTracker {
     }
 
     /// Update recipient status in wa_recipients table
-    /// 
+    ///
     /// **Validates: Requirements 10.1, 10.2, 10.3**
     async fn update_recipient_status(
         &self,
@@ -163,7 +159,7 @@ impl WaStatusTracker {
         let recipient_id: Option<String> = sqlx::query_scalar(
             "SELECT recipient_id FROM wa_dispatch_logs 
              WHERE message_id = ? 
-             LIMIT 1"
+             LIMIT 1",
         )
         .bind(&update.message_id)
         .fetch_optional(&self.pool)
@@ -177,7 +173,7 @@ impl WaStatusTracker {
                     sqlx::query(
                         "UPDATE wa_recipients 
                          SET sent_at = CURRENT_TIMESTAMP, status = 'sent'
-                         WHERE id = ?"
+                         WHERE id = ?",
                     )
                     .bind(&recipient_id)
                     .execute(&self.pool)
@@ -193,7 +189,7 @@ impl WaStatusTracker {
                     sqlx::query(
                         "UPDATE wa_recipients 
                          SET delivered_at = CURRENT_TIMESTAMP
-                         WHERE id = ?"
+                         WHERE id = ?",
                     )
                     .bind(&recipient_id)
                     .execute(&self.pool)
@@ -209,7 +205,7 @@ impl WaStatusTracker {
                     sqlx::query(
                         "UPDATE wa_recipients 
                          SET read_at = CURRENT_TIMESTAMP
-                         WHERE id = ?"
+                         WHERE id = ?",
                     )
                     .bind(&recipient_id)
                     .execute(&self.pool)
@@ -232,7 +228,7 @@ impl WaStatusTracker {
     }
 
     /// Log status transition to wa_dispatch_logs for audit trail
-    /// 
+    ///
     /// **Validates: Requirements 10.4**
     async fn log_status_transition(
         &self,
@@ -243,7 +239,7 @@ impl WaStatusTracker {
             "SELECT campaign_id, recipient_id, phone 
              FROM wa_dispatch_logs 
              WHERE message_id = ? 
-             LIMIT 1"
+             LIMIT 1",
         )
         .bind(&update.message_id)
         .fetch_optional(&self.pool)
@@ -290,7 +286,7 @@ impl WaStatusTracker {
     }
 
     /// Handle possible reply from recipient
-    /// 
+    ///
     /// **Validates: Requirements 10.7**
     async fn handle_possible_reply(
         &self,
@@ -307,7 +303,7 @@ impl WaStatusTracker {
         let result = sqlx::query(
             "UPDATE wa_recipients 
              SET replied_at = CURRENT_TIMESTAMP
-             WHERE phone = ? AND replied_at IS NULL"
+             WHERE phone = ? AND replied_at IS NULL",
         )
         .bind(&sender)
         .execute(&self.pool)
@@ -339,7 +335,10 @@ mod tests {
     #[test]
     fn test_message_status_from_str() {
         assert_eq!(MessageStatus::from_str("sent"), Some(MessageStatus::Sent));
-        assert_eq!(MessageStatus::from_str("delivered"), Some(MessageStatus::Delivered));
+        assert_eq!(
+            MessageStatus::from_str("delivered"),
+            Some(MessageStatus::Delivered)
+        );
         assert_eq!(MessageStatus::from_str("read"), Some(MessageStatus::Read));
         assert_eq!(MessageStatus::from_str("invalid"), None);
     }

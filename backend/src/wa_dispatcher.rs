@@ -57,7 +57,12 @@ pub fn select_account_slot(sequence: usize, account_count: usize) -> usize {
     }
 }
 
-pub fn build_dispatch_plan(sequence: u64, account_sequence: usize, config: &WaDispatchConfig, account_count: usize) -> WaDispatchPlan {
+pub fn build_dispatch_plan(
+    sequence: u64,
+    account_sequence: usize,
+    config: &WaDispatchConfig,
+    account_count: usize,
+) -> WaDispatchPlan {
     WaDispatchPlan {
         delay: compute_message_delay(config.delay_ms, config.jitter_ms, sequence),
         account_slot: select_account_slot(account_sequence, account_count),

@@ -1,16 +1,15 @@
 /**
  * Integration Tests for Input Validation Module
- * 
+ *
  * **Validates: Requirements 15.1, 15.3, 15.7**
- * 
+ *
  * This test suite provides comprehensive integration testing for:
  * - Phone number validation (E.164 format) - Requirement 15.1
  * - Webhook URL validation (HTTP/HTTPS only) - Requirement 15.3
  * - SQL injection pattern detection - Requirement 15.7
  */
-
 use tridjaya_backend::validation::{
-    validate_phone_number, validate_webhook_url, detect_sql_injection, ValidationError,
+    detect_sql_injection, validate_phone_number, validate_webhook_url, ValidationError,
 };
 
 // ============================================================================
@@ -21,16 +20,16 @@ use tridjaya_backend::validation::{
 fn test_phone_validation_e164_format_valid() {
     // Valid E.164 formats from different countries
     let valid_numbers = vec![
-        "+6281234567890",    // Indonesia
-        "+12025551234",      // USA
-        "+442071234567",     // UK
-        "+919876543210",     // India
-        "+861234567890",     // China
-        "+33123456789",      // France
-        "+49301234567",      // Germany
-        "+81312345678",      // Japan
-        "+5511987654321",    // Brazil
-        "+27123456789",      // South Africa
+        "+6281234567890", // Indonesia
+        "+12025551234",   // USA
+        "+442071234567",  // UK
+        "+919876543210",  // India
+        "+861234567890",  // China
+        "+33123456789",   // France
+        "+49301234567",   // Germany
+        "+81312345678",   // Japan
+        "+5511987654321", // Brazil
+        "+27123456789",   // South Africa
     ];
 
     for number in valid_numbers {
@@ -45,11 +44,7 @@ fn test_phone_validation_e164_format_valid() {
 #[test]
 fn test_phone_validation_missing_plus_prefix() {
     // Missing + prefix should fail
-    let invalid_numbers = vec![
-        "6281234567890",
-        "12025551234",
-        "081234567890",
-    ];
+    let invalid_numbers = vec!["6281234567890", "12025551234", "081234567890"];
 
     for number in invalid_numbers {
         assert!(
@@ -63,10 +58,7 @@ fn test_phone_validation_missing_plus_prefix() {
 #[test]
 fn test_phone_validation_starts_with_zero() {
     // E.164 country codes cannot start with 0
-    let invalid_numbers = vec![
-        "+0812345678",
-        "+0123456789",
-    ];
+    let invalid_numbers = vec!["+0812345678", "+0123456789"];
 
     for number in invalid_numbers {
         assert!(
@@ -101,13 +93,13 @@ fn test_phone_validation_length_boundaries() {
     // Too short (less than minimum)
     assert!(validate_phone_number("+1").is_err());
     assert!(validate_phone_number("+12").is_err());
-    
+
     // Valid minimum length (country code + 1 digit)
     assert!(validate_phone_number("+123").is_ok());
-    
+
     // Valid maximum length (15 digits total)
     assert!(validate_phone_number("+123456789012345").is_ok());
-    
+
     // Too long (more than 15 digits)
     assert!(validate_phone_number("+1234567890123456").is_err());
     assert!(validate_phone_number("+12345678901234567890").is_err());
@@ -118,7 +110,7 @@ fn test_phone_validation_whitespace_handling() {
     // Leading/trailing whitespace should be trimmed
     assert!(validate_phone_number("  +6281234567890  ").is_ok());
     assert!(validate_phone_number("\t+6281234567890\n").is_ok());
-    
+
     // But internal whitespace should fail
     assert!(validate_phone_number("+62 81234567890").is_err());
 }
@@ -209,12 +201,8 @@ fn test_webhook_url_invalid_schemes() {
 
     for url in invalid_urls {
         let result = validate_webhook_url(url);
-        assert!(
-            result.is_err(),
-            "Expected {} to fail (invalid scheme)",
-            url
-        );
-        
+        assert!(result.is_err(), "Expected {} to fail (invalid scheme)", url);
+
         // Verify error message mentions scheme
         if let Err(ValidationError::InvalidUrl(msg)) = result {
             assert!(
@@ -268,7 +256,7 @@ fn test_webhook_url_edge_cases() {
     let long_path = "a".repeat(1000);
     let long_url = format!("https://example.com/{}", long_path);
     assert!(validate_webhook_url(&long_url).is_ok());
-    
+
     // URL with special characters in path
     assert!(validate_webhook_url("https://example.com/webhook/%20space").is_ok());
     assert!(validate_webhook_url("https://example.com/webhook/path%2Fencoded").is_ok());
@@ -320,7 +308,7 @@ fn test_sql_injection_classic_patterns() {
             "Expected '{}' to be detected as SQL injection",
             input
         );
-        
+
         // Verify error is SecurityViolation
         assert!(matches!(result, Err(ValidationError::SecurityViolation(_))));
     }
@@ -498,10 +486,10 @@ fn test_sql_injection_case_insensitive() {
 fn test_sql_injection_false_positives() {
     // These should NOT be flagged as SQL injection
     let safe_inputs = vec![
-        "I don't like this",  // Contains ' but not injection pattern
+        "I don't like this", // Contains ' but not injection pattern
         "It's a beautiful day",
-        "The price is $10 or $20",  // Contains "or" but not injection
-        "Email me at user@example.com",  // Contains @ but safe
+        "The price is $10 or $20",      // Contains "or" but not injection
+        "Email me at user@example.com", // Contains @ but safe
     ];
 
     for input in safe_inputs {
@@ -528,13 +516,19 @@ fn test_sql_injection_empty_input() {
 fn test_validation_error_types() {
     // Test that correct error types are returned
     let phone_err = validate_phone_number("invalid");
-    assert!(matches!(phone_err, Err(ValidationError::InvalidPhoneNumber)));
-    
+    assert!(matches!(
+        phone_err,
+        Err(ValidationError::InvalidPhoneNumber)
+    ));
+
     let url_err = validate_webhook_url("file:///etc/passwd");
     assert!(matches!(url_err, Err(ValidationError::InvalidUrl(_))));
-    
+
     let sql_err = detect_sql_injection("'; DROP TABLE users--");
-    assert!(matches!(sql_err, Err(ValidationError::SecurityViolation(_))));
+    assert!(matches!(
+        sql_err,
+        Err(ValidationError::SecurityViolation(_))
+    ));
 }
 
 #[test]
@@ -543,16 +537,16 @@ fn test_validation_combined_workflow() {
     let phone = "+6281234567890";
     let webhook = "https://example.com/webhook";
     let message = "Hello, this is a test message";
-    
+
     assert!(validate_phone_number(phone).is_ok());
     assert!(validate_webhook_url(webhook).is_ok());
     assert!(detect_sql_injection(message).is_ok());
-    
+
     // Now with malicious inputs
     let bad_phone = "'; DROP TABLE--";
     let bad_webhook = "javascript:alert(1)";
     let bad_message = "' OR '1'='1";
-    
+
     assert!(validate_phone_number(bad_phone).is_err());
     assert!(validate_webhook_url(bad_webhook).is_err());
     assert!(detect_sql_injection(bad_message).is_err());

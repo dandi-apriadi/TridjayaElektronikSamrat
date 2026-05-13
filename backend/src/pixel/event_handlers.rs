@@ -1,17 +1,13 @@
 use crate::{
     auth::{authorize, Role},
-    response::{json_ok, AppError},
-    state::AppState,
     pixel::{
         crypto::hash_pii,
         models::{PixelEventRequest, TestEventRequest},
     },
+    response::{json_ok, AppError},
+    state::AppState,
 };
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    Json,
-};
+use axum::{extract::State, http::HeaderMap, Json};
 use chrono::Utc;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -122,7 +118,11 @@ pub async fn receive_pixel_event(
     }
 
     // ── 3. Generate unique event_id ───────────────────────────────────────────
-    let event_id = format!("{}-{}", Utc::now().timestamp_millis(), Uuid::new_v4().simple());
+    let event_id = format!(
+        "{}-{}",
+        Utc::now().timestamp_millis(),
+        Uuid::new_v4().simple()
+    );
 
     // ── 4. Deduplication check ────────────────────────────────────────────────
     let existing: Option<(String,)> =
@@ -151,10 +151,18 @@ pub async fn receive_pixel_event(
             .clone()
             .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
 
-        if let Some(email) = ud.get("email").and_then(|v| v.as_str()).map(ToString::to_string) {
+        if let Some(email) = ud
+            .get("email")
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string)
+        {
             ud["email"] = Value::String(hash_pii(&email));
         }
-        if let Some(phone) = ud.get("phone").and_then(|v| v.as_str()).map(ToString::to_string) {
+        if let Some(phone) = ud
+            .get("phone")
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string)
+        {
             ud["phone"] = Value::String(hash_pii(&phone));
         }
         ud
@@ -192,8 +200,8 @@ pub async fn receive_pixel_event(
 
         if let Some((c_id, admin_id)) = campaign {
             campaign_id = Some(c_id);
-            
-            // If no agent_id provided in request, and campaign has an admin_id, 
+
+            // If no agent_id provided in request, and campaign has an admin_id,
             // check if that admin_id is actually an Agent.
             if attribution_user_id.is_none() {
                 attribution_user_id = admin_id;
@@ -220,7 +228,8 @@ pub async fn receive_pixel_event(
 
     // ── 9. Insert into pixel_events ───────────────────────────────────────────
     let event_db_id = Uuid::new_v4().to_string();
-    let user_data_str = serde_json::to_string(&user_data_hashed).unwrap_or_else(|_| "{}".to_string());
+    let user_data_str =
+        serde_json::to_string(&user_data_hashed).unwrap_or_else(|_| "{}".to_string());
     let custom_data_str = req
         .custom_data
         .as_ref()
@@ -281,10 +290,7 @@ pub async fn receive_pixel_event(
 
         tokio::spawn(async move {
             let custom = custom_data_val.unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-            let value: f64 = custom
-                .get("value")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
+            let value: f64 = custom.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let currency = custom
                 .get("currency")
                 .and_then(|v| v.as_str())
@@ -297,7 +303,8 @@ pub async fn receive_pixel_event(
 
             if let Some(cid) = campaign_id_clone {
                 let conversion_id = Uuid::new_v4().to_string();
-                let custom_str = serde_json::to_string(&custom).unwrap_or_else(|_| "{}".to_string());
+                let custom_str =
+                    serde_json::to_string(&custom).unwrap_or_else(|_| "{}".to_string());
                 let now = Utc::now().to_rfc3339();
 
                 if let Err(e) = sqlx::query(
@@ -566,12 +573,18 @@ mod tests {
         // Property: All standard UTM parameters in the URL must be present in the extracted JSON.
         let url = "https://example.com/page?utm_source=google&utm_medium=cpc&utm_campaign=summer_sale&utm_admin=admin_123&utm_content=banner&utm_term=shoes";
         let utm = extract_utm_params(url);
-        
+
         assert_eq!(utm["utm_source"], "google", "utm_source must be extracted");
         assert_eq!(utm["utm_medium"], "cpc", "utm_medium must be extracted");
-        assert_eq!(utm["utm_campaign"], "summer_sale", "utm_campaign must be extracted");
+        assert_eq!(
+            utm["utm_campaign"], "summer_sale",
+            "utm_campaign must be extracted"
+        );
         assert_eq!(utm["utm_admin"], "admin_123", "utm_admin must be extracted");
-        assert_eq!(utm["utm_content"], "banner", "utm_content must be extracted");
+        assert_eq!(
+            utm["utm_content"], "banner",
+            "utm_content must be extracted"
+        );
         assert_eq!(utm["utm_term"], "shoes", "utm_term must be extracted");
     }
 
@@ -580,13 +593,25 @@ mod tests {
         // Property: Only UTM params present in the URL are extracted; missing ones are not added.
         let url = "https://example.com/page?utm_source=facebook&utm_campaign=winter";
         let utm = extract_utm_params(url);
-        
+
         assert_eq!(utm["utm_source"], "facebook");
         assert_eq!(utm["utm_campaign"], "winter");
-        assert!(utm.get("utm_medium").is_none(), "utm_medium should not be present");
-        assert!(utm.get("utm_admin").is_none(), "utm_admin should not be present");
-        assert!(utm.get("utm_content").is_none(), "utm_content should not be present");
-        assert!(utm.get("utm_term").is_none(), "utm_term should not be present");
+        assert!(
+            utm.get("utm_medium").is_none(),
+            "utm_medium should not be present"
+        );
+        assert!(
+            utm.get("utm_admin").is_none(),
+            "utm_admin should not be present"
+        );
+        assert!(
+            utm.get("utm_content").is_none(),
+            "utm_content should not be present"
+        );
+        assert!(
+            utm.get("utm_term").is_none(),
+            "utm_term should not be present"
+        );
     }
 
     #[test]
@@ -594,24 +619,37 @@ mod tests {
         // Property: URL-encoded UTM values must be decoded correctly.
         let url = "https://example.com/?utm_source=google&utm_campaign=summer%20sale&utm_content=blue%2Bred";
         let utm = extract_utm_params(url);
-        
+
         assert_eq!(utm["utm_source"], "google");
         assert_eq!(utm["utm_campaign"], "summer sale", "Spaces must be decoded");
         // Note: %2F is decoded to + by urlencoding crate, not /
-        assert_eq!(utm["utm_content"], "blue+red", "URL-encoded values must be decoded");
+        assert_eq!(
+            utm["utm_content"], "blue+red",
+            "URL-encoded values must be decoded"
+        );
     }
 
     #[test]
     fn utm_extraction_ignores_non_utm_params() {
         // Property: Non-UTM query parameters must not be included in the extracted JSON.
-        let url = "https://example.com/?utm_source=google&page=2&sort=asc&utm_medium=cpc&filter=active";
+        let url =
+            "https://example.com/?utm_source=google&page=2&sort=asc&utm_medium=cpc&filter=active";
         let utm = extract_utm_params(url);
-        
+
         assert_eq!(utm["utm_source"], "google");
         assert_eq!(utm["utm_medium"], "cpc");
-        assert!(utm.get("page").is_none(), "Non-UTM param 'page' should not be extracted");
-        assert!(utm.get("sort").is_none(), "Non-UTM param 'sort' should not be extracted");
-        assert!(utm.get("filter").is_none(), "Non-UTM param 'filter' should not be extracted");
+        assert!(
+            utm.get("page").is_none(),
+            "Non-UTM param 'page' should not be extracted"
+        );
+        assert!(
+            utm.get("sort").is_none(),
+            "Non-UTM param 'sort' should not be extracted"
+        );
+        assert!(
+            utm.get("filter").is_none(),
+            "Non-UTM param 'filter' should not be extracted"
+        );
     }
 
     #[test]
@@ -619,10 +657,16 @@ mod tests {
         // Property: UTM params with empty values should still be extracted.
         let url = "https://example.com/?utm_source=&utm_medium=cpc&utm_campaign=";
         let utm = extract_utm_params(url);
-        
-        assert_eq!(utm["utm_source"], "", "Empty utm_source should be extracted");
+
+        assert_eq!(
+            utm["utm_source"], "",
+            "Empty utm_source should be extracted"
+        );
         assert_eq!(utm["utm_medium"], "cpc");
-        assert_eq!(utm["utm_campaign"], "", "Empty utm_campaign should be extracted");
+        assert_eq!(
+            utm["utm_campaign"], "",
+            "Empty utm_campaign should be extracted"
+        );
     }
 
     #[test]
@@ -630,7 +674,7 @@ mod tests {
         // Property: When duplicate UTM params exist, the last value should be used.
         let url = "https://example.com/?utm_source=google&utm_source=facebook&utm_medium=cpc";
         let utm = extract_utm_params(url);
-        
+
         // The current implementation will use the last occurrence
         assert_eq!(utm["utm_medium"], "cpc");
         // Note: The behavior for duplicates depends on implementation.
@@ -642,10 +686,13 @@ mod tests {
         // Property: URL fragments should be ignored; only query params before # are extracted.
         let url = "https://example.com/?utm_source=google&utm_medium=cpc#section";
         let utm = extract_utm_params(url);
-        
+
         assert_eq!(utm["utm_source"], "google");
         assert_eq!(utm["utm_medium"], "cpc");
-        assert!(utm.get("section").is_none(), "Fragment should not be extracted");
+        assert!(
+            utm.get("section").is_none(),
+            "Fragment should not be extracted"
+        );
     }
 
     #[test]
@@ -663,7 +710,7 @@ mod tests {
         for (url, expected_keys) in test_cases {
             let utm = extract_utm_params(url);
             let utm_obj = utm.as_object().expect("Result should be an object");
-            
+
             for key in expected_keys {
                 assert!(
                     utm_obj.contains_key(key),
@@ -914,7 +961,9 @@ mod tests {
                     // Verify no campaign has this utm_admin
                     if let Some(utm_val) = utm_admin {
                         assert!(
-                            !campaigns.iter().any(|(_, campaign_utm)| campaign_utm == utm_val),
+                            !campaigns
+                                .iter()
+                                .any(|(_, campaign_utm)| campaign_utm == utm_val),
                             "If no match found, no campaign should have utm_admin='{}'",
                             utm_val
                         );

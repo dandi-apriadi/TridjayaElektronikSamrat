@@ -183,7 +183,7 @@ async fn check_unique_constraint(
     let exists: bool = if let Some(id) = exclude_id {
         sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM wa_chatbot_rules 
-             WHERE account_id = ? AND keyword = ? AND match_mode = ? AND id != ?)"
+             WHERE account_id = ? AND keyword = ? AND match_mode = ? AND id != ?)",
         )
         .bind(account_id)
         .bind(keyword)
@@ -198,7 +198,7 @@ async fn check_unique_constraint(
     } else {
         sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM wa_chatbot_rules 
-             WHERE account_id = ? AND keyword = ? AND match_mode = ?)"
+             WHERE account_id = ? AND keyword = ? AND match_mode = ?)",
         )
         .bind(account_id)
         .bind(keyword)
@@ -249,16 +249,15 @@ pub async fn create_chatbot_rule(
     }
 
     // Verify account exists
-    let account_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM wa_accounts WHERE id = ?)"
-    )
-    .bind(&payload.account_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error checking account: {}", e);
-        AppError::Internal
-    })?;
+    let account_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wa_accounts WHERE id = ?)")
+            .bind(&payload.account_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking account: {}", e);
+                AppError::Internal
+            })?;
 
     if !account_exists {
         return Err(AppError::Validation {
@@ -305,7 +304,10 @@ pub async fn create_chatbot_rule(
 
     state.audit("wa.chatbot_rule.created", Some(&rule_id)).await;
 
-    Ok(json_ok("Chatbot rule berhasil dibuat", json!({ "rule": rule })))
+    Ok(json_ok(
+        "Chatbot rule berhasil dibuat",
+        json!({ "rule": rule }),
+    ))
 }
 
 /// GET /api/wa/chatbot-rules - List chatbot rules with filter by account_id
@@ -315,13 +317,19 @@ pub async fn list_chatbot_rules(
     Query(query): Query<ListChatbotRulesQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_chatbot_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     let limit = query.limit.min(100).max(1);
     let offset = (query.page.max(1) - 1) * limit;
 
     // Build query based on filters
-    let (rules, total): (Vec<ChatbotRuleResponse>, i64) = if let Some(account_id) = query.account_id {
+    let (rules, total): (Vec<ChatbotRuleResponse>, i64) = if let Some(account_id) = query.account_id
+    {
         let rows = sqlx::query_as::<_, (String, String, String, String, String, i32, i32, bool, String, Option<String>)>(
             "SELECT id, account_id, keyword, match_mode, reply_template, priority, cooldown_seconds, enabled, created_at, updated_at
              FROM wa_chatbot_rules
@@ -339,19 +347,30 @@ pub async fn list_chatbot_rules(
             AppError::Internal
         })?;
 
-        let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM wa_chatbot_rules WHERE account_id = ?"
-        )
-        .bind(&account_id)
-        .fetch_one(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error counting chatbot rules: {}", e);
-            AppError::Internal
-        })?;
+        let total: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM wa_chatbot_rules WHERE account_id = ?")
+                .bind(&account_id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("DB error counting chatbot rules: {}", e);
+                    AppError::Internal
+                })?;
 
         let mut rules = Vec::new();
-        for (id, account_id, keyword, match_mode, reply_template, priority, cooldown_seconds, enabled, created_at, updated_at) in rows {
+        for (
+            id,
+            account_id,
+            keyword,
+            match_mode,
+            reply_template,
+            priority,
+            cooldown_seconds,
+            enabled,
+            created_at,
+            updated_at,
+        ) in rows
+        {
             let statistics = fetch_rule_statistics(&state, &id).await.ok();
             rules.push(ChatbotRuleResponse {
                 id,
@@ -394,7 +413,19 @@ pub async fn list_chatbot_rules(
             })?;
 
         let mut rules = Vec::new();
-        for (id, account_id, keyword, match_mode, reply_template, priority, cooldown_seconds, enabled, created_at, updated_at) in rows {
+        for (
+            id,
+            account_id,
+            keyword,
+            match_mode,
+            reply_template,
+            priority,
+            cooldown_seconds,
+            enabled,
+            created_at,
+            updated_at,
+        ) in rows
+        {
             let statistics = fetch_rule_statistics(&state, &id).await.ok();
             rules.push(ChatbotRuleResponse {
                 id,
@@ -426,7 +457,7 @@ pub async fn list_chatbot_rules(
                 "total": total,
                 "total_pages": total_pages
             }
-        })
+        }),
     ))
 }
 
@@ -441,18 +472,18 @@ pub async fn update_chatbot_rule(
     let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
 
     // Verify rule exists and get current account_id
-    let current_rule: Option<(String, String, String)> = sqlx::query_as(
-        "SELECT account_id, keyword, match_mode FROM wa_chatbot_rules WHERE id = ?"
-    )
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error checking chatbot rule: {}", e);
-        AppError::Internal
-    })?;
+    let current_rule: Option<(String, String, String)> =
+        sqlx::query_as("SELECT account_id, keyword, match_mode FROM wa_chatbot_rules WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking chatbot rule: {}", e);
+                AppError::Internal
+            })?;
 
-    let (account_id, current_keyword, current_match_mode) = current_rule.ok_or(AppError::NotFound)?;
+    let (account_id, current_keyword, current_match_mode) =
+        current_rule.ok_or(AppError::NotFound)?;
 
     // Validate inputs if provided
     if let Some(ref keyword) = payload.keyword {
@@ -559,7 +590,10 @@ pub async fn update_chatbot_rule(
 
     state.audit("wa.chatbot_rule.updated", Some(&id)).await;
 
-    Ok(json_ok("Chatbot rule berhasil diupdate", json!({ "rule": rule })))
+    Ok(json_ok(
+        "Chatbot rule berhasil diupdate",
+        json!({ "rule": rule }),
+    ))
 }
 
 /// DELETE /api/wa/chatbot-rules/{id} - Delete chatbot rule
@@ -587,7 +621,10 @@ pub async fn delete_chatbot_rule(
 
     state.audit("wa.chatbot_rule.deleted", Some(&id)).await;
 
-    Ok(json_ok("Chatbot rule berhasil dihapus", json!({ "deleted": true })))
+    Ok(json_ok(
+        "Chatbot rule berhasil dihapus",
+        json!({ "deleted": true }),
+    ))
 }
 
 /// PATCH /api/wa/chatbot-rules/bulk - Bulk enable/disable rules
@@ -612,7 +649,12 @@ pub async fn bulk_update_chatbot_rules(
     }
 
     // Build placeholders for IN clause
-    let placeholders = payload.rule_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    let placeholders = payload
+        .rule_ids
+        .iter()
+        .map(|_| "?")
+        .collect::<Vec<_>>()
+        .join(", ");
     let query_str = format!(
         "UPDATE wa_chatbot_rules SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN ({})",
         placeholders
@@ -631,18 +673,19 @@ pub async fn bulk_update_chatbot_rules(
 
     let updated_count = result.rows_affected();
 
-    state.audit(
-        "wa.chatbot_rule.bulk_updated",
-        Some(&format!("count={}", updated_count)),
-    )
-    .await;
+    state
+        .audit(
+            "wa.chatbot_rule.bulk_updated",
+            Some(&format!("count={}", updated_count)),
+        )
+        .await;
 
     Ok(json_ok(
         "Chatbot rules berhasil diupdate",
         json!({
             "updated_count": updated_count,
             "enabled": payload.enabled
-        })
+        }),
     ))
 }
 
@@ -670,7 +713,18 @@ async fn fetch_chatbot_rule_by_id(
     })?
     .ok_or(AppError::NotFound)?;
 
-    let (id, account_id, keyword, match_mode, reply_template, priority, cooldown_seconds, enabled, created_at, updated_at) = row;
+    let (
+        id,
+        account_id,
+        keyword,
+        match_mode,
+        reply_template,
+        priority,
+        cooldown_seconds,
+        enabled,
+        created_at,
+        updated_at,
+    ) = row;
 
     let statistics = if include_statistics {
         fetch_rule_statistics(state, &id).await.ok()

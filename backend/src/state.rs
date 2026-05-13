@@ -1,10 +1,10 @@
 use crate::auth::{AccessSession, RefreshSession};
 use chrono::{DateTime, Utc};
-use std::{collections::HashMap, sync::Arc};
-use std::sync::atomic::AtomicBool;
-use tokio::sync::RwLock;
-use sqlx::SqlitePool;
 use redis::aio::ConnectionManager;
+use sqlx::SqlitePool;
+use std::sync::atomic::AtomicBool;
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -41,9 +41,15 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: SqlitePool, cache: Arc<crate::cache::CacheManager>) -> (Self, tokio::sync::mpsc::UnboundedReceiver<crate::bridge::BridgeEvent>) {
+    pub fn new(
+        pool: SqlitePool,
+        cache: Arc<crate::cache::CacheManager>,
+    ) -> (
+        Self,
+        tokio::sync::mpsc::UnboundedReceiver<crate::bridge::BridgeEvent>,
+    ) {
         let (bridge_client, event_rx) = crate::bridge::BridgeClient::new();
-        
+
         let state = Self {
             pool,
             access_sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -69,7 +75,10 @@ impl AppState {
         (state, event_rx)
     }
 
-    pub fn with_queue_manager(mut self, queue_manager: Arc<crate::queue_manager::QueueManager>) -> Self {
+    pub fn with_queue_manager(
+        mut self,
+        queue_manager: Arc<crate::queue_manager::QueueManager>,
+    ) -> Self {
         self.queue_manager = Some(queue_manager);
         self
     }
@@ -80,9 +89,9 @@ impl AppState {
     }
 
     /// Check IP-based rate limit using Redis (if available)
-    /// 
+    ///
     /// **Validates: Requirements 15.5**
-    /// 
+    ///
     /// Limit: 100 requests per minute per IP address
     pub async fn check_ip_rate_limit(&self, ip: &str) -> Result<(), crate::response::AppError> {
         if let Some(redis) = &self.redis {
@@ -121,11 +130,14 @@ impl AppState {
     }
 
     /// Check API token-based rate limit using Redis (if available)
-    /// 
+    ///
     /// **Validates: Requirements 9.8**
-    /// 
+    ///
     /// Limit: 100 requests per minute per API token
-    pub async fn check_api_rate_limit(&self, token_id: &str) -> Result<(), crate::response::AppError> {
+    pub async fn check_api_rate_limit(
+        &self,
+        token_id: &str,
+    ) -> Result<(), crate::response::AppError> {
         if let Some(redis) = &self.redis {
             let mut conn = redis.write().await;
             crate::api_tokens::check_token_rate_limit(&mut conn, token_id)

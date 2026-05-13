@@ -1,22 +1,19 @@
 /**
  * WA Gateway - Webhook Handlers
  */
-
 use axum::{
-    extract::{State, Path},
-    Json,
+    extract::{Path, State},
     response::IntoResponse,
+    Json,
 };
 
+use crate::response::{json_created, json_ok, AppError, ResponseBody};
 use crate::state::AppState;
-use crate::response::{json_ok, json_created, AppError, ResponseBody};
 
-use super::generate_id;
 use super::super::models::WebhookConfigRequest;
+use super::generate_id;
 
-pub async fn list_webhooks(
-    State(state): State<AppState>,
-) -> Result<ResponseBody, AppError> {
+pub async fn list_webhooks(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let webhooks: Vec<(String, String, String, Option<String>, Option<bool>, Option<String>, Option<i64>, Option<i64>, String)> = sqlx::query_as(
         "SELECT id, name, url, events, is_active, last_triggered_at, success_count, fail_count, created_at FROM wa_webhooks WHERE is_active = 1 ORDER BY created_at DESC"
     )
@@ -27,11 +24,16 @@ pub async fn list_webhooks(
         AppError::Internal
     })?;
 
-    let result: Vec<serde_json::Value> = webhooks.into_iter().map(|w| serde_json::json!({
-        "id": w.0, "name": w.1, "url": w.2, "events": w.3, "is_active": w.4,
-        "last_triggered_at": w.5, "success_count": w.6, "fail_count": w.7, "created_at": w.8
-    })).collect();
-    
+    let result: Vec<serde_json::Value> = webhooks
+        .into_iter()
+        .map(|w| {
+            serde_json::json!({
+                "id": w.0, "name": w.1, "url": w.2, "events": w.3, "is_active": w.4,
+                "last_triggered_at": w.5, "success_count": w.6, "fail_count": w.7, "created_at": w.8
+            })
+        })
+        .collect();
+
     Ok(json_ok("Webhooks retrieved", result))
 }
 
@@ -51,12 +53,15 @@ pub async fn get_webhook(
     })?;
 
     let w = webhook.ok_or(AppError::NotFound)?;
-    
-    Ok(json_ok("Webhook retrieved", serde_json::json!({
-        "id": w.0, "name": w.1, "url": w.2, "events": w.3, "headers": w.4,
-        "secret": w.5, "retry_count": w.6, "timeout_seconds": w.7, "is_active": w.8,
-        "last_triggered_at": w.9, "last_error": w.10, "success_count": w.11, "fail_count": w.12
-    })))
+
+    Ok(json_ok(
+        "Webhook retrieved",
+        serde_json::json!({
+            "id": w.0, "name": w.1, "url": w.2, "events": w.3, "headers": w.4,
+            "secret": w.5, "retry_count": w.6, "timeout_seconds": w.7, "is_active": w.8,
+            "last_triggered_at": w.9, "last_error": w.10, "success_count": w.11, "fail_count": w.12
+        }),
+    ))
 }
 
 pub async fn create_webhook(
@@ -65,7 +70,7 @@ pub async fn create_webhook(
 ) -> Result<ResponseBody, AppError> {
     let id = generate_id();
     let now = chrono::Utc::now().naive_utc();
-    
+
     sqlx::query(
         "INSERT INTO wa_webhooks (id, name, url, secret, events, headers, retry_count, timeout_seconds, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
@@ -85,8 +90,11 @@ pub async fn create_webhook(
         tracing::error!("Failed to create webhook: {}", e);
         AppError::Internal
     })?;
-    
-    Ok(json_created("Webhook created", serde_json::json!({"id": id})))
+
+    Ok(json_created(
+        "Webhook created",
+        serde_json::json!({"id": id}),
+    ))
 }
 
 pub async fn update_webhook(
@@ -112,7 +120,7 @@ pub async fn update_webhook(
         tracing::error!("Failed to update webhook: {}", e);
         AppError::Internal
     })?;
-    
+
     Ok(json_ok("Webhook updated", serde_json::json!({"id": id})))
 }
 
@@ -125,9 +133,9 @@ pub async fn delete_webhook(
         .execute(&state.pool)
         .await
         .map_err(|e| {
-        tracing::error!("Failed to delete webhook: {}", e);
-        AppError::Internal
-    })?;
-    
+            tracing::error!("Failed to delete webhook: {}", e);
+            AppError::Internal
+        })?;
+
     Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }

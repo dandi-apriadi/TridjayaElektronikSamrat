@@ -1,12 +1,11 @@
 /**
  * WhatsApp Event Dispatcher
- * 
+ *
  * This module broadcasts bridge events to multiple handlers:
  * - WebhookForwarder (for incoming messages)
  * - WaStatusTracker (for status updates)
  * - ChatbotEngine (for auto-replies)
  */
-
 use crate::bridge::BridgeEvent;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
@@ -30,37 +29,25 @@ impl WaEventDispatcher {
     }
 
     /// Register webhook forwarder channel
-    pub fn with_webhook_forwarder(
-        mut self,
-        tx: mpsc::UnboundedSender<BridgeEvent>,
-    ) -> Self {
+    pub fn with_webhook_forwarder(mut self, tx: mpsc::UnboundedSender<BridgeEvent>) -> Self {
         self.webhook_tx = Some(tx);
         self
     }
 
     /// Register status tracker channel
-    pub fn with_status_tracker(
-        mut self,
-        tx: mpsc::UnboundedSender<BridgeEvent>,
-    ) -> Self {
+    pub fn with_status_tracker(mut self, tx: mpsc::UnboundedSender<BridgeEvent>) -> Self {
         self.status_tx = Some(tx);
         self
     }
 
     /// Register chatbot engine channel
-    pub fn with_chatbot_engine(
-        mut self,
-        tx: mpsc::UnboundedSender<BridgeEvent>,
-    ) -> Self {
+    pub fn with_chatbot_engine(mut self, tx: mpsc::UnboundedSender<BridgeEvent>) -> Self {
         self.chatbot_tx = Some(tx);
         self
     }
 
     /// Start the event dispatcher loop
-    pub async fn start(
-        &self,
-        mut bridge_event_rx: mpsc::UnboundedReceiver<BridgeEvent>,
-    ) {
+    pub async fn start(&self, mut bridge_event_rx: mpsc::UnboundedReceiver<BridgeEvent>) {
         info!("Starting WhatsApp Event Dispatcher");
 
         while let Some(event) = bridge_event_rx.recv().await {

@@ -4,6 +4,7 @@ import { X, Loader2, Send, Check, Plus } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import type { WaCampaign } from '../../types';
+import { readApiError } from '../../utils/apiError';
 
 interface Props {
   isOpen: boolean;
@@ -31,12 +32,12 @@ const SelectCampaignModal: React.FC<Props> = ({ isOpen, onClose, selectedLeadIds
       const res = await fetch('/api/wa/campaigns', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Gagal memuat campaign');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memuat campaign'));
       const data = await res.json();
       // Only show draft or running campaigns
       setCampaigns((data.data?.items || []).filter((c: any) => c.status !== 'completed'));
     } catch (error) {
-      toast.error('Gagal', 'Gagal memuat daftar campaign');
+      toast.error('Gagal memuat daftar campaign', error instanceof Error ? error.message : 'Terjadi kesalahan');
     } finally {
       setIsLoading(false);
     }
@@ -58,14 +59,14 @@ const SelectCampaignModal: React.FC<Props> = ({ isOpen, onClose, selectedLeadIds
         }),
       });
 
-      if (!res.ok) throw new Error('Gagal menambahkan ke blast');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menambahkan ke blast'));
       const data = await res.json();
       
       toast.success(`Berhasil menambahkan ${data.data.inserted} prospek ke blast`);
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error('Gagal', error instanceof Error ? error.message : 'Terjadi kesalahan');
+      toast.error('Gagal menambahkan ke blast', error instanceof Error ? error.message : 'Terjadi kesalahan');
     } finally {
       setIsSubmitting(false);
     }

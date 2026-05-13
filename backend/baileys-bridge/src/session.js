@@ -59,9 +59,22 @@ export class BaileysSession {
       // Ensure auth directory exists
       await fs.mkdir(this.authDir, { recursive: true });
 
-      // Restore credentials if provided
-      if (credentials) {
+      // Prefer the local multi-file auth directory. The DB snapshot is only a
+      // fallback for a fresh machine; using an older snapshot can overwrite a
+      // newer valid session and force QR pairing again.
+      let hasLocalCredentials = false;
+      try {
+        await fs.access(path.join(this.authDir, 'creds.json'));
+        hasLocalCredentials = true;
+      } catch {
+        hasLocalCredentials = false;
+      }
+
+      // Restore credentials if provided and no local session exists.
+      if (credentials && !hasLocalCredentials) {
         await this.deserializeCredentials(credentials);
+      } else if (hasLocalCredentials) {
+        this.logger.info('Using local auth state');
       }
 
       // Load auth state from directory
@@ -498,8 +511,20 @@ export class BaileysSession {
 
       for (const file of files) {
         const filePath = path.join(this.authDir, file);
-        const content = await fs.readFile(filePath, 'utf-8');
-        credentials[file] = content;
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          credentials[file] = content;
+        } catch (error) {
+          if (error.code === 'ENOENT') {
+            this.logger.debug({ file }, 'Auth file changed during serialization, skipping');
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      if (!Object.prototype.hasOwnProperty.call(credentials, 'creds.json')) {
+        throw new Error('Auth snapshot is incomplete: missing creds.json');
       }
 
       return JSON.stringify(credentials);
@@ -515,6 +540,11 @@ export class BaileysSession {
   async deserializeCredentials(serialized) {
     try {
       const credentials = JSON.parse(serialized);
+
+      if (!Object.prototype.hasOwnProperty.call(credentials, 'creds.json')) {
+        this.logger.warn('Stored credentials snapshot is incomplete, skipping DB restore');
+        return;
+      }
 
       // Write each file to auth directory
       for (const [filename, content] of Object.entries(credentials)) {

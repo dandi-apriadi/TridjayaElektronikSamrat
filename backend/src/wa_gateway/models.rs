@@ -1,12 +1,11 @@
+use chrono::{DateTime, NaiveDate, Utc};
 /**
  * WA Gateway - Models
- * 
+ *
  * Request and response types for the Gateway API
  */
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc, NaiveDate};
 
 // ============================================
 // MESSAGE MODELS

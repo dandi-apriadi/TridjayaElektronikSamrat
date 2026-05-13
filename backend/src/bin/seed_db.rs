@@ -1,5 +1,5 @@
-use sqlx::sqlite::SqlitePoolOptions;
 use dotenvy::dotenv;
+use sqlx::sqlite::SqlitePoolOptions;
 use tridjaya_backend::seed::seed_database;
 
 #[tokio::main]

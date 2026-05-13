@@ -1,12 +1,15 @@
-use crate::{response::AppError, state::{AppState, UserPublic, UserRecord}};
+use crate::{
+    response::AppError,
+    state::{AppState, UserPublic, UserRecord},
+};
 use axum::http::HeaderMap;
 use chrono::{Duration, Utc};
 use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
-use uuid::Uuid;
 use std::str::FromStr;
+use uuid::Uuid;
 
 fn mask_email_for_log(email: &str) -> String {
     match email.split_once('@') {
@@ -166,10 +169,18 @@ pub async fn login_with_request(
             AppError::Unauthorized
         })?;
 
-    tracing::debug!("User record retrieved: email={}, is_active={}, is_verified={}", user.email, user.is_active, user.is_verified);
+    tracing::debug!(
+        "User record retrieved: email={}, is_active={}, is_verified={}",
+        user.email,
+        user.is_active,
+        user.is_verified
+    );
 
     if !user.is_active {
-        tracing::warn!("Login failed: account is suspended for email '{}'", email_log);
+        tracing::warn!(
+            "Login failed: account is suspended for email '{}'",
+            email_log
+        );
         return Err(AppError::Unauthorized);
     }
 
@@ -216,8 +227,16 @@ pub async fn login_with_request(
         remember,
     };
 
-    state.access_sessions.write().await.insert(access_token.clone(), access_session);
-    state.refresh_sessions.write().await.insert(refresh_token.clone(), refresh_session.clone());
+    state
+        .access_sessions
+        .write()
+        .await
+        .insert(access_token.clone(), access_session);
+    state
+        .refresh_sessions
+        .write()
+        .await
+        .insert(refresh_token.clone(), refresh_session.clone());
 
     // Persist refresh session to database for survival across restarts
     if let Err(e) = sqlx::query(
@@ -285,10 +304,11 @@ pub async fn refresh_with_request(
                         remember,
                     };
                     // Cache it in memory for subsequent requests
-                    state.refresh_sessions.write().await.insert(
-                        request.refresh_token.clone(),
-                        restored.clone(),
-                    );
+                    state
+                        .refresh_sessions
+                        .write()
+                        .await
+                        .insert(request.refresh_token.clone(), restored.clone());
                     restored
                 }
                 None => return Err(AppError::Unauthorized),
@@ -339,11 +359,16 @@ pub async fn refresh_with_request(
         expires_at: new_refresh_expires,
         remember: session.remember,
     };
-    state.refresh_sessions.write().await.insert(
-        refresh_token.clone(),
-        new_refresh_session,
-    );
-    state.refresh_sessions.write().await.remove(&request.refresh_token);
+    state
+        .refresh_sessions
+        .write()
+        .await
+        .insert(refresh_token.clone(), new_refresh_session);
+    state
+        .refresh_sessions
+        .write()
+        .await
+        .remove(&request.refresh_token);
 
     // Persist new refresh session and remove old one from database
     let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token = ?")
@@ -384,8 +409,12 @@ pub async fn logout_with_headers(state: &AppState, headers: &HeaderMap) -> Resul
     }
     .ok_or(AppError::Unauthorized)?;
 
-    state.refresh_sessions.write().await.remove(&session.refresh_token);
-    
+    state
+        .refresh_sessions
+        .write()
+        .await
+        .remove(&session.refresh_token);
+
     // Remove from database as well
     let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token = ?")
         .bind(&session.refresh_token)

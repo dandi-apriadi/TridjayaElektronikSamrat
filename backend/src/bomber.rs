@@ -1,8 +1,8 @@
 /**
  * Bomber Feature - Repeated Message Sending with Cooldown Protection
- * 
+ *
  * **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8**
- * 
+ *
  * This module implements the bomber feature for testing purposes:
  * - Send message to single recipient multiple times
  * - Configurable repeat count (max 50) and interval (min 10s)
@@ -11,7 +11,6 @@
  * - Permission check: wa_bomber permission required
  * - Execution logging to wa_bomber_logs table
  */
-
 use crate::bridge::BridgeClient;
 use crate::response::AppError;
 use chrono::{Duration, Utc};
@@ -129,14 +128,10 @@ impl BomberEngine {
         let cooldown_key = format!("bomber:cooldown:{}", target_phone);
 
         // Check if cooldown exists in Redis
-        let ttl: i64 = self
-            .redis_conn
-            .ttl(&cooldown_key)
-            .await
-            .map_err(|e| {
-                error!("Redis error checking cooldown: {}", e);
-                AppError::Internal
-            })?;
+        let ttl: i64 = self.redis_conn.ttl(&cooldown_key).await.map_err(|e| {
+            error!("Redis error checking cooldown: {}", e);
+            AppError::Internal
+        })?;
 
         if ttl > 0 {
             // Cooldown is active
@@ -188,16 +183,15 @@ impl BomberEngine {
         Self::validate_config(&config)?;
 
         // Check if account exists and is connected
-        let account: Option<(String, String)> = sqlx::query_as(
-            "SELECT id, status FROM wa_accounts WHERE id = ?",
-        )
-        .bind(&config.account_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| {
-            error!("Database error checking account: {}", e);
-            AppError::Internal
-        })?;
+        let account: Option<(String, String)> =
+            sqlx::query_as("SELECT id, status FROM wa_accounts WHERE id = ?")
+                .bind(&config.account_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| {
+                    error!("Database error checking account: {}", e);
+                    AppError::Internal
+                })?;
 
         let (account_id, status) = account.ok_or_else(|| {
             warn!("Invalid account_id: {}", config.account_id);
@@ -212,10 +206,7 @@ impl BomberEngine {
                 account_id, status
             );
             return Err(AppError::Validation {
-                errors: vec![format!(
-                    "Account is {} (must be connected)",
-                    status
-                )],
+                errors: vec![format!("Account is {} (must be connected)", status)],
             });
         }
 
@@ -263,8 +254,7 @@ impl BomberEngine {
         );
 
         // Calculate estimated completion time
-        let total_duration_seconds =
-            (config.repeat_count as u64 - 1) * config.interval_seconds;
+        let total_duration_seconds = (config.repeat_count as u64 - 1) * config.interval_seconds;
         let estimated_completion_time =
             Utc::now() + Duration::seconds(total_duration_seconds as i64);
 
@@ -275,13 +265,8 @@ impl BomberEngine {
         let config_clone = config.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = Self::execute_bomber_task(
-                pool,
-                bridge_client,
-                &mut redis_conn,
-                config_clone,
-            )
-            .await
+            if let Err(e) =
+                Self::execute_bomber_task(pool, bridge_client, &mut redis_conn, config_clone).await
             {
                 error!("Bomber execution task failed: {}", e);
             }

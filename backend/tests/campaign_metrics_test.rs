@@ -1,15 +1,14 @@
 /**
  * Campaign Metrics Tests
- * 
+ *
  * **Validates: Requirements 10.5, 10.6, 10.8**
- * 
+ *
  * This test suite validates:
  * - Real-time metrics calculation from wa_recipients table
  * - Hourly metrics aggregation to wa_campaign_metrics table
  * - API endpoint for retrieving campaign metrics
  * - Edge cases (no recipients, division by zero, campaign not found)
  */
-
 use chrono::{Duration, Timelike, Utc};
 use sqlx::SqlitePool;
 use tridjaya_backend::campaign_metrics::{
@@ -63,7 +62,7 @@ async fn create_test_recipient(
     sqlx::query(
         "INSERT INTO wa_recipients 
          (id, campaign_id, phone, status, sent_at, delivered_at, read_at, replied_at, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
     )
     .bind(&recipient_id)
     .bind(campaign_id)
@@ -113,9 +112,21 @@ async fn test_calculate_metrics_with_recipients() {
         let phone = format!("+628123456{:04}", i);
         let status = if i < 2 { "failed" } else { "sent" };
         let sent_at = if i >= 2 { Some(now.as_str()) } else { None };
-        let delivered_at = if i >= 2 && i < 8 { Some(now.as_str()) } else { None };
-        let read_at = if i >= 2 && i < 6 { Some(now.as_str()) } else { None };
-        let replied_at = if i >= 2 && i < 4 { Some(now.as_str()) } else { None };
+        let delivered_at = if i >= 2 && i < 8 {
+            Some(now.as_str())
+        } else {
+            None
+        };
+        let read_at = if i >= 2 && i < 6 {
+            Some(now.as_str())
+        } else {
+            None
+        };
+        let replied_at = if i >= 2 && i < 4 {
+            Some(now.as_str())
+        } else {
+            None
+        };
 
         create_test_recipient(
             &pool,
@@ -158,8 +169,17 @@ async fn test_calculate_metrics_division_by_zero() {
     // Create recipients that are pending (not sent)
     for i in 0..5 {
         let phone = format!("+628123456{:04}", i);
-        create_test_recipient(&pool, &campaign_id, &phone, "pending", None, None, None, None)
-            .await;
+        create_test_recipient(
+            &pool,
+            &campaign_id,
+            &phone,
+            "pending",
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
     }
 
     let metrics = calculate_campaign_metrics(&pool, &campaign_id)
@@ -212,7 +232,7 @@ async fn test_aggregate_hourly_metrics() {
     let hourly_metrics: (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT total_sent, total_delivered, total_read, total_replied 
          FROM wa_campaign_metrics 
-         WHERE campaign_id = ? AND hour_timestamp = ?"
+         WHERE campaign_id = ? AND hour_timestamp = ?",
     )
     .bind(&campaign_id)
     .bind(hour_start.to_rfc3339())
@@ -267,7 +287,7 @@ async fn test_aggregate_hourly_metrics_update_existing() {
     let initial_metrics: (i64, i64) = sqlx::query_as(
         "SELECT total_sent, total_delivered 
          FROM wa_campaign_metrics 
-         WHERE campaign_id = ? AND hour_timestamp = ?"
+         WHERE campaign_id = ? AND hour_timestamp = ?",
     )
     .bind(&campaign_id)
     .bind(hour_start.to_rfc3339())
@@ -303,7 +323,7 @@ async fn test_aggregate_hourly_metrics_update_existing() {
     let updated_metrics: (i64, i64) = sqlx::query_as(
         "SELECT total_sent, total_delivered 
          FROM wa_campaign_metrics 
-         WHERE campaign_id = ? AND hour_timestamp = ?"
+         WHERE campaign_id = ? AND hour_timestamp = ?",
     )
     .bind(&campaign_id)
     .bind(hour_start.to_rfc3339())
@@ -317,7 +337,7 @@ async fn test_aggregate_hourly_metrics_update_existing() {
     // Verify only one record exists for this hour
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM wa_campaign_metrics 
-         WHERE campaign_id = ? AND hour_timestamp = ?"
+         WHERE campaign_id = ? AND hour_timestamp = ?",
     )
     .bind(&campaign_id)
     .bind(hour_start.to_rfc3339())

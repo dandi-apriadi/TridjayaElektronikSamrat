@@ -88,6 +88,7 @@ pub fn router(state: AppState) -> Router {
             get(download_recipients_template),
         )
         .route("/api/wa/campaigns/{id}/start", post(start_wa_campaign))
+        .route("/api/wa/campaigns/{id}/pause", post(pause_wa_campaign))
         .route("/api/wa/campaigns/{id}/reset", post(reset_wa_campaign))
         .route("/api/wa/campaigns/{id}/status", get(get_wa_campaign_status))
         .route(
@@ -3389,18 +3390,13 @@ async fn start_wa_campaign(
                     );
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "Redis enqueue failed for campaign {}: {} — wa_worker will handle it",
-                        id,
-                        e
-                    );
+                    tracing::warn!("Redis enqueue failed for campaign {}: {}", id, e);
                 }
             }
         }
     }
 
-    // The wa_worker background task will pick up this campaign and send messages
-    // even if Redis enqueue failed or is unavailable.
+    // Campaign recipients are stored in the DB; BlastEngine will process them.
 
     Ok(json_ok(
         format!(
@@ -3415,12 +3411,87 @@ async fn start_wa_campaign(
     ))
 }
 
+async fn pause_wa_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
+
+    let current_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM wa_campaigns WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error loading WA campaign for pause: {}", e);
+                AppError::Internal
+            })?;
+
+    let current_status = current_status.ok_or(AppError::NotFound)?;
+    if current_status != "running" {
+        return Err(AppError::Validation {
+            errors: vec![format!(
+                "Campaign tidak sedang berjalan. Status saat ini: {}",
+                current_status
+            )],
+        });
+    }
+
+    sqlx::query("UPDATE wa_campaigns SET status = 'paused' WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error pausing WA campaign: {}", e);
+            AppError::Internal
+        })?;
+
+    let removed_from_queue = if let Some(qm) = &state.queue_manager {
+        qm.remove_campaign_messages(&id).await.unwrap_or_else(|e| {
+            tracing::warn!(
+                "Failed to remove queued messages for paused campaign {}: {}",
+                id,
+                e
+            );
+            0
+        })
+    } else {
+        0
+    };
+
+    tracing::info!(
+        "Campaign {} paused by {}. Removed {} queued messages",
+        id,
+        user.email,
+        removed_from_queue
+    );
+
+    Ok(json_ok(
+        "Campaign paused",
+        json!({
+            "item": fetch_wa_campaign_summary(&state, &id).await?,
+            "removed_from_queue": removed_from_queue,
+        }),
+    ))
+}
+
 async fn reset_wa_campaign(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     // Verify campaign exists
     let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
@@ -3452,12 +3523,20 @@ async fn reset_wa_campaign(
         .map_err(|_| AppError::Internal)?;
 
     let reset_count = result.rows_affected();
-    tracing::info!("Campaign {} reset by {}: {} recipients reset to pending", id, user.email, reset_count);
+    tracing::info!(
+        "Campaign {} reset by {}: {} recipients reset to pending",
+        id,
+        user.email,
+        reset_count
+    );
 
-    Ok(json_ok("Campaign reset", json!({
-        "reset_count": reset_count,
-        "campaign_id": id,
-    })))
+    Ok(json_ok(
+        "Campaign reset",
+        json!({
+            "reset_count": reset_count,
+            "campaign_id": id,
+        }),
+    ))
 }
 
 async fn get_wa_campaign_status(

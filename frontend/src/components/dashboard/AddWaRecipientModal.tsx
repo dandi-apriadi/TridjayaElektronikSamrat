@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Phone, Plus, Loader2 } from 'lucide-react';
 import { toast } from '../../store/useNotificationStore';
 import { useAuthStore } from '../../store/authStore';
+import { readApiError } from '../../utils/apiError';
 
 interface Props {
   isOpen: boolean;
@@ -22,7 +23,7 @@ const AddWaRecipientModal: React.FC<Props> = ({ isOpen, onClose, campaignId, onS
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone) {
-      toast.error('Gagal', 'Nama dan nomor WhatsApp wajib diisi');
+      toast.error('Data penerima belum lengkap', 'Nama dan nomor WhatsApp wajib diisi');
       return;
     }
 
@@ -40,7 +41,7 @@ const AddWaRecipientModal: React.FC<Props> = ({ isOpen, onClose, campaignId, onS
         }),
       });
 
-      if (!res.ok) throw new Error('Gagal menambahkan penerima');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menambahkan penerima'));
       
       toast.success('Penerima ditambahkan');
       setFormData({ name: '', phone: '' });

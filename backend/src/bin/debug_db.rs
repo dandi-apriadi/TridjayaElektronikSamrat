@@ -5,7 +5,9 @@ use std::env;
 fn ensure_destructive_allowed() -> Result<(), Box<dyn std::error::Error>> {
     let flag = env::var("ALLOW_DESTRUCTIVE").unwrap_or_default();
     if flag != "yes-i-mean-it" {
-        return Err("Refusing to run destructive tool without ALLOW_DESTRUCTIVE=yes-i-mean-it".into());
+        return Err(
+            "Refusing to run destructive tool without ALLOW_DESTRUCTIVE=yes-i-mean-it".into(),
+        );
     }
     Ok(())
 }
@@ -14,7 +16,8 @@ fn ensure_destructive_allowed() -> Result<(), Box<dyn std::error::Error>> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ensure_destructive_allowed()?;
 
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
+    let database_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .connect(&database_url)
@@ -31,7 +34,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let is_active: bool = row.get("is_active");
         let is_verified: bool = row.get("is_verified");
         let role: String = row.get("role");
-        println!("ID: {}, Email: {}, Active: {}, Verified: {}, Role: {}", id, email, is_active, is_verified, role);
+        println!(
+            "ID: {}, Email: {}, Active: {}, Verified: {}, Role: {}",
+            id, email, is_active, is_verified, role
+        );
     }
 
     let partner_rows = sqlx::query("SELECT id, name FROM partners")
@@ -58,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "promos",
         "product_categories",
         "blog_posts",
-        "job_listings"
+        "job_listings",
     ];
 
     for table in tables {

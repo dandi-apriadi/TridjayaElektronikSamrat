@@ -1,7 +1,7 @@
-use sqlx::SqlitePool;
-use serde_json::Value;
-use std::fs;
 use crate::auth::hash_password;
+use serde_json::Value;
+use sqlx::SqlitePool;
+use std::fs;
 
 pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
     // Keep existing catalog data intact; only seed on an empty database.
@@ -38,24 +38,60 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     let mut conn = pool.acquire().await?;
     if is_full_seed_object {
         println!("Wiping existing data for clean simulation...");
-        sqlx::query("PRAGMA foreign_keys = OFF").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM notifications").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM support_tickets").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM telemetry_events").execute(&mut *conn).await?;
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM notifications")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM support_tickets")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM telemetry_events")
+            .execute(&mut *conn)
+            .await?;
         sqlx::query("DELETE FROM leads").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM agent_registrations").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM reward_claims").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM agent_achievements").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM agent_stats").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM users WHERE email NOT LIKE '%dandi%' AND email NOT LIKE '%admin%'").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM promos").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM products").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM blog_posts").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM job_listings").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM partners").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM reward_tiers").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM achievements").execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM product_categories").execute(&mut *conn).await?;
+        sqlx::query("DELETE FROM agent_registrations")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM reward_claims")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM agent_achievements")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM agent_stats")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query(
+            "DELETE FROM users WHERE email NOT LIKE '%dandi%' AND email NOT LIKE '%admin%'",
+        )
+        .execute(&mut *conn)
+        .await?;
+        sqlx::query("DELETE FROM promos")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM products")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM blog_posts")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM job_listings")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM partners")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM reward_tiers")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM achievements")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("DELETE FROM product_categories")
+            .execute(&mut *conn)
+            .await?;
         // We leave foreign_keys OFF for the duration of the seeding to prevent REPLACE INTO constraint issues
     }
 
@@ -103,7 +139,8 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Reward Tiers
     if let Some(tiers) = seeds["reward_tiers"].as_array() {
         for t in tiers {
-            let benefits_json = serde_json::to_string(&t["benefits"]).unwrap_or_else(|_| "[]".to_string());
+            let benefits_json =
+                serde_json::to_string(&t["benefits"]).unwrap_or_else(|_| "[]".to_string());
             let default_reward = match t["id"].as_str().unwrap_or_default() {
                 "diamond" => 2_400_000,
                 "gold" => 1_200_000,
@@ -181,25 +218,33 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Product Categories
     if let Some(categories) = seeds["product_categories"].as_array() {
         for c in categories {
-            sqlx::query("REPLACE INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)")
-                .bind(c["id"].as_str())
-                .bind(c["name"].as_str())
-                .bind(c["slug"].as_str())
-                .bind(c["description"].as_str())
-                .execute(&mut *conn)
-                .await?;
+            sqlx::query(
+                "REPLACE INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)",
+            )
+            .bind(c["id"].as_str())
+            .bind(c["name"].as_str())
+            .bind(c["slug"].as_str())
+            .bind(c["description"].as_str())
+            .execute(&mut *conn)
+            .await?;
         }
     }
 
     // Seed Products
     if let Some(products) = products_seed {
         for p in products {
-            let specs_json = serde_json::to_string(&p["specs"]).unwrap_or_else(|_| "{}".to_string());
-            let images_json = serde_json::to_string(&p["images"]).unwrap_or_else(|_| "[]".to_string());
-            let colors_json = serde_json::to_string(&p["colors"]).unwrap_or_else(|_| "[]".to_string());
-            let highlights_json = serde_json::to_string(&p["highlights"]).unwrap_or_else(|_| "[]".to_string());
-            let selling_points_json = serde_json::to_string(&p["sellingPoints"]).unwrap_or_else(|_| "[]".to_string());
-            let objections_json = serde_json::to_string(&p["objections"]).unwrap_or_else(|_| "[]".to_string());
+            let specs_json =
+                serde_json::to_string(&p["specs"]).unwrap_or_else(|_| "{}".to_string());
+            let images_json =
+                serde_json::to_string(&p["images"]).unwrap_or_else(|_| "[]".to_string());
+            let colors_json =
+                serde_json::to_string(&p["colors"]).unwrap_or_else(|_| "[]".to_string());
+            let highlights_json =
+                serde_json::to_string(&p["highlights"]).unwrap_or_else(|_| "[]".to_string());
+            let selling_points_json =
+                serde_json::to_string(&p["sellingPoints"]).unwrap_or_else(|_| "[]".to_string());
+            let objections_json =
+                serde_json::to_string(&p["objections"]).unwrap_or_else(|_| "[]".to_string());
 
             sqlx::query(
                  "REPLACE INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, highlights, selling_points, objections) 
@@ -233,7 +278,8 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Promos
     if let Some(promos) = seeds["promos"].as_array() {
         for p in promos {
-            let product_ids_json = serde_json::to_string(&p["productIds"]).unwrap_or_else(|_| "[]".to_string());
+            let product_ids_json =
+                serde_json::to_string(&p["productIds"]).unwrap_or_else(|_| "[]".to_string());
             sqlx::query(
                 "REPLACE INTO promos (id, title, subtitle, description, discount, original_price, promo_price, image, badge, valid_until, category, variant, product_ids) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -285,8 +331,10 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Job Listings
     if let Some(jobs) = seeds["jobListings"].as_array() {
         for j in jobs {
-            let requirements_json = serde_json::to_string(&j["requirements"]).unwrap_or_else(|_| "[]".to_string());
-            let benefits_json = serde_json::to_string(&j["benefits"]).unwrap_or_else(|_| "[]".to_string());
+            let requirements_json =
+                serde_json::to_string(&j["requirements"]).unwrap_or_else(|_| "[]".to_string());
+            let benefits_json =
+                serde_json::to_string(&j["benefits"]).unwrap_or_else(|_| "[]".to_string());
             sqlx::query(
                 "REPLACE INTO job_listings (id, title, department, location, type, level, description, requirements, benefits, posted_at) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -309,20 +357,23 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Partners
     if let Some(partners) = seeds["partners"].as_array() {
         for p in partners {
-            sqlx::query("REPLACE INTO partners (id, name, logo_url, sort_order) VALUES (?, ?, ?, ?)")
-                .bind(p["id"].as_str())
-                .bind(p["name"].as_str())
-                .bind(p["logo_url"].as_str())
-                .bind(p["sort_order"].as_i64().unwrap_or(0))
-                .execute(&mut *conn)
-                .await?;
+            sqlx::query(
+                "REPLACE INTO partners (id, name, logo_url, sort_order) VALUES (?, ?, ?, ?)",
+            )
+            .bind(p["id"].as_str())
+            .bind(p["name"].as_str())
+            .bind(p["logo_url"].as_str())
+            .bind(p["sort_order"].as_i64().unwrap_or(0))
+            .execute(&mut *conn)
+            .await?;
         }
     }
 
     // Seed Agent Registrations
     if let Some(regs) = seeds["agent_registrations"].as_array() {
         for r in regs {
-            let preferred_json = serde_json::to_string(&r["preferred_products"]).unwrap_or_else(|_| "[]".to_string());
+            let preferred_json = serde_json::to_string(&r["preferred_products"])
+                .unwrap_or_else(|_| "[]".to_string());
             sqlx::query("REPLACE INTO agent_registrations (id, full_name, email, whatsapp, province, city, address, preferred_products, status, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                 .bind(r["id"].as_str())
                 .bind(r["full_name"].as_str())
@@ -360,7 +411,8 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
     // Seed Telemetry Events
     if let Some(events) = seeds["telemetry_events"].as_array() {
         for e in events {
-            let metadata_json = serde_json::to_string(&e["metadata"]).unwrap_or_else(|_| "{}".to_string());
+            let metadata_json =
+                serde_json::to_string(&e["metadata"]).unwrap_or_else(|_| "{}".to_string());
             sqlx::query("REPLACE INTO telemetry_events (id, event_type, path, source, session_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
                 .bind(e["id"].as_str())
                 .bind(e["event_type"].as_str())
@@ -410,9 +462,11 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
                 .await?;
         }
     }
-    
+
     if is_full_seed_object {
-        sqlx::query("PRAGMA foreign_keys = ON").execute(&mut *conn).await?;
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&mut *conn)
+            .await?;
     }
 
     println!("Database seeding completed successfully!");

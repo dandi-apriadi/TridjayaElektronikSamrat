@@ -1,9 +1,10 @@
+use redis::AsyncCommands;
 /**
  * Chatbot Engine with Keyword Matching
- * 
+ *
  * This module provides auto-reply functionality based on keyword matching rules.
  * It processes incoming messages before webhook forwarding for fast response times.
- * 
+ *
  * Features:
  * - Multiple match modes: exact, contains, starts_with, ends_with, regex
  * - Priority-based rule selection (lowest priority number wins)
@@ -12,7 +13,6 @@
  * - Auto-reply sending via bridge (2 second target)
  * - Execution logging to wa_chatbot_logs table
  */
-
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -21,7 +21,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
-use redis::AsyncCommands;
 
 use crate::bridge::BridgeClient;
 
@@ -123,7 +122,7 @@ impl ChatbotEngine {
         bridge: Arc<BridgeClient>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let redis_client = redis::Client::open(config.redis_url.as_str())?;
-        
+
         Ok(Self {
             config,
             pool,
@@ -141,7 +140,7 @@ impl ChatbotEngine {
         message_text: &str,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         let start_time = Instant::now();
-        
+
         debug!(
             account_id = %account_id,
             sender = %sender_phone,
@@ -151,7 +150,7 @@ impl ChatbotEngine {
 
         // Fetch active rules for this account
         let rules = self.fetch_active_rules(account_id).await?;
-        
+
         if rules.is_empty() {
             debug!(account_id = %account_id, "No active chatbot rules found");
             return Ok(false);
@@ -159,10 +158,10 @@ impl ChatbotEngine {
 
         // Find matching rule with highest priority (lowest priority number)
         let match_result = self.find_matching_rule(&rules, message_text)?;
-        
+
         if let Some(match_result) = match_result {
             let rule = &match_result.rule;
-            
+
             debug!(
                 rule_id = %rule.id,
                 priority = rule.priority,
@@ -171,7 +170,10 @@ impl ChatbotEngine {
             );
 
             // Check cooldown
-            if self.is_in_cooldown(account_id, sender_phone, &rule.id).await? {
+            if self
+                .is_in_cooldown(account_id, sender_phone, &rule.id)
+                .await?
+            {
                 info!(
                     rule_id = %rule.id,
                     sender = %sender_phone,
@@ -190,7 +192,7 @@ impl ChatbotEngine {
             match send_result {
                 Ok(_) => {
                     let elapsed = start_time.elapsed();
-                    
+
                     info!(
                         rule_id = %rule.id,
                         sender = %sender_phone,
@@ -206,11 +208,18 @@ impl ChatbotEngine {
                         &rule.keyword,
                         &reply,
                         elapsed.as_millis(),
-                    ).await?;
+                    )
+                    .await?;
 
                     // Set cooldown
                     if rule.cooldown_seconds > 0 {
-                        self.set_cooldown(account_id, sender_phone, &rule.id, rule.cooldown_seconds).await?;
+                        self.set_cooldown(
+                            account_id,
+                            sender_phone,
+                            &rule.id,
+                            rule.cooldown_seconds,
+                        )
+                        .await?;
                     }
 
                     // Warn if response time exceeded target
@@ -267,7 +276,9 @@ impl ChatbotEngine {
         message_text: &str,
     ) -> Result<Option<MatchResult>, Box<dyn std::error::Error>> {
         for rule in rules {
-            let match_mode = rule.match_mode.parse::<MatchMode>()
+            let match_mode = rule
+                .match_mode
+                .parse::<MatchMode>()
                 .map_err(|e| format!("Invalid match mode '{}': {}", rule.match_mode, e))?;
 
             let captured_groups = match match_mode {
@@ -304,21 +315,21 @@ impl ChatbotEngine {
                         Ok(re) => {
                             if let Some(captures) = re.captures(message_text) {
                                 let mut groups = HashMap::new();
-                                
+
                                 // Capture numbered groups (0 is full match)
                                 for i in 0..captures.len() {
                                     if let Some(m) = captures.get(i) {
                                         groups.insert(i.to_string(), m.as_str().to_string());
                                     }
                                 }
-                                
+
                                 // Capture named groups
                                 for name in re.capture_names().flatten() {
                                     if let Some(m) = captures.name(name) {
                                         groups.insert(name.to_string(), m.as_str().to_string());
                                     }
                                 }
-                                
+
                                 Some(groups)
                             } else {
                                 None
@@ -368,11 +379,14 @@ impl ChatbotEngine {
         sender_phone: &str,
         rule_id: &str,
     ) -> Result<bool, Box<dyn std::error::Error>> {
-        let cooldown_key = format!("chatbot:cooldown:{}:{}:{}", account_id, sender_phone, rule_id);
-        
+        let cooldown_key = format!(
+            "chatbot:cooldown:{}:{}:{}",
+            account_id, sender_phone, rule_id
+        );
+
         let mut conn = self.redis_client.get_multiplexed_async_connection().await?;
         let exists: bool = conn.exists(&cooldown_key).await?;
-        
+
         Ok(exists)
     }
 
@@ -384,11 +398,16 @@ impl ChatbotEngine {
         rule_id: &str,
         cooldown_seconds: i32,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let cooldown_key = format!("chatbot:cooldown:{}:{}:{}", account_id, sender_phone, rule_id);
-        
+        let cooldown_key = format!(
+            "chatbot:cooldown:{}:{}:{}",
+            account_id, sender_phone, rule_id
+        );
+
         let mut conn = self.redis_client.get_multiplexed_async_connection().await?;
-        let _: () = conn.set_ex(&cooldown_key, "1", cooldown_seconds as u64).await?;
-        
+        let _: () = conn
+            .set_ex(&cooldown_key, "1", cooldown_seconds as u64)
+            .await?;
+
         debug!(
             account_id = %account_id,
             sender = %sender_phone,
@@ -396,7 +415,7 @@ impl ChatbotEngine {
             cooldown_seconds = cooldown_seconds,
             "Set cooldown"
         );
-        
+
         Ok(())
     }
 
@@ -412,11 +431,10 @@ impl ChatbotEngine {
             "message": message,
         });
 
-        let result = self.bridge.send_request(
-            account_id,
-            "send_message".to_string(),
-            params,
-        ).await?;
+        let result = self
+            .bridge
+            .send_request(account_id, "send_message".to_string(), params)
+            .await?;
 
         debug!(
             account_id = %account_id,
@@ -474,11 +492,20 @@ mod tests {
     #[test]
     fn test_match_mode_from_str() {
         assert_eq!("exact".parse::<MatchMode>().unwrap(), MatchMode::Exact);
-        assert_eq!("contains".parse::<MatchMode>().unwrap(), MatchMode::Contains);
-        assert_eq!("starts_with".parse::<MatchMode>().unwrap(), MatchMode::StartsWith);
-        assert_eq!("ends_with".parse::<MatchMode>().unwrap(), MatchMode::EndsWith);
+        assert_eq!(
+            "contains".parse::<MatchMode>().unwrap(),
+            MatchMode::Contains
+        );
+        assert_eq!(
+            "starts_with".parse::<MatchMode>().unwrap(),
+            MatchMode::StartsWith
+        );
+        assert_eq!(
+            "ends_with".parse::<MatchMode>().unwrap(),
+            MatchMode::EndsWith
+        );
         assert_eq!("regex".parse::<MatchMode>().unwrap(), MatchMode::Regex);
-        
+
         assert!("invalid".parse::<MatchMode>().is_err());
     }
 
@@ -495,15 +522,15 @@ mod tests {
     fn test_exact_match() {
         let engine = create_test_engine();
         let rules = vec![create_test_rule("hello", "exact", "Hi there!", 1)];
-        
+
         // Should match
         let result = engine.find_matching_rule(&rules, "hello").unwrap();
         assert!(result.is_some());
-        
+
         // Should not match
         let result = engine.find_matching_rule(&rules, "hello world").unwrap();
         assert!(result.is_none());
-        
+
         let result = engine.find_matching_rule(&rules, "Hello").unwrap();
         assert!(result.is_none());
     }
@@ -512,19 +539,21 @@ mod tests {
     fn test_contains_match() {
         let engine = create_test_engine();
         let rules = vec![create_test_rule("help", "contains", "How can I help?", 1)];
-        
+
         // Should match
         let result = engine.find_matching_rule(&rules, "I need help").unwrap();
         assert!(result.is_some());
-        
+
         let result = engine.find_matching_rule(&rules, "help me").unwrap();
         assert!(result.is_some());
-        
+
         let result = engine.find_matching_rule(&rules, "please help").unwrap();
         assert!(result.is_some());
-        
+
         // Should not match
-        let result = engine.find_matching_rule(&rules, "I need assistance").unwrap();
+        let result = engine
+            .find_matching_rule(&rules, "I need assistance")
+            .unwrap();
         assert!(result.is_none());
     }
 
@@ -532,14 +561,14 @@ mod tests {
     fn test_starts_with_match() {
         let engine = create_test_engine();
         let rules = vec![create_test_rule("hello", "starts_with", "Hi!", 1)];
-        
+
         // Should match
         let result = engine.find_matching_rule(&rules, "hello world").unwrap();
         assert!(result.is_some());
-        
+
         let result = engine.find_matching_rule(&rules, "hello").unwrap();
         assert!(result.is_some());
-        
+
         // Should not match
         let result = engine.find_matching_rule(&rules, "say hello").unwrap();
         assert!(result.is_none());
@@ -549,14 +578,14 @@ mod tests {
     fn test_ends_with_match() {
         let engine = create_test_engine();
         let rules = vec![create_test_rule("?", "ends_with", "Let me help!", 1)];
-        
+
         // Should match
         let result = engine.find_matching_rule(&rules, "Can you help?").unwrap();
         assert!(result.is_some());
-        
+
         let result = engine.find_matching_rule(&rules, "What is this?").unwrap();
         assert!(result.is_some());
-        
+
         // Should not match
         let result = engine.find_matching_rule(&rules, "? I don't know").unwrap();
         assert!(result.is_none());
@@ -566,17 +595,17 @@ mod tests {
     fn test_regex_match_simple() {
         let engine = create_test_engine();
         let rules = vec![create_test_rule(r"hello|hi|hey", "regex", "Greetings!", 1)];
-        
+
         // Should match
         let result = engine.find_matching_rule(&rules, "hello").unwrap();
         assert!(result.is_some());
-        
+
         let result = engine.find_matching_rule(&rules, "hi there").unwrap();
         assert!(result.is_some());
-        
+
         let result = engine.find_matching_rule(&rules, "hey you").unwrap();
         assert!(result.is_some());
-        
+
         // Should not match
         let result = engine.find_matching_rule(&rules, "greetings").unwrap();
         assert!(result.is_none());
@@ -585,24 +614,41 @@ mod tests {
     #[test]
     fn test_regex_match_with_capture_groups() {
         let engine = create_test_engine();
-        let rules = vec![create_test_rule(r"my name is (\w+)", "regex", "Hello {{1}}!", 1)];
-        
-        let result = engine.find_matching_rule(&rules, "my name is John").unwrap();
+        let rules = vec![create_test_rule(
+            r"my name is (\w+)",
+            "regex",
+            "Hello {{1}}!",
+            1,
+        )];
+
+        let result = engine
+            .find_matching_rule(&rules, "my name is John")
+            .unwrap();
         assert!(result.is_some());
-        
+
         let match_result = result.unwrap();
-        assert_eq!(match_result.captured_groups.get("0").unwrap(), "my name is John");
+        assert_eq!(
+            match_result.captured_groups.get("0").unwrap(),
+            "my name is John"
+        );
         assert_eq!(match_result.captured_groups.get("1").unwrap(), "John");
     }
 
     #[test]
     fn test_regex_match_with_named_groups() {
         let engine = create_test_engine();
-        let rules = vec![create_test_rule(r"my name is (?P<name>\w+)", "regex", "Hello {{name}}!", 1)];
-        
-        let result = engine.find_matching_rule(&rules, "my name is Alice").unwrap();
+        let rules = vec![create_test_rule(
+            r"my name is (?P<name>\w+)",
+            "regex",
+            "Hello {{name}}!",
+            1,
+        )];
+
+        let result = engine
+            .find_matching_rule(&rules, "my name is Alice")
+            .unwrap();
         assert!(result.is_some());
-        
+
         let match_result = result.unwrap();
         assert_eq!(match_result.captured_groups.get("name").unwrap(), "Alice");
     }
@@ -616,13 +662,13 @@ mod tests {
             create_test_rule("help", "contains", "High priority", 1),
             create_test_rule("help", "contains", "Medium priority", 50),
         ];
-        
+
         // Sort by priority (ascending) to simulate database ORDER BY
         rules.sort_by_key(|r| r.priority);
-        
+
         let result = engine.find_matching_rule(&rules, "I need help").unwrap();
         assert!(result.is_some());
-        
+
         let match_result = result.unwrap();
         // Should select the rule with priority 1 (highest priority = lowest number)
         assert_eq!(match_result.rule.reply_template, "High priority");
@@ -632,51 +678,51 @@ mod tests {
     #[test]
     fn test_generate_reply_with_captured_groups() {
         let engine = create_test_engine();
-        
+
         let mut captured_groups = HashMap::new();
         captured_groups.insert("0".to_string(), "Hello John".to_string());
         captured_groups.insert("1".to_string(), "John".to_string());
         captured_groups.insert("name".to_string(), "John".to_string());
-        
+
         let template = "Hi {{name}}, you said: {{0}}";
         let reply = engine.generate_reply(template, &captured_groups);
-        
+
         assert_eq!(reply, "Hi John, you said: Hello John");
     }
 
     #[test]
     fn test_generate_reply_multiple_variables() {
         let engine = create_test_engine();
-        
+
         let mut captured_groups = HashMap::new();
         captured_groups.insert("1".to_string(), "Alice".to_string());
         captured_groups.insert("2".to_string(), "Bob".to_string());
-        
+
         let template = "{{1}} and {{2}} are friends";
         let reply = engine.generate_reply(template, &captured_groups);
-        
+
         assert_eq!(reply, "Alice and Bob are friends");
     }
 
     #[test]
     fn test_generate_reply_no_variables() {
         let engine = create_test_engine();
-        
+
         let captured_groups = HashMap::new();
         let template = "Hello, how can I help you?";
         let reply = engine.generate_reply(template, &captured_groups);
-        
+
         assert_eq!(reply, "Hello, how can I help you?");
     }
 
     #[test]
     fn test_generate_reply_missing_variable() {
         let engine = create_test_engine();
-        
+
         let captured_groups = HashMap::new();
         let template = "Hi {{name}}, welcome!";
         let reply = engine.generate_reply(template, &captured_groups);
-        
+
         // Variable not replaced if not in captured_groups
         assert_eq!(reply, "Hi {{name}}, welcome!");
     }
@@ -685,7 +731,7 @@ mod tests {
     fn test_invalid_regex_pattern() {
         let engine = create_test_engine();
         let rules = vec![create_test_rule(r"[invalid(regex", "regex", "Reply", 1)];
-        
+
         // Should not panic, should return None
         let result = engine.find_matching_rule(&rules, "test message").unwrap();
         assert!(result.is_none());
@@ -696,7 +742,7 @@ mod tests {
     fn create_test_engine() -> ChatbotEngine {
         let config = ChatbotEngineConfig::default();
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        
+
         ChatbotEngine {
             config,
             pool: create_test_pool(),
@@ -707,7 +753,7 @@ mod tests {
 
     fn create_test_pool() -> SqlitePool {
         use sqlx::sqlite::SqlitePoolOptions;
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             SqlitePoolOptions::new()
@@ -718,7 +764,12 @@ mod tests {
         })
     }
 
-    fn create_test_rule(keyword: &str, match_mode: &str, reply: &str, priority: i32) -> ChatbotRule {
+    fn create_test_rule(
+        keyword: &str,
+        match_mode: &str,
+        reply: &str,
+        priority: i32,
+    ) -> ChatbotRule {
         ChatbotRule {
             id: uuid::Uuid::new_v4().to_string(),
             account_id: "test_account".to_string(),

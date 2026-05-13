@@ -1,10 +1,9 @@
 /**
  * Integration tests for Chatbot Rule Management API
- * 
+ *
  * Tests all CRUD operations, validation, and statistics calculation
  * for the chatbot rules management endpoints.
  */
-
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -29,7 +28,7 @@ mod chatbot_routes_tests {
         // 1. POST /api/wa/chatbot-rules creates a rule
         // 2. Response includes rule ID and all fields
         // 3. Rule is stored in database
-        
+
         // Example test structure:
         // let app = create_test_app().await;
         // let response = app
@@ -65,7 +64,7 @@ mod chatbot_routes_tests {
         // This test would verify:
         // 1. Invalid regex syntax is rejected
         // 2. Error message is descriptive
-        
+
         // Test with invalid regex like "[invalid(regex"
     }
 

@@ -4,7 +4,8 @@ use tridjaya_backend::auth::hash_password;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
+    let database_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .connect(&database_url)
@@ -19,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (email, id) in admins {
         println!("Verifying and resetting password for account: {}", email);
         let hash = hash_password("Admin123!");
-        
+
         let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = ?")
             .bind(email)
             .fetch_one(&pool)
@@ -35,7 +36,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .execute(&pool)
                 .await?;
         } else {
-            println!("Account {} found. Updating password, verification, and avatar...", email);
+            println!(
+                "Account {} found. Updating password, verification, and avatar...",
+                email
+            );
             sqlx::query("UPDATE users SET is_active = 1, is_verified = 1, role = 'Admin', password_hash = ?, avatar = ? WHERE email = ?")
                 .bind(&hash)
                 .bind(default_avatar)

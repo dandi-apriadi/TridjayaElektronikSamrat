@@ -24,17 +24,19 @@ fn media_config_strategy() -> impl Strategy<Value = Option<MediaConfig>> {
                 Just(Some("https://example.com/video.mp4".to_string())),
             ],
         )
-            .prop_map(|(media_type, media_url)| Some(MediaConfig { media_type, media_url })),
+            .prop_map(|(media_type, media_url)| Some(MediaConfig {
+                media_type,
+                media_url
+            })),
     ]
 }
 
 fn message_template_strategy() -> impl Strategy<Value = String> {
     prop_oneof![
         // Simple non-spintax messages
-        "[A-Za-z0-9 ,.!?]{1,80}".prop_map(|s| s.trim().to_string()).prop_filter(
-            "message must not be empty after trim",
-            |s| !s.is_empty(),
-        ),
+        "[A-Za-z0-9 ,.!?]{1,80}"
+            .prop_map(|s| s.trim().to_string())
+            .prop_filter("message must not be empty after trim", |s| !s.is_empty(),),
         // Valid spintax-ready messages
         Just("{Halo|Hi|Hello} {{name}}".to_string()),
         Just("{Promo|Diskon} {hari ini|minggu ini}".to_string()),

@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Plus, Trash2, Search, Upload, Download,
-  FileSpreadsheet, FileUp, Users, Phone, Edit2,
+  FileSpreadsheet, FileUp, Users, Edit2,
   Loader2, CheckCircle2, X, Database
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
+import { readApiError } from '../../utils/apiError';
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const iv = { hidden: { y: 12, opacity: 0 }, visible: { y: 0, opacity: 1 } };
@@ -54,7 +55,7 @@ const AdminWaBlastContactsPage: React.FC = () => {
       const res = await fetch(`/api/wa/blast-contacts?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memuat kontak'));
       const data = await res.json();
       setContacts(data.data?.items || []);
       setTotal(data.data?.total || 0);
@@ -72,11 +73,11 @@ const AdminWaBlastContactsPage: React.FC = () => {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menghapus kontak'));
       toast.success('Kontak dihapus');
       fetchContacts();
-    } catch {
-      toast.error('Gagal menghapus kontak');
+    } catch (error) {
+      toast.error('Gagal menghapus kontak', error instanceof Error ? error.message : 'Terjadi kesalahan');
     }
   };
 
@@ -109,8 +110,8 @@ const AdminWaBlastContactsPage: React.FC = () => {
         headers: { Authorization: `Bearer ${accessToken}` },
         body: formData,
       });
+      if (!res.ok) throw new Error(await readApiError(res, 'Upload gagal'));
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.errors?.join(', ') || 'Upload gagal');
       const ins = data?.data?.inserted || 0;
       const skip = data?.data?.skipped || 0;
       const inv = data?.data?.invalid?.length || 0;
@@ -127,14 +128,12 @@ const AdminWaBlastContactsPage: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const csv = 'phone,name\n628123456789,Budi Santoso\n628987654321,Andi Wijaya\n';
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'template_kontak_blast.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    const link = document.createElement('a');
+    link.href = '/templates/Format Template.xlsx';
+    link.download = 'Format Template.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const toggleSelect = (id: string) => {
@@ -332,13 +331,14 @@ const AdminWaBlastContactsPage: React.FC = () => {
             <table className="text-[10px] font-mono text-on-surface-variant w-full max-w-sm">
               <thead>
                 <tr className="border-b border-outline-variant/20">
-                  <th className="text-left p-1.5 text-primary font-bold">phone</th>
-                  <th className="text-left p-1.5 text-primary font-bold">name</th>
+                  <th className="text-left p-1.5 text-primary font-bold">No</th>
+                  <th className="text-left p-1.5 text-primary font-bold">Nama</th>
+                  <th className="text-left p-1.5 text-primary font-bold">Wa</th>
                 </tr>
               </thead>
               <tbody>
-                <tr><td className="p-1.5">628123456789</td><td className="p-1.5">Budi Santoso</td></tr>
-                <tr><td className="p-1.5">628987654321</td><td className="p-1.5">Andi Wijaya</td></tr>
+                <tr><td className="p-1.5">1</td><td className="p-1.5">Budi Santoso</td><td className="p-1.5">628123456789</td></tr>
+                <tr><td className="p-1.5">2</td><td className="p-1.5">Andi Wijaya</td><td className="p-1.5">628987654321</td></tr>
               </tbody>
             </table>
           </div>
@@ -362,7 +362,7 @@ const AdminWaBlastContactsPage: React.FC = () => {
               className="hidden"
             />
           </label>
-          <p className="text-[10px] text-on-surface-variant/40 mt-2">Format: .xlsx, .xls, .csv — Kolom wajib: phone, name</p>
+          <p className="text-[10px] text-on-surface-variant/40 mt-2">Format: .xlsx, .xls, .csv — Kolom wajib: Wa, Nama (No opsional)</p>
         </div>
       </motion.div>
 
@@ -412,13 +412,12 @@ const AddEditContactModal: React.FC<{
         body: JSON.stringify({ phone, name, labels, notes }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.errors?.join(', ') || 'Gagal menyimpan');
+        throw new Error(await readApiError(res, 'Gagal menyimpan'));
       }
       toast.success(contact ? 'Kontak diperbarui' : 'Kontak ditambahkan');
       onSaved();
     } catch (error) {
-      toast.error('Gagal', error instanceof Error ? error.message : '');
+      toast.error('Gagal menyimpan kontak', error instanceof Error ? error.message : 'Terjadi kesalahan');
     } finally {
       setIsSaving(false);
     }

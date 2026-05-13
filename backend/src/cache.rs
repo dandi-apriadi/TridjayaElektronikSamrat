@@ -1,9 +1,9 @@
+use chrono::{DateTime, Duration, Utc};
 use redis::AsyncCommands;
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use std::collections::HashMap;
-use chrono::{DateTime, Utc, Duration};
 
 pub struct CacheManager {
     redis: redis::aio::ConnectionManager,
@@ -21,9 +21,18 @@ impl CacheManager {
     }
 
     /// Set data in cache with an optional TTL
-    pub async fn set<T: Serialize>(&self, key: &str, value: &T, ttl_seconds: Option<usize>) -> redis::RedisResult<()> {
+    pub async fn set<T: Serialize>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl_seconds: Option<usize>,
+    ) -> redis::RedisResult<()> {
         let json = serde_json::to_string(value).map_err(|e| {
-            redis::RedisError::from((redis::ErrorKind::IoError, "Serialization failed", e.to_string()))
+            redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "Serialization failed",
+                e.to_string(),
+            ))
         })?;
 
         let mut conn = self.redis.clone();
@@ -46,7 +55,11 @@ impl CacheManager {
         match json {
             Some(s) => {
                 let val = serde_json::from_str(&s).map_err(|e| {
-                    redis::RedisError::from((redis::ErrorKind::IoError, "Deserialization failed", e.to_string()))
+                    redis::RedisError::from((
+                        redis::ErrorKind::IoError,
+                        "Deserialization failed",
+                        e.to_string(),
+                    ))
                 })?;
                 Ok(Some(val))
             }
@@ -72,29 +85,40 @@ impl CacheManager {
     /// Background task for adaptive sync
     pub async fn start_adaptive_sync(self: Arc<Self>) {
         let mut current_interval = 60; // Start with 60 seconds
-        
+
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(current_interval)).await;
-            
+
             let mut activity = self.activity.write().await;
             let mut total_activity = 0;
-            
+
             for (key, (_, count)) in activity.iter() {
                 total_activity += count;
                 if *count > 0 {
-                    tracing::debug!("Adaptive Sync: Key {} had {} changes in the last window", key, count);
+                    tracing::debug!(
+                        "Adaptive Sync: Key {} had {} changes in the last window",
+                        key,
+                        count
+                    );
                 }
             }
-            
+
             // Adjust interval based on total activity
             // If many changes, speed up (minimum 10 seconds)
             // If few changes, slow down (maximum 10 minutes / 600 seconds)
             if total_activity > 50 {
                 current_interval = (current_interval / 2).max(10);
-                tracing::info!("High activity detected ({} changes). Shortening sync interval to {}s", total_activity, current_interval);
+                tracing::info!(
+                    "High activity detected ({} changes). Shortening sync interval to {}s",
+                    total_activity,
+                    current_interval
+                );
             } else if total_activity == 0 {
                 current_interval = (current_interval + 60).min(600);
-                tracing::debug!("No activity detected. Lengthening sync interval to {}s", current_interval);
+                tracing::debug!(
+                    "No activity detected. Lengthening sync interval to {}s",
+                    current_interval
+                );
             } else {
                 // Return to baseline gradually
                 if current_interval < 60 {
@@ -103,12 +127,12 @@ impl CacheManager {
                     current_interval -= 10;
                 }
             }
-            
+
             // Reset counts for the next window
             for entry in activity.values_mut() {
                 entry.1 = 0;
             }
-            
+
             // Perform actual sync tasks here if needed (e.g. pre-warming cache for hot keys)
             // For now, we just log the adaptation.
         }

@@ -1,5 +1,5 @@
 use lettre::transport::smtp::authentication::Credentials;
-use lettre::{Message, AsyncSmtpTransport, Tokio1Executor, AsyncTransport};
+use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use std::env;
 
 pub struct Mailer {
@@ -23,7 +23,9 @@ impl Mailer {
         let smtp_server = env::var("SMTP_SERVER").unwrap_or_else(|_| "smtp.gmail.com".to_string());
 
         match (smtp_email, smtp_password) {
-            (Some(email), Some(password)) if !email.trim().is_empty() && !password.trim().is_empty() => {
+            (Some(email), Some(password))
+                if !email.trim().is_empty() && !password.trim().is_empty() =>
+            {
                 let creds = Credentials::new(email.clone(), password);
                 let transport = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_server)
                     .map(|builder| builder.credentials(creds).build());
@@ -36,7 +38,11 @@ impl Mailer {
                     },
                     Err(error) => {
                         tracing::warn!("Failed to build SMTP transport: {}", error);
-                        Self { transport: None, from_email: email, enabled: false }
+                        Self {
+                            transport: None,
+                            from_email: email,
+                            enabled: false,
+                        }
                     }
                 }
             }
@@ -71,12 +77,13 @@ impl Mailer {
         verification_link: &str,
         temp_password: &str,
     ) -> Result<(), MailerError> {
-        let from = self.from_email.parse().map_err(|e: lettre::address::AddressError| {
-            MailerError::Other(Box::new(e))
-        })?;
-        let to = to_email.parse().map_err(|e: lettre::address::AddressError| {
-            MailerError::Other(Box::new(e))
-        })?;
+        let from = self
+            .from_email
+            .parse()
+            .map_err(|e: lettre::address::AddressError| MailerError::Other(Box::new(e)))?;
+        let to = to_email
+            .parse()
+            .map_err(|e: lettre::address::AddressError| MailerError::Other(Box::new(e)))?;
         let body = format!(
             "Halo {},\n\n\
             Selamat! Pendaftaran Anda sebagai Agent Tridjaya Manado telah disetujui.\n\n\
@@ -103,12 +110,13 @@ impl Mailer {
         name: &str,
         new_password: &str,
     ) -> Result<(), MailerError> {
-        let from = self.from_email.parse().map_err(|e: lettre::address::AddressError| {
-            MailerError::Other(Box::new(e))
-        })?;
-        let to = to_email.parse().map_err(|e: lettre::address::AddressError| {
-            MailerError::Other(Box::new(e))
-        })?;
+        let from = self
+            .from_email
+            .parse()
+            .map_err(|e: lettre::address::AddressError| MailerError::Other(Box::new(e)))?;
+        let to = to_email
+            .parse()
+            .map_err(|e: lettre::address::AddressError| MailerError::Other(Box::new(e)))?;
         let body = format!(
             "Halo {},\n\n\
             Admin telah mereset password akun Anda. Berikut adalah password baru Anda:\n\n\
@@ -132,12 +140,13 @@ impl Mailer {
         name: &str,
         reset_link: &str,
     ) -> Result<(), MailerError> {
-        let from = self.from_email.parse().map_err(|e: lettre::address::AddressError| {
-            MailerError::Other(Box::new(e))
-        })?;
-        let to = to_email.parse().map_err(|e: lettre::address::AddressError| {
-            MailerError::Other(Box::new(e))
-        })?;
+        let from = self
+            .from_email
+            .parse()
+            .map_err(|e: lettre::address::AddressError| MailerError::Other(Box::new(e)))?;
+        let to = to_email
+            .parse()
+            .map_err(|e: lettre::address::AddressError| MailerError::Other(Box::new(e)))?;
         let body = format!(
             "Halo {},\n\n\
             Kami menerima permintaan reset password untuk akun Anda di Tridjaya Manado.\n\n\

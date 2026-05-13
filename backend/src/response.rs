@@ -1,4 +1,8 @@
-use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -123,7 +127,9 @@ impl AppError {
             Self::Conflict => "Conflict detected".to_string(),
             Self::TooManyRequests => "Too many requests".to_string(),
             Self::Internal => "Unexpected internal error".to_string(),
-            Self::EmailUnverified => "Email belum terverifikasi. Silakan cek inbox Anda atau hubungi admin.".to_string(),
+            Self::EmailUnverified => {
+                "Email belum terverifikasi. Silakan cek inbox Anda atau hubungi admin.".to_string()
+            }
             Self::CooldownActive { .. } => "Target phone masih dalam cooldown period".to_string(),
         }
     }
@@ -134,7 +140,9 @@ impl IntoResponse for AppError {
         let status = self.status();
         let message = self.message();
         let detail = match &self {
-            Self::EmailUnverified => Some("Email belum terverifikasi. Silakan cek inbox Anda.".to_string()),
+            Self::EmailUnverified => {
+                Some("Email belum terverifikasi. Silakan cek inbox Anda.".to_string())
+            }
             _ => None,
         };
 

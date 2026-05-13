@@ -430,17 +430,16 @@ pub async fn get_campaign_analytics(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Verify admin owns the campaign
-    let campaign = sqlx::query_as::<_, (String,)>(
-        "SELECT id FROM campaigns WHERE id = ? AND admin_id = ?",
-    )
-    .bind(&campaign_id)
-    .bind(&user.id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to verify campaign ownership: {}", e);
-        AppError::Internal
-    })?;
+    let campaign =
+        sqlx::query_as::<_, (String,)>("SELECT id FROM campaigns WHERE id = ? AND admin_id = ?")
+            .bind(&campaign_id)
+            .bind(&user.id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to verify campaign ownership: {}", e);
+                AppError::Internal
+            })?;
 
     if campaign.is_none() {
         return Err(AppError::NotFound);
@@ -493,10 +492,7 @@ pub async fn get_campaign_analytics(
         })
         .collect();
 
-    Ok(json_ok(
-        "Campaign analytics",
-        json!({ "analytics": data }),
-    ))
+    Ok(json_ok("Campaign analytics", json!({ "analytics": data })))
 }
 
 /// Agent pixel analytics
@@ -758,4 +754,3 @@ mod tests {
     // a test database setup and are better suited for integration test files.
     // The handlers are tested through the full integration test suite.
 }
-

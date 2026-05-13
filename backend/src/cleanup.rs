@@ -88,7 +88,9 @@ impl CleanupManager {
         }
     }
 
-    pub async fn run_once(&self) -> Result<CleanupReport, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn run_once(
+        &self,
+    ) -> Result<CleanupReport, Box<dyn std::error::Error + Send + Sync>> {
         let mut report = CleanupReport::default();
 
         report.deleted_webhook_logs = self.cleanup_webhook_logs().await?;
@@ -113,8 +115,14 @@ impl CleanupManager {
         Ok(report)
     }
 
-    pub async fn graceful_shutdown(&self, timeout_duration: Duration) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        info!(timeout_seconds = timeout_duration.as_secs(), "Starting graceful shutdown sequence");
+    pub async fn graceful_shutdown(
+        &self,
+        timeout_duration: Duration,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        info!(
+            timeout_seconds = timeout_duration.as_secs(),
+            "Starting graceful shutdown sequence"
+        );
 
         timeout(timeout_duration, async {
             self.drain_message_queue(timeout_duration).await?;
@@ -122,7 +130,9 @@ impl CleanupManager {
             Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
         })
         .await
-        .map_err(|_| -> Box<dyn std::error::Error + Send + Sync> { "graceful shutdown timed out".into() })??;
+        .map_err(|_| -> Box<dyn std::error::Error + Send + Sync> {
+            "graceful shutdown timed out".into()
+        })??;
 
         info!("Graceful shutdown completed");
         Ok(())
@@ -131,17 +141,21 @@ impl CleanupManager {
     async fn should_run_redis_cleanup(&self) -> bool {
         let last = self.last_redis_cleanup.read().await;
         match *last {
-            Some(last_run) => Utc::now().signed_duration_since(last_run).num_hours() >= self.config.redis_cleanup_interval_hours,
+            Some(last_run) => {
+                Utc::now().signed_duration_since(last_run).num_hours()
+                    >= self.config.redis_cleanup_interval_hours
+            }
             None => true,
         }
     }
 
     async fn cleanup_webhook_logs(&self) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
-        let deleted = sqlx::query("DELETE FROM wa_webhook_logs WHERE created_at < datetime('now', ?)")
-            .bind(format!("-{} days", self.config.webhook_log_retention_days))
-            .execute(&self.pool)
-            .await?
-            .rows_affected();
+        let deleted =
+            sqlx::query("DELETE FROM wa_webhook_logs WHERE created_at < datetime('now', ?)")
+                .bind(format!("-{} days", self.config.webhook_log_retention_days))
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
 
         debug!(deleted, "Deleted expired webhook logs");
         Ok(deleted)
@@ -164,7 +178,9 @@ impl CleanupManager {
         Ok(deleted)
     }
 
-    async fn cleanup_redis_cache_entries(&self) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    async fn cleanup_redis_cache_entries(
+        &self,
+    ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         let Some(redis) = &self.redis else {
             return Ok(0);
         };
@@ -172,7 +188,12 @@ impl CleanupManager {
         let mut removed = 0usize;
         let mut conn = redis.write().await;
 
-        for pattern in ["wa:media:*", "chatbot:cooldown:*", "bomber:cooldown:*", "ratelimit:*"] {
+        for pattern in [
+            "wa:media:*",
+            "chatbot:cooldown:*",
+            "bomber:cooldown:*",
+            "ratelimit:*",
+        ] {
             let keys: Vec<String> = conn.keys(pattern).await.unwrap_or_default();
 
             for key in keys {
@@ -188,7 +209,9 @@ impl CleanupManager {
         Ok(removed)
     }
 
-    async fn close_idle_whatsapp_connections(&self) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    async fn close_idle_whatsapp_connections(
+        &self,
+    ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         let threshold = Utc::now() - chrono::Duration::hours(self.config.idle_connection_hours);
         let idle_accounts: Vec<String> = sqlx::query_scalar(
             r#"
@@ -223,7 +246,9 @@ impl CleanupManager {
         Ok(closed)
     }
 
-    async fn close_all_whatsapp_connections(&self) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    async fn close_all_whatsapp_connections(
+        &self,
+    ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         let active_accounts: Vec<String> = sqlx::query_scalar(
             "SELECT id FROM wa_accounts WHERE status IN ('connected', 'waiting_for_scan', 'disconnected')",
         )
@@ -248,7 +273,10 @@ impl CleanupManager {
         Ok(closed)
     }
 
-    async fn drain_message_queue(&self, timeout_duration: Duration) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn drain_message_queue(
+        &self,
+        timeout_duration: Duration,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let Some(queue_manager) = &self.queue_manager else {
             return Ok(());
         };
@@ -261,7 +289,10 @@ impl CleanupManager {
             }
 
             if tokio::time::Instant::now() >= deadline {
-                warn!(remaining = metrics.total_depth, "Queue drain timeout reached");
+                warn!(
+                    remaining = metrics.total_depth,
+                    "Queue drain timeout reached"
+                );
                 break;
             }
 
@@ -271,10 +302,14 @@ impl CleanupManager {
         Ok(())
     }
 
-    async fn cleanup_temp_media_files(&self) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    async fn cleanup_temp_media_files(
+        &self,
+    ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         let mut deleted = 0usize;
         let cutoff = SystemTime::now()
-            .checked_sub(Duration::from_secs(self.config.temp_file_retention_hours as u64 * 3600))
+            .checked_sub(Duration::from_secs(
+                self.config.temp_file_retention_hours as u64 * 3600,
+            ))
             .unwrap_or(SystemTime::UNIX_EPOCH);
 
         for dir in &self.temp_media_dirs {
@@ -284,7 +319,11 @@ impl CleanupManager {
         Ok(deleted)
     }
 
-    fn cleanup_temp_files_in_dir(&self, dir: &Path, cutoff: SystemTime) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    fn cleanup_temp_files_in_dir(
+        &self,
+        dir: &Path,
+        cutoff: SystemTime,
+    ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         if !dir.exists() {
             return Ok(0);
         }

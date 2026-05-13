@@ -105,7 +105,9 @@ pub fn encrypt_token(plaintext: &str, key: &[u8; 32]) -> Result<String, CryptoEr
 /// Decrypts a token previously encrypted with `encrypt_token`.
 /// Expects `base64(nonce || ciphertext)` as input.
 pub fn decrypt_token(encoded: &str, key: &[u8; 32]) -> Result<String, CryptoError> {
-    let combined = STANDARD.decode(encoded).map_err(|_| CryptoError::InvalidBase64)?;
+    let combined = STANDARD
+        .decode(encoded)
+        .map_err(|_| CryptoError::InvalidBase64)?;
 
     if combined.len() < 12 {
         return Err(CryptoError::InvalidNonce);
@@ -195,7 +197,9 @@ mod tests {
     #[test]
     fn test_hash_pii_is_lowercase_hex() {
         let hash = hash_pii("test@example.com");
-        assert!(hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()));
+        assert!(hash
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()));
         assert_eq!(hash.len(), 64); // SHA-256 = 32 bytes = 64 hex chars
     }
 

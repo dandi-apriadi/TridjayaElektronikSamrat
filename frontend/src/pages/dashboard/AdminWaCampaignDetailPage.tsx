@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Send, RefreshCw,
+  ArrowLeft, Send, RefreshCw, Pause,
   CheckCircle2, AlertTriangle, Clock, Copy, XCircle,
   Plus, Trash2, Check, Eye, FileSpreadsheet, Loader2,
   Database, Search
@@ -128,6 +128,28 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     } catch (error) {
       console.error('[Campaign] Error:', error);
       toast.error('Gagal memulai campaign', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handlePause = async () => {
+    if (!id) return;
+    if (!window.confirm('Pause blast campaign yang sedang berjalan? Penerima yang belum terkirim akan tetap pending.')) return;
+
+    setIsActionLoading(true);
+    try {
+      const res = await fetch(`/api/wa/campaigns/${id}/pause`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal pause campaign'));
+      const data = await res.json().catch(() => null);
+      const removed = data?.data?.removed_from_queue || 0;
+      toast.success('Campaign dipause', `${removed} pesan pending dihapus dari queue sementara`);
+      await fetchCampaignData();
+    } catch (error) {
+      toast.error('Gagal pause campaign', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsActionLoading(false);
     }
@@ -375,6 +397,16 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             <span>{campaign.status === 'draft' ? 'Mulai Campaign' : campaign.status === 'running' ? 'Restart' : 'Start Ulang'}</span>
           </button>
+          {campaign.status === 'running' && (
+            <button
+              onClick={handlePause}
+              disabled={isActionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 rounded-xl hover:bg-yellow-500/20 transition-all font-bold disabled:opacity-50"
+            >
+              {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pause className="w-4 h-4" />}
+              <span>Pause Blast</span>
+            </button>
+          )}
           <button
             onClick={handleDeleteCampaign}
             disabled={isActionLoading}

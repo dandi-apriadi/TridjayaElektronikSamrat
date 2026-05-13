@@ -4,7 +4,9 @@ use std::env;
 fn ensure_destructive_allowed() -> Result<(), Box<dyn std::error::Error>> {
     let flag = env::var("ALLOW_DESTRUCTIVE").unwrap_or_default();
     if flag != "yes-i-mean-it" {
-        return Err("Refusing to run destructive tool without ALLOW_DESTRUCTIVE=yes-i-mean-it".into());
+        return Err(
+            "Refusing to run destructive tool without ALLOW_DESTRUCTIVE=yes-i-mean-it".into(),
+        );
     }
     Ok(())
 }
@@ -13,14 +15,15 @@ fn ensure_destructive_allowed() -> Result<(), Box<dyn std::error::Error>> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ensure_destructive_allowed()?;
 
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
+    let database_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .connect(&database_url)
         .await?;
 
     println!("Clearing database tables (except users and partners)...");
-    
+
     let tables = [
         "reward_tiers",
         "agent_stats",
@@ -42,13 +45,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "password_reset_tokens",
         "catalogs",
         "articles",
-        "jobs"
+        "jobs",
     ];
 
     for table in tables {
-        match sqlx::query(&format!("DELETE FROM {}", table)).execute(&pool).await {
+        match sqlx::query(&format!("DELETE FROM {}", table))
+            .execute(&pool)
+            .await
+        {
             Ok(_) => println!("Table {} cleared.", table),
-            Err(e) => println!("Warning: Could not clear table {} (it might not exist): {}", table, e),
+            Err(e) => println!(
+                "Warning: Could not clear table {} (it might not exist): {}",
+                table, e
+            ),
         }
     }
 

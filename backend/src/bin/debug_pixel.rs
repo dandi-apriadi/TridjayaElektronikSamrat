@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pixel_id = "pixel-001";
     sqlx::query(
         "INSERT OR IGNORE INTO pixels (id, pixel_id, name, status, access_token, created_by) 
-         VALUES (?, 'test-pixel-123', 'Test Pixel', 'active', 'encrypted-token', ?)"
+         VALUES (?, 'test-pixel-123', 'Test Pixel', 'active', 'encrypted-token', ?)",
     )
     .bind(pixel_id)
     .bind(admin_id)
@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "INSERT INTO conversions (
             id, event_id, campaign_id, conversion_type, 
             conversion_value, currency, conversion_time
-         ) VALUES (?, ?, ?, 'Purchase', 150000.0, 'IDR', CURRENT_TIMESTAMP)"
+         ) VALUES (?, ?, ?, 'Purchase', 150000.0, 'IDR', CURRENT_TIMESTAMP)",
     )
     .bind(Uuid::new_v4().to_string())
     .bind(&event_id)
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     println!("Test data setup complete!");
-    
+
     // 6. Test the analytics query logic
     let row = sqlx::query(
         "SELECT 
@@ -97,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          JOIN campaigns c ON pe.campaign_id = c.id
          LEFT JOIN conversions conv ON pe.id = conv.event_id
          WHERE pe.user_id = ?
-         GROUP BY c.id"
+         GROUP BY c.id",
     )
     .bind(agent_id)
     .fetch_one(&pool)

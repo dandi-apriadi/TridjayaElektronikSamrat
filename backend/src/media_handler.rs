@@ -17,18 +17,18 @@ pub enum MediaType {
 
 impl MediaType {
     /// Get maximum file size in bytes for this media type
-    /// 
+    ///
     /// **Validates: Requirements 7.2**
     pub fn max_size_bytes(&self) -> usize {
         match self {
-            MediaType::Image => 16 * 1024 * 1024,  // 16MB
-            MediaType::Pdf => 100 * 1024 * 1024,   // 100MB
-            MediaType::Video => 64 * 1024 * 1024,  // 64MB
+            MediaType::Image => 16 * 1024 * 1024, // 16MB
+            MediaType::Pdf => 100 * 1024 * 1024,  // 100MB
+            MediaType::Video => 64 * 1024 * 1024, // 64MB
         }
     }
 
     /// Get allowed MIME types for this media type
-    /// 
+    ///
     /// **Validates: Requirements 7.1**
     pub fn allowed_mime_types(&self) -> &[&str] {
         match self {
@@ -39,7 +39,7 @@ impl MediaType {
     }
 
     /// Get allowed file extensions for this media type
-    /// 
+    ///
     /// **Validates: Requirements 7.1**
     pub fn allowed_extensions(&self) -> &[&str] {
         match self {
@@ -135,10 +135,7 @@ impl MediaHandler {
             .build()
             .expect("Failed to create HTTP client");
 
-        Self {
-            http_client,
-            redis,
-        }
+        Self { http_client, redis }
     }
 
     /// Generate Redis cache key for media URL
@@ -151,13 +148,9 @@ impl MediaHandler {
     }
 
     /// Validate media type based on MIME type and file extension
-    /// 
+    ///
     /// **Validates: Requirements 7.1**
-    pub fn validate_media_type(
-        &self,
-        mime_type: &str,
-        url: &str,
-    ) -> Result<MediaType, MediaError> {
+    pub fn validate_media_type(&self, mime_type: &str, url: &str) -> Result<MediaType, MediaError> {
         // Try to detect from MIME type first
         if let Some(media_type) = MediaType::from_mime_type(mime_type) {
             // Verify MIME type is in allowed list
@@ -170,7 +163,10 @@ impl MediaHandler {
         if let Some(ext) = url.rsplit('.').next() {
             if let Some(media_type) = MediaType::from_extension(ext) {
                 // Verify extension is in allowed list
-                if media_type.allowed_extensions().contains(&ext.to_lowercase().as_str()) {
+                if media_type
+                    .allowed_extensions()
+                    .contains(&ext.to_lowercase().as_str())
+                {
                     return Ok(media_type);
                 }
             }
@@ -183,7 +179,7 @@ impl MediaHandler {
     }
 
     /// Validate file size against media type limits
-    /// 
+    ///
     /// **Validates: Requirements 7.2**
     pub fn validate_file_size(
         &self,
@@ -193,16 +189,14 @@ impl MediaHandler {
         let max_size = media_type.max_size_bytes();
         if size_bytes > max_size {
             return Err(MediaError::FileSizeTooLarge(
-                size_bytes,
-                max_size,
-                media_type,
+                size_bytes, max_size, media_type,
             ));
         }
         Ok(())
     }
 
     /// Download media from URL with optional authentication headers
-    /// 
+    ///
     /// **Validates: Requirements 7.3, 7.8**
     pub async fn download_media(
         &self,
@@ -270,9 +264,9 @@ impl MediaHandler {
     }
 
     /// Generate thumbnail for video file
-    /// 
+    ///
     /// **Validates: Requirements 7.4**
-    /// 
+    ///
     /// Note: This is a simplified implementation that generates a placeholder thumbnail.
     /// For production, you would use a video processing library like ffmpeg to extract
     /// a frame from the video. Since the `image` crate doesn't support video decoding,
@@ -284,7 +278,7 @@ impl MediaHandler {
         // In production, you would use ffmpeg or similar to extract a frame
         let width = 200u32;
         let height = 150u32;
-        
+
         let img = image::ImageBuffer::from_fn(width, height, |x, y| {
             // Create a gradient pattern
             let gray = ((x + y) % 256) as u8;
@@ -294,7 +288,7 @@ impl MediaHandler {
         // Encode as JPEG
         let mut buffer = Vec::new();
         let mut cursor = Cursor::new(&mut buffer);
-        
+
         img.write_to(&mut cursor, image::ImageFormat::Jpeg)
             .map_err(|e| {
                 error!("Failed to encode thumbnail: {}", e);
@@ -306,7 +300,7 @@ impl MediaHandler {
     }
 
     /// Validate media file integrity
-    /// 
+    ///
     /// **Validates: Requirements 7.7**
     pub fn validate_media_integrity(
         &self,
@@ -337,10 +331,7 @@ impl MediaHandler {
                     ));
                 }
                 // MP4 files should have 'ftyp' box near the beginning
-                let has_ftyp = data
-                    .windows(4)
-                    .take(100)
-                    .any(|window| window == b"ftyp");
+                let has_ftyp = data.windows(4).take(100).any(|window| window == b"ftyp");
                 if !has_ftyp {
                     return Err(MediaError::CorruptFile(
                         "Invalid MP4 file: missing ftyp box".to_string(),
@@ -352,7 +343,7 @@ impl MediaHandler {
     }
 
     /// Process media file: download, validate, generate thumbnail if needed
-    /// 
+    ///
     /// **Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.7, 7.8**
     pub async fn process_media(
         &self,
@@ -394,7 +385,7 @@ impl MediaHandler {
     }
 
     /// Cache media file in Redis with 1 hour TTL
-    /// 
+    ///
     /// **Validates: Requirements 7.6**
     pub async fn cache_media(&mut self, url: &str, media: &MediaFile) -> Result<(), MediaError> {
         let cache_key = self.cache_key(url);
@@ -420,7 +411,7 @@ impl MediaHandler {
     }
 
     /// Get media from cache
-    /// 
+    ///
     /// **Validates: Requirements 7.6**
     pub async fn get_cached_media(&mut self, url: &str) -> Result<Option<MediaFile>, MediaError> {
         let cache_key = self.cache_key(url);
@@ -448,9 +439,9 @@ impl MediaHandler {
     }
 
     /// Download and cache media (with cache check)
-    /// 
+    ///
     /// **Validates: Requirements 7.3, 7.6, 7.7, 7.8**
-    /// 
+    ///
     /// This is the main entry point for media handling. It checks cache first,
     /// then downloads and caches if not found.
     pub async fn download_and_cache_media(
@@ -494,11 +485,26 @@ mod tests {
     /// Test media type detection from MIME types
     #[test]
     fn test_media_type_from_mime() {
-        assert_eq!(MediaType::from_mime_type("image/jpeg"), Some(MediaType::Image));
-        assert_eq!(MediaType::from_mime_type("image/png"), Some(MediaType::Image));
-        assert_eq!(MediaType::from_mime_type("image/webp"), Some(MediaType::Image));
-        assert_eq!(MediaType::from_mime_type("application/pdf"), Some(MediaType::Pdf));
-        assert_eq!(MediaType::from_mime_type("video/mp4"), Some(MediaType::Video));
+        assert_eq!(
+            MediaType::from_mime_type("image/jpeg"),
+            Some(MediaType::Image)
+        );
+        assert_eq!(
+            MediaType::from_mime_type("image/png"),
+            Some(MediaType::Image)
+        );
+        assert_eq!(
+            MediaType::from_mime_type("image/webp"),
+            Some(MediaType::Image)
+        );
+        assert_eq!(
+            MediaType::from_mime_type("application/pdf"),
+            Some(MediaType::Pdf)
+        );
+        assert_eq!(
+            MediaType::from_mime_type("video/mp4"),
+            Some(MediaType::Video)
+        );
         assert_eq!(MediaType::from_mime_type("text/plain"), None);
     }
 
@@ -529,10 +535,16 @@ mod tests {
     /// Test allowed MIME types for each media type
     #[test]
     fn test_allowed_mime_types() {
-        assert!(MediaType::Image.allowed_mime_types().contains(&"image/jpeg"));
+        assert!(MediaType::Image
+            .allowed_mime_types()
+            .contains(&"image/jpeg"));
         assert!(MediaType::Image.allowed_mime_types().contains(&"image/png"));
-        assert!(MediaType::Image.allowed_mime_types().contains(&"image/webp"));
-        assert!(MediaType::Pdf.allowed_mime_types().contains(&"application/pdf"));
+        assert!(MediaType::Image
+            .allowed_mime_types()
+            .contains(&"image/webp"));
+        assert!(MediaType::Pdf
+            .allowed_mime_types()
+            .contains(&"application/pdf"));
         assert!(MediaType::Video.allowed_mime_types().contains(&"video/mp4"));
     }
 
@@ -553,19 +565,33 @@ mod tests {
     #[tokio::test]
     async fn test_file_size_validation() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
         // Valid sizes
         assert!(handler.validate_file_size(1024, MediaType::Image).is_ok());
-        assert!(handler.validate_file_size(16 * 1024 * 1024, MediaType::Image).is_ok());
-        assert!(handler.validate_file_size(100 * 1024 * 1024, MediaType::Pdf).is_ok());
-        assert!(handler.validate_file_size(64 * 1024 * 1024, MediaType::Video).is_ok());
+        assert!(handler
+            .validate_file_size(16 * 1024 * 1024, MediaType::Image)
+            .is_ok());
+        assert!(handler
+            .validate_file_size(100 * 1024 * 1024, MediaType::Pdf)
+            .is_ok());
+        assert!(handler
+            .validate_file_size(64 * 1024 * 1024, MediaType::Video)
+            .is_ok());
 
         // Invalid sizes (too large)
-        assert!(handler.validate_file_size(17 * 1024 * 1024, MediaType::Image).is_err());
-        assert!(handler.validate_file_size(101 * 1024 * 1024, MediaType::Pdf).is_err());
-        assert!(handler.validate_file_size(65 * 1024 * 1024, MediaType::Video).is_err());
+        assert!(handler
+            .validate_file_size(17 * 1024 * 1024, MediaType::Image)
+            .is_err());
+        assert!(handler
+            .validate_file_size(101 * 1024 * 1024, MediaType::Pdf)
+            .is_err());
+        assert!(handler
+            .validate_file_size(65 * 1024 * 1024, MediaType::Video)
+            .is_err());
     }
 
     /// **Validates: Requirements 7.7**
@@ -573,22 +599,26 @@ mod tests {
     #[tokio::test]
     async fn test_image_integrity_validation() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
         // Create a valid 1x1 PNG image using the image crate
-        let img = image::ImageBuffer::from_fn(1u32, 1u32, |_, _| {
-            image::Rgb([255u8, 0u8, 0u8])
-        });
+        let img = image::ImageBuffer::from_fn(1u32, 1u32, |_, _| image::Rgb([255u8, 0u8, 0u8]));
         let mut valid_png = Vec::new();
         let mut cursor = Cursor::new(&mut valid_png);
         img.write_to(&mut cursor, image::ImageFormat::Png).unwrap();
 
-        assert!(handler.validate_media_integrity(&valid_png, MediaType::Image).is_ok());
+        assert!(handler
+            .validate_media_integrity(&valid_png, MediaType::Image)
+            .is_ok());
 
         // Invalid image data
         let invalid_data = vec![0x00, 0x01, 0x02, 0x03];
-        assert!(handler.validate_media_integrity(&invalid_data, MediaType::Image).is_err());
+        assert!(handler
+            .validate_media_integrity(&invalid_data, MediaType::Image)
+            .is_err());
     }
 
     /// **Validates: Requirements 7.7**
@@ -596,16 +626,22 @@ mod tests {
     #[tokio::test]
     async fn test_pdf_integrity_validation() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
         // Valid PDF header
         let valid_pdf = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".to_vec();
-        assert!(handler.validate_media_integrity(&valid_pdf, MediaType::Pdf).is_ok());
+        assert!(handler
+            .validate_media_integrity(&valid_pdf, MediaType::Pdf)
+            .is_ok());
 
         // Invalid PDF (missing header)
         let invalid_pdf = b"Not a PDF file".to_vec();
-        assert!(handler.validate_media_integrity(&invalid_pdf, MediaType::Pdf).is_err());
+        assert!(handler
+            .validate_media_integrity(&invalid_pdf, MediaType::Pdf)
+            .is_err());
     }
 
     /// **Validates: Requirements 7.7**
@@ -613,21 +649,29 @@ mod tests {
     #[tokio::test]
     async fn test_video_integrity_validation() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
         // Valid MP4 with ftyp box
         let mut valid_mp4 = vec![0x00; 100];
         valid_mp4[4..8].copy_from_slice(b"ftyp");
-        assert!(handler.validate_media_integrity(&valid_mp4, MediaType::Video).is_ok());
+        assert!(handler
+            .validate_media_integrity(&valid_mp4, MediaType::Video)
+            .is_ok());
 
         // Invalid MP4 (missing ftyp)
         let invalid_mp4 = vec![0x00; 100];
-        assert!(handler.validate_media_integrity(&invalid_mp4, MediaType::Video).is_err());
+        assert!(handler
+            .validate_media_integrity(&invalid_mp4, MediaType::Video)
+            .is_err());
 
         // Too small
         let too_small = vec![0x00; 5];
-        assert!(handler.validate_media_integrity(&too_small, MediaType::Video).is_err());
+        assert!(handler
+            .validate_media_integrity(&too_small, MediaType::Video)
+            .is_err());
     }
 
     /// **Validates: Requirements 7.4**
@@ -635,16 +679,18 @@ mod tests {
     #[tokio::test]
     async fn test_video_thumbnail_generation() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
         let video_data = vec![0x00; 1024]; // Dummy video data
         let thumbnail = handler.generate_video_thumbnail(&video_data);
-        
+
         assert!(thumbnail.is_ok());
         let thumb_data = thumbnail.unwrap();
         assert!(!thumb_data.is_empty());
-        
+
         // Verify it's a valid JPEG
         assert!(image::load_from_memory(&thumb_data).is_ok());
     }
@@ -654,13 +700,21 @@ mod tests {
     #[tokio::test]
     async fn test_validate_media_type_valid() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
-        assert!(handler.validate_media_type("image/jpeg", "test.jpg").is_ok());
+        assert!(handler
+            .validate_media_type("image/jpeg", "test.jpg")
+            .is_ok());
         assert!(handler.validate_media_type("image/png", "test.png").is_ok());
-        assert!(handler.validate_media_type("image/webp", "test.webp").is_ok());
-        assert!(handler.validate_media_type("application/pdf", "test.pdf").is_ok());
+        assert!(handler
+            .validate_media_type("image/webp", "test.webp")
+            .is_ok());
+        assert!(handler
+            .validate_media_type("application/pdf", "test.pdf")
+            .is_ok());
         assert!(handler.validate_media_type("video/mp4", "test.mp4").is_ok());
     }
 
@@ -669,12 +723,20 @@ mod tests {
     #[tokio::test]
     async fn test_validate_media_type_invalid() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
-        assert!(handler.validate_media_type("text/plain", "test.txt").is_err());
-        assert!(handler.validate_media_type("video/avi", "test.avi").is_err());
-        assert!(handler.validate_media_type("application/zip", "test.zip").is_err());
+        assert!(handler
+            .validate_media_type("text/plain", "test.txt")
+            .is_err());
+        assert!(handler
+            .validate_media_type("video/avi", "test.avi")
+            .is_err());
+        assert!(handler
+            .validate_media_type("application/zip", "test.zip")
+            .is_err());
     }
 
     /// **Validates: Requirements 7.8**
@@ -682,11 +744,15 @@ mod tests {
     #[tokio::test]
     async fn test_url_validation() {
         let redis_client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-        let redis_conn = redis::aio::ConnectionManager::new(redis_client).await.unwrap();
+        let redis_conn = redis::aio::ConnectionManager::new(redis_client)
+            .await
+            .unwrap();
         let handler = MediaHandler::new(redis_conn);
 
         // Invalid URL (not HTTP/HTTPS)
-        let result = handler.download_media("ftp://example.com/file.jpg", None).await;
+        let result = handler
+            .download_media("ftp://example.com/file.jpg", None)
+            .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), MediaError::InvalidUrl(_)));
     }

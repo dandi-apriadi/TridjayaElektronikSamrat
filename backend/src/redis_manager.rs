@@ -1,5 +1,6 @@
 use redis::{aio::ConnectionManager, AsyncCommands, RedisError, RedisResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info, warn};
 
@@ -100,19 +101,20 @@ impl RedisManager {
     }
 
     /// Enqueue a message to Redis sorted set with priority
-    /// 
+    ///
     /// **Validates: Requirements 2.1, 2.2, 2.4**
-    /// 
+    ///
     /// Messages are enqueued to account-specific queues for load balancing
     /// and to priority-specific queues for processing order.
-    pub async fn enqueue(
-        &mut self,
-        message: QueueMessage,
-        priority: Priority,
-    ) -> RedisResult<()> {
+    pub async fn enqueue(&mut self, message: QueueMessage, priority: Priority) -> RedisResult<()> {
         let account_id = message.account_id.clone();
-        let message_json = serde_json::to_string(&message)
-            .map_err(|e| RedisError::from((redis::ErrorKind::TypeError, "Serialization error", e.to_string())))?;
+        let message_json = serde_json::to_string(&message).map_err(|e| {
+            RedisError::from((
+                redis::ErrorKind::TypeError,
+                "Serialization error",
+                e.to_string(),
+            ))
+        })?;
 
         // Calculate score: priority base + timestamp for FIFO within priority
         let timestamp = SystemTime::now()
@@ -142,9 +144,9 @@ impl RedisManager {
     }
 
     /// Dequeue a batch of messages atomically from specified account and priority
-    /// 
+    ///
     /// **Validates: Requirements 2.2, 2.3, 2.4**
-    /// 
+    ///
     /// Uses Lua script for atomic pop operation to prevent duplicate processing (Redis 3.x compatible).
     /// Returns up to `batch_size` messages.
     pub async fn dequeue_batch(
@@ -154,7 +156,7 @@ impl RedisManager {
         batch_size: usize,
     ) -> RedisResult<Vec<QueueMessage>> {
         let queue_key = self.queue_key(account_id, priority);
-        
+
         // Lua script for atomic ZRANGE + ZREMRANGEBYRANK (Redis 3.x compatible)
         let script = r#"
             local key = KEYS[1]
@@ -203,7 +205,7 @@ impl RedisManager {
     }
 
     /// Dequeue batch from any account with specified priority (round-robin)
-    /// 
+    ///
     /// **Validates: Requirements 2.2, 2.4**
     pub async fn dequeue_batch_any(
         &mut self,
@@ -211,7 +213,7 @@ impl RedisManager {
         batch_size: usize,
     ) -> RedisResult<Vec<QueueMessage>> {
         let global_queue = self.global_queue_key(priority);
-        
+
         // Lua script for atomic ZRANGE + ZREMRANGEBYRANK (Redis 3.x compatible)
         let script = r#"
             local key = KEYS[1]
@@ -236,7 +238,7 @@ impl RedisManager {
                     // Also remove from account-specific queue
                     let account_queue = self.queue_key(&message.account_id, priority);
                     let _: RedisResult<i32> = self.conn().zrem(&account_queue, &message_json).await;
-                    
+
                     debug!(
                         "Dequeued message {} from global queue priority {:?}",
                         message.message_id, priority
@@ -253,9 +255,9 @@ impl RedisManager {
     }
 
     /// Re-enqueue a message with retry logic and exponential backoff
-    /// 
+    ///
     /// **Validates: Requirements 2.5, 2.6**
-    /// 
+    ///
     /// Implements exponential backoff: 5s, 15s, 45s for retries 1, 2, 3.
     /// Messages exceeding max retries (3) are not re-enqueued.
     pub async fn requeue_with_retry(
@@ -264,7 +266,7 @@ impl RedisManager {
         _priority: Priority,
     ) -> RedisResult<bool> {
         const MAX_RETRIES: u32 = 3;
-        
+
         message.retry_count += 1;
 
         if message.retry_count > MAX_RETRIES {
@@ -293,8 +295,13 @@ impl RedisManager {
             .as_secs_f64()
             + delay_seconds;
 
-        let message_json = serde_json::to_string(&message)
-            .map_err(|e| RedisError::from((redis::ErrorKind::TypeError, "Serialization error", e.to_string())))?;
+        let message_json = serde_json::to_string(&message).map_err(|e| {
+            RedisError::from((
+                redis::ErrorKind::TypeError,
+                "Serialization error",
+                e.to_string(),
+            ))
+        })?;
 
         self.conn()
             .zadd::<_, _, _, ()>(&retry_queue, &message_json, retry_time)
@@ -304,9 +311,9 @@ impl RedisManager {
     }
 
     /// Process retry queue and move ready messages back to main queues
-    /// 
+    ///
     /// **Validates: Requirements 2.5**
-    /// 
+    ///
     /// Should be called periodically to check for messages ready to retry.
     pub async fn process_retry_queue(&mut self) -> RedisResult<usize> {
         let retry_queue = self.retry_queue_key();
@@ -325,11 +332,18 @@ impl RedisManager {
         for (message_json, _score) in results {
             if let Ok(message) = serde_json::from_str::<QueueMessage>(&message_json) {
                 // Re-enqueue to normal priority queue
-                if self.enqueue(message.clone(), Priority::Normal).await.is_ok() {
+                if self
+                    .enqueue(message.clone(), Priority::Normal)
+                    .await
+                    .is_ok()
+                {
                     // Remove from retry queue
                     let _: RedisResult<i32> = self.conn().zrem(&retry_queue, &message_json).await;
                     processed += 1;
-                    debug!("Moved message {} from retry queue to main queue", message.message_id);
+                    debug!(
+                        "Moved message {} from retry queue to main queue",
+                        message.message_id
+                    );
                 }
             }
         }
@@ -341,17 +355,90 @@ impl RedisManager {
         Ok(processed)
     }
 
+    pub async fn queued_recipient_ids_for_campaign(
+        &mut self,
+        campaign_id: &str,
+    ) -> RedisResult<HashSet<String>> {
+        let mut ids = HashSet::new();
+        let mut keys = vec![self.retry_queue_key()];
+
+        for priority in [Priority::High, Priority::Normal, Priority::Low] {
+            keys.push(self.global_queue_key(priority));
+            let pattern = format!("wa:queue:*:{}", priority.queue_suffix());
+            let account_keys: Vec<String> = self.conn().keys(&pattern).await.unwrap_or_default();
+            keys.extend(account_keys);
+        }
+
+        keys.sort();
+        keys.dedup();
+
+        for key in keys {
+            let messages: Vec<String> = self.conn().zrange(&key, 0, -1).await.unwrap_or_default();
+            for message_json in messages {
+                if let Ok(message) = serde_json::from_str::<QueueMessage>(&message_json) {
+                    if message.campaign_id == campaign_id {
+                        ids.insert(message.recipient_id);
+                    }
+                }
+            }
+        }
+
+        Ok(ids)
+    }
+
+    pub async fn remove_campaign_messages(&mut self, campaign_id: &str) -> RedisResult<usize> {
+        let mut keys = vec![self.retry_queue_key()];
+
+        for priority in [Priority::High, Priority::Normal, Priority::Low] {
+            keys.push(self.global_queue_key(priority));
+            let pattern = format!("wa:queue:*:{}", priority.queue_suffix());
+            let account_keys: Vec<String> = self.conn().keys(&pattern).await.unwrap_or_default();
+            keys.extend(account_keys);
+        }
+
+        keys.sort();
+        keys.dedup();
+
+        let mut removed = 0_usize;
+        for key in keys {
+            let messages: Vec<String> = self.conn().zrange(&key, 0, -1).await.unwrap_or_default();
+            for message_json in messages {
+                if let Ok(message) = serde_json::from_str::<QueueMessage>(&message_json) {
+                    if message.campaign_id == campaign_id {
+                        let count: i32 = self.conn().zrem(&key, &message_json).await.unwrap_or(0);
+                        if count > 0 {
+                            removed += count as usize;
+                        }
+                    }
+                }
+            }
+        }
+
+        if removed > 0 {
+            info!(
+                "Removed {} queued messages for paused campaign {}",
+                removed, campaign_id
+            );
+        }
+
+        Ok(removed)
+    }
+
     /// Get queue depth for specific account and priority
-    /// 
+    ///
     /// **Validates: Requirements 2.7**
-    pub async fn get_queue_depth(&mut self, account_id: &str, priority: Priority) -> RedisResult<usize> {
+    pub async fn get_queue_depth(
+        &mut self,
+        account_id: &str,
+        priority: Priority,
+    ) -> RedisResult<usize> {
         let queue_key = self.queue_key(account_id, priority);
         let depth: usize = self.conn().zcard(&queue_key).await?;
         Ok(depth)
     }
 
     /// Get total queue depth across all priorities for an account
-    /// 
+    ///
     /// **Validates: Requirements 2.7**
     pub async fn get_total_queue_depth(&mut self, account_id: &str) -> RedisResult<usize> {
         let high = self.get_queue_depth(account_id, Priority::High).await?;
@@ -361,7 +448,7 @@ impl RedisManager {
     }
 
     /// Get queue depth for all accounts at specified priority
-    /// 
+    ///
     /// **Validates: Requirements 2.7**
     pub async fn get_global_queue_depth(&mut self, priority: Priority) -> RedisResult<usize> {
         let global_queue = self.global_queue_key(priority);
@@ -370,7 +457,7 @@ impl RedisManager {
     }
 
     /// Get comprehensive queue metrics
-    /// 
+    ///
     /// **Validates: Requirements 2.7, 2.8**
     pub async fn get_queue_metrics(&mut self) -> RedisResult<QueueMetrics> {
         let high_depth = self.get_global_queue_depth(Priority::High).await?;
@@ -402,9 +489,13 @@ impl RedisManager {
     }
 
     /// Update processing metrics
-    /// 
+    ///
     /// **Validates: Requirements 2.7**
-    pub async fn update_metrics(&mut self, processing_rate: f64, error_rate: f64) -> RedisResult<()> {
+    pub async fn update_metrics(
+        &mut self,
+        processing_rate: f64,
+        error_rate: f64,
+    ) -> RedisResult<()> {
         let metrics_key = self.metrics_key();
         self.conn()
             .hset_multiple::<_, _, _, ()>(
@@ -412,7 +503,13 @@ impl RedisManager {
                 &[
                     ("processing_rate", processing_rate),
                     ("error_rate", error_rate),
-                    ("last_updated", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64()),
+                    (
+                        "last_updated",
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs_f64(),
+                    ),
                 ],
             )
             .await?;
@@ -420,9 +517,9 @@ impl RedisManager {
     }
 
     /// Check if backpressure should be triggered
-    /// 
+    ///
     /// **Validates: Requirements 2.8**
-    /// 
+    ///
     /// Returns true if total queue depth exceeds 10,000 messages.
     pub async fn should_trigger_backpressure(&mut self) -> RedisResult<bool> {
         const BACKPRESSURE_THRESHOLD: usize = 10_000;
@@ -447,11 +544,11 @@ impl RedisManager {
             let global_queue = self.global_queue_key(priority);
             let _: RedisResult<()> = self.conn().del(&global_queue).await;
         }
-        
+
         // Clear retry queue
         let retry_queue = self.retry_queue_key();
         let _: RedisResult<()> = self.conn().del(&retry_queue).await;
-        
+
         // Clear all account-specific queues by pattern
         // Note: This is a best-effort cleanup for testing
         for priority in [Priority::High, Priority::Normal, Priority::Low] {
@@ -461,7 +558,7 @@ impl RedisManager {
                 let _: RedisResult<()> = self.conn().del(&key).await;
             }
         }
-        
+
         info!("Cleared all global queues");
         Ok(())
     }
@@ -508,21 +605,33 @@ mod tests {
         manager.clear_all_queues().await.unwrap();
 
         let message = create_test_message("msg_1", "account_1");
-        
+
         // Enqueue
-        manager.enqueue(message.clone(), Priority::Normal).await.unwrap();
+        manager
+            .enqueue(message.clone(), Priority::Normal)
+            .await
+            .unwrap();
 
         // Check depth
-        let depth = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
+        let depth = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
         assert_eq!(depth, 1);
 
         // Dequeue
-        let messages = manager.dequeue_batch("account_1", Priority::Normal, 10).await.unwrap();
+        let messages = manager
+            .dequeue_batch("account_1", Priority::Normal, 10)
+            .await
+            .unwrap();
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].message_id, "msg_1");
 
         // Verify queue is empty
-        let depth = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
+        let depth = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
         assert_eq!(depth, 0);
     }
 
@@ -548,7 +657,10 @@ mod tests {
         for _ in 0..5 {
             let mut mgr_clone = manager.clone();
             let handle = tokio::spawn(async move {
-                mgr_clone.dequeue_batch("account_1", Priority::Normal, 3).await.unwrap()
+                mgr_clone
+                    .dequeue_batch("account_1", Priority::Normal, 3)
+                    .await
+                    .unwrap()
             });
             handles.push(handle);
         }
@@ -561,17 +673,25 @@ mod tests {
         }
 
         // Verify no duplicates (each message_id should appear exactly once)
-        let mut message_ids: Vec<String> = all_messages.iter().map(|m| m.message_id.clone()).collect();
+        let mut message_ids: Vec<String> =
+            all_messages.iter().map(|m| m.message_id.clone()).collect();
         message_ids.sort();
         let original_len = message_ids.len();
         message_ids.dedup();
-        assert_eq!(message_ids.len(), original_len, "Duplicate messages detected in concurrent dequeue");
+        assert_eq!(
+            message_ids.len(),
+            original_len,
+            "Duplicate messages detected in concurrent dequeue"
+        );
 
         // Verify all 10 messages were dequeued
         assert_eq!(all_messages.len(), 10);
 
         // Verify queue is empty
-        let depth = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
+        let depth = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
         assert_eq!(depth, 0);
     }
 
@@ -587,25 +707,52 @@ mod tests {
         manager.clear_all_queues().await.unwrap();
 
         // Enqueue messages with different priorities (in mixed order)
-        manager.enqueue(create_test_message("low_1", "account_1"), Priority::Low).await.unwrap();
-        manager.enqueue(create_test_message("high_1", "account_1"), Priority::High).await.unwrap();
-        manager.enqueue(create_test_message("normal_1", "account_1"), Priority::Normal).await.unwrap();
-        manager.enqueue(create_test_message("high_2", "account_1"), Priority::High).await.unwrap();
-        manager.enqueue(create_test_message("low_2", "account_1"), Priority::Low).await.unwrap();
+        manager
+            .enqueue(create_test_message("low_1", "account_1"), Priority::Low)
+            .await
+            .unwrap();
+        manager
+            .enqueue(create_test_message("high_1", "account_1"), Priority::High)
+            .await
+            .unwrap();
+        manager
+            .enqueue(
+                create_test_message("normal_1", "account_1"),
+                Priority::Normal,
+            )
+            .await
+            .unwrap();
+        manager
+            .enqueue(create_test_message("high_2", "account_1"), Priority::High)
+            .await
+            .unwrap();
+        manager
+            .enqueue(create_test_message("low_2", "account_1"), Priority::Low)
+            .await
+            .unwrap();
 
         // Dequeue should get high priority first
-        let high_msgs = manager.dequeue_batch("account_1", Priority::High, 10).await.unwrap();
+        let high_msgs = manager
+            .dequeue_batch("account_1", Priority::High, 10)
+            .await
+            .unwrap();
         assert_eq!(high_msgs.len(), 2);
         assert!(high_msgs.iter().any(|m| m.message_id == "high_1"));
         assert!(high_msgs.iter().any(|m| m.message_id == "high_2"));
 
         // Then normal
-        let normal_msgs = manager.dequeue_batch("account_1", Priority::Normal, 10).await.unwrap();
+        let normal_msgs = manager
+            .dequeue_batch("account_1", Priority::Normal, 10)
+            .await
+            .unwrap();
         assert_eq!(normal_msgs.len(), 1);
         assert_eq!(normal_msgs[0].message_id, "normal_1");
 
         // Then low
-        let low_msgs = manager.dequeue_batch("account_1", Priority::Low, 10).await.unwrap();
+        let low_msgs = manager
+            .dequeue_batch("account_1", Priority::Low, 10)
+            .await
+            .unwrap();
         assert_eq!(low_msgs.len(), 2);
         assert!(low_msgs.iter().any(|m| m.message_id == "low_1"));
         assert!(low_msgs.iter().any(|m| m.message_id == "low_2"));
@@ -631,7 +778,10 @@ mod tests {
         }
 
         // Dequeue all messages
-        let messages = manager.dequeue_batch("account_1", Priority::Normal, 10).await.unwrap();
+        let messages = manager
+            .dequeue_batch("account_1", Priority::Normal, 10)
+            .await
+            .unwrap();
         assert_eq!(messages.len(), 5);
 
         // Verify FIFO order (messages should be in order 0, 1, 2, 3, 4)
@@ -654,23 +804,35 @@ mod tests {
         let message = create_test_message("msg_retry", "account_1");
 
         // First retry should succeed (retry_count 0 -> 1)
-        let result = manager.requeue_with_retry(message.clone(), Priority::Normal).await.unwrap();
+        let result = manager
+            .requeue_with_retry(message.clone(), Priority::Normal)
+            .await
+            .unwrap();
         assert!(result, "First retry should succeed");
 
         // Second retry should succeed (retry_count 1 -> 2)
         let mut msg = message.clone();
         msg.retry_count = 1;
-        let result = manager.requeue_with_retry(msg.clone(), Priority::Normal).await.unwrap();
+        let result = manager
+            .requeue_with_retry(msg.clone(), Priority::Normal)
+            .await
+            .unwrap();
         assert!(result, "Second retry should succeed");
-        
+
         // Third retry should succeed (retry_count 2 -> 3)
         msg.retry_count = 2;
-        let result = manager.requeue_with_retry(msg.clone(), Priority::Normal).await.unwrap();
+        let result = manager
+            .requeue_with_retry(msg.clone(), Priority::Normal)
+            .await
+            .unwrap();
         assert!(result, "Third retry should succeed");
 
         // Fourth retry should fail (retry_count 3 -> 4, exceeds max)
         msg.retry_count = 3;
-        let result = manager.requeue_with_retry(msg, Priority::Normal).await.unwrap();
+        let result = manager
+            .requeue_with_retry(msg, Priority::Normal)
+            .await
+            .unwrap();
         assert!(!result, "Fourth retry should fail (exceeds max retries)");
     }
 
@@ -688,17 +850,26 @@ mod tests {
         let message = create_test_message("msg_backoff", "account_1");
 
         // Enqueue with retry_count = 0 (first retry, delay = 5s)
-        manager.requeue_with_retry(message.clone(), Priority::Normal).await.unwrap();
+        manager
+            .requeue_with_retry(message.clone(), Priority::Normal)
+            .await
+            .unwrap();
 
         // Enqueue with retry_count = 1 (second retry, delay = 15s)
         let mut msg2 = create_test_message("msg_backoff_2", "account_1");
         msg2.retry_count = 1;
-        manager.requeue_with_retry(msg2, Priority::Normal).await.unwrap();
+        manager
+            .requeue_with_retry(msg2, Priority::Normal)
+            .await
+            .unwrap();
 
         // Enqueue with retry_count = 2 (third retry, delay = 45s)
         let mut msg3 = create_test_message("msg_backoff_3", "account_1");
         msg3.retry_count = 2;
-        manager.requeue_with_retry(msg3, Priority::Normal).await.unwrap();
+        manager
+            .requeue_with_retry(msg3, Priority::Normal)
+            .await
+            .unwrap();
 
         // Process retry queue immediately - should get 0 messages (all have future timestamps)
         let processed = manager.process_retry_queue().await.unwrap();
@@ -731,14 +902,21 @@ mod tests {
             .as_secs_f64()
             - 10.0; // 10 seconds ago
 
-        let _: () = manager.conn().zadd(&retry_queue, &message_json, past_time).await.unwrap();
+        let _: () = manager
+            .conn()
+            .zadd(&retry_queue, &message_json, past_time)
+            .await
+            .unwrap();
 
         // Process retry queue
         let processed = manager.process_retry_queue().await.unwrap();
         assert_eq!(processed, 1, "One message should be processed");
 
         // Verify message moved to main queue
-        let depth = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
+        let depth = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
         assert_eq!(depth, 1, "Message should be in main queue");
 
         // Verify retry queue is empty
@@ -759,26 +937,56 @@ mod tests {
 
         // Enqueue messages for different accounts
         for i in 0..5 {
-            manager.enqueue(create_test_message(&format!("acc1_msg_{}", i), "account_1"), Priority::Normal).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("acc1_msg_{}", i), "account_1"),
+                    Priority::Normal,
+                )
+                .await
+                .unwrap();
         }
         for i in 0..3 {
-            manager.enqueue(create_test_message(&format!("acc2_msg_{}", i), "account_2"), Priority::Normal).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("acc2_msg_{}", i), "account_2"),
+                    Priority::Normal,
+                )
+                .await
+                .unwrap();
         }
         for i in 0..4 {
-            manager.enqueue(create_test_message(&format!("acc3_msg_{}", i), "account_3"), Priority::Normal).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("acc3_msg_{}", i), "account_3"),
+                    Priority::Normal,
+                )
+                .await
+                .unwrap();
         }
 
         // Verify each account has its own queue depth
-        let depth1 = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
-        let depth2 = manager.get_queue_depth("account_2", Priority::Normal).await.unwrap();
-        let depth3 = manager.get_queue_depth("account_3", Priority::Normal).await.unwrap();
+        let depth1 = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
+        let depth2 = manager
+            .get_queue_depth("account_2", Priority::Normal)
+            .await
+            .unwrap();
+        let depth3 = manager
+            .get_queue_depth("account_3", Priority::Normal)
+            .await
+            .unwrap();
 
         assert_eq!(depth1, 5, "Account 1 should have 5 messages");
         assert_eq!(depth2, 3, "Account 2 should have 3 messages");
         assert_eq!(depth3, 4, "Account 3 should have 4 messages");
 
         // Dequeue from account_1 should only get account_1 messages
-        let acc1_messages = manager.dequeue_batch("account_1", Priority::Normal, 10).await.unwrap();
+        let acc1_messages = manager
+            .dequeue_batch("account_1", Priority::Normal, 10)
+            .await
+            .unwrap();
         assert_eq!(acc1_messages.len(), 5);
         for msg in &acc1_messages {
             assert_eq!(msg.account_id, "account_1");
@@ -786,9 +994,18 @@ mod tests {
         }
 
         // Verify account_1 queue is empty but others are not
-        let depth1 = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
-        let depth2 = manager.get_queue_depth("account_2", Priority::Normal).await.unwrap();
-        let depth3 = manager.get_queue_depth("account_3", Priority::Normal).await.unwrap();
+        let depth1 = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
+        let depth2 = manager
+            .get_queue_depth("account_2", Priority::Normal)
+            .await
+            .unwrap();
+        let depth3 = manager
+            .get_queue_depth("account_3", Priority::Normal)
+            .await
+            .unwrap();
 
         assert_eq!(depth1, 0, "Account 1 queue should be empty");
         assert_eq!(depth2, 3, "Account 2 should still have 3 messages");
@@ -807,13 +1024,38 @@ mod tests {
         manager.clear_all_queues().await.unwrap();
 
         // Enqueue messages from multiple accounts
-        manager.enqueue(create_test_message("acc1_msg_1", "account_1"), Priority::Normal).await.unwrap();
-        manager.enqueue(create_test_message("acc2_msg_1", "account_2"), Priority::Normal).await.unwrap();
-        manager.enqueue(create_test_message("acc3_msg_1", "account_3"), Priority::Normal).await.unwrap();
+        manager
+            .enqueue(
+                create_test_message("acc1_msg_1", "account_1"),
+                Priority::Normal,
+            )
+            .await
+            .unwrap();
+        manager
+            .enqueue(
+                create_test_message("acc2_msg_1", "account_2"),
+                Priority::Normal,
+            )
+            .await
+            .unwrap();
+        manager
+            .enqueue(
+                create_test_message("acc3_msg_1", "account_3"),
+                Priority::Normal,
+            )
+            .await
+            .unwrap();
 
         // Dequeue from any account
-        let messages = manager.dequeue_batch_any(Priority::Normal, 10).await.unwrap();
-        assert_eq!(messages.len(), 3, "Should dequeue all 3 messages from different accounts");
+        let messages = manager
+            .dequeue_batch_any(Priority::Normal, 10)
+            .await
+            .unwrap();
+        assert_eq!(
+            messages.len(),
+            3,
+            "Should dequeue all 3 messages from different accounts"
+        );
 
         // Verify messages are from different accounts
         let account_ids: Vec<String> = messages.iter().map(|m| m.account_id.clone()).collect();
@@ -822,9 +1064,18 @@ mod tests {
         assert!(account_ids.contains(&"account_3".to_string()));
 
         // Verify all queues are empty
-        let depth1 = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
-        let depth2 = manager.get_queue_depth("account_2", Priority::Normal).await.unwrap();
-        let depth3 = manager.get_queue_depth("account_3", Priority::Normal).await.unwrap();
+        let depth1 = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
+        let depth2 = manager
+            .get_queue_depth("account_2", Priority::Normal)
+            .await
+            .unwrap();
+        let depth3 = manager
+            .get_queue_depth("account_3", Priority::Normal)
+            .await
+            .unwrap();
         assert_eq!(depth1 + depth2 + depth3, 0, "All queues should be empty");
     }
 
@@ -841,19 +1092,34 @@ mod tests {
 
         // Enqueue 10 messages
         for i in 0..10 {
-            manager.enqueue(create_test_message(&format!("msg_{}", i), "account_1"), Priority::Normal).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("msg_{}", i), "account_1"),
+                    Priority::Normal,
+                )
+                .await
+                .unwrap();
         }
 
         // Dequeue with batch size 3
-        let batch1 = manager.dequeue_batch("account_1", Priority::Normal, 3).await.unwrap();
+        let batch1 = manager
+            .dequeue_batch("account_1", Priority::Normal, 3)
+            .await
+            .unwrap();
         assert_eq!(batch1.len(), 3, "Should dequeue exactly 3 messages");
 
         // Dequeue another batch of 3
-        let batch2 = manager.dequeue_batch("account_1", Priority::Normal, 3).await.unwrap();
+        let batch2 = manager
+            .dequeue_batch("account_1", Priority::Normal, 3)
+            .await
+            .unwrap();
         assert_eq!(batch2.len(), 3, "Should dequeue exactly 3 messages");
 
         // Verify 4 messages remain
-        let depth = manager.get_queue_depth("account_1", Priority::Normal).await.unwrap();
+        let depth = manager
+            .get_queue_depth("account_1", Priority::Normal)
+            .await
+            .unwrap();
         assert_eq!(depth, 4, "4 messages should remain in queue");
     }
 
@@ -870,13 +1136,31 @@ mod tests {
 
         // Enqueue messages with different priorities
         for i in 0..5 {
-            manager.enqueue(create_test_message(&format!("high_{}", i), "account_1"), Priority::High).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("high_{}", i), "account_1"),
+                    Priority::High,
+                )
+                .await
+                .unwrap();
         }
         for i in 0..3 {
-            manager.enqueue(create_test_message(&format!("normal_{}", i), "account_1"), Priority::Normal).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("normal_{}", i), "account_1"),
+                    Priority::Normal,
+                )
+                .await
+                .unwrap();
         }
         for i in 0..2 {
-            manager.enqueue(create_test_message(&format!("low_{}", i), "account_1"), Priority::Low).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("low_{}", i), "account_1"),
+                    Priority::Low,
+                )
+                .await
+                .unwrap();
         }
 
         let metrics = manager.get_queue_metrics().await.unwrap();
@@ -899,15 +1183,27 @@ mod tests {
 
         // Should not trigger with small queue
         let should_trigger = manager.should_trigger_backpressure().await.unwrap();
-        assert!(!should_trigger, "Backpressure should not trigger with empty queue");
+        assert!(
+            !should_trigger,
+            "Backpressure should not trigger with empty queue"
+        );
 
         // Add some messages (still below threshold)
         for i in 0..100 {
-            manager.enqueue(create_test_message(&format!("msg_{}", i), "account_1"), Priority::Normal).await.unwrap();
+            manager
+                .enqueue(
+                    create_test_message(&format!("msg_{}", i), "account_1"),
+                    Priority::Normal,
+                )
+                .await
+                .unwrap();
         }
 
         let should_trigger = manager.should_trigger_backpressure().await.unwrap();
-        assert!(!should_trigger, "Backpressure should not trigger with 100 messages");
+        assert!(
+            !should_trigger,
+            "Backpressure should not trigger with 100 messages"
+        );
 
         // Note: Testing with 10,000+ messages would be slow, so we just verify the logic works
     }
@@ -937,12 +1233,30 @@ mod tests {
         manager.clear_all_queues().await.unwrap();
 
         // Enqueue messages with different priorities for same account
-        manager.enqueue(create_test_message("high_1", "account_1"), Priority::High).await.unwrap();
-        manager.enqueue(create_test_message("high_2", "account_1"), Priority::High).await.unwrap();
-        manager.enqueue(create_test_message("normal_1", "account_1"), Priority::Normal).await.unwrap();
-        manager.enqueue(create_test_message("low_1", "account_1"), Priority::Low).await.unwrap();
+        manager
+            .enqueue(create_test_message("high_1", "account_1"), Priority::High)
+            .await
+            .unwrap();
+        manager
+            .enqueue(create_test_message("high_2", "account_1"), Priority::High)
+            .await
+            .unwrap();
+        manager
+            .enqueue(
+                create_test_message("normal_1", "account_1"),
+                Priority::Normal,
+            )
+            .await
+            .unwrap();
+        manager
+            .enqueue(create_test_message("low_1", "account_1"), Priority::Low)
+            .await
+            .unwrap();
 
         let total_depth = manager.get_total_queue_depth("account_1").await.unwrap();
-        assert_eq!(total_depth, 4, "Total depth should be sum of all priorities");
+        assert_eq!(
+            total_depth, 4,
+            "Total depth should be sum of all priorities"
+        );
     }
 }

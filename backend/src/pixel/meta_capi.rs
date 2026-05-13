@@ -76,8 +76,7 @@ pub async fn send_event(
 
     // 4. Parse user_data and custom_data JSON.
     let user_data: Value = serde_json::from_str(&event.user_data).unwrap_or_else(|_| json!({}));
-    let custom_data: Value =
-        serde_json::from_str(&event.custom_data).unwrap_or_else(|_| json!({}));
+    let custom_data: Value = serde_json::from_str(&event.custom_data).unwrap_or_else(|_| json!({}));
 
     // 5. Build Meta CAPI payload.
     let payload = json!({
@@ -263,7 +262,14 @@ pub async fn retry_failed_events(pool: &SqlitePool) -> Result<(), MetaCapiError>
         let delay_secs = 2u64.pow(event.retry_count as u32);
         tokio::time::sleep(Duration::from_secs(delay_secs)).await;
 
-        if let Err(e) = send_event(pool, &event.event_id, &event.pixel_id_str, &event.access_token).await {
+        if let Err(e) = send_event(
+            pool,
+            &event.event_id,
+            &event.pixel_id_str,
+            &event.access_token,
+        )
+        .await
+        {
             tracing::error!(
                 "retry_failed_events: send_event failed for event_id={} (retry_count={}): {}",
                 event.event_id,
@@ -395,7 +401,10 @@ mod tests {
 
         // Confirm the payload has no pixel_events-specific fields (no event_id, no fbp, etc.).
         let data = &payload["data"][0];
-        assert!(data.get("event_id").is_none(), "Test event must not include event_id from DB");
+        assert!(
+            data.get("event_id").is_none(),
+            "Test event must not include event_id from DB"
+        );
         assert!(data.get("fbp").is_none(), "Test event must not include fbp");
         assert_eq!(data["action_source"], "website");
         assert_eq!(data["event_name"], event_type);
@@ -404,7 +413,10 @@ mod tests {
         // the function signature: send_test_event(pixel_id, access_token_encrypted, event_type, test_event_code)
         // No SqlitePool write operations are performed.
         let no_db_write = true;
-        assert!(no_db_write, "send_test_event must not write to pixel_events");
+        assert!(
+            no_db_write,
+            "send_test_event must not write to pixel_events"
+        );
     }
 
     // ── Additional: retry backoff delay calculation ───────────────────────────
@@ -421,6 +433,9 @@ mod tests {
     fn retry_terminal_state_is_three() {
         // Events with retry_count >= 3 are excluded from retry queries.
         let terminal_retry_count: i64 = 3;
-        assert!(terminal_retry_count >= 3, "Terminal state must be retry_count = 3");
+        assert!(
+            terminal_retry_count >= 3,
+            "Terminal state must be retry_count = 3"
+        );
     }
 }

@@ -1,6 +1,7 @@
 use crate::redis_manager::{Priority, QueueMessage, QueueMetrics, RedisManager};
 use redis::RedisResult;
 use sqlx::SqlitePool;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
@@ -9,10 +10,15 @@ use uuid::Uuid;
 /// Campaign configuration for queue management
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CampaignConfig {
+    #[serde(default)]
     pub message_template: String,
+    #[serde(default = "default_delay_config")]
     pub delay_config: DelayConfig,
+    #[serde(default)]
     pub spintax_enabled: bool,
+    #[serde(default)]
     pub media_config: Option<MediaConfig>,
+    #[serde(default)]
     pub priority: Option<String>, // "high", "normal", "low"
 }
 
@@ -20,6 +26,25 @@ pub struct CampaignConfig {
 pub struct DelayConfig {
     pub min_delay: u64, // milliseconds
     pub max_delay: u64, // milliseconds
+}
+
+fn default_delay_config() -> DelayConfig {
+    DelayConfig {
+        min_delay: 5000,
+        max_delay: 15000,
+    }
+}
+
+impl Default for CampaignConfig {
+    fn default() -> Self {
+        Self {
+            message_template: String::new(),
+            delay_config: default_delay_config(),
+            spintax_enabled: false,
+            media_config: None,
+            priority: Some("normal".to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -48,9 +73,9 @@ pub struct CampaignRecord {
 }
 
 /// Queue Manager - high-level abstraction over RedisManager
-/// 
+///
 /// **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8**
-/// 
+///
 /// Provides campaign-level queue operations that integrate with the database
 /// and use RedisManager for the underlying queue implementation.
 #[derive(Clone)]
@@ -69,9 +94,9 @@ impl QueueManager {
     }
 
     /// Enqueue all pending recipients for a campaign
-    /// 
+    ///
     /// **Validates: Requirements 2.1, 2.2, 2.4**
-    /// 
+    ///
     /// Reads all pending recipients from the database and enqueues them to Redis
     /// with the specified priority. Messages are distributed across accounts using
     /// round-robin strategy.
@@ -80,42 +105,27 @@ impl QueueManager {
         campaign_id: &str,
         account_ids: &[String],
     ) -> Result<usize, Box<dyn std::error::Error>> {
-        info!("Enqueueing campaign {} with {} accounts", campaign_id, account_ids.len());
+        info!(
+            "Enqueueing campaign {} with {} accounts",
+            campaign_id,
+            account_ids.len()
+        );
 
         if account_ids.is_empty() {
             return Err("No accounts provided for campaign".into());
         }
 
         // Fetch campaign config
-        let campaign: CampaignRecord = sqlx::query_as(
-            "SELECT id, name, config, created_by FROM wa_campaigns WHERE id = ?"
-        )
-        .bind(campaign_id)
-        .fetch_one(&self.pool)
-        .await?;
+        let campaign: CampaignRecord =
+            sqlx::query_as("SELECT id, name, config, created_by FROM wa_campaigns WHERE id = ?")
+                .bind(campaign_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         let config: CampaignConfig = if let Some(config_json) = campaign.config {
-            serde_json::from_str(&config_json).unwrap_or_else(|_| CampaignConfig {
-                message_template: String::new(),
-                delay_config: DelayConfig {
-                    min_delay: 5000,
-                    max_delay: 15000,
-                },
-                spintax_enabled: false,
-                media_config: None,
-                priority: Some("normal".to_string()),
-            })
+            serde_json::from_str(&config_json).unwrap_or_default()
         } else {
-            CampaignConfig {
-                message_template: String::new(),
-                delay_config: DelayConfig {
-                    min_delay: 5000,
-                    max_delay: 15000,
-                },
-                spintax_enabled: false,
-                media_config: None,
-                priority: Some("normal".to_string()),
-            }
+            CampaignConfig::default()
         };
 
         // Parse priority
@@ -130,7 +140,7 @@ impl QueueManager {
             "SELECT id, campaign_id, phone, variables_json, status 
              FROM wa_recipients 
              WHERE campaign_id = ? AND status = 'pending'
-             ORDER BY created_at ASC"
+             ORDER BY created_at ASC",
         )
         .bind(campaign_id)
         .fetch_all(&self.pool)
@@ -141,15 +151,31 @@ impl QueueManager {
             return Ok(0);
         }
 
-        info!("Found {} pending recipients for campaign {}", recipients.len(), campaign_id);
+        info!(
+            "Found {} pending recipients for campaign {}",
+            recipients.len(),
+            campaign_id
+        );
 
         // Round-robin account assignment
         let mut enqueued_count = 0;
         let mut redis = self.redis.lock().await;
+        let queued_ids: HashSet<String> = redis
+            .queued_recipient_ids_for_campaign(campaign_id)
+            .await
+            .unwrap_or_default();
 
         for (idx, recipient) in recipients.iter().enumerate() {
+            if queued_ids.contains(&recipient.id) {
+                debug!(
+                    "Skipping recipient {} for campaign {} because it is already queued",
+                    recipient.id, campaign_id
+                );
+                continue;
+            }
+
             let account_id = &account_ids[idx % account_ids.len()];
-            
+
             let message = QueueMessage {
                 message_id: Uuid::new_v4().to_string(),
                 campaign_id: campaign_id.to_string(),
@@ -157,7 +183,10 @@ impl QueueManager {
                 account_id: account_id.clone(),
                 phone: recipient.phone.clone(),
                 message_text: config.message_template.clone(),
-                media_url: config.media_config.as_ref().and_then(|m| m.media_url.clone()),
+                media_url: config
+                    .media_config
+                    .as_ref()
+                    .and_then(|m| m.media_url.clone()),
                 retry_count: 0,
                 enqueued_at: chrono::Utc::now().timestamp(),
             };
@@ -171,26 +200,68 @@ impl QueueManager {
                     );
                 }
                 Err(e) => {
-                    error!(
-                        "Failed to enqueue recipient {}: {}",
-                        recipient.id, e
-                    );
+                    error!("Failed to enqueue recipient {}: {}", recipient.id, e);
                 }
             }
         }
 
         info!(
             "Successfully enqueued {}/{} recipients for campaign {}",
-            enqueued_count, recipients.len(), campaign_id
+            enqueued_count,
+            recipients.len(),
+            campaign_id
         );
 
         Ok(enqueued_count)
     }
 
+    pub async fn recover_running_campaigns(&self) -> Result<usize, Box<dyn std::error::Error>> {
+        let account_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM wa_accounts WHERE enabled = 1 AND status = 'connected'",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        if account_ids.is_empty() {
+            debug!("Skipping WA queue recovery: no connected accounts");
+            return Ok(0);
+        }
+
+        let campaign_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT DISTINCT c.id
+             FROM wa_campaigns c
+             JOIN wa_recipients r ON r.campaign_id = c.id
+             WHERE c.status = 'running' AND r.status = 'pending'",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut total = 0;
+        for campaign_id in campaign_ids {
+            match self.enqueue_campaign(&campaign_id, &account_ids).await {
+                Ok(count) => {
+                    if count > 0 {
+                        info!(
+                            "Recovered {} pending recipients into queue for campaign {}",
+                            count, campaign_id
+                        );
+                    }
+                    total += count;
+                }
+                Err(e) => warn!(
+                    "Failed to recover queue for campaign {}: {}",
+                    campaign_id, e
+                ),
+            }
+        }
+
+        Ok(total)
+    }
+
     /// Enqueue a single message with specified priority
-    /// 
+    ///
     /// **Validates: Requirements 2.1, 2.4**
-    /// 
+    ///
     /// Used for API-based message sending (e.g., from N8N).
     pub async fn enqueue_message(
         &self,
@@ -201,7 +272,7 @@ impl QueueManager {
         priority: Priority,
     ) -> RedisResult<String> {
         let message_id = Uuid::new_v4().to_string();
-        
+
         let message = QueueMessage {
             message_id: message_id.clone(),
             campaign_id: "api_send".to_string(),
@@ -217,14 +288,17 @@ impl QueueManager {
         let mut redis = self.redis.lock().await;
         redis.enqueue(message, priority).await?;
 
-        info!("Enqueued API message {} with priority {:?}", message_id, priority);
+        info!(
+            "Enqueued API message {} with priority {:?}",
+            message_id, priority
+        );
         Ok(message_id)
     }
 
     /// Dequeue a batch of messages for processing
-    /// 
+    ///
     /// **Validates: Requirements 2.2, 2.3, 2.4**
-    /// 
+    ///
     /// Fetches messages from the specified account and priority queue.
     /// Uses atomic Lua script to prevent duplicate processing.
     pub async fn dequeue_batch(
@@ -238,7 +312,7 @@ impl QueueManager {
     }
 
     /// Dequeue batch from any account (round-robin)
-    /// 
+    ///
     /// **Validates: Requirements 2.2, 2.4**
     pub async fn dequeue_batch_any(
         &self,
@@ -250,9 +324,9 @@ impl QueueManager {
     }
 
     /// Re-enqueue a failed message with retry logic
-    /// 
+    ///
     /// **Validates: Requirements 2.5, 2.6**
-    /// 
+    ///
     /// Implements exponential backoff (5s, 15s, 45s) and max retry limit (3 attempts).
     /// Returns true if re-enqueued, false if max retries exceeded.
     pub async fn requeue_with_retry(
@@ -265,9 +339,9 @@ impl QueueManager {
     }
 
     /// Process retry queue and move ready messages back to main queues
-    /// 
+    ///
     /// **Validates: Requirements 2.5**
-    /// 
+    ///
     /// Should be called periodically (e.g., every 10 seconds) to check for
     /// messages that are ready to retry after their backoff delay.
     pub async fn process_retry_queue(&self) -> RedisResult<usize> {
@@ -276,7 +350,7 @@ impl QueueManager {
     }
 
     /// Get queue depth for specific account and priority
-    /// 
+    ///
     /// **Validates: Requirements 2.7**
     pub async fn get_queue_depth(
         &self,
@@ -288,7 +362,7 @@ impl QueueManager {
     }
 
     /// Get total queue depth across all priorities for an account
-    /// 
+    ///
     /// **Validates: Requirements 2.7**
     pub async fn get_total_queue_depth(&self, account_id: &str) -> RedisResult<usize> {
         let mut redis = self.redis.lock().await;
@@ -296,7 +370,7 @@ impl QueueManager {
     }
 
     /// Get comprehensive queue metrics
-    /// 
+    ///
     /// **Validates: Requirements 2.7, 2.8**
     pub async fn get_queue_metrics(&self) -> RedisResult<QueueMetrics> {
         let mut redis = self.redis.lock().await;
@@ -304,21 +378,17 @@ impl QueueManager {
     }
 
     /// Update processing metrics
-    /// 
+    ///
     /// **Validates: Requirements 2.7**
-    pub async fn update_metrics(
-        &self,
-        processing_rate: f64,
-        error_rate: f64,
-    ) -> RedisResult<()> {
+    pub async fn update_metrics(&self, processing_rate: f64, error_rate: f64) -> RedisResult<()> {
         let mut redis = self.redis.lock().await;
         redis.update_metrics(processing_rate, error_rate).await
     }
 
     /// Check if backpressure should be triggered
-    /// 
+    ///
     /// **Validates: Requirements 2.8**
-    /// 
+    ///
     /// Returns true if total queue depth exceeds 10,000 messages.
     pub async fn should_trigger_backpressure(&self) -> RedisResult<bool> {
         let mut redis = self.redis.lock().await;
@@ -326,7 +396,7 @@ impl QueueManager {
     }
 
     /// Mark a recipient as sent in the database
-    /// 
+    ///
     /// Updates the recipient status and last_attempt_at timestamp.
     pub async fn mark_recipient_sent(
         &self,
@@ -335,7 +405,7 @@ impl QueueManager {
         sqlx::query(
             "UPDATE wa_recipients 
              SET status = 'sent', last_attempt_at = CURRENT_TIMESTAMP 
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(recipient_id)
         .execute(&self.pool)
@@ -346,7 +416,7 @@ impl QueueManager {
     }
 
     /// Mark a recipient as failed in the database
-    /// 
+    ///
     /// Updates the recipient status and last_attempt_at timestamp.
     pub async fn mark_recipient_failed(
         &self,
@@ -355,7 +425,7 @@ impl QueueManager {
         sqlx::query(
             "UPDATE wa_recipients 
              SET status = 'failed', last_attempt_at = CURRENT_TIMESTAMP 
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(recipient_id)
         .execute(&self.pool)
@@ -366,7 +436,7 @@ impl QueueManager {
     }
 
     /// Get campaign statistics
-    /// 
+    ///
     /// Returns counts of recipients by status for a campaign.
     pub async fn get_campaign_stats(
         &self,
@@ -380,7 +450,7 @@ impl QueueManager {
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
                 SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped
              FROM wa_recipients 
-             WHERE campaign_id = ?"
+             WHERE campaign_id = ?",
         )
         .bind(campaign_id)
         .fetch_one(&self.pool)
@@ -402,10 +472,7 @@ impl QueueManager {
         let redis_ok = redis.health_check().await?;
 
         // Check database
-        let db_ok = sqlx::query("SELECT 1")
-            .fetch_one(&self.pool)
-            .await
-            .is_ok();
+        let db_ok = sqlx::query("SELECT 1").fetch_one(&self.pool).await.is_ok();
 
         Ok(redis_ok && db_ok)
     }
@@ -414,6 +481,11 @@ impl QueueManager {
     pub async fn clear_account_queues(&self, account_id: &str) -> RedisResult<()> {
         let mut redis = self.redis.lock().await;
         redis.clear_account_queues(account_id).await
+    }
+
+    pub async fn remove_campaign_messages(&self, campaign_id: &str) -> RedisResult<usize> {
+        let mut redis = self.redis.lock().await;
+        redis.remove_campaign_messages(campaign_id).await
     }
 }
 
@@ -444,7 +516,7 @@ mod tests {
 
     async fn setup_test_db() -> SqlitePool {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
-        
+
         // Create tables
         sqlx::query(
             "CREATE TABLE wa_campaigns (
@@ -453,7 +525,7 @@ mod tests {
                 config TEXT,
                 created_by TEXT,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -468,7 +540,7 @@ mod tests {
                 status TEXT NOT NULL DEFAULT 'pending',
                 last_attempt_at DATETIME,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -499,22 +571,20 @@ mod tests {
             priority: Some("normal".to_string()),
         };
 
-        sqlx::query(
-            "INSERT INTO wa_campaigns (id, name, config) VALUES (?, ?, ?)"
-        )
-        .bind(&campaign_id)
-        .bind("Test Campaign")
-        .bind(serde_json::to_string(&config).unwrap())
-        .execute(&pool)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO wa_campaigns (id, name, config) VALUES (?, ?, ?)")
+            .bind(&campaign_id)
+            .bind("Test Campaign")
+            .bind(serde_json::to_string(&config).unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
 
         // Create test recipients
         for i in 0..5 {
             let recipient_id = Uuid::new_v4().to_string();
             sqlx::query(
                 "INSERT INTO wa_recipients (id, campaign_id, phone, status) 
-                 VALUES (?, ?, ?, 'pending')"
+                 VALUES (?, ?, ?, 'pending')",
             )
             .bind(&recipient_id)
             .bind(&campaign_id)
@@ -586,23 +656,21 @@ mod tests {
         let queue_manager = QueueManager::new(redis, pool.clone());
 
         let campaign_id = Uuid::new_v4().to_string();
-        
+
         // Create campaign
-        sqlx::query(
-            "INSERT INTO wa_campaigns (id, name) VALUES (?, ?)"
-        )
-        .bind(&campaign_id)
-        .bind("Test Campaign")
-        .execute(&pool)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO wa_campaigns (id, name) VALUES (?, ?)")
+            .bind(&campaign_id)
+            .bind("Test Campaign")
+            .execute(&pool)
+            .await
+            .unwrap();
 
         // Create recipients with different statuses
         for (i, status) in ["pending", "sent", "failed", "skipped"].iter().enumerate() {
             let recipient_id = Uuid::new_v4().to_string();
             sqlx::query(
                 "INSERT INTO wa_recipients (id, campaign_id, phone, status) 
-                 VALUES (?, ?, ?, ?)"
+                 VALUES (?, ?, ?, ?)",
             )
             .bind(&recipient_id)
             .bind(&campaign_id)
@@ -613,8 +681,11 @@ mod tests {
             .unwrap();
         }
 
-        let stats = queue_manager.get_campaign_stats(&campaign_id).await.unwrap();
-        
+        let stats = queue_manager
+            .get_campaign_stats(&campaign_id)
+            .await
+            .unwrap();
+
         assert_eq!(stats.total, 4);
         assert_eq!(stats.pending, 1);
         assert_eq!(stats.sent, 1);
@@ -646,6 +717,9 @@ mod tests {
 
         // With empty queue, should not trigger backpressure
         let should_trigger = queue_manager.should_trigger_backpressure().await.unwrap();
-        assert!(!should_trigger, "Should not trigger backpressure with empty queue");
+        assert!(
+            !should_trigger,
+            "Should not trigger backpressure with empty queue"
+        );
     }
 }

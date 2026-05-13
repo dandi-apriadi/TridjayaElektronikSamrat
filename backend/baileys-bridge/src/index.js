@@ -24,6 +24,15 @@ const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
 }, pino.destination(2)); // fd 2 = stderr
 
+const rpcWrite = (payload) => {
+  process.stdout.write(`${JSON.stringify(payload)}\n`);
+};
+
+console.log = (...args) => logger.info({ args: args.map(String) }, 'stdout log redirected');
+console.info = (...args) => logger.info({ args: args.map(String) }, 'stdout info redirected');
+console.warn = (...args) => logger.warn({ args: args.map(String) }, 'stdout warn redirected');
+console.error = (...args) => logger.error({ args: args.map(String) }, 'stdout error redirected');
+
 // Store active sessions
 const sessions = new Map();
 
@@ -63,14 +72,14 @@ function createSuccessResponse(id, result) {
  */
 function sendNotification(method, params) {
   const notification = { jsonrpc: '2.0', method, params };
-  console.log(JSON.stringify(notification));
+  rpcWrite(notification);
 }
 
 /**
  * Send JSON-RPC response
  */
 function sendResponse(response) {
-  console.log(JSON.stringify(response));
+  rpcWrite(response);
 }
 
 /**

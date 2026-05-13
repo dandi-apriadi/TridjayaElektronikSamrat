@@ -1,11 +1,11 @@
-use tridjaya_backend::{response::AppError, state::AppState, wa_webhook_handlers};
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{header, Request, StatusCode},
     Router,
 };
-use tower::ServiceExt;
 use serde_json::json;
+use tower::ServiceExt;
+use tridjaya_backend::{response::AppError, state::AppState, wa_webhook_handlers};
 
 #[cfg(test)]
 mod webhook_routes_tests {
@@ -23,7 +23,10 @@ mod webhook_routes_tests {
     async fn test_create_webhook_requires_auth() {
         let state = create_test_state().await;
         let app = Router::new()
-            .route("/api/wa/webhooks", axum::routing::post(wa_webhook_handlers::create_webhook))
+            .route(
+                "/api/wa/webhooks",
+                axum::routing::post(wa_webhook_handlers::create_webhook),
+            )
             .with_state(state);
 
         let request = Request::builder()
@@ -40,7 +43,7 @@ mod webhook_routes_tests {
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();
-        
+
         // Should return 401 Unauthorized without auth token
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
@@ -50,7 +53,10 @@ mod webhook_routes_tests {
     async fn test_create_webhook_validates_url() {
         let state = create_test_state().await;
         let app = Router::new()
-            .route("/api/wa/webhooks", axum::routing::post(wa_webhook_handlers::create_webhook))
+            .route(
+                "/api/wa/webhooks",
+                axum::routing::post(wa_webhook_handlers::create_webhook),
+            )
             .with_state(state);
 
         // Test with invalid URL scheme
@@ -69,7 +75,7 @@ mod webhook_routes_tests {
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();
-        
+
         // Should return 400 Bad Request for invalid URL scheme
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
@@ -96,7 +102,7 @@ mod webhook_routes_tests {
         let mut rng = rand::thread_rng();
         let bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
         let secret = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
-        
+
         // Base64 encoding of 32 bytes should be 44 characters
         assert_eq!(secret.len(), 44);
     }

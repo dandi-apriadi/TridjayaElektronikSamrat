@@ -21,7 +21,11 @@ async fn main() {
     );
     println!(
         "SMTP_PASSWORD configured: {}",
-        if smtp_password.is_empty() { "no" } else { "yes" }
+        if smtp_password.is_empty() {
+            "no"
+        } else {
+            "yes"
+        }
     );
     println!("Recipient: {}", recipient);
 

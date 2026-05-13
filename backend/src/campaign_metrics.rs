@@ -1,15 +1,14 @@
 /**
  * Campaign Metrics Calculation Module
- * 
+ *
  * **Validates: Requirements 10.5, 10.6, 10.8**
- * 
+ *
  * This module implements campaign metrics calculation and aggregation:
  * - Calculate real-time metrics from wa_recipients table
  * - Aggregate metrics per hour and store to wa_campaign_metrics table
  * - Provide API endpoint for retrieving campaign metrics
  */
-
-use chrono::{DateTime, Utc, Timelike};
+use chrono::{DateTime, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tracing::{debug, error, info};
@@ -26,9 +25,9 @@ pub struct CampaignMetrics {
     pub total_read: i64,
     pub total_replied: i64,
     pub total_failed: i64,
-    pub delivered_rate: f64, // Percentage (0-100)
-    pub read_rate: f64,      // Percentage (0-100)
-    pub reply_rate: f64,     // Percentage (0-100)
+    pub delivered_rate: f64,  // Percentage (0-100)
+    pub read_rate: f64,       // Percentage (0-100)
+    pub reply_rate: f64,      // Percentage (0-100)
     pub last_updated: String, // ISO8601 timestamp
 }
 
@@ -73,7 +72,7 @@ pub struct HourlyCampaignMetrics {
 
 /// Calculate real-time campaign metrics from wa_recipients table
 /// **Validates: Requirements 10.5, 10.6**
-/// 
+///
 /// This function calculates metrics by querying the wa_recipients table:
 /// - total_sent: Count of recipients with sent_at IS NOT NULL
 /// - total_delivered: Count of recipients with delivered_at IS NOT NULL
@@ -99,13 +98,14 @@ pub async fn calculate_campaign_metrics(
             COUNT(replied_at) as total_replied,
             COUNT(CASE WHEN status = 'failed' THEN 1 END) as total_failed
          FROM wa_recipients 
-         WHERE campaign_id = ?"
+         WHERE campaign_id = ?",
     )
     .bind(campaign_id)
     .fetch_one(pool)
     .await?;
 
-    let (total_recipients, total_sent, total_delivered, total_read, total_replied, total_failed) = metrics;
+    let (total_recipients, total_sent, total_delivered, total_read, total_replied, total_failed) =
+        metrics;
 
     // Calculate rates (avoid division by zero)
     let delivered_rate = if total_sent > 0 {
@@ -155,11 +155,11 @@ pub async fn calculate_campaign_metrics(
 
 /// Aggregate metrics per hour and store to wa_campaign_metrics table
 /// **Validates: Requirements 10.8**
-/// 
+///
 /// This function aggregates metrics for a specific hour and stores them in the
 /// wa_campaign_metrics table. It should be called periodically (e.g., every hour)
 /// to maintain historical metrics data.
-/// 
+///
 /// The hour_timestamp is truncated to the start of the hour (e.g., 2024-05-05 14:00:00)
 pub async fn aggregate_hourly_metrics(
     pool: &SqlitePool,
@@ -191,7 +191,7 @@ pub async fn aggregate_hourly_metrics(
             COUNT(CASE WHEN read_at >= ? AND read_at < ? THEN 1 END) as total_read,
             COUNT(CASE WHEN replied_at >= ? AND replied_at < ? THEN 1 END) as total_replied
          FROM wa_recipients 
-         WHERE campaign_id = ?"
+         WHERE campaign_id = ?",
     )
     .bind(hour_start.to_rfc3339())
     .bind(hour_end.to_rfc3339())
@@ -229,7 +229,7 @@ pub async fn aggregate_hourly_metrics(
     // Check if record already exists for this hour
     let existing: Option<String> = sqlx::query_scalar(
         "SELECT id FROM wa_campaign_metrics 
-         WHERE campaign_id = ? AND hour_timestamp = ?"
+         WHERE campaign_id = ? AND hour_timestamp = ?",
     )
     .bind(campaign_id)
     .bind(hour_start.to_rfc3339())
@@ -248,7 +248,7 @@ pub async fn aggregate_hourly_metrics(
                  read_rate = ?,
                  reply_rate = ?,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(total_sent)
         .bind(total_delivered)
@@ -275,7 +275,7 @@ pub async fn aggregate_hourly_metrics(
              (id, campaign_id, hour_timestamp, total_sent, total_delivered, 
               total_read, total_replied, delivered_rate, read_rate, reply_rate,
               created_at, updated_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
         )
         .bind(&id)
         .bind(campaign_id)
@@ -309,7 +309,7 @@ pub async fn aggregate_hourly_metrics(
 }
 
 /// Get hourly metrics for a campaign
-/// 
+///
 /// Returns all hourly metrics records for a campaign, ordered by hour_timestamp
 pub async fn get_hourly_metrics(
     pool: &SqlitePool,
@@ -321,7 +321,7 @@ pub async fn get_hourly_metrics(
                 created_at, updated_at
          FROM wa_campaign_metrics 
          WHERE campaign_id = ?
-         ORDER BY hour_timestamp ASC"
+         ORDER BY hour_timestamp ASC",
     )
     .bind(campaign_id)
     .fetch_all(pool)
@@ -332,7 +332,7 @@ pub async fn get_hourly_metrics(
 
 /// Get complete campaign metrics response with campaign details and hourly breakdown
 /// **Validates: Requirements 10.5, 10.6, 10.8**
-/// 
+///
 /// This function returns:
 /// - Campaign details (name, status)
 /// - Real-time metrics calculated from wa_recipients
@@ -342,12 +342,11 @@ pub async fn get_campaign_metrics_response(
     campaign_id: &str,
 ) -> Result<CampaignMetricsResponse, Box<dyn std::error::Error + Send + Sync>> {
     // Get campaign details
-    let campaign: Option<(String, String)> = sqlx::query_as(
-        "SELECT name, status FROM wa_campaigns WHERE id = ?"
-    )
-    .bind(campaign_id)
-    .fetch_optional(pool)
-    .await?;
+    let campaign: Option<(String, String)> =
+        sqlx::query_as("SELECT name, status FROM wa_campaigns WHERE id = ?")
+            .bind(campaign_id)
+            .fetch_optional(pool)
+            .await?;
 
     let (campaign_name, status) = campaign.ok_or("Campaign not found")?;
 
@@ -380,7 +379,7 @@ pub async fn get_campaign_metrics_response(
 }
 
 /// Aggregate metrics for all active campaigns
-/// 
+///
 /// This function should be called periodically (e.g., every hour) to aggregate
 /// metrics for all campaigns that have activity in the current hour.
 pub async fn aggregate_all_campaigns(
@@ -400,7 +399,7 @@ pub async fn aggregate_all_campaigns(
     let campaign_ids: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT campaign_id 
          FROM wa_recipients 
-         WHERE sent_at >= ? OR delivered_at >= ? OR read_at >= ? OR replied_at >= ?"
+         WHERE sent_at >= ? OR delivered_at >= ? OR read_at >= ? OR replied_at >= ?",
     )
     .bind(current_hour.to_rfc3339())
     .bind(current_hour.to_rfc3339())
