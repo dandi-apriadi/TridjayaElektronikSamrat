@@ -1,18 +1,26 @@
+use crate::api_routes;
+use crate::chatbot_routes;
+use crate::pixel;
+use crate::wa_gateway;
+use crate::wa_webhook_handlers;
 use crate::{
-    auth::{authorize, hash_password, login_with_request, logout_with_headers, refresh_with_request, verify_password, LoginRequest, RefreshRequest, Role},
+    auth::{
+        authorize, hash_password, login_with_request, logout_with_headers, refresh_with_request,
+        verify_password, LoginRequest, RefreshRequest, Role,
+    },
     response::{json_ok, AppError},
     state::{AppState, UserPublic, UserRecord},
 };
-use axum::{extract::{Path, Query, State, Multipart}, http::{header::SET_COOKIE, HeaderMap, HeaderValue}, routing::{delete, get, post, patch}, Json, Router};
-use crate::pixel;
-use crate::wa_webhook_handlers;
-use crate::chatbot_routes;
-use crate::api_routes;
-use crate::wa_gateway;
+use axum::{
+    extract::{Multipart, Path, Query, State},
+    http::{header::SET_COOKIE, HeaderMap, HeaderValue},
+    routing::{delete, get, patch, post},
+    Json, Router,
+};
 use chrono::{Duration, Utc};
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 pub fn router(state: AppState) -> Router {
     // Create the main router with all existing routes
@@ -28,95 +36,272 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/forgot-password", post(forgot_password))
         .route("/api/auth/reset-password", post(reset_password))
         .route("/api/notifications", get(list_notifications))
-        .route("/api/notifications/unread-count", get(get_notifications_unread_count))
-        .route("/api/notifications/read-all", patch(mark_all_notifications_as_read))
-        .route("/api/notifications/{id}/read", patch(mark_notification_as_read))
+        .route(
+            "/api/notifications/unread-count",
+            get(get_notifications_unread_count),
+        )
+        .route(
+            "/api/notifications/read-all",
+            patch(mark_all_notifications_as_read),
+        )
+        .route(
+            "/api/notifications/{id}/read",
+            patch(mark_notification_as_read),
+        )
         .route("/api/auth/profile", patch(update_auth_profile))
         .route("/api/auth/change-password", post(change_auth_password))
         .route("/api/users", get(list_users).post(create_user))
-        .route("/api/users/{id}", get(get_user).patch(update_user).delete(delete_user))
+        .route(
+            "/api/users/{id}",
+            get(get_user).patch(update_user).delete(delete_user),
+        )
         .route("/api/users/{id}/reset-password", post(reset_user_password))
-        .route("/api/users/{id}/resend-verification", post(resend_verification))
-        .route("/api/wa/accounts", get(list_wa_accounts).post(create_wa_account))
-        .route("/api/wa/accounts/{id}", patch(update_wa_account).delete(delete_wa_account))
-        .route("/api/wa/campaigns", get(list_wa_campaigns).post(create_wa_campaign))
-        .route("/api/wa/campaigns/{id}", get(get_wa_campaign).patch(update_wa_campaign).delete(delete_wa_campaign))
+        .route(
+            "/api/users/{id}/resend-verification",
+            post(resend_verification),
+        )
+        .route(
+            "/api/wa/accounts",
+            get(list_wa_accounts).post(create_wa_account),
+        )
+        .route(
+            "/api/wa/accounts/{id}",
+            patch(update_wa_account).delete(delete_wa_account),
+        )
+        .route(
+            "/api/wa/campaigns",
+            get(list_wa_campaigns).post(create_wa_campaign),
+        )
+        .route(
+            "/api/wa/campaigns/{id}",
+            get(get_wa_campaign)
+                .patch(update_wa_campaign)
+                .delete(delete_wa_campaign),
+        )
         .route("/api/wa/campaigns/{id}/recipients", post(add_wa_recipients))
-        .route("/api/wa/campaigns/{id}/recipients/from-leads", post(add_wa_recipients_from_leads))
-        .route("/api/wa/recipients/template", get(download_recipients_template))
+        .route(
+            "/api/wa/campaigns/{id}/recipients/from-leads",
+            post(add_wa_recipients_from_leads),
+        )
+        .route(
+            "/api/wa/recipients/template",
+            get(download_recipients_template),
+        )
         .route("/api/wa/campaigns/{id}/start", post(start_wa_campaign))
+        .route("/api/wa/campaigns/{id}/reset", post(reset_wa_campaign))
         .route("/api/wa/campaigns/{id}/status", get(get_wa_campaign_status))
-        .route("/api/wa/campaigns/{id}/metrics", get(get_wa_campaign_metrics))
-        .route("/api/wa/recipients/{id}", patch(update_wa_recipient).delete(delete_wa_recipient))
-        .route("/api/wa/blast-contacts", get(list_blast_contacts).post(create_blast_contact))
-        .route("/api/wa/blast-contacts/{id}", patch(update_blast_contact).delete(delete_blast_contact))
-        .route("/api/wa/blast-contacts/import-to-campaign/{campaign_id}", post(import_blast_contacts_to_campaign))
-        .route("/api/wa/webhooks", get(wa_webhook_handlers::list_webhooks).post(wa_webhook_handlers::create_webhook))
-        .route("/api/wa/webhooks/{id}", patch(wa_webhook_handlers::update_webhook).delete(wa_webhook_handlers::delete_webhook))
-        .route("/api/wa/chatbot-rules", get(chatbot_routes::list_chatbot_rules).post(chatbot_routes::create_chatbot_rule))
-        .route("/api/wa/chatbot-rules/bulk", patch(chatbot_routes::bulk_update_chatbot_rules))
-        .route("/api/wa/chatbot-rules/{id}", patch(chatbot_routes::update_chatbot_rule).delete(chatbot_routes::delete_chatbot_rule))
+        .route(
+            "/api/wa/campaigns/{id}/metrics",
+            get(get_wa_campaign_metrics),
+        )
+        .route(
+            "/api/wa/recipients/{id}",
+            patch(update_wa_recipient).delete(delete_wa_recipient),
+        )
+        .route(
+            "/api/wa/blast-contacts",
+            get(list_blast_contacts).post(create_blast_contact),
+        )
+        .route(
+            "/api/wa/blast-contacts/{id}",
+            patch(update_blast_contact).delete(delete_blast_contact),
+        )
+        .route(
+            "/api/wa/blast-contacts/import-to-campaign/{campaign_id}",
+            post(import_blast_contacts_to_campaign),
+        )
+        .route(
+            "/api/wa/webhooks",
+            get(wa_webhook_handlers::list_webhooks).post(wa_webhook_handlers::create_webhook),
+        )
+        .route(
+            "/api/wa/webhooks/{id}",
+            patch(wa_webhook_handlers::update_webhook).delete(wa_webhook_handlers::delete_webhook),
+        )
+        .route(
+            "/api/wa/chatbot-rules",
+            get(chatbot_routes::list_chatbot_rules).post(chatbot_routes::create_chatbot_rule),
+        )
+        .route(
+            "/api/wa/chatbot-rules/bulk",
+            patch(chatbot_routes::bulk_update_chatbot_rules),
+        )
+        .route(
+            "/api/wa/chatbot-rules/{id}",
+            patch(chatbot_routes::update_chatbot_rule).delete(chatbot_routes::delete_chatbot_rule),
+        )
         .route("/api/reward-tiers", get(list_reward_tiers))
-        .route("/api/admin/uploads/private/{filename}", get(serve_private_upload))
+        .route(
+            "/api/admin/uploads/private/{filename}",
+            get(serve_private_upload),
+        )
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
         .route("/api/admin/catalogs/bulk", post(bulk_products))
-        .route("/api/catalogs/{id}", get(get_catalog).patch(update_catalog).delete(delete_catalog))
-        .route("/api/product-categories", get(list_product_categories).post(create_product_category))
-        .route("/api/product-categories/{id}", patch(update_product_category).delete(delete_product_category))
-        .route("/api/promotions", get(list_promotions).post(create_promotion))
-        .route("/api/promotions/{id}", patch(update_promotion).delete(delete_promotion))
+        .route(
+            "/api/catalogs/{id}",
+            get(get_catalog)
+                .patch(update_catalog)
+                .delete(delete_catalog),
+        )
+        .route(
+            "/api/product-categories",
+            get(list_product_categories).post(create_product_category),
+        )
+        .route(
+            "/api/product-categories/{id}",
+            patch(update_product_category).delete(delete_product_category),
+        )
+        .route(
+            "/api/promotions",
+            get(list_promotions).post(create_promotion),
+        )
+        .route(
+            "/api/promotions/{id}",
+            patch(update_promotion).delete(delete_promotion),
+        )
         .route("/api/referrals/generate", post(generate_referral))
         .route("/api/referrals", get(list_referrals))
         .route("/api/referrals/{slug}", get(get_referral))
         .route("/api/referrals/{slug}/stats", get(get_referral_stats))
         .route("/api/public/referrals/{slug}", get(get_public_referral))
-        .route("/api/sales/delivery-schedules", get(list_delivery_schedules).post(create_delivery_schedule))
+        .route(
+            "/api/sales/delivery-schedules",
+            get(list_delivery_schedules).post(create_delivery_schedule),
+        )
         .route("/api/telemetry/page-view", post(page_view))
         .route("/api/telemetry/click", post(click))
         .route("/api/telemetry/whatsapp-click", post(whatsapp_click))
         .route("/api/telemetry/pixel-event", post(pixel_event))
         .route("/api/jobs", get(list_jobs).post(create_job))
         .route("/api/jobs/{id}", patch(update_job).delete(delete_job))
-        .route("/api/job-applications", get(list_job_applications).post(create_job_application))
-        .route("/api/job-applications/{id}/status", patch(update_job_application_status))
+        .route(
+            "/api/job-applications",
+            get(list_job_applications).post(create_job_application),
+        )
+        .route(
+            "/api/job-applications/{id}/status",
+            patch(update_job_application_status),
+        )
         .route("/api/articles", get(list_articles).post(create_article))
-        .route("/api/articles/{id}", patch(update_article).delete(delete_article))
+        .route(
+            "/api/articles/{id}",
+            patch(update_article).delete(delete_article),
+        )
         .route("/api/leads", get(list_leads).post(create_lead))
         .route("/api/leads/{id}/status", patch(update_lead_status))
         .route("/api/agent/stats", get(get_agent_stats))
         .route("/api/agent/claims", get(list_claims).post(create_claim))
-        .route("/api/agent/support-tickets", get(list_support_tickets).post(create_support_ticket))
+        .route(
+            "/api/agent/support-tickets",
+            get(list_support_tickets).post(create_support_ticket),
+        )
         .route("/api/leaderboard", get(list_leaderboard))
         // agent-registrations POST is in upload_routes (20MB body limit)
-        .route("/api/admin/agent-registrations", get(list_agent_registrations))
-        .route("/api/admin/agent-registrations/{id}/status", patch(update_agent_registration_status))
+        .route(
+            "/api/admin/agent-registrations",
+            get(list_agent_registrations),
+        )
+        .route(
+            "/api/admin/agent-registrations/{id}/status",
+            patch(update_agent_registration_status),
+        )
         .route("/api/admin/claims", get(list_all_claims))
         .route("/api/admin/claims/{id}/status", patch(update_claim_status))
-        .route("/api/admin/support-tickets", get(list_admin_support_tickets))
-        .route("/api/admin/support-tickets/{id}/status", patch(update_admin_support_ticket_status))
+        .route(
+            "/api/admin/support-tickets",
+            get(list_admin_support_tickets),
+        )
+        .route(
+            "/api/admin/support-tickets/{id}/status",
+            patch(update_admin_support_ticket_status),
+        )
         .route("/api/admin/telemetry-stats", get(get_telemetry_stats))
         .route("/api/admin/agents", get(list_agents))
-        .route("/api/admin/agents/{id}/performance", get(get_agent_performance))
+        .route(
+            "/api/admin/agents/{id}/performance",
+            get(get_agent_performance),
+        )
         .route("/api/admin/leads", get(list_leads))
         .route("/api/admin/leads/{id}/status", patch(update_lead_status))
-        .route("/api/pixels", post(pixel::handlers::create_pixel).get(pixel::handlers::list_pixels))
-        .route("/api/pixels/{id}", get(pixel::handlers::get_pixel).patch(pixel::handlers::update_pixel).delete(pixel::handlers::delete_pixel))
-        .route("/api/pixels/{id}/admins", post(pixel::handlers::assign_admin).get(pixel::handlers::list_pixel_admins))
-        .route("/api/pixels/{id}/admins/{user_id}", delete(pixel::handlers::revoke_admin))
-        .route("/api/campaigns", post(pixel::campaign_handlers::create_campaign).get(pixel::campaign_handlers::list_campaigns))
-        .route("/api/campaigns/{id}", get(pixel::campaign_handlers::get_campaign).patch(pixel::campaign_handlers::update_campaign).delete(pixel::campaign_handlers::delete_campaign))
-        .route("/api/campaigns/{id}/conversions", post(pixel::campaign_handlers::create_custom_conversion).get(pixel::campaign_handlers::list_custom_conversions))
-        .route("/api/campaigns/{campaign_id}/conversions/{conversion_id}", patch(pixel::campaign_handlers::update_custom_conversion).delete(pixel::campaign_handlers::delete_custom_conversion))
-        .route("/api/pixel-events", post(pixel::event_handlers::receive_pixel_event))
-        .route("/api/pixel-events/test", post(pixel::event_handlers::send_test_event))
-        .route("/api/pixel-analytics/super-admin", get(pixel::analytics_handlers::get_super_admin_dashboard))
-        .route("/api/pixel-analytics/pixels/{id}", get(pixel::analytics_handlers::get_pixel_analytics))
-        .route("/api/pixel-analytics/audit-logs", get(pixel::analytics_handlers::get_audit_logs))
-        .route("/api/pixel-analytics/admin", get(pixel::analytics_handlers::get_admin_dashboard))
-        .route("/api/pixel-analytics/campaigns/{id}", get(pixel::analytics_handlers::get_campaign_analytics))
-        .route("/api/pixel-analytics/agent", get(pixel::analytics_handlers::get_agent_pixel_analytics))
-        .route("/api/pixel-analytics/sales", get(pixel::analytics_handlers::get_sales_pixel_analytics))
-        .route("/api/pixel-analytics/editor", get(pixel::analytics_handlers::get_editor_pixel_analytics));
+        .route(
+            "/api/pixels",
+            post(pixel::handlers::create_pixel).get(pixel::handlers::list_pixels),
+        )
+        .route(
+            "/api/pixels/{id}",
+            get(pixel::handlers::get_pixel)
+                .patch(pixel::handlers::update_pixel)
+                .delete(pixel::handlers::delete_pixel),
+        )
+        .route(
+            "/api/pixels/{id}/admins",
+            post(pixel::handlers::assign_admin).get(pixel::handlers::list_pixel_admins),
+        )
+        .route(
+            "/api/pixels/{id}/admins/{user_id}",
+            delete(pixel::handlers::revoke_admin),
+        )
+        .route(
+            "/api/campaigns",
+            post(pixel::campaign_handlers::create_campaign)
+                .get(pixel::campaign_handlers::list_campaigns),
+        )
+        .route(
+            "/api/campaigns/{id}",
+            get(pixel::campaign_handlers::get_campaign)
+                .patch(pixel::campaign_handlers::update_campaign)
+                .delete(pixel::campaign_handlers::delete_campaign),
+        )
+        .route(
+            "/api/campaigns/{id}/conversions",
+            post(pixel::campaign_handlers::create_custom_conversion)
+                .get(pixel::campaign_handlers::list_custom_conversions),
+        )
+        .route(
+            "/api/campaigns/{campaign_id}/conversions/{conversion_id}",
+            patch(pixel::campaign_handlers::update_custom_conversion)
+                .delete(pixel::campaign_handlers::delete_custom_conversion),
+        )
+        .route(
+            "/api/pixel-events",
+            post(pixel::event_handlers::receive_pixel_event),
+        )
+        .route(
+            "/api/pixel-events/test",
+            post(pixel::event_handlers::send_test_event),
+        )
+        .route(
+            "/api/pixel-analytics/super-admin",
+            get(pixel::analytics_handlers::get_super_admin_dashboard),
+        )
+        .route(
+            "/api/pixel-analytics/pixels/{id}",
+            get(pixel::analytics_handlers::get_pixel_analytics),
+        )
+        .route(
+            "/api/pixel-analytics/audit-logs",
+            get(pixel::analytics_handlers::get_audit_logs),
+        )
+        .route(
+            "/api/pixel-analytics/admin",
+            get(pixel::analytics_handlers::get_admin_dashboard),
+        )
+        .route(
+            "/api/pixel-analytics/campaigns/{id}",
+            get(pixel::analytics_handlers::get_campaign_analytics),
+        )
+        .route(
+            "/api/pixel-analytics/agent",
+            get(pixel::analytics_handlers::get_agent_pixel_analytics),
+        )
+        .route(
+            "/api/pixel-analytics/sales",
+            get(pixel::analytics_handlers::get_sales_pixel_analytics),
+        )
+        .route(
+            "/api/pixel-analytics/editor",
+            get(pixel::analytics_handlers::get_editor_pixel_analytics),
+        );
 
     // Upload routes with larger body limit (20MB) for multipart file uploads
     let upload_routes = Router::new()
@@ -124,33 +309,48 @@ pub fn router(state: AppState) -> Router {
         .route("/api/admin/partners", post(create_partner))
         .route("/api/admin/partners/{id}", patch(update_partner))
         .route("/api/agent-registrations", post(submit_agent_registration))
-        .route("/api/wa/campaigns/{id}/recipients/upload-excel", post(upload_wa_recipients_excel))
-        .route("/api/wa/blast-contacts/upload-excel", post(upload_blast_contacts_excel))
+        .route(
+            "/api/wa/campaigns/{id}/recipients/upload-excel",
+            post(upload_wa_recipients_excel),
+        )
+        .route(
+            "/api/wa/blast-contacts/upload-excel",
+            post(upload_blast_contacts_excel),
+        )
         .layer(axum::extract::DefaultBodyLimit::max(20 * 1024 * 1024));
 
     let main_router = main_router.merge(upload_routes);
 
     // Merge with API routes (for N8N integration)
     let main_router = main_router.merge(api_routes::router());
-    
+
     // Merge with WA Gateway API (self-hosted gateway)
     let main_router = main_router.merge(wa_gateway::router());
-    
+
     // Apply state after all merges
     main_router.with_state(state)
 }
 
 async fn health(State(state): State<AppState>) -> ResponseBody {
-    let analytics_running = state.analytics_job_running.load(std::sync::atomic::Ordering::Relaxed);
-    let last_analytics = state.last_analytics_run.read().await.map(|dt| dt.to_rfc3339());
+    let analytics_running = state
+        .analytics_job_running
+        .load(std::sync::atomic::Ordering::Relaxed);
+    let last_analytics = state
+        .last_analytics_run
+        .read()
+        .await
+        .map(|dt| dt.to_rfc3339());
     let last_retry = state.last_retry_run.read().await.map(|dt| dt.to_rfc3339());
-    
-    json_ok("OK", json!({
-        "status": "healthy",
-        "analytics_job_running": analytics_running,
-        "last_analytics_run": last_analytics,
-        "last_retry_run": last_retry
-    }))
+
+    json_ok(
+        "OK",
+        json!({
+            "status": "healthy",
+            "analytics_job_running": analytics_running,
+            "last_analytics_run": last_analytics,
+            "last_retry_run": last_retry
+        }),
+    )
 }
 
 const LOGIN_EMAIL_MAX_PER_MINUTE: usize = 5;
@@ -217,7 +417,11 @@ fn validate_text_length(value: &str, max: usize) -> bool {
     value.trim().len() <= max
 }
 
-async fn enforce_login_rate_limit(state: &AppState, email: &str, client_ip: Option<&str>) -> Result<(), AppError> {
+async fn enforce_login_rate_limit(
+    state: &AppState,
+    email: &str,
+    client_ip: Option<&str>,
+) -> Result<(), AppError> {
     let key = email.trim().to_lowercase();
     if key.is_empty() {
         return Ok(());
@@ -379,7 +583,11 @@ fn append_set_cookie(response: &mut ResponseBody, cookie_value: &str) {
     }
 }
 
-async fn login(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<LoginRequest>) -> Result<ResponseBody, AppError> {
+async fn login(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<LoginRequest>,
+) -> Result<ResponseBody, AppError> {
     let client_ip = extract_client_ip(&headers);
     enforce_login_rate_limit(&state, &payload.email, client_ip.as_deref()).await?;
     let email = payload.email.clone();
@@ -388,11 +596,17 @@ async fn login(State(state): State<AppState>, headers: HeaderMap, Json(payload):
     let refresh_token = auth.refresh_token.clone();
     let remember = auth.remember;
     let mut response = json_ok("Login successful", auth);
-    append_set_cookie(&mut response, &build_refresh_cookie(&refresh_token, remember));
+    append_set_cookie(
+        &mut response,
+        &build_refresh_cookie(&refresh_token, remember),
+    );
     Ok(response)
 }
 
-async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn logout(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     match logout_with_headers(&state, &headers).await {
         Ok(_) | Err(AppError::Unauthorized) => {
             let mut response = json_ok("Logout successful", json!({ "logged_out": true }));
@@ -403,7 +617,11 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Res
     }
 }
 
-async fn refresh(State(state): State<AppState>, headers: HeaderMap, body: axum::body::Bytes) -> axum::response::Response {
+async fn refresh(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
     let payload: RefreshRequest = match serde_json::from_slice(&body) {
         Ok(p) => p,
         Err(e) => {
@@ -411,7 +629,7 @@ async fn refresh(State(state): State<AppState>, headers: HeaderMap, body: axum::
             return json_ok("Invalid request body", json!({ "authenticated": false }));
         }
     };
-    
+
     let refresh_token = if payload.refresh_token.trim().is_empty() {
         match extract_cookie_token(&headers, "refresh_token") {
             Some(token) => token,
@@ -426,11 +644,17 @@ async fn refresh(State(state): State<AppState>, headers: HeaderMap, body: axum::
             let new_refresh_token = auth.refresh_token.clone();
             let remember = auth.remember;
             let mut response = json_ok("Token refreshed", auth);
-            append_set_cookie(&mut response, &build_refresh_cookie(&new_refresh_token, remember));
+            append_set_cookie(
+                &mut response,
+                &build_refresh_cookie(&new_refresh_token, remember),
+            );
             response
         }
         Err(_) => {
-            let mut response = json_ok("Session invalid or expired", json!({ "authenticated": false }));
+            let mut response = json_ok(
+                "Session invalid or expired",
+                json!({ "authenticated": false }),
+            );
             append_set_cookie(&mut response, &build_clear_refresh_cookie());
             response
         }
@@ -606,7 +830,9 @@ async fn forgot_password(
                     );
                     tracing::debug!("Reset link (mailer disabled): {}", reset_link);
                 }
-                state.audit("auth.password_reset.requested", Some(&email)).await;
+                state
+                    .audit("auth.password_reset.requested", Some(&email))
+                    .await;
             }
         }
     }
@@ -739,8 +965,13 @@ async fn reset_password(
         refresh.retain(|_, session| session.user_id != user_id);
     }
 
-    state.audit("auth.password_reset.completed", Some(&user_id)).await;
-    Ok(json_ok("Password berhasil direset", json!({ "reset": true })))
+    state
+        .audit("auth.password_reset.completed", Some(&user_id))
+        .await;
+    Ok(json_ok(
+        "Password berhasil direset",
+        json!({ "reset": true }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -830,7 +1061,10 @@ async fn update_auth_profile(
         })?;
 
     let updated = find_user_public_by_id(&state, &user.id).await?;
-    Ok(json_ok("Profil berhasil diperbarui", serde_json::to_value(updated).unwrap_or(json!({}))))
+    Ok(json_ok(
+        "Profil berhasil diperbarui",
+        serde_json::to_value(updated).unwrap_or(json!({})),
+    ))
 }
 
 async fn change_auth_password(
@@ -872,10 +1106,16 @@ async fn change_auth_password(
             AppError::Internal
         })?;
 
-    Ok(json_ok("Password berhasil diperbarui", json!({ "updated": true })))
+    Ok(json_ok(
+        "Password berhasil diperbarui",
+        json!({ "updated": true }),
+    ))
 }
 
-async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_users(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, jabatan, avatar, bank_account, whatsapp, referral_slug, created_at, last_login, is_active, is_verified, must_change_password FROM users")
         .fetch_all(&state.pool)
@@ -884,15 +1124,23 @@ async fn list_users(State(state): State<AppState>, headers: HeaderMap) -> Result
             tracing::error!("DB error in list_users: {}", e);
             AppError::Internal
         })?;
-        
-    Ok(json_ok(format!("Users fetched by {}", user.email), json!({ "items": users })))
+
+    Ok(json_ok(
+        format!("Users fetched by {}", user.email),
+        json!({ "items": users }),
+    ))
 }
 
 async fn verify_email(
     State(state): State<AppState>,
     Json(payload): Json<VerifyEmailRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let token = payload.token.as_deref().map(str::trim).unwrap_or("").to_string();
+    let token = payload
+        .token
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .to_string();
     if token.is_empty() {
         return Err(AppError::Validation {
             errors: vec!["Token verifikasi wajib disertakan".to_string()],
@@ -974,7 +1222,10 @@ async fn verify_email(
     })?;
 
     state.audit("auth.email_verified", Some(&user_id)).await;
-    Ok(json_ok("Email berhasil diverifikasi", json!({ "verified": true })))
+    Ok(json_ok(
+        "Email berhasil diverifikasi",
+        json!({ "verified": true }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -1044,7 +1295,6 @@ struct PublicReferralRecord {
     is_active: bool,
     created_at: Option<String>,
 }
-
 
 #[derive(sqlx::FromRow)]
 struct LeadRecord {
@@ -1184,10 +1434,7 @@ struct WaRecipientSummaryResponse {
 
 fn normalize_phone(value: &str) -> Option<String> {
     // Strip all non-digit characters (spaces, dashes, dots, parentheses, plus sign)
-    let digits: String = value
-        .chars()
-        .filter(|ch| ch.is_ascii_digit())
-        .collect();
+    let digits: String = value.chars().filter(|ch| ch.is_ascii_digit()).collect();
 
     if digits.is_empty() {
         return None;
@@ -1229,7 +1476,8 @@ fn normalize_phone(value: &str) -> Option<String> {
 }
 
 fn parse_json_value(text: Option<String>) -> Value {
-    text.and_then(|raw| serde_json::from_str(&raw).ok()).unwrap_or(Value::Null)
+    text.and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or(Value::Null)
 }
 
 fn default_wa_campaign_config() -> Value {
@@ -1252,9 +1500,18 @@ fn parse_json_value_or_default(text: Option<String>, default: Value) -> Value {
 
 fn normalize_role(value: &str) -> Option<String> {
     let role = value.trim().to_lowercase();
-    if matches!(role.as_str(), 
-        "admin" | "agent" | "sales" | "editor" | "operator" | 
-        "wa_admin" | "wa-operator" | "wa_operator" | "waadmin" | "waoperator"
+    if matches!(
+        role.as_str(),
+        "admin"
+            | "agent"
+            | "sales"
+            | "editor"
+            | "operator"
+            | "wa_admin"
+            | "wa-operator"
+            | "wa_operator"
+            | "waadmin"
+            | "waoperator"
     ) {
         Some(role.replace(" ", "_"))
     } else {
@@ -1308,7 +1565,10 @@ fn validate_referral_target_path(value: &str) -> Result<String, AppError> {
     }
     if !trimmed.starts_with('/') || trimmed.starts_with("//") {
         return Err(AppError::Validation {
-            errors: vec!["targetPath harus berupa path internal yang diawali '/' (contoh: /produk/abc)".to_string()],
+            errors: vec![
+                "targetPath harus berupa path internal yang diawali '/' (contoh: /produk/abc)"
+                    .to_string(),
+            ],
         });
     }
     let lowered = trimmed.to_ascii_lowercase();
@@ -1332,13 +1592,17 @@ fn decode_uploaded_image(data: &[u8]) -> Result<image::DynamicImage, AppError> {
     let cursor = std::io::Cursor::new(data);
     let format = image::guess_format(data).map_err(|e| {
         tracing::warn!("Failed to guess image format: {}", e);
-        AppError::Validation { errors: vec!["Format file gambar tidak didukung".to_string()] }
+        AppError::Validation {
+            errors: vec!["Format file gambar tidak didukung".to_string()],
+        }
     })?;
     let mut reader = image::ImageReader::with_format(cursor, format);
     reader.limits(image_decode_limits());
     reader.decode().map_err(|e| {
         tracing::warn!("Failed to decode uploaded image: {}", e);
-        AppError::Validation { errors: vec!["Format file gambar tidak didukung atau ukuran terlalu besar".to_string()] }
+        AppError::Validation {
+            errors: vec!["Format file gambar tidak didukung atau ukuran terlalu besar".to_string()],
+        }
     })
 }
 
@@ -1348,16 +1612,17 @@ fn save_image_as_webp(image: image::DynamicImage, suffix: &str) -> Result<String
     let file_id = uuid::Uuid::new_v4().to_string();
     let file_name = format!("{}_{}.webp", file_id, suffix);
     let file_path = format!("uploads/{}", file_name);
-    
+
     tracing::info!("Saving image as WebP to {}...", file_path);
-    image.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
-        tracing::error!("Failed to save image as webp ({}): {}", file_name, e);
-        AppError::Internal
-    })?;
-    
+    image
+        .save_with_format(&file_path, image::ImageFormat::WebP)
+        .map_err(|e| {
+            tracing::error!("Failed to save image as webp ({}): {}", file_name, e);
+            AppError::Internal
+        })?;
+
     Ok(format!("/uploads/{}", file_name))
 }
-
 
 fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
@@ -1374,11 +1639,18 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("password minimal 8 karakter".to_string());
     }
     if payload.role.trim().eq_ignore_ascii_case("sales")
-        && payload.whatsapp.as_ref().is_none_or(|value| value.trim().is_empty())
+        && payload
+            .whatsapp
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
     {
         errors.push("whatsapp wajib diisi untuk role sales".to_string());
     }
-    if payload.whatsapp.as_ref().is_some_and(|value| !value.trim().is_empty() && !validate_whatsapp(value)) {
+    if payload
+        .whatsapp
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty() && !validate_whatsapp(value))
+    {
         errors.push("whatsapp tidak valid".to_string());
     }
 
@@ -1391,19 +1663,39 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
 
 fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
-    if payload.email.as_ref().is_some_and(|value| value.trim().is_empty() || !value.contains('@')) {
+    if payload
+        .email
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty() || !value.contains('@'))
+    {
         errors.push("email tidak valid".to_string());
     }
-    if payload.name.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .name
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("name tidak boleh kosong".to_string());
     }
-    if payload.role.as_ref().is_some_and(|value| normalize_role(value).is_none()) {
+    if payload
+        .role
+        .as_ref()
+        .is_some_and(|value| normalize_role(value).is_none())
+    {
         errors.push("role harus salah satu dari: admin, agent, sales, editor, operator, wa_admin, wa_operator".to_string());
     }
-    if payload.password.as_ref().is_some_and(|value| value.len() < 8) {
+    if payload
+        .password
+        .as_ref()
+        .is_some_and(|value| value.len() < 8)
+    {
         errors.push("password minimal 8 karakter".to_string());
     }
-    if payload.whatsapp.as_ref().is_some_and(|value| !value.trim().is_empty() && !validate_whatsapp(value)) {
+    if payload
+        .whatsapp
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty() && !validate_whatsapp(value))
+    {
         errors.push("whatsapp tidak valid".to_string());
     }
 
@@ -1415,7 +1707,10 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
 }
 
 fn validate_lead_status(status: &str) -> bool {
-    matches!(status, "Follow Up" | "Negosiasi" | "Closed Won" | "Closed Lost")
+    matches!(
+        status,
+        "Follow Up" | "Negosiasi" | "Closed Won" | "Closed Lost"
+    )
 }
 
 fn validate_lead_create(payload: &LeadCreateRequest) -> Result<(), AppError> {
@@ -1602,7 +1897,7 @@ async fn notify_all_admins(
     entity_id: Option<&str>,
 ) {
     let admin_ids = sqlx::query_scalar::<_, String>(
-        "SELECT id FROM users WHERE LOWER(role) = 'admin' AND is_active = 1"
+        "SELECT id FROM users WHERE LOWER(role) = 'admin' AND is_active = 1",
     )
     .fetch_all(&state.pool)
     .await;
@@ -1654,12 +1949,24 @@ async fn find_lead_by_id(state: &AppState, id: &str) -> Result<LeadRecord, AppEr
     .ok_or(AppError::NotFound)
 }
 
-async fn generate_unique_sales_slug(state: &AppState, base_name: &str, user_id: &str) -> Result<String, AppError> {
+async fn generate_unique_sales_slug(
+    state: &AppState,
+    base_name: &str,
+    user_id: &str,
+) -> Result<String, AppError> {
     let fallback = {
         let slug = slugify_sales_name(base_name);
-        if slug.is_empty() { "sales".to_string() } else { slug }
+        if slug.is_empty() {
+            "sales".to_string()
+        } else {
+            slug
+        }
     };
-    let suffix = user_id.chars().filter(|ch| ch.is_ascii_alphanumeric()).take(8).collect::<String>();
+    let suffix = user_id
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .take(8)
+        .collect::<String>();
     let mut candidate = fallback.clone();
 
     for _ in 0..10 {
@@ -1685,9 +1992,15 @@ async fn generate_unique_sales_slug(state: &AppState, base_name: &str, user_id: 
     Ok(format!("{}-{}", fallback, suffix))
 }
 
-async fn sync_sales_referral(state: &AppState, user_id: &str, name: &str, slug: &str, is_active: bool) -> Result<(), AppError> {
+async fn sync_sales_referral(
+    state: &AppState,
+    user_id: &str,
+    name: &str,
+    slug: &str,
+    is_active: bool,
+) -> Result<(), AppError> {
     let existing_slug = sqlx::query_scalar::<_, String>(
-        "SELECT slug FROM referrals WHERE owner_user_id = ? LIMIT 1"
+        "SELECT slug FROM referrals WHERE owner_user_id = ? LIMIT 1",
     )
     .bind(user_id)
     .fetch_optional(&state.pool)
@@ -1714,7 +2027,12 @@ async fn sync_sales_referral(state: &AppState, user_id: &str, name: &str, slug: 
         })?;
 
         if current_slug != slug {
-            tracing::info!("Updated sales referral slug from {} to {} for {}", current_slug, slug, user_id);
+            tracing::info!(
+                "Updated sales referral slug from {} to {} for {}",
+                current_slug,
+                slug,
+                user_id
+            );
         }
     } else {
         sqlx::query(
@@ -1737,7 +2055,11 @@ async fn sync_sales_referral(state: &AppState, user_id: &str, name: &str, slug: 
     Ok(())
 }
 
-async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<UserCreateRequest>) -> Result<ResponseBody, AppError> {
+async fn create_user(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UserCreateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     validate_user_create(&payload)?;
 
@@ -1754,7 +2076,11 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
     let password_hash = hash_password(&payload.password);
     let whatsapp = payload.whatsapp.unwrap_or_else(|| "".to_string());
     let jabatan = if role == "sales" {
-        payload.jabatan.as_deref().map(normalize_jabatan).unwrap_or_else(|| "sales".to_string())
+        payload
+            .jabatan
+            .as_deref()
+            .map(normalize_jabatan)
+            .unwrap_or_else(|| "sales".to_string())
     } else {
         String::new()
     };
@@ -1784,7 +2110,14 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
     .map_err(map_conflict_if_needed)?;
 
     if role == "sales" {
-        sync_sales_referral(&state, &id, payload.name.trim(), &referral_slug, payload.is_active.unwrap_or(true)).await?;
+        sync_sales_referral(
+            &state,
+            &id,
+            payload.name.trim(),
+            &referral_slug,
+            payload.is_active.unwrap_or(true),
+        )
+        .await?;
     }
 
     let created = find_user_public_by_id(&state, &id).await?;
@@ -1794,7 +2127,11 @@ async fn create_user(State(state): State<AppState>, headers: HeaderMap, Json(pay
     ))
 }
 
-async fn get_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+async fn get_user(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     let item = find_user_public_by_id(&state, &id).await?;
     Ok(json_ok(
@@ -1803,7 +2140,12 @@ async fn get_user(State(state): State<AppState>, headers: HeaderMap, Path(id): P
     ))
 }
 
-async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<UserUpdateRequest>) -> Result<ResponseBody, AppError> {
+async fn update_user(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<UserUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     tracing::info!(
         "Admin {} updating user {}; fields=[email={}, name={}, role={}, password={}, avatar={}, bank_account={}, is_active={}, is_verified={}]",
@@ -1854,10 +2196,16 @@ async fn update_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         .and_then(normalize_role)
         .unwrap_or_else(|| current_role.clone());
     let next_jabatan = if next_role == "sales" {
-        payload.jabatan.as_deref()
+        payload
+            .jabatan
+            .as_deref()
             .map(normalize_jabatan)
             .unwrap_or_else(|| {
-                if current_jabatan.is_empty() { "sales".to_string() } else { current_jabatan.clone() }
+                if current_jabatan.is_empty() {
+                    "sales".to_string()
+                } else {
+                    current_jabatan.clone()
+                }
             })
     } else {
         String::new()
@@ -1946,28 +2294,28 @@ async fn reset_user_password(
         });
     }
 
-    let target_user = sqlx::query_as::<_, crate::state::UserRecord>("SELECT * FROM users WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error fetching user for password reset: {}", e);
-            AppError::Internal
-        })?
-        .ok_or(AppError::NotFound)?;
+    let target_user =
+        sqlx::query_as::<_, crate::state::UserRecord>("SELECT * FROM users WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error fetching user for password reset: {}", e);
+                AppError::Internal
+            })?
+            .ok_or(AppError::NotFound)?;
 
     let password_hash = hash_password(payload.password.trim());
-    let result = sqlx::query(
-        "UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?",
-    )
-    .bind(password_hash)
-    .bind(&id)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error resetting user password: {}", e);
-        AppError::Internal
-    })?;
+    let result =
+        sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?")
+            .bind(password_hash)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error resetting user password: {}", e);
+                AppError::Internal
+            })?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -1979,7 +2327,11 @@ async fn reset_user_password(
     if state.mailer.is_enabled() {
         if let Err(e) = state
             .mailer
-            .send_password_reset_email(&target_user.email, &target_user.name, payload.password.trim())
+            .send_password_reset_email(
+                &target_user.email,
+                &target_user.name,
+                payload.password.trim(),
+            )
             .await
         {
             tracing::error!(
@@ -2011,7 +2363,10 @@ struct RewardTierPublic {
     is_active: bool,
 }
 
-async fn list_reward_tiers(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_reward_tiers(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
 
     let tiers = sqlx::query_as::<_, (String, String, i64, i64, bool)>(
@@ -2036,8 +2391,17 @@ async fn list_reward_tiers(State(state): State<AppState>, headers: HeaderMap) ->
     Ok(json_ok("Reward tiers fetched", json!({ "items": tiers })))
 }
 
-async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, mut multipart: Multipart) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn upload_admin_image(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
 
     let mut uploaded_url: Option<String> = None;
 
@@ -2056,7 +2420,7 @@ async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, m
             tracing::error!("Failed to get bytes for {}: {}", file_name_orig, e);
             AppError::Internal
         })?;
-        
+
         tracing::info!("Received {} bytes for {}", data.len(), file_name_orig);
 
         if data.is_empty() {
@@ -2070,7 +2434,6 @@ async fn upload_admin_image(State(state): State<AppState>, headers: HeaderMap, m
         let url = save_image_as_webp(image, "article")?;
         uploaded_url = Some(url);
         break;
-
     }
 
     let url = uploaded_url.ok_or(AppError::Validation {
@@ -2092,14 +2455,23 @@ async fn serve_private_upload(
 
     // Sanitize filename: only allow alphanumeric, dash, underscore, dot
     if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
-        return Err(AppError::Validation { errors: vec!["Invalid filename".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["Invalid filename".to_string()],
+        });
     }
-    if !filename.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
-        return Err(AppError::Validation { errors: vec!["Invalid filename".to_string()] });
+    if !filename
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(AppError::Validation {
+            errors: vec!["Invalid filename".to_string()],
+        });
     }
 
     let file_path = format!("uploads/private/{}", filename);
-    let data = tokio::fs::read(&file_path).await.map_err(|_| AppError::NotFound)?;
+    let data = tokio::fs::read(&file_path)
+        .await
+        .map_err(|_| AppError::NotFound)?;
 
     let content_type = if filename.ends_with(".webp") {
         "image/webp"
@@ -2112,14 +2484,25 @@ async fn serve_private_upload(
     };
 
     Ok((
-        [(axum::http::header::CONTENT_TYPE, content_type),
-         (axum::http::header::CACHE_CONTROL, "private, max-age=300")],
+        [
+            (axum::http::header::CONTENT_TYPE, content_type),
+            (axum::http::header::CACHE_CONTROL, "private, max-age=300"),
+        ],
         data,
-    ).into_response())
+    )
+        .into_response())
 }
 
-async fn list_wa_accounts(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+async fn list_wa_accounts(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     let rows = sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
         "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at FROM wa_accounts ORDER BY created_at DESC",
@@ -2133,18 +2516,31 @@ async fn list_wa_accounts(State(state): State<AppState>, headers: HeaderMap) -> 
 
     let items = rows
         .into_iter()
-        .map(|(id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at)| WaSummaryResponse {
-            id,
-            name,
-            gateway_config: parse_json_value(gateway_config),
-            enabled,
-            status,
-            phone_number,
-            last_error,
-            message_count_today,
-            created_by,
-            created_at,
-        })
+        .map(
+            |(
+                id,
+                name,
+                gateway_config,
+                enabled,
+                status,
+                phone_number,
+                last_error,
+                message_count_today,
+                created_by,
+                created_at,
+            )| WaSummaryResponse {
+                id,
+                name,
+                gateway_config: parse_json_value(gateway_config),
+                enabled,
+                status,
+                phone_number,
+                last_error,
+                message_count_today,
+                created_by,
+                created_at,
+            },
+        )
         .collect::<Vec<_>>();
 
     Ok(json_ok("WA accounts fetched", json!({ "items": items })))
@@ -2159,11 +2555,16 @@ async fn create_wa_account(
 
     let name = payload.name.trim();
     if name.is_empty() {
-        return Err(AppError::Validation { errors: vec!["name wajib diisi".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["name wajib diisi".to_string()],
+        });
     }
 
     let id = uuid::Uuid::new_v4().to_string();
-    let gateway_config = payload.gateway_config.unwrap_or_else(|| json!({})).to_string();
+    let gateway_config = payload
+        .gateway_config
+        .unwrap_or_else(|| json!({}))
+        .to_string();
     let enabled = payload.enabled.unwrap_or(true);
 
     sqlx::query(
@@ -2241,8 +2642,16 @@ async fn delete_wa_account(
     Ok(json_ok("WA account deleted", json!({ "id": id })))
 }
 
-async fn list_wa_campaigns(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+async fn list_wa_campaigns(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     let rows = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
         "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id ORDER BY c.created_at DESC",
@@ -2256,19 +2665,33 @@ async fn list_wa_campaigns(State(state): State<AppState>, headers: HeaderMap) ->
 
     let items = rows
         .into_iter()
-        .map(|(id, name, status, config, created_by, created_at, started_at, recipient_total, recipient_sent, recipient_skipped, recipient_failed)| WaCampaignSummaryResponse {
-            id,
-            name,
-            status: status.unwrap_or_else(|| "draft".to_string()),
-            config: parse_json_value_or_default(config, default_wa_campaign_config()),
-            created_by,
-            created_at,
-            started_at,
-            recipient_total,
-            recipient_sent,
-            recipient_skipped,
-            recipient_failed,
-        })
+        .map(
+            |(
+                id,
+                name,
+                status,
+                config,
+                created_by,
+                created_at,
+                started_at,
+                recipient_total,
+                recipient_sent,
+                recipient_skipped,
+                recipient_failed,
+            )| WaCampaignSummaryResponse {
+                id,
+                name,
+                status: status.unwrap_or_else(|| "draft".to_string()),
+                config: parse_json_value_or_default(config, default_wa_campaign_config()),
+                created_by,
+                created_at,
+                started_at,
+                recipient_total,
+                recipient_sent,
+                recipient_skipped,
+                recipient_failed,
+            },
+        )
         .collect::<Vec<_>>();
 
     Ok(json_ok("WA campaigns fetched", json!({ "items": items })))
@@ -2283,11 +2706,16 @@ async fn create_wa_campaign(
 
     let name = payload.name.trim();
     if name.is_empty() {
-        return Err(AppError::Validation { errors: vec!["name wajib diisi".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["name wajib diisi".to_string()],
+        });
     }
 
     let id = uuid::Uuid::new_v4().to_string();
-    let config = payload.config.unwrap_or_else(default_wa_campaign_config).to_string();
+    let config = payload
+        .config
+        .unwrap_or_else(default_wa_campaign_config)
+        .to_string();
 
     sqlx::query(
         "INSERT INTO wa_campaigns (id, name, created_by, config, status) VALUES (?, ?, ?, ?, 'draft')",
@@ -2309,8 +2737,17 @@ async fn create_wa_campaign(
     ))
 }
 
-async fn get_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+async fn get_wa_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
     let item = fetch_wa_campaign_summary(&state, &id).await?;
     Ok(json_ok("WA campaign fetched", json!({ "item": item })))
 }
@@ -2381,16 +2818,22 @@ async fn add_wa_recipients(
     Path(id): Path<String>,
     Json(payload): Json<WaRecipientsPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
-    let campaign_config: Option<String> = sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
-        .bind(&id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error loading WA campaign config: {}", e);
-            AppError::Internal
-        })?;
+    let campaign_config: Option<String> =
+        sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error loading WA campaign config: {}", e);
+                AppError::Internal
+            })?;
 
     let campaign_config = campaign_config.ok_or(AppError::NotFound)?;
     let config_value = parse_json_value(Some(campaign_config));
@@ -2401,7 +2844,9 @@ async fn add_wa_recipients(
     };
 
     if recipients.is_empty() {
-        return Err(AppError::Validation { errors: vec!["recipients wajib diisi".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["recipients wajib diisi".to_string()],
+        });
     }
 
     let mut inserted = 0_i64;
@@ -2432,7 +2877,11 @@ async fn add_wa_recipients(
             AppError::Internal
         })?;
 
-        let status = if duplicate_exists.is_some() { "skipped" } else { "pending" };
+        let status = if duplicate_exists.is_some() {
+            "skipped"
+        } else {
+            "pending"
+        };
         if duplicate_exists.is_some() {
             skipped += 1;
         } else {
@@ -2466,9 +2915,17 @@ async fn add_wa_recipients(
 }
 
 /// Download a CSV template for bulk recipient import
-async fn download_recipients_template(headers: HeaderMap, State(state): State<AppState>) -> Result<axum::response::Response, AppError> {
+async fn download_recipients_template(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<axum::response::Response, AppError> {
     use axum::response::IntoResponse;
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     // Generate CSV template with BOM for Excel compatibility
     let bom = "\u{FEFF}";
@@ -2480,11 +2937,15 @@ async fn download_recipients_template(headers: HeaderMap, State(state): State<Ap
     Ok((
         [
             (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
-            (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"wa_recipients_template.csv\""),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                "attachment; filename=\"wa_recipients_template.csv\"",
+            ),
             (axum::http::header::CACHE_CONTROL, "no-cache"),
         ],
         csv_content,
-    ).into_response())
+    )
+        .into_response())
 }
 
 /// Upload recipients from an Excel (.xlsx/.xls) or CSV file
@@ -2494,27 +2955,38 @@ async fn upload_wa_recipients_excel(
     Path(id): Path<String>,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     // Verify campaign exists
-    let campaign_exists: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM wa_campaigns WHERE id = ?"
-    )
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+    let campaign_exists: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error: {}", e);
+                AppError::Internal
+            })?;
 
     if campaign_exists.is_none() {
         return Err(AppError::NotFound);
     }
 
     // Load campaign config for dedupe
-    let campaign_config: Option<String> = sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
-        .bind(&id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+    let campaign_config: Option<String> =
+        sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error: {}", e);
+                AppError::Internal
+            })?;
 
     let config_value = parse_json_value(campaign_config);
     let dedupe_days = wa_config_dedupe_days(&config_value);
@@ -2527,21 +2999,29 @@ async fn upload_wa_recipients_excel(
         tracing::error!("Multipart error: {}", e);
         AppError::Internal
     })? {
-        if field.name().unwrap_or_default() == "file" {
+        let field_name = field.name().unwrap_or_default().to_string();
+        if field_name == "file" {
             file_name = field.file_name().unwrap_or("upload.xlsx").to_string();
-            file_bytes = Some(field.bytes().await.map_err(|e| {
-                tracing::error!("Failed to read file bytes: {}", e);
-                AppError::Internal
-            })?.to_vec());
+            file_bytes = Some(
+                field
+                    .bytes()
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("Failed to read file bytes: {}", e);
+                        AppError::Internal
+                    })?
+                    .to_vec(),
+            );
             break;
         }
     }
 
-    let file_bytes = file_bytes.ok_or_else(|| {
-        AppError::Validation { errors: vec!["No file uploaded. Please attach an Excel or CSV file.".to_string()] }
+    let file_bytes = file_bytes.ok_or_else(|| AppError::Validation {
+        errors: vec!["No file uploaded. Please attach an Excel or CSV file.".to_string()],
     })?;
 
-    let is_csv = file_name.ends_with(".csv");
+    let file_name_lower = file_name.to_lowercase();
+    let is_csv = file_name_lower.ends_with(".csv");
 
     // Parse rows from file
     let rows: Vec<Vec<String>> = if is_csv {
@@ -2550,73 +3030,165 @@ async fn upload_wa_recipients_excel(
         let mut csv_rows = Vec::new();
         for line in content.lines() {
             let line = line.trim().trim_start_matches('\u{FEFF}');
-            if line.is_empty() { continue; }
-            let cols: Vec<String> = line.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect();
+            if line.is_empty() {
+                continue;
+            }
+            let cols: Vec<String> = line
+                .split(',')
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .collect();
             csv_rows.push(cols);
         }
         csv_rows
     } else {
         // Parse Excel using calamine
-        use calamine::{Reader, open_workbook_auto_from_rs};
+        use calamine::{open_workbook_auto_from_rs, Reader};
         use std::io::Cursor;
         let cursor = Cursor::new(&file_bytes);
         let mut workbook = open_workbook_auto_from_rs(cursor).map_err(|e| {
             tracing::error!("Failed to open Excel file: {}", e);
-            AppError::Validation { errors: vec![format!("Failed to read Excel file: {}", e)] }
+            AppError::Validation {
+                errors: vec![format!("Failed to read Excel file: {}", e)],
+            }
         })?;
 
         let sheet_name = workbook.sheet_names().first().cloned().unwrap_or_default();
         let range = workbook.worksheet_range(&sheet_name).map_err(|e| {
             tracing::error!("Failed to read Excel sheet: {}", e);
-            AppError::Validation { errors: vec![format!("Failed to read sheet: {}", e)] }
+            AppError::Validation {
+                errors: vec![format!("Failed to read sheet: {}", e)],
+            }
         })?;
 
         let mut excel_rows = Vec::new();
         for row in range.rows() {
-            let cols: Vec<String> = row.iter().map(|cell| {
-                use calamine::Data;
-                match cell {
-                    Data::String(s) => s.clone(),
-                    Data::Float(f) => {
-                        if *f == (*f as i64) as f64 { format!("{}", *f as i64) } else { format!("{}", f) }
+            let cols: Vec<String> = row
+                .iter()
+                .map(|cell| {
+                    use calamine::Data;
+                    match cell {
+                        Data::String(s) => s.clone(),
+                        Data::Float(f) => {
+                            if *f == (*f as i64) as f64 {
+                                format!("{}", *f as i64)
+                            } else {
+                                format!("{}", f)
+                            }
+                        }
+                        Data::Int(i) => format!("{}", i),
+                        Data::Bool(b) => format!("{}", b),
+                        _ => String::new(),
                     }
-                    Data::Int(i) => format!("{}", i),
-                    Data::Bool(b) => format!("{}", b),
-                    _ => String::new(),
-                }
-            }).collect();
+                })
+                .collect();
             excel_rows.push(cols);
         }
         excel_rows
     };
 
-    if rows.len() < 2 {
-        return Err(AppError::Validation { errors: vec!["File must have a header row and at least one data row.".to_string()] });
+    tracing::info!(
+        campaign_id = %id,
+        file_name = %file_name,
+        row_count = rows.len(),
+        "WA recipient Excel upload parsed"
+    );
+
+    if rows.is_empty() {
+        tracing::warn!(
+            campaign_id = %id,
+            file_name = %file_name,
+            "WA recipient Excel upload rejected: empty file"
+        );
+        return Err(AppError::Validation {
+            errors: vec!["File kosong. Gunakan header phone/name atau wa/nama.".to_string()],
+        });
+    }
+
+    let has_data_row = rows
+        .iter()
+        .skip(1)
+        .any(|row| row.iter().any(|cell| !cell.trim().is_empty()));
+    if !has_data_row {
+        tracing::warn!(
+            campaign_id = %id,
+            file_name = %file_name,
+            header = ?rows.first(),
+            "WA recipient Excel upload rejected: header only"
+        );
+        return Err(AppError::Validation {
+            errors: vec![
+                "File hanya berisi header. Tambahkan minimal satu baris data penerima.".to_string(),
+            ],
+        });
     }
 
     // Parse header to find column indices
-    let header: Vec<String> = rows[0].iter().map(|h| h.to_lowercase().trim().to_string()).collect();
-    let phone_idx = header.iter().position(|h| h == "phone" || h == "wa" || h == "nomor" || h == "no_hp" || h == "whatsapp" || h == "no hp" || h == "nohp" || h == "hp" || h == "telepon" || h == "no")
+    let header: Vec<String> = rows[0]
+        .iter()
+        .map(|h| h.to_lowercase().trim().to_string())
+        .collect();
+    tracing::info!(
+        campaign_id = %id,
+        file_name = %file_name,
+        header = ?header,
+        "WA recipient Excel upload header detected"
+    );
+    let looks_like_phone = |cell: &str| {
+        let digits: String = cell.chars().filter(|c| c.is_ascii_digit()).collect();
+        digits.len() >= 9 && digits.len() <= 15
+    };
+
+    let phone_idx = header
+        .iter()
+        .position(|h| {
+            h == "phone"
+                || h == "wa"
+                || h == "nomor"
+                || h == "no_hp"
+                || h == "whatsapp"
+                || h == "no hp"
+                || h == "nohp"
+                || h == "hp"
+                || h == "telepon"
+        })
         .or_else(|| {
-            // Fallback: find first column that contains phone-like data in row 1
-            if rows.len() > 1 {
-                rows[1].iter().position(|cell| {
-                    let digits: String = cell.chars().filter(|c| c.is_ascii_digit()).collect();
-                    digits.len() >= 9 && digits.len() <= 15
-                })
-            } else {
-                None
-            }
+            header.iter().enumerate().find_map(|(idx, h)| {
+                if h == "no"
+                    && rows.iter().skip(1).any(|row| {
+                        row.get(idx)
+                            .map(|cell| looks_like_phone(cell))
+                            .unwrap_or(false)
+                    })
+                {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+        })
+        .or_else(|| {
+            // Fallback: find first column that contains phone-like data in any data row.
+            rows.iter()
+                .skip(1)
+                .find_map(|row| row.iter().position(|cell| looks_like_phone(cell)))
         });
 
     let phone_idx = phone_idx.ok_or_else(|| {
+        tracing::warn!(
+            campaign_id = %id,
+            file_name = %file_name,
+            header = ?header,
+            "WA recipient Excel upload rejected: phone column not found"
+        );
         AppError::Validation { errors: vec![
-            "Kolom nomor telepon tidak ditemukan. Header yang didukung: phone, wa, nomor, no_hp, whatsapp, hp, telepon, no".to_string()
+            "Kolom nomor telepon tidak ditemukan. Header yang didukung: phone, wa, nomor, no_hp, whatsapp, hp, telepon. Header 'no' hanya dipakai jika berisi nomor WhatsApp, bukan nomor urut.".to_string()
         ] }
     })?;
 
     // All other columns become variables
-    let var_columns: Vec<(usize, String)> = header.iter().enumerate()
+    let var_columns: Vec<(usize, String)> = header
+        .iter()
+        .enumerate()
         .filter(|(i, _)| *i != phone_idx)
         .map(|(i, name)| (i, name.clone()))
         .collect();
@@ -2626,13 +3198,22 @@ async fn upload_wa_recipients_excel(
     let mut invalid = Vec::new();
 
     for (row_num, row) in rows.iter().enumerate().skip(1) {
-        let phone_raw = row.get(phone_idx).map(|s| s.trim().to_string()).unwrap_or_default();
-        if phone_raw.is_empty() { continue; }
+        let phone_raw = row
+            .get(phone_idx)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        if phone_raw.is_empty() {
+            continue;
+        }
 
         let phone = match normalize_phone(&phone_raw) {
             Some(p) => p,
             None => {
-                invalid.push(format!("Baris {}: nomor tidak valid '{}'", row_num + 1, phone_raw));
+                invalid.push(format!(
+                    "Baris {}: nomor tidak valid '{}'",
+                    row_num + 1,
+                    phone_raw
+                ));
                 continue;
             }
         };
@@ -2640,7 +3221,10 @@ async fn upload_wa_recipients_excel(
         // Build variables JSON from other columns
         let mut vars = serde_json::Map::new();
         for (col_idx, col_name) in &var_columns {
-            let val = row.get(*col_idx).map(|s| s.trim().to_string()).unwrap_or_default();
+            let val = row
+                .get(*col_idx)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default();
             if !val.is_empty() {
                 vars.insert(col_name.clone(), serde_json::Value::String(val));
             }
@@ -2658,8 +3242,16 @@ async fn upload_wa_recipients_excel(
         .await
         .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
 
-        let status = if duplicate_exists.is_some() { "skipped" } else { "pending" };
-        if duplicate_exists.is_some() { skipped += 1; } else { inserted += 1; }
+        let status = if duplicate_exists.is_some() {
+            "skipped"
+        } else {
+            "pending"
+        };
+        if duplicate_exists.is_some() {
+            skipped += 1;
+        } else {
+            inserted += 1;
+        }
 
         let recipient_id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
@@ -2675,7 +3267,10 @@ async fn upload_wa_recipients_excel(
         .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
     }
 
-    let mut msg = format!("{} recipients imported, {} skipped (dedupe)", inserted, skipped);
+    let mut msg = format!(
+        "{} recipients imported, {} skipped (dedupe)",
+        inserted, skipped
+    );
     if !invalid.is_empty() {
         msg = format!("{}. {} invalid rows.", msg, invalid.len());
     }
@@ -2691,46 +3286,67 @@ async fn upload_wa_recipients_excel(
     ))
 }
 
-async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+async fn start_wa_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     // 1. Validate campaign exists and is not already running
-    let campaign_status: Option<(String,)> = sqlx::query_as(
-        "SELECT status FROM wa_campaigns WHERE id = ?"
-    )
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+    let campaign_status: Option<(String,)> =
+        sqlx::query_as("SELECT status FROM wa_campaigns WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error: {}", e);
+                AppError::Internal
+            })?;
 
     let campaign_status = campaign_status.ok_or(AppError::NotFound)?;
     if campaign_status.0 == "running" {
-        return Err(AppError::Validation { errors: vec!["Campaign is already running".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["Campaign is already running".to_string()],
+        });
     }
 
     // 2. Validate there are pending recipients
     let pending_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'pending'"
+        "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'pending'",
     )
     .bind(&id)
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
 
     if pending_count.0 == 0 {
-        return Err(AppError::Validation { errors: vec!["No pending recipients to send to".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["No pending recipients to send to".to_string()],
+        });
     }
 
-    // 3. Validate at least one WA account is enabled
+    // 3. Validate at least one WA account is enabled and connected
     let account_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1"
+        "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1 AND status = 'connected'",
     )
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
 
     if account_count.0 == 0 {
-        return Err(AppError::Validation { errors: vec!["No enabled WA accounts available. Enable at least one account.".to_string()] });
+        return Err(AppError::Validation { errors: vec!["Tidak ada akun WhatsApp yang connected. Scan QR / hubungkan akun WA terlebih dahulu sebelum memulai campaign.".to_string()] });
     }
 
     // 4. Update campaign status to running
@@ -2745,27 +3361,39 @@ async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Pa
         AppError::Internal
     })?;
 
-    tracing::info!("Campaign {} started by {} with {} pending recipients", id, user.email, pending_count.0);
+    tracing::info!(
+        "Campaign {} started by {} with {} pending recipients",
+        id,
+        user.email,
+        pending_count.0
+    );
 
     // 5. Optionally enqueue to Redis for BlastEngine (if available)
     let mut enqueued: usize = 0;
     if let Some(qm) = &state.queue_manager {
-        let account_ids: Vec<(String,)> = sqlx::query_as(
-            "SELECT id FROM wa_accounts WHERE enabled = 1"
-        )
-        .fetch_all(&state.pool)
-        .await
-        .unwrap_or_default();
+        let account_ids: Vec<(String,)> =
+            sqlx::query_as("SELECT id FROM wa_accounts WHERE enabled = 1 AND status = 'connected'")
+                .fetch_all(&state.pool)
+                .await
+                .unwrap_or_default();
 
         let account_id_list: Vec<String> = account_ids.into_iter().map(|r| r.0).collect();
         if !account_id_list.is_empty() {
             match qm.enqueue_campaign(&id, &account_id_list).await {
                 Ok(count) => {
                     enqueued = count;
-                    tracing::info!("Campaign {} also enqueued {} recipients to Redis", id, count);
+                    tracing::info!(
+                        "Campaign {} also enqueued {} recipients to Redis",
+                        id,
+                        count
+                    );
                 }
                 Err(e) => {
-                    tracing::warn!("Redis enqueue failed for campaign {}: {} — wa_worker will handle it", id, e);
+                    tracing::warn!(
+                        "Redis enqueue failed for campaign {}: {} — wa_worker will handle it",
+                        id,
+                        e
+                    );
                 }
             }
         }
@@ -2775,7 +3403,10 @@ async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Pa
     // even if Redis enqueue failed or is unavailable.
 
     Ok(json_ok(
-        format!("WA campaign started by {} ({} recipients pending)", user.email, pending_count.0),
+        format!(
+            "WA campaign started by {} ({} recipients pending)",
+            user.email, pending_count.0
+        ),
         json!({
             "item": fetch_wa_campaign_summary(&state, &id).await?,
             "enqueued": enqueued,
@@ -2784,8 +3415,62 @@ async fn start_wa_campaign(State(state): State<AppState>, headers: HeaderMap, Pa
     ))
 }
 
-async fn get_wa_campaign_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+async fn reset_wa_campaign(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+
+    // Verify campaign exists
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    if exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Reset all non-pending recipients back to pending
+    let result = sqlx::query(
+        "UPDATE wa_recipients SET status = 'pending', last_attempt_at = NULL, last_error = NULL WHERE campaign_id = ? AND status != 'pending'"
+    )
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error resetting campaign recipients: {}", e);
+            AppError::Internal
+        })?;
+
+    // Reset campaign status to draft
+    sqlx::query("UPDATE wa_campaigns SET status = 'draft' WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let reset_count = result.rows_affected();
+    tracing::info!("Campaign {} reset by {}: {} recipients reset to pending", id, user.email, reset_count);
+
+    Ok(json_ok("Campaign reset", json!({
+        "reset_count": reset_count,
+        "campaign_id": id,
+    })))
+}
+
+async fn get_wa_campaign_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
     let campaign = fetch_wa_campaign_summary(&state, &id).await?;
 
     let recipient_rows = sqlx::query_as::<_, (String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>(
@@ -2801,31 +3486,47 @@ async fn get_wa_campaign_status(State(state): State<AppState>, headers: HeaderMa
 
     let recipients = recipient_rows
         .into_iter()
-        .map(|(id, phone, variables, status, last_attempt_at, delivered_at, read_at, replied_at, last_error, created_at)| WaRecipientSummaryResponse {
-            id,
-            phone,
-            variables: parse_json_value(variables),
-            status,
-            last_attempt_at,
-            delivered_at,
-            read_at,
-            replied_at,
-            last_error,
-            created_at,
-        })
+        .map(
+            |(
+                id,
+                phone,
+                variables,
+                status,
+                last_attempt_at,
+                delivered_at,
+                read_at,
+                replied_at,
+                last_error,
+                created_at,
+            )| WaRecipientSummaryResponse {
+                id,
+                phone,
+                variables: parse_json_value(variables),
+                status,
+                last_attempt_at,
+                delivered_at,
+                read_at,
+                replied_at,
+                last_error,
+                created_at,
+            },
+        )
         .collect::<Vec<_>>();
 
-    Ok(json_ok("WA campaign status fetched", json!({ "campaign": campaign, "recipients": recipients })))
+    Ok(json_ok(
+        "WA campaign status fetched",
+        json!({ "campaign": campaign, "recipients": recipients }),
+    ))
 }
 
 /// GET /api/wa/campaigns/{id}/metrics - Get campaign metrics
 /// **Validates: Requirements 10.5, 10.6, 10.8**
-/// 
+///
 /// Returns comprehensive campaign metrics including:
 /// - Campaign details (name, status)
 /// - Real-time metrics (total sent, delivered rate, read rate, reply rate)
 /// - Hourly metrics breakdown
-/// 
+///
 /// Authentication: Admin, WaAdmin, or WaOperator role required
 async fn get_wa_campaign_metrics(
     State(state): State<AppState>,
@@ -2833,7 +3534,12 @@ async fn get_wa_campaign_metrics(
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
     // Authorize user with appropriate roles
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     // Get complete campaign metrics response
     let metrics_response = crate::campaign_metrics::get_campaign_metrics_response(&state.pool, &id)
@@ -2857,26 +3563,32 @@ async fn get_wa_campaign_metrics(
         metrics_response.metrics.reply_rate
     );
 
-    Ok(json_ok("Campaign metrics berhasil diambil", json!({
-        "campaignId": metrics_response.campaign_id,
-        "campaignName": metrics_response.campaign_name,
-        "status": metrics_response.status,
-        "metrics": {
-            "totalRecipients": metrics_response.metrics.total_recipients,
-            "totalSent": metrics_response.metrics.total_sent,
-            "totalDelivered": metrics_response.metrics.total_delivered,
-            "totalRead": metrics_response.metrics.total_read,
-            "totalReplied": metrics_response.metrics.total_replied,
-            "totalFailed": metrics_response.metrics.total_failed,
-            "deliveredRate": metrics_response.metrics.delivered_rate,
-            "readRate": metrics_response.metrics.read_rate,
-            "replyRate": metrics_response.metrics.reply_rate,
-        },
-        "hourlyMetrics": metrics_response.hourly_metrics,
-    })))
+    Ok(json_ok(
+        "Campaign metrics berhasil diambil",
+        json!({
+            "campaignId": metrics_response.campaign_id,
+            "campaignName": metrics_response.campaign_name,
+            "status": metrics_response.status,
+            "metrics": {
+                "totalRecipients": metrics_response.metrics.total_recipients,
+                "totalSent": metrics_response.metrics.total_sent,
+                "totalDelivered": metrics_response.metrics.total_delivered,
+                "totalRead": metrics_response.metrics.total_read,
+                "totalReplied": metrics_response.metrics.total_replied,
+                "totalFailed": metrics_response.metrics.total_failed,
+                "deliveredRate": metrics_response.metrics.delivered_rate,
+                "readRate": metrics_response.metrics.read_rate,
+                "replyRate": metrics_response.metrics.reply_rate,
+            },
+            "hourlyMetrics": metrics_response.hourly_metrics,
+        }),
+    ))
 }
 
-async fn fetch_wa_campaign_summary(state: &AppState, id: &str) -> Result<WaCampaignSummaryResponse, AppError> {
+async fn fetch_wa_campaign_summary(
+    state: &AppState,
+    id: &str,
+) -> Result<WaCampaignSummaryResponse, AppError> {
     let row = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
         "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.id = ? GROUP BY c.id LIMIT 1",
     )
@@ -2889,7 +3601,19 @@ async fn fetch_wa_campaign_summary(state: &AppState, id: &str) -> Result<WaCampa
     })?
     .ok_or(AppError::NotFound)?;
 
-    let (id, name, status, config, created_by, created_at, started_at, recipient_total, recipient_sent, recipient_skipped, recipient_failed) = row;
+    let (
+        id,
+        name,
+        status,
+        config,
+        created_by,
+        created_at,
+        started_at,
+        recipient_total,
+        recipient_sent,
+        recipient_skipped,
+        recipient_failed,
+    ) = row;
 
     Ok(WaCampaignSummaryResponse {
         id,
@@ -2923,18 +3647,24 @@ async fn add_wa_recipients_from_leads(
     Path(id): Path<String>,
     Json(payload): Json<AddRecipientsFromLeadsRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     let mut inserted = 0;
     let mut skipped = 0;
 
     for lead_id in payload.lead_ids {
         // Fetch lead data
-        let lead: Option<(String, String)> = sqlx::query_as("SELECT customer_name, phone_number FROM leads WHERE id = ?")
-            .bind(&lead_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        let lead: Option<(String, String)> =
+            sqlx::query_as("SELECT customer_name, phone_number FROM leads WHERE id = ?")
+                .bind(&lead_id)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|_| AppError::Internal)?;
 
         if let Some((name, phone)) = lead {
             let phone_norm = match normalize_phone(&phone) {
@@ -2963,7 +3693,10 @@ async fn add_wa_recipients_from_leads(
         }
     }
 
-    Ok(json_ok("Leads added to WA campaign", json!({ "inserted": inserted, "skipped": skipped })))
+    Ok(json_ok(
+        "Leads added to WA campaign",
+        json!({ "inserted": inserted, "skipped": skipped }),
+    ))
 }
 
 async fn delete_wa_recipient(
@@ -2997,7 +3730,9 @@ async fn update_wa_recipient(
     let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
 
     if let Some(phone) = payload.phone {
-        let phone_norm = normalize_phone(&phone).ok_or(AppError::Validation { errors: vec!["Phone not valid".to_string()] })?;
+        let phone_norm = normalize_phone(&phone).ok_or(AppError::Validation {
+            errors: vec!["Phone not valid".to_string()],
+        })?;
         sqlx::query("UPDATE wa_recipients SET phone = ? WHERE id = ?")
             .bind(phone_norm)
             .bind(&id)
@@ -3024,7 +3759,7 @@ async fn resend_verification(
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
     let _admin = authorize(&state, &headers, &[Role::Admin]).await?;
-    
+
     let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.pool)
@@ -3041,7 +3776,11 @@ async fn resend_verification(
     let token = match issue_verification_token(&state, &user.id).await {
         Ok(t) => t,
         Err(e) => {
-            tracing::error!("Failed to issue verification token for {}: {:?}", user.email, e);
+            tracing::error!(
+                "Failed to issue verification token for {}: {:?}",
+                user.email,
+                e
+            );
             return Err(AppError::Internal);
         }
     };
@@ -3110,13 +3849,17 @@ async fn issue_verification_token(state: &AppState, user_id: &str) -> Result<Str
     Ok(token)
 }
 
-async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+async fn delete_user(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    
+
     // Prevent admin dari menghapus dirinya sendiri
     if user.id == id {
         return Err(AppError::Validation {
-            errors: vec!["Anda tidak dapat menghapus akun Anda sendiri".to_string()]
+            errors: vec!["Anda tidak dapat menghapus akun Anda sendiri".to_string()],
         });
     }
 
@@ -3125,7 +3868,10 @@ async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
-        .map_err(|e| { tracing::error!("DB error checking user existence: {}", e); AppError::Internal })?;
+        .map_err(|e| {
+            tracing::error!("DB error checking user existence: {}", e);
+            AppError::Internal
+        })?;
 
     if exists.is_none() {
         return Err(AppError::NotFound);
@@ -3180,7 +3926,10 @@ async fn delete_user(State(state): State<AppState>, headers: HeaderMap, Path(id)
 
     state.invalidate_user_sessions(&id).await;
 
-    Ok(json_ok(format!("User {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
+    Ok(json_ok(
+        format!("User {} deleted by {}", id, user.email),
+        json!({ "id": id, "deleted": true }),
+    ))
 }
 
 #[derive(sqlx::FromRow)]
@@ -3273,16 +4022,16 @@ struct CatalogUpdateRequest {
 #[derive(Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "camelCase")]
 enum BulkOperation {
-    Create { 
+    Create {
         #[serde(flatten)]
-        data: CatalogCreateRequest, 
-        row_number: Option<i32> 
+        data: CatalogCreateRequest,
+        row_number: Option<i32>,
     },
-    Update { 
-        id: String, 
+    Update {
+        id: String,
         #[serde(flatten)]
-        data: CatalogUpdateRequest, 
-        row_number: Option<i32> 
+        data: CatalogUpdateRequest,
+        row_number: Option<i32>,
     },
 }
 
@@ -3314,11 +4063,21 @@ fn validate_rating_entries(ratings: &[ProductRatingEntry]) -> Result<(), AppErro
 
     for (index, rating) in ratings.iter().enumerate() {
         if !(0.0..=5.0).contains(&rating.score) {
-            errors.push(format!("rating ke-{} harus di antara 0 sampai 5", index + 1));
+            errors.push(format!(
+                "rating ke-{} harus di antara 0 sampai 5",
+                index + 1
+            ));
         }
 
-        if rating.review.as_ref().is_some_and(|value| value.trim().len() > 500) {
-            errors.push(format!("ulasan rating ke-{} maksimal 500 karakter", index + 1));
+        if rating
+            .review
+            .as_ref()
+            .is_some_and(|value| value.trim().len() > 500)
+        {
+            errors.push(format!(
+                "ulasan rating ke-{} maksimal 500 karakter",
+                index + 1
+            ));
         }
     }
 
@@ -3355,7 +4114,11 @@ fn normalize_ratings_for_storage(
     Ok(normalized)
 }
 
-fn summarize_ratings(ratings: &[ProductRatingEntry], legacy_rating: Option<f64>, legacy_review: Option<String>) -> (Option<f64>, Option<String>, i64) {
+fn summarize_ratings(
+    ratings: &[ProductRatingEntry],
+    legacy_rating: Option<f64>,
+    legacy_review: Option<String>,
+) -> (Option<f64>, Option<String>, i64) {
     if ratings.is_empty() {
         return (legacy_rating, normalize_review_text(legacy_review), 0);
     }
@@ -3374,7 +4137,8 @@ fn summarize_ratings(ratings: &[ProductRatingEntry], legacy_rating: Option<f64>,
 fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSummary>) -> Value {
     let analytics = analytics.cloned().unwrap_or_default();
     let ratings = parse_ratings_or_default(record.ratings.as_deref());
-    let (rating_average, latest_review, rating_count) = summarize_ratings(&ratings, record.rating, record.review);
+    let (rating_average, latest_review, rating_count) =
+        summarize_ratings(&ratings, record.rating, record.review);
     let conversion_rate = if analytics.views > 0 {
         (analytics.leads as f64 / analytics.views as f64) * 100.0
     } else {
@@ -3412,7 +4176,10 @@ fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSum
 }
 
 fn validate_stock(stock: &str) -> bool {
-    matches!(stock, "available" | "indent" | "hidden" | "limited" | "out_of_stock" | "discontinued")
+    matches!(
+        stock,
+        "available" | "indent" | "hidden" | "limited" | "out_of_stock" | "discontinued"
+    )
 }
 
 fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppError> {
@@ -3443,10 +4210,16 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
         errors.push("dpMin tidak boleh negatif".to_string());
     }
     if let Some(ratings) = payload.ratings.as_ref() {
-        if let Err(AppError::Validation { errors: rating_errors }) = validate_rating_entries(ratings) {
+        if let Err(AppError::Validation {
+            errors: rating_errors,
+        }) = validate_rating_entries(ratings)
+        {
             errors.extend(rating_errors);
         }
-    } else if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+    } else if payload
+        .rating
+        .is_some_and(|value| !(0.0..=5.0).contains(&value))
+    {
         errors.push("rating harus di antara 0 sampai 5".to_string());
     }
     if let Some(stock) = &payload.stock {
@@ -3465,13 +4238,25 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
 fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
 
-    if payload.slug.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .slug
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("slug tidak boleh kosong".to_string());
     }
-    if payload.name.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .name
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("name tidak boleh kosong".to_string());
     }
-    if payload.category.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .category
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("category tidak boleh kosong".to_string());
     }
     // image is now optional
@@ -3485,13 +4270,23 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
         errors.push("dpMin tidak boleh negatif".to_string());
     }
     if let Some(ratings) = payload.ratings.as_ref() {
-        if let Err(AppError::Validation { errors: rating_errors }) = validate_rating_entries(ratings) {
+        if let Err(AppError::Validation {
+            errors: rating_errors,
+        }) = validate_rating_entries(ratings)
+        {
             errors.extend(rating_errors);
         }
-    } else if payload.rating.is_some_and(|value| !(0.0..=5.0).contains(&value)) {
+    } else if payload
+        .rating
+        .is_some_and(|value| !(0.0..=5.0).contains(&value))
+    {
         errors.push("rating harus di antara 0 sampai 5".to_string());
     }
-    if payload.stock.as_ref().is_some_and(|value| !validate_stock(value)) {
+    if payload
+        .stock
+        .as_ref()
+        .is_some_and(|value| !validate_stock(value))
+    {
         errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
     }
 
@@ -3502,7 +4297,10 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
     }
 }
 
-async fn find_catalog_by_id_or_slug(state: &AppState, id_or_slug: &str) -> Result<ProductRecord, AppError> {
+async fn find_catalog_by_id_or_slug(
+    state: &AppState,
+    id_or_slug: &str,
+) -> Result<ProductRecord, AppError> {
     sqlx::query_as::<_, ProductRecord>(
         "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
     )
@@ -3651,7 +4449,10 @@ fn validate_promotion_create(payload: &PromotionCreateRequest) -> Result<(), App
     if payload.image.trim().is_empty() {
         errors.push("image wajib diisi".to_string());
     }
-    if payload.discount.is_some_and(|value| !(0..=100).contains(&value)) {
+    if payload
+        .discount
+        .is_some_and(|value| !(0..=100).contains(&value))
+    {
         errors.push("discount harus di antara 0 sampai 100".to_string());
     }
     if payload.original_price.is_some_and(|value| value < 0.0) {
@@ -3675,13 +4476,24 @@ fn validate_promotion_create(payload: &PromotionCreateRequest) -> Result<(), App
 
 fn validate_promotion_update(payload: &PromotionUpdateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
-    if payload.title.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .title
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("title tidak boleh kosong".to_string());
     }
-    if payload.image.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .image
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("image tidak boleh kosong".to_string());
     }
-    if payload.discount.is_some_and(|value| !(0..=100).contains(&value)) {
+    if payload
+        .discount
+        .is_some_and(|value| !(0..=100).contains(&value))
+    {
         errors.push("discount harus di antara 0 sampai 100".to_string());
     }
     if payload.original_price.is_some_and(|value| value < 0.0) {
@@ -3719,10 +4531,18 @@ fn validate_partner_create(payload: &PartnerCreateRequest) -> Result<(), AppErro
 
 fn validate_partner_update(payload: &PartnerUpdateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
-    if payload.name.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .name
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("name tidak boleh kosong".to_string());
     }
-    if payload.logo_url.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .logo_url
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("logoUrl tidak boleh kosong".to_string());
     }
     if payload.sort_order.is_some_and(|value| value < 0) {
@@ -3790,7 +4610,7 @@ struct UpdateProductCategoryRequest {
 
 async fn list_product_categories(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let categories = sqlx::query_as::<_, ProductCategoryRecord>(
-        "SELECT id, name, slug, description, created_at FROM product_categories ORDER BY name ASC"
+        "SELECT id, name, slug, description, created_at FROM product_categories ORDER BY name ASC",
     )
     .fetch_all(&state.pool)
     .await
@@ -3799,7 +4619,10 @@ async fn list_product_categories(State(state): State<AppState>) -> Result<Respon
         AppError::Internal
     })?;
 
-    Ok(json_ok("Categories fetched", json!({ "items": categories })))
+    Ok(json_ok(
+        "Categories fetched",
+        json!({ "items": categories }),
+    ))
 }
 
 async fn create_product_category(
@@ -3832,7 +4655,10 @@ async fn create_product_category(
         AppError::Internal
     })?;
 
-    Ok(json_ok("Category created", json!({ "id": id, "slug": slug })))
+    Ok(json_ok(
+        "Category created",
+        json!({ "id": id, "slug": slug }),
+    ))
 }
 
 async fn update_product_category(
@@ -3855,7 +4681,11 @@ async fn update_product_category(
     let mut updates = Vec::new();
 
     if let Some(ref name) = payload.name {
-        updates.push(format!("name = '{}', slug = '{}'", name.trim(), name.to_lowercase().replace(' ', "-")));
+        updates.push(format!(
+            "name = '{}', slug = '{}'",
+            name.trim(),
+            name.to_lowercase().replace(' ', "-")
+        ));
     }
     if let Some(ref desc) = payload.description {
         updates.push(format!("description = '{}'", desc));
@@ -3937,7 +4767,10 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
         .filter_map(|row| {
             use sqlx::Row;
 
-            let product_slug = row.try_get::<Option<String>, _>("product_slug").ok().flatten()?;
+            let product_slug = row
+                .try_get::<Option<String>, _>("product_slug")
+                .ok()
+                .flatten()?;
             Some((
                 product_slug,
                 ProductAnalyticsSummary {
@@ -3960,17 +4793,41 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
     Ok(json_ok("Catalogs fetched", json!({ "items": items })))
 }
 
-async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<CatalogCreateRequest>) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn create_catalog(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CatalogCreateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
     validate_catalog_create(&payload)?;
 
     let name = payload.name.trim().to_string();
-    let slug = payload.slug.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+    let slug = payload
+        .slug
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToString::to_string)
         .unwrap_or_else(|| name.to_lowercase().replace(' ', "-"));
-    let category = payload.category.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+    let category = payload
+        .category
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToString::to_string)
         .unwrap_or_else(|| "Uncategorized".to_string());
     let price = payload.price.unwrap_or(0.0);
-    let image = payload.image.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+    let image = payload
+        .image
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToString::to_string)
         .unwrap_or_else(|| "https://placehold.co/600x400?text=No+Image".to_string());
 
     let id = payload
@@ -3980,13 +4837,26 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let images = serde_json::to_string(&payload.images.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
-    let specs = serde_json::to_string(&payload.specs.unwrap_or_else(|| json!({}))).map_err(|_| AppError::Internal)?;
-    let colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
-    let ratings = normalize_ratings_for_storage(payload.ratings.clone(), payload.rating, payload.review.clone())?;
+    let images = serde_json::to_string(&payload.images.unwrap_or_else(|| json!([])))
+        .map_err(|_| AppError::Internal)?;
+    let specs = serde_json::to_string(&payload.specs.unwrap_or_else(|| json!({})))
+        .map_err(|_| AppError::Internal)?;
+    let colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| json!([])))
+        .map_err(|_| AppError::Internal)?;
+    let ratings = normalize_ratings_for_storage(
+        payload.ratings.clone(),
+        payload.rating,
+        payload.review.clone(),
+    )?;
     let ratings_json = serde_json::to_string(&ratings).map_err(|_| AppError::Internal)?;
-    let (next_rating, next_review, _) = summarize_ratings(&ratings, payload.rating, payload.review.clone());
-    let stock = payload.stock.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+    let (next_rating, next_review, _) =
+        summarize_ratings(&ratings, payload.rating, payload.review.clone());
+    let stock = payload
+        .stock
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToString::to_string)
         .unwrap_or_else(|| "available".to_string());
 
     sqlx::query(
@@ -4023,27 +4893,75 @@ async fn create_catalog(State(state): State<AppState>, headers: HeaderMap, Json(
     ))
 }
 
-async fn get_catalog(State(state): State<AppState>, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+async fn get_catalog(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let item = find_catalog_by_id_or_slug(&state, &id).await?;
-    Ok(json_ok("Catalog fetched", json!({ "item": product_to_json(item, None) })))
+    Ok(json_ok(
+        "Catalog fetched",
+        json!({ "item": product_to_json(item, None) }),
+    ))
 }
 
-async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<CatalogUpdateRequest>) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn update_catalog(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<CatalogUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
     validate_catalog_update(&payload)?;
 
     let current = find_catalog_by_id_or_slug(&state, &id).await?;
-    let next_slug = payload.slug.as_deref().unwrap_or(&current.slug).trim().to_string();
-    let next_name = payload.name.as_deref().unwrap_or(&current.name).trim().to_string();
-    let next_category = payload.category.as_deref().unwrap_or(&current.category).trim().to_string();
-    let next_image = payload.image.as_deref().unwrap_or(&current.image).trim().to_string();
+    let next_slug = payload
+        .slug
+        .as_deref()
+        .unwrap_or(&current.slug)
+        .trim()
+        .to_string();
+    let next_name = payload
+        .name
+        .as_deref()
+        .unwrap_or(&current.name)
+        .trim()
+        .to_string();
+    let next_category = payload
+        .category
+        .as_deref()
+        .unwrap_or(&current.category)
+        .trim()
+        .to_string();
+    let next_image = payload
+        .image
+        .as_deref()
+        .unwrap_or(&current.image)
+        .trim()
+        .to_string();
     let next_stock = payload.stock.unwrap_or(current.stock.clone());
-    let next_images = serde_json::to_string(&payload.images.unwrap_or_else(|| parse_json_or_default(current.images.as_deref(), json!([]))))
-        .map_err(|_| AppError::Internal)?;
-    let next_specs = serde_json::to_string(&payload.specs.unwrap_or_else(|| parse_json_or_default(current.specs.as_deref(), json!({}))))
-        .map_err(|_| AppError::Internal)?;
-    let next_colors = serde_json::to_string(&payload.colors.unwrap_or_else(|| parse_json_or_default(current.colors.as_deref(), json!([]))))
-        .map_err(|_| AppError::Internal)?;
+    let next_images = serde_json::to_string(
+        &payload
+            .images
+            .unwrap_or_else(|| parse_json_or_default(current.images.as_deref(), json!([]))),
+    )
+    .map_err(|_| AppError::Internal)?;
+    let next_specs = serde_json::to_string(
+        &payload
+            .specs
+            .unwrap_or_else(|| parse_json_or_default(current.specs.as_deref(), json!({}))),
+    )
+    .map_err(|_| AppError::Internal)?;
+    let next_colors = serde_json::to_string(
+        &payload
+            .colors
+            .unwrap_or_else(|| parse_json_or_default(current.colors.as_deref(), json!([]))),
+    )
+    .map_err(|_| AppError::Internal)?;
     let next_ratings = if let Some(ratings) = payload.ratings.clone() {
         normalize_ratings_for_storage(Some(ratings), None, None)?
     } else {
@@ -4090,7 +5008,11 @@ async fn update_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
     ))
 }
 
-async fn delete_catalog(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+async fn delete_catalog(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let result = sqlx::query("DELETE FROM products WHERE id = ? OR slug = ?")
         .bind(&id)
@@ -4106,7 +5028,10 @@ async fn delete_catalog(State(state): State<AppState>, headers: HeaderMap, Path(
         return Err(AppError::NotFound);
     }
 
-    Ok(json_ok(format!("Catalog {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
+    Ok(json_ok(
+        format!("Catalog {} deleted by {}", id, user.email),
+        json!({ "id": id, "deleted": true }),
+    ))
 }
 
 async fn bulk_products(
@@ -4114,9 +5039,18 @@ async fn bulk_products(
     headers: HeaderMap,
     Json(payload): Json<BulkCatalogRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
-    tracing::info!("Starting bulk import for {} operations by {}", payload.operations.len(), user.email);
-    
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
+    tracing::info!(
+        "Starting bulk import for {} operations by {}",
+        payload.operations.len(),
+        user.email
+    );
+
     let mut tx = state.pool.begin().await.map_err(|e| {
         tracing::error!("Failed to start transaction: {}", e);
         AppError::Internal
@@ -4129,22 +5063,37 @@ async fn bulk_products(
         match op {
             BulkOperation::Create { data, row_number } => {
                 let display_row = row_number.unwrap_or(index as i32 + 1);
-                
+
                 // Mandatory fields check for Create
                 let name = data.name.trim();
                 if name.is_empty() {
                     errors.push(format!("Baris {}: Nama produk wajib diisi", display_row));
                     continue;
                 }
-                
+
                 let category = data.category.as_deref().unwrap_or("Uncategorized");
                 let price = data.price.unwrap_or(0.0);
-                let image = data.image.as_deref().unwrap_or("https://placehold.co/600x400?text=No+Image");
+                let image = data
+                    .image
+                    .as_deref()
+                    .unwrap_or("https://placehold.co/600x400?text=No+Image");
                 let base_slug = data.slug.clone().unwrap_or_else(|| {
                     // Sanitize: lowercase, replace spaces and special chars with hyphens, collapse multiple hyphens
                     let s = name.to_lowercase();
-                    let s = s.chars().map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' }).collect::<String>();
-                    s.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-")
+                    let s = s
+                        .chars()
+                        .map(|c| {
+                            if c.is_alphanumeric() || c == '-' {
+                                c
+                            } else {
+                                '-'
+                            }
+                        })
+                        .collect::<String>();
+                    s.split('-')
+                        .filter(|p| !p.is_empty())
+                        .collect::<Vec<_>>()
+                        .join("-")
                 });
 
                 // Ensure slug is unique by appending a suffix if needed
@@ -4152,13 +5101,12 @@ async fn bulk_products(
                     let mut candidate = base_slug.trim().to_string();
                     let mut suffix = 1u32;
                     loop {
-                        let exists: Option<i64> = sqlx::query_scalar(
-                            "SELECT 1 FROM products WHERE slug = ? LIMIT 1"
-                        )
-                        .bind(&candidate)
-                        .fetch_optional(&mut *tx)
-                        .await
-                        .unwrap_or(None);
+                        let exists: Option<i64> =
+                            sqlx::query_scalar("SELECT 1 FROM products WHERE slug = ? LIMIT 1")
+                                .bind(&candidate)
+                                .fetch_optional(&mut *tx)
+                                .await
+                                .unwrap_or(None);
 
                         if exists.is_none() {
                             break candidate;
@@ -4168,18 +5116,32 @@ async fn bulk_products(
                     }
                 };
 
-                let id = data.id.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(ToString::to_string)
+                let id = data
+                    .id
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())
+                    .map(ToString::to_string)
                     .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-                
-                let images = serde_json::to_string(&data.images.unwrap_or_else(|| json!([]))).unwrap_or_else(|_| "[]".to_string());
-                let specs = serde_json::to_string(&data.specs.unwrap_or_else(|| json!({}))).unwrap_or_else(|_| "{}".to_string());
-                let colors = serde_json::to_string(&data.colors.unwrap_or_else(|| json!([]))).unwrap_or_else(|_| "[]".to_string());
-                let ratings = match normalize_ratings_for_storage(data.ratings.clone(), data.rating, data.review.clone()) {
+
+                let images = serde_json::to_string(&data.images.unwrap_or_else(|| json!([])))
+                    .unwrap_or_else(|_| "[]".to_string());
+                let specs = serde_json::to_string(&data.specs.unwrap_or_else(|| json!({})))
+                    .unwrap_or_else(|_| "{}".to_string());
+                let colors = serde_json::to_string(&data.colors.unwrap_or_else(|| json!([])))
+                    .unwrap_or_else(|_| "[]".to_string());
+                let ratings = match normalize_ratings_for_storage(
+                    data.ratings.clone(),
+                    data.rating,
+                    data.review.clone(),
+                ) {
                     Ok(r) => r,
                     Err(_) => Vec::new(),
                 };
-                let ratings_json = serde_json::to_string(&ratings).unwrap_or_else(|_| "[]".to_string());
-                let (next_rating, next_review, _) = summarize_ratings(&ratings, data.rating, data.review.clone());
+                let ratings_json =
+                    serde_json::to_string(&ratings).unwrap_or_else(|_| "[]".to_string());
+                let (next_rating, next_review, _) =
+                    summarize_ratings(&ratings, data.rating, data.review.clone());
                 let stock = data.stock.as_deref().unwrap_or("available");
 
                 let result = sqlx::query(
@@ -4214,29 +5176,58 @@ async fn bulk_products(
                         let err_msg = e.to_string();
                         tracing::error!(
                             "Bulk Create Error at row {} | name='{}' | slug='{}' | error: {}",
-                            display_row, name, slug, err_msg
+                            display_row,
+                            name,
+                            slug,
+                            err_msg
                         );
                         errors.push(format!("Baris {} ({}): {}", display_row, name, err_msg));
                     }
                 }
             }
-            BulkOperation::Update { id, data, row_number } => {
+            BulkOperation::Update {
+                id,
+                data,
+                row_number,
+            } => {
                 let display_row = row_number.unwrap_or(index as i32 + 1);
                 let mut query = String::from("UPDATE products SET ");
                 let mut updates = Vec::new();
-                
+
                 // Using proper parameter binding for safety
-                if data.slug.is_some() { updates.push("slug = ?"); }
-                if data.name.is_some() { updates.push("name = ?"); }
-                if data.category.is_some() { updates.push("category = ?"); }
-                if data.subcategory.is_some() { updates.push("subcategory = ?"); }
-                if data.price.is_some() { updates.push("price = ?"); }
-                if data.price_installment.is_some() { updates.push("price_installment = ?"); }
-                if data.dp_min.is_some() { updates.push("dp_min = ?"); }
-                if data.image.is_some() { updates.push("image = ?"); }
-                if data.stock.is_some() { updates.push("stock = ?"); }
-                if data.short_desc.is_some() { updates.push("short_desc = ?"); }
-                if data.description.is_some() { updates.push("description = ?"); }
+                if data.slug.is_some() {
+                    updates.push("slug = ?");
+                }
+                if data.name.is_some() {
+                    updates.push("name = ?");
+                }
+                if data.category.is_some() {
+                    updates.push("category = ?");
+                }
+                if data.subcategory.is_some() {
+                    updates.push("subcategory = ?");
+                }
+                if data.price.is_some() {
+                    updates.push("price = ?");
+                }
+                if data.price_installment.is_some() {
+                    updates.push("price_installment = ?");
+                }
+                if data.dp_min.is_some() {
+                    updates.push("dp_min = ?");
+                }
+                if data.image.is_some() {
+                    updates.push("image = ?");
+                }
+                if data.stock.is_some() {
+                    updates.push("stock = ?");
+                }
+                if data.short_desc.is_some() {
+                    updates.push("short_desc = ?");
+                }
+                if data.description.is_some() {
+                    updates.push("description = ?");
+                }
 
                 if updates.is_empty() {
                     success_count += 1;
@@ -4247,18 +5238,40 @@ async fn bulk_products(
                 query.push_str(" WHERE id = ? OR slug = ?");
 
                 let mut q = sqlx::query(&query);
-                if let Some(ref val) = data.slug { q = q.bind(val.trim()); }
-                if let Some(ref val) = data.name { q = q.bind(val.trim()); }
-                if let Some(ref val) = data.category { q = q.bind(val.trim()); }
-                if let Some(ref val) = data.subcategory { q = q.bind(val); }
-                if let Some(val) = data.price { q = q.bind(val); }
-                if let Some(val) = data.price_installment { q = q.bind(val); }
-                if let Some(val) = data.dp_min { q = q.bind(val); }
-                if let Some(ref val) = data.image { q = q.bind(val.trim()); }
-                if let Some(ref val) = data.stock { q = q.bind(val); }
-                if let Some(ref val) = data.short_desc { q = q.bind(val); }
-                if let Some(ref val) = data.description { q = q.bind(val); }
-                
+                if let Some(ref val) = data.slug {
+                    q = q.bind(val.trim());
+                }
+                if let Some(ref val) = data.name {
+                    q = q.bind(val.trim());
+                }
+                if let Some(ref val) = data.category {
+                    q = q.bind(val.trim());
+                }
+                if let Some(ref val) = data.subcategory {
+                    q = q.bind(val);
+                }
+                if let Some(val) = data.price {
+                    q = q.bind(val);
+                }
+                if let Some(val) = data.price_installment {
+                    q = q.bind(val);
+                }
+                if let Some(val) = data.dp_min {
+                    q = q.bind(val);
+                }
+                if let Some(ref val) = data.image {
+                    q = q.bind(val.trim());
+                }
+                if let Some(ref val) = data.stock {
+                    q = q.bind(val);
+                }
+                if let Some(ref val) = data.short_desc {
+                    q = q.bind(val);
+                }
+                if let Some(ref val) = data.description {
+                    q = q.bind(val);
+                }
+
                 q = q.bind(&id).bind(&id);
 
                 match q.execute(&mut *tx).await {
@@ -4267,7 +5280,9 @@ async fn bulk_products(
                         let err_msg = e.to_string();
                         tracing::error!(
                             "Bulk Update Error at row {} | id='{}' | error: {}",
-                            display_row, id, err_msg
+                            display_row,
+                            id,
+                            err_msg
                         );
                         errors.push(format!("Baris {} (id={}): {}", display_row, id, err_msg));
                     }
@@ -4281,8 +5296,15 @@ async fn bulk_products(
         AppError::Internal
     })?;
 
-    tracing::info!("Bulk import finished. Success: {}, Errors: {}", success_count, errors.len());
-    Ok(json_ok("Bulk operations completed", json!({ "successCount": success_count, "errors": errors })))
+    tracing::info!(
+        "Bulk import finished. Success: {}, Errors: {}",
+        success_count,
+        errors.len()
+    );
+    Ok(json_ok(
+        "Bulk operations completed",
+        json!({ "successCount": success_count, "errors": errors }),
+    ))
 }
 
 async fn list_promotions(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
@@ -4316,7 +5338,11 @@ async fn list_promotions(State(state): State<AppState>) -> Result<ResponseBody, 
     Ok(json_ok("Promotions fetched", json!({ "items": promos })))
 }
 
-async fn create_promotion(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<PromotionCreateRequest>) -> Result<ResponseBody, AppError> {
+async fn create_promotion(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<PromotionCreateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
     validate_promotion_create(&payload)?;
 
@@ -4327,7 +5353,8 @@ async fn create_promotion(State(state): State<AppState>, headers: HeaderMap, Jso
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let product_ids = serde_json::to_string(&payload.product_ids.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+    let product_ids = serde_json::to_string(&payload.product_ids.unwrap_or_else(|| json!([])))
+        .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO promos (id, title, subtitle, description, discount, original_price, promo_price, image, badge, valid_until, category, variant, product_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -4356,13 +5383,28 @@ async fn create_promotion(State(state): State<AppState>, headers: HeaderMap, Jso
     ))
 }
 
-async fn update_promotion(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<PromotionUpdateRequest>) -> Result<ResponseBody, AppError> {
+async fn update_promotion(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<PromotionUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
     validate_promotion_update(&payload)?;
 
     let current = find_promotion_by_id(&state, &id).await?;
-    let next_title = payload.title.as_deref().unwrap_or(&current.title).trim().to_string();
-    let next_image = payload.image.as_deref().unwrap_or(&current.image).trim().to_string();
+    let next_title = payload
+        .title
+        .as_deref()
+        .unwrap_or(&current.title)
+        .trim()
+        .to_string();
+    let next_image = payload
+        .image
+        .as_deref()
+        .unwrap_or(&current.image)
+        .trim()
+        .to_string();
     let next_original = payload.original_price.or(current.original_price);
     let next_promo = payload.promo_price.or(current.promo_price);
     if let (Some(original), Some(promo)) = (next_original, next_promo) {
@@ -4406,7 +5448,11 @@ async fn update_promotion(State(state): State<AppState>, headers: HeaderMap, Pat
     ))
 }
 
-async fn delete_promotion(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+async fn delete_promotion(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     let result = sqlx::query("DELETE FROM promos WHERE id = ?")
         .bind(&id)
@@ -4421,7 +5467,10 @@ async fn delete_promotion(State(state): State<AppState>, headers: HeaderMap, Pat
         return Err(AppError::NotFound);
     }
 
-    Ok(json_ok(format!("Promotion {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
+    Ok(json_ok(
+        format!("Promotion {} deleted by {}", id, user.email),
+        json!({ "id": id, "deleted": true }),
+    ))
 }
 
 async fn list_partners(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
@@ -4439,7 +5488,10 @@ async fn list_partners(State(state): State<AppState>) -> Result<ResponseBody, Ap
     Ok(json_ok("Partners fetched", json!({ "items": items })))
 }
 
-async fn list_admin_partners(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_admin_partners(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     authorize(&state, &headers, &[Role::Admin]).await?;
 
     let partners = sqlx::query_as::<_, PartnerRecord>(
@@ -4456,9 +5508,13 @@ async fn list_admin_partners(State(state): State<AppState>, headers: HeaderMap) 
     Ok(json_ok("Admin partners fetched", json!({ "items": items })))
 }
 
-async fn create_partner(State(state): State<AppState>, headers: HeaderMap, mut multipart: Multipart) -> Result<ResponseBody, AppError> {
+async fn create_partner(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    
+
     let mut id_val: Option<String> = None;
     let mut name = String::new();
     let mut logo_url = String::new();
@@ -4467,18 +5523,35 @@ async fn create_partner(State(state): State<AppState>, headers: HeaderMap, mut m
     let mut is_active: bool = true;
     let mut logo_file_path: Option<String> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::Internal)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::Internal)?
+    {
         let field_name = field.name().unwrap_or_default().to_string();
         match field_name.as_str() {
             "id" => id_val = Some(field.text().await.unwrap_or_default()),
             "name" => name = field.text().await.unwrap_or_default(),
             "logoUrl" => logo_url = field.text().await.unwrap_or_default(),
-            "websiteUrl" => website_url = {
-                let text = field.text().await.unwrap_or_default();
-                if text.is_empty() { None } else { Some(text) }
-            },
+            "websiteUrl" => {
+                website_url = {
+                    let text = field.text().await.unwrap_or_default();
+                    if text.is_empty() {
+                        None
+                    } else {
+                        Some(text)
+                    }
+                }
+            }
             "sortOrder" => sort_order = field.text().await.unwrap_or_default().parse().unwrap_or(0),
-            "isActive" => is_active = field.text().await.unwrap_or_default().parse().unwrap_or(true),
+            "isActive" => {
+                is_active = field
+                    .text()
+                    .await
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or(true)
+            }
             "logo" => {
                 let data = field.bytes().await.map_err(|_| AppError::Internal)?;
                 if !data.is_empty() {
@@ -4486,14 +5559,16 @@ async fn create_partner(State(state): State<AppState>, headers: HeaderMap, mut m
                     let url = save_image_as_webp(img, "logo")?;
                     logo_file_path = Some(url);
                 }
-            },
+            }
             _ => {}
         }
     }
 
     let final_logo_url = logo_file_path.unwrap_or(logo_url);
     if name.trim().is_empty() || final_logo_url.trim().is_empty() {
-        return Err(AppError::Validation { errors: vec!["Nama dan logo partner wajib diisi".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["Nama dan logo partner wajib diisi".to_string()],
+        });
     }
 
     let id = id_val
@@ -4523,7 +5598,6 @@ async fn create_partner(State(state): State<AppState>, headers: HeaderMap, mut m
     ))
 }
 
-
 async fn update_partner(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -4540,17 +5614,38 @@ async fn update_partner(
     let mut is_active: Option<bool> = None;
     let mut logo_file_path: Option<String> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::Internal)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::Internal)?
+    {
         let field_name = field.name().unwrap_or_default().to_string();
         match field_name.as_str() {
             "name" => name_val = Some(field.text().await.unwrap_or_default()),
             "logoUrl" => logo_url = Some(field.text().await.unwrap_or_default()),
-            "websiteUrl" => website_url = {
-                let text = field.text().await.unwrap_or_default();
-                if text.is_empty() { None } else { Some(text) }
-            },
-            "sortOrder" => sort_order = Some(field.text().await.unwrap_or_default().parse().unwrap_or(0)),
-            "isActive" => is_active = Some(field.text().await.unwrap_or_default().parse().unwrap_or(true)),
+            "websiteUrl" => {
+                website_url = {
+                    let text = field.text().await.unwrap_or_default();
+                    if text.is_empty() {
+                        None
+                    } else {
+                        Some(text)
+                    }
+                }
+            }
+            "sortOrder" => {
+                sort_order = Some(field.text().await.unwrap_or_default().parse().unwrap_or(0))
+            }
+            "isActive" => {
+                is_active = Some(
+                    field
+                        .text()
+                        .await
+                        .unwrap_or_default()
+                        .parse()
+                        .unwrap_or(true),
+                )
+            }
             "logo" => {
                 let data = field.bytes().await.map_err(|_| AppError::Internal)?;
                 if !data.is_empty() {
@@ -4558,19 +5653,25 @@ async fn update_partner(
                     let url = save_image_as_webp(img, "logo")?;
                     logo_file_path = Some(url);
                 }
-            },
+            }
             _ => {}
         }
     }
 
     let next_name = name_val.unwrap_or(current.name).trim().to_string();
-    let next_logo = logo_file_path.or(logo_url).unwrap_or(current.logo_url).trim().to_string();
+    let next_logo = logo_file_path
+        .or(logo_url)
+        .unwrap_or(current.logo_url)
+        .trim()
+        .to_string();
     let next_website = website_url.or(current.website_url);
     let next_sort = sort_order.unwrap_or(current.sort_order);
     let next_active = is_active.unwrap_or(current.is_active);
 
     if next_name.is_empty() || next_logo.is_empty() {
-        return Err(AppError::Validation { errors: vec!["Nama dan logo partner tidak boleh kosong".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["Nama dan logo partner tidak boleh kosong".to_string()],
+        });
     }
 
     sqlx::query(
@@ -4593,8 +5694,11 @@ async fn update_partner(
     ))
 }
 
-
-async fn delete_partner(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+async fn delete_partner(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let result = sqlx::query("DELETE FROM partners WHERE id = ?")
@@ -4864,14 +5968,22 @@ fn article_to_json(row: ArticleRecord) -> Value {
 
 fn validate_job_create(payload: &JobCreateRequest) -> Result<(), AppError> {
     if payload.title.trim().is_empty() {
-        return Err(AppError::Validation { errors: vec!["title wajib diisi".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["title wajib diisi".to_string()],
+        });
     }
     Ok(())
 }
 
 fn validate_job_update(payload: &JobUpdateRequest) -> Result<(), AppError> {
-    if payload.title.as_ref().is_some_and(|value| value.trim().is_empty()) {
-        return Err(AppError::Validation { errors: vec!["title tidak boleh kosong".to_string()] });
+    if payload
+        .title
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
+        return Err(AppError::Validation {
+            errors: vec!["title tidak boleh kosong".to_string()],
+        });
     }
     Ok(())
 }
@@ -4896,10 +6008,18 @@ fn validate_article_create(payload: &ArticleCreateRequest) -> Result<(), AppErro
 
 fn validate_article_update(payload: &ArticleUpdateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
-    if payload.slug.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .slug
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("slug tidak boleh kosong".to_string());
     }
-    if payload.title.as_ref().is_some_and(|value| value.trim().is_empty()) {
+    if payload
+        .title
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         errors.push("title tidak boleh kosong".to_string());
     }
     if payload.read_time.is_some_and(|value| value < 0) {
@@ -4912,7 +6032,11 @@ fn validate_article_update(payload: &ArticleUpdateRequest) -> Result<(), AppErro
     }
 }
 
-async fn generate_referral(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<GenerateReferralRequest>) -> Result<ResponseBody, AppError> {
+async fn generate_referral(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GenerateReferralRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
     let owner_user_id = if is_admin {
@@ -4922,9 +6046,7 @@ async fn generate_referral(State(state): State<AppState>, headers: HeaderMap, Js
     };
     let slug = format!("ref-{}", uuid::Uuid::new_v4().simple());
     let id = uuid::Uuid::new_v4().to_string();
-    let target_path = validate_referral_target_path(
-        payload.target_path.as_deref().unwrap_or("/"),
-    )?;
+    let target_path = validate_referral_target_path(payload.target_path.as_deref().unwrap_or("/"))?;
 
     sqlx::query(
         "INSERT INTO referrals (id, slug, owner_user_id, label, target_path) VALUES (?, ?, ?, ?, ?)"
@@ -4956,7 +6078,10 @@ async fn generate_referral(State(state): State<AppState>, headers: HeaderMap, Js
     ))
 }
 
-async fn list_referrals(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_referrals(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
     let rows = if is_admin {
@@ -4984,7 +6109,11 @@ async fn list_referrals(State(state): State<AppState>, headers: HeaderMap) -> Re
     ))
 }
 
-async fn get_referral(State(state): State<AppState>, headers: HeaderMap, Path(slug): Path<String>) -> Result<ResponseBody, AppError> {
+async fn get_referral(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(slug): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     let row = sqlx::query_as::<_, ReferralRecord>(
         "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE slug = ? LIMIT 1"
@@ -5002,10 +6131,17 @@ async fn get_referral(State(state): State<AppState>, headers: HeaderMap, Path(sl
         return Err(AppError::Forbidden);
     }
 
-    Ok(json_ok(format!("Referral {} fetched by {}", slug, user.email), json!({ "item": referral_to_json(row) })))
+    Ok(json_ok(
+        format!("Referral {} fetched by {}", slug, user.email),
+        json!({ "item": referral_to_json(row) }),
+    ))
 }
 
-async fn get_referral_stats(State(state): State<AppState>, headers: HeaderMap, Path(slug): Path<String>) -> Result<ResponseBody, AppError> {
+async fn get_referral_stats(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(slug): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     let row = sqlx::query_as::<_, ReferralRecord>(
         "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE slug = ? LIMIT 1"
@@ -5029,7 +6165,10 @@ async fn get_referral_stats(State(state): State<AppState>, headers: HeaderMap, P
     ))
 }
 
-async fn get_public_referral(State(state): State<AppState>, Path(slug): Path<String>) -> Result<ResponseBody, AppError> {
+async fn get_public_referral(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let row = sqlx::query_as::<_, PublicReferralRecord>(
         r#"
         SELECT
@@ -5044,7 +6183,7 @@ async fn get_public_referral(State(state): State<AppState>, Path(slug): Path<Str
         INNER JOIN users u ON u.id = r.owner_user_id
         WHERE r.slug = ?
         LIMIT 1
-        "#
+        "#,
     )
     .bind(&slug)
     .fetch_optional(&state.pool)
@@ -5081,12 +6220,24 @@ fn validate_payment_status(value: &str) -> bool {
 
 fn validate_delivery_schedule(payload: &DeliveryScheduleCreateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
-    if payload.customer_name.trim().is_empty() { errors.push("namaCust wajib diisi".to_string()); }
-    if payload.item_name.trim().is_empty() { errors.push("namaBarang wajib diisi".to_string()); }
-    if payload.address.trim().is_empty() { errors.push("alamat wajib diisi".to_string()); }
-    if payload.sales_name.trim().is_empty() { errors.push("namaSales wajib diisi".to_string()); }
-    if payload.sender_branch.trim().is_empty() { errors.push("cabangPengirim wajib diisi".to_string()); }
-    if !validate_payment_status(&payload.payment_status) { errors.push("status pembayaran harus cash, credit, atau cod".to_string()); }
+    if payload.customer_name.trim().is_empty() {
+        errors.push("namaCust wajib diisi".to_string());
+    }
+    if payload.item_name.trim().is_empty() {
+        errors.push("namaBarang wajib diisi".to_string());
+    }
+    if payload.address.trim().is_empty() {
+        errors.push("alamat wajib diisi".to_string());
+    }
+    if payload.sales_name.trim().is_empty() {
+        errors.push("namaSales wajib diisi".to_string());
+    }
+    if payload.sender_branch.trim().is_empty() {
+        errors.push("cabangPengirim wajib diisi".to_string());
+    }
+    if !validate_payment_status(&payload.payment_status) {
+        errors.push("status pembayaran harus cash, credit, atau cod".to_string());
+    }
 
     if errors.is_empty() {
         Ok(())
@@ -5095,7 +6246,11 @@ fn validate_delivery_schedule(payload: &DeliveryScheduleCreateRequest) -> Result
     }
 }
 
-async fn create_delivery_schedule(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<DeliveryScheduleCreateRequest>) -> Result<ResponseBody, AppError> {
+async fn create_delivery_schedule(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<DeliveryScheduleCreateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Sales]).await?;
     validate_delivery_schedule(&payload)?;
 
@@ -5108,7 +6263,9 @@ async fn create_delivery_schedule(State(state): State<AppState>, headers: Header
                 tracing::error!("DB error finding sales user: {}", e);
                 AppError::Internal
             })?
-            .ok_or_else(|| AppError::Validation { errors: vec!["nama sales tidak ditemukan di database".to_string()] })?
+            .ok_or_else(|| AppError::Validation {
+                errors: vec!["nama sales tidak ditemukan di database".to_string()],
+            })?
     } else {
         sqlx::query_as::<_, UserRecord>("SELECT * FROM users WHERE id = ? LIMIT 1")
             .bind(&user.id)
@@ -5150,7 +6307,10 @@ async fn create_delivery_schedule(State(state): State<AppState>, headers: Header
     ))
 }
 
-async fn list_delivery_schedules(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_delivery_schedules(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Sales]).await?;
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
@@ -5178,24 +6338,49 @@ async fn list_delivery_schedules(State(state): State<AppState>, headers: HeaderM
     ))
 }
 
-async fn insert_telemetry(state: &AppState, headers: &HeaderMap, event_type: &str, payload: &Value) -> Result<(), AppError> {
+async fn insert_telemetry(
+    state: &AppState,
+    headers: &HeaderMap,
+    event_type: &str,
+    payload: &Value,
+) -> Result<(), AppError> {
     let id = uuid::Uuid::new_v4().to_string();
-    let path = payload.get("path").and_then(|v| v.as_str()).unwrap_or("/").trim();
-    let source = payload.get("source").and_then(|v| v.as_str()).unwrap_or("direct").trim();
-    let session_id = payload.get("sessionId").and_then(|v| v.as_str()).unwrap_or("anonymous").trim();
+    let path = payload
+        .get("path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("/")
+        .trim();
+    let source = payload
+        .get("source")
+        .and_then(|v| v.as_str())
+        .unwrap_or("direct")
+        .trim();
+    let session_id = payload
+        .get("sessionId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("anonymous")
+        .trim();
     let metadata_str = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
 
     if !path.starts_with('/') || !validate_text_length(path, 2048) {
-        return Err(AppError::Validation { errors: vec!["path telemetry tidak valid".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["path telemetry tidak valid".to_string()],
+        });
     }
     if !validate_text_length(source, 128) {
-        return Err(AppError::Validation { errors: vec!["source telemetry terlalu panjang".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["source telemetry terlalu panjang".to_string()],
+        });
     }
     if !validate_text_length(session_id, 128) {
-        return Err(AppError::Validation { errors: vec!["sessionId telemetry terlalu panjang".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["sessionId telemetry terlalu panjang".to_string()],
+        });
     }
     if metadata_str.len() > 8 * 1024 {
-        return Err(AppError::Validation { errors: vec!["metadata telemetry terlalu besar".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["metadata telemetry terlalu besar".to_string()],
+        });
     }
 
     let client_ip = extract_client_ip(headers);
@@ -5233,32 +6418,37 @@ async fn insert_telemetry(state: &AppState, headers: &HeaderMap, event_type: &st
     .await;
 
     // Update referral counters only if source is an actual referral slug.
-    let is_referral_slug = if source != "direct" && source != "anonymous" && source != "internal" && source != "" {
-        let cache_key = format!("referral_slug:{}", source);
-        let cached_exists: Option<bool> = state.cache.get(&cache_key).await.unwrap_or(None);
-        
-        if let Some(exists) = cached_exists {
-            exists
-        } else {
-            let exists = sqlx::query_scalar::<_, String>("SELECT slug FROM referrals WHERE slug = ? LIMIT 1")
+    let is_referral_slug =
+        if source != "direct" && source != "anonymous" && source != "internal" && source != "" {
+            let cache_key = format!("referral_slug:{}", source);
+            let cached_exists: Option<bool> = state.cache.get(&cache_key).await.unwrap_or(None);
+
+            if let Some(exists) = cached_exists {
+                exists
+            } else {
+                let exists = sqlx::query_scalar::<_, String>(
+                    "SELECT slug FROM referrals WHERE slug = ? LIMIT 1",
+                )
                 .bind(source)
                 .fetch_optional(&state.pool)
                 .await
                 .ok()
                 .flatten()
                 .is_some();
-            
-            // Cache with 5 minutes TTL
-            let _ = state.cache.set(&cache_key, &exists, Some(300)).await;
-            exists
-        }
-    } else {
-        false
-    };
+
+                // Cache with 5 minutes TTL
+                let _ = state.cache.set(&cache_key, &exists, Some(300)).await;
+                exists
+            }
+        } else {
+            false
+        };
 
     if is_referral_slug {
         let update_query = match event_type {
-            "whatsapp_click" | "pixel_event" => "UPDATE referrals SET leads = leads + 1 WHERE slug = ?",
+            "whatsapp_click" | "pixel_event" => {
+                "UPDATE referrals SET leads = leads + 1 WHERE slug = ?"
+            }
             "click" | "page_view" => "UPDATE referrals SET clicks = clicks + 1 WHERE slug = ?",
             _ => "",
         };
@@ -5274,24 +6464,49 @@ async fn insert_telemetry(state: &AppState, headers: &HeaderMap, event_type: &st
     Ok(())
 }
 
-async fn page_view(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn page_view(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> Result<ResponseBody, AppError> {
     insert_telemetry(&state, &headers, "page_view", &payload).await?;
-    Ok(json_ok("Page view recorded", json!({ "received": payload })))
+    Ok(json_ok(
+        "Page view recorded",
+        json!({ "received": payload }),
+    ))
 }
 
-async fn click(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn click(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> Result<ResponseBody, AppError> {
     insert_telemetry(&state, &headers, "click", &payload).await?;
     Ok(json_ok("Click recorded", json!({ "received": payload })))
 }
 
-async fn whatsapp_click(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn whatsapp_click(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> Result<ResponseBody, AppError> {
     insert_telemetry(&state, &headers, "whatsapp_click", &payload).await?;
-    Ok(json_ok("WhatsApp click recorded", json!({ "received": payload })))
+    Ok(json_ok(
+        "WhatsApp click recorded",
+        json!({ "received": payload }),
+    ))
 }
 
-async fn pixel_event(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<Value>) -> Result<ResponseBody, AppError> {
+async fn pixel_event(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> Result<ResponseBody, AppError> {
     insert_telemetry(&state, &headers, "pixel_event", &payload).await?;
-    Ok(json_ok("Pixel event recorded", json!({ "received": payload })))
+    Ok(json_ok(
+        "Pixel event recorded",
+        json!({ "received": payload }),
+    ))
 }
 
 async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
@@ -5310,8 +6525,17 @@ async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppErr
     Ok(json_ok("Jobs fetched", json!({ "items": jobs })))
 }
 
-async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<JobCreateRequest>) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn create_job(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<JobCreateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
     validate_job_create(&payload)?;
 
     let id = payload
@@ -5321,8 +6545,10 @@ async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payl
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let requirements = serde_json::to_string(&payload.requirements.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
-    let benefits = serde_json::to_string(&payload.benefits.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+    let requirements = serde_json::to_string(&payload.requirements.unwrap_or_else(|| json!([])))
+        .map_err(|_| AppError::Internal)?;
+    let benefits = serde_json::to_string(&payload.benefits.unwrap_or_else(|| json!([])))
+        .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO job_listings (id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -5355,11 +6581,24 @@ async fn create_job(State(state): State<AppState>, headers: HeaderMap, Json(payl
     })?
     .ok_or(AppError::Internal)?;
 
-    Ok(json_ok(format!("Job created by {}", user.email), json!({ "item": job_to_json(created) })))
+    Ok(json_ok(
+        format!("Job created by {}", user.email),
+        json!({ "item": job_to_json(created) }),
+    ))
 }
 
-async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<JobUpdateRequest>) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn update_job(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<JobUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
     validate_job_update(&payload)?;
 
     let current = sqlx::query_as::<_, JobRecord>(
@@ -5375,11 +6614,15 @@ async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
     .ok_or(AppError::NotFound)?;
 
     let next_requirements = serde_json::to_string(
-        &payload.requirements.unwrap_or_else(|| parse_json_or_default(current.requirements.as_deref(), json!([]))),
+        &payload
+            .requirements
+            .unwrap_or_else(|| parse_json_or_default(current.requirements.as_deref(), json!([]))),
     )
     .map_err(|_| AppError::Internal)?;
     let next_benefits = serde_json::to_string(
-        &payload.benefits.unwrap_or_else(|| parse_json_or_default(current.benefits.as_deref(), json!([]))),
+        &payload
+            .benefits
+            .unwrap_or_else(|| parse_json_or_default(current.benefits.as_deref(), json!([]))),
     )
     .map_err(|_| AppError::Internal)?;
 
@@ -5414,11 +6657,23 @@ async fn update_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
     })?
     .ok_or(AppError::Internal)?;
 
-    Ok(json_ok(format!("Job {} updated by {}", id, user.email), json!({ "item": job_to_json(updated) })))
+    Ok(json_ok(
+        format!("Job {} updated by {}", id, user.email),
+        json!({ "item": job_to_json(updated) }),
+    ))
 }
 
-async fn delete_job(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn delete_job(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
     let result = sqlx::query("DELETE FROM job_listings WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -5430,7 +6685,10 @@ async fn delete_job(State(state): State<AppState>, headers: HeaderMap, Path(id):
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
-    Ok(json_ok(format!("Job {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
+    Ok(json_ok(
+        format!("Job {} deleted by {}", id, user.email),
+        json!({ "id": id, "deleted": true }),
+    ))
 }
 
 async fn list_articles(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
@@ -5449,7 +6707,11 @@ async fn list_articles(State(state): State<AppState>) -> Result<ResponseBody, Ap
     Ok(json_ok("Articles fetched", json!({ "items": articles })))
 }
 
-async fn create_article(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<ArticleCreateRequest>) -> Result<ResponseBody, AppError> {
+async fn create_article(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ArticleCreateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
     validate_article_create(&payload)?;
 
@@ -5460,7 +6722,8 @@ async fn create_article(State(state): State<AppState>, headers: HeaderMap, Json(
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let tags = serde_json::to_string(&payload.tags.unwrap_or_else(|| json!([]))).map_err(|_| AppError::Internal)?;
+    let tags = serde_json::to_string(&payload.tags.unwrap_or_else(|| json!([])))
+        .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO blog_posts (id, slug, title, excerpt, content, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -5495,10 +6758,18 @@ async fn create_article(State(state): State<AppState>, headers: HeaderMap, Json(
     })?
     .ok_or(AppError::Internal)?;
 
-    Ok(json_ok(format!("Article created by {}", user.email), json!({ "item": article_to_json(created) })))
+    Ok(json_ok(
+        format!("Article created by {}", user.email),
+        json!({ "item": article_to_json(created) }),
+    ))
 }
 
-async fn update_article(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<ArticleUpdateRequest>) -> Result<ResponseBody, AppError> {
+async fn update_article(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<ArticleUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
     validate_article_update(&payload)?;
 
@@ -5515,7 +6786,9 @@ async fn update_article(State(state): State<AppState>, headers: HeaderMap, Path(
     .ok_or(AppError::NotFound)?;
 
     let next_tags = serde_json::to_string(
-        &payload.tags.unwrap_or_else(|| parse_json_or_default(current.tags.as_deref(), json!([]))),
+        &payload
+            .tags
+            .unwrap_or_else(|| parse_json_or_default(current.tags.as_deref(), json!([]))),
     )
     .map_err(|_| AppError::Internal)?;
 
@@ -5552,10 +6825,17 @@ async fn update_article(State(state): State<AppState>, headers: HeaderMap, Path(
     })?
     .ok_or(AppError::Internal)?;
 
-    Ok(json_ok(format!("Article {} updated by {}", id, user.email), json!({ "item": article_to_json(updated) })))
+    Ok(json_ok(
+        format!("Article {} updated by {}", id, user.email),
+        json!({ "item": article_to_json(updated) }),
+    ))
 }
 
-async fn delete_article(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Result<ResponseBody, AppError> {
+async fn delete_article(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
     let result = sqlx::query("DELETE FROM blog_posts WHERE id = ?")
         .bind(&id)
@@ -5570,12 +6850,18 @@ async fn delete_article(State(state): State<AppState>, headers: HeaderMap, Path(
         return Err(AppError::NotFound);
     }
 
-    Ok(json_ok(format!("Article {} deleted by {}", id, user.email), json!({ "id": id, "deleted": true })))
+    Ok(json_ok(
+        format!("Article {} deleted by {}", id, user.email),
+        json!({ "id": id, "deleted": true }),
+    ))
 }
 
 type ResponseBody = axum::response::Response;
 
-async fn list_notifications(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_notifications(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
 
     let rows = sqlx::query_as::<_, NotificationRecord>(
@@ -5604,11 +6890,14 @@ async fn list_notifications(State(state): State<AppState>, headers: HeaderMap) -
     ))
 }
 
-async fn get_notifications_unread_count(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn get_notifications_unread_count(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
 
     let unread_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notifications WHERE recipient_user_id = ? AND is_read = 0"
+        "SELECT COUNT(*) FROM notifications WHERE recipient_user_id = ? AND is_read = 0",
     )
     .bind(&user.id)
     .fetch_one(&state.pool)
@@ -5618,7 +6907,10 @@ async fn get_notifications_unread_count(State(state): State<AppState>, headers: 
         AppError::Internal
     })?;
 
-    Ok(json_ok("Unread notifications fetched", json!({ "unreadCount": unread_count })))
+    Ok(json_ok(
+        "Unread notifications fetched",
+        json!({ "unreadCount": unread_count }),
+    ))
 }
 
 async fn mark_notification_as_read(
@@ -5631,7 +6923,7 @@ async fn mark_notification_as_read(
     let result = sqlx::query(
         "UPDATE notifications
          SET is_read = 1, read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
-         WHERE id = ? AND recipient_user_id = ?"
+         WHERE id = ? AND recipient_user_id = ?",
     )
     .bind(&id)
     .bind(&user.id)
@@ -5646,7 +6938,10 @@ async fn mark_notification_as_read(
         return Err(AppError::NotFound);
     }
 
-    Ok(json_ok("Notification marked as read", json!({ "id": id, "updated": true })))
+    Ok(json_ok(
+        "Notification marked as read",
+        json!({ "id": id, "updated": true }),
+    ))
 }
 
 async fn mark_all_notifications_as_read(
@@ -5658,7 +6953,7 @@ async fn mark_all_notifications_as_read(
     let result = sqlx::query(
         "UPDATE notifications
          SET is_read = 1, read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
-         WHERE recipient_user_id = ? AND is_read = 0"
+         WHERE recipient_user_id = ? AND is_read = 0",
     )
     .bind(&user.id)
     .execute(&state.pool)
@@ -5674,7 +6969,10 @@ async fn mark_all_notifications_as_read(
     ))
 }
 
-async fn list_leads(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_leads(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
 
@@ -5701,7 +6999,11 @@ async fn list_leads(State(state): State<AppState>, headers: HeaderMap) -> Result
     Ok(json_ok("Leads fetched", json!({ "items": items })))
 }
 
-async fn create_lead(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<LeadCreateRequest>) -> Result<ResponseBody, AppError> {
+async fn create_lead(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<LeadCreateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     validate_lead_create(&payload)?;
 
@@ -5746,16 +7048,27 @@ async fn create_lead(State(state): State<AppState>, headers: HeaderMap, Json(pay
         &state,
         "lead_created",
         "Lead baru masuk",
-        Some(&format!("Lead dari {} untuk produk {}", created.customer_name, created.interested_product)),
+        Some(&format!(
+            "Lead dari {} untuk produk {}",
+            created.customer_name, created.interested_product
+        )),
         Some(&format!("/dashboard/admin/leads?id={}", created.id)),
         Some(&created.id),
     )
     .await;
 
-    Ok(json_ok("Lead submitted successfully", json!({ "item": lead_to_json(created) })))
+    Ok(json_ok(
+        "Lead submitted successfully",
+        json!({ "item": lead_to_json(created) }),
+    ))
 }
 
-async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<LeadStatusUpdateRequest>) -> Result<ResponseBody, AppError> {
+async fn update_lead_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<LeadStatusUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     validate_lead_status_update(&payload)?;
 
@@ -5786,7 +7099,10 @@ async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, P
             &updated.agent_id,
             "lead_status_updated",
             "Status lead diperbarui",
-            Some(&format!("Lead {} sekarang berstatus {}", updated.customer_name, updated.status)),
+            Some(&format!(
+                "Lead {} sekarang berstatus {}",
+                updated.customer_name, updated.status
+            )),
             Some("/dashboard/agent/leads"),
             Some(&updated.id),
         )
@@ -5796,10 +7112,16 @@ async fn update_lead_status(State(state): State<AppState>, headers: HeaderMap, P
     // Invalidate leaderboard cache since lead status changes affect points/rankings
     let _ = state.cache.invalidate("leaderboard").await;
 
-    Ok(json_ok(format!("Lead {} status updated", id), json!({ "item": lead_to_json(updated) })))
+    Ok(json_ok(
+        format!("Lead {} status updated", id),
+        json!({ "item": lead_to_json(updated) }),
+    ))
 }
 
-async fn list_support_tickets(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_support_tickets(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Agent]).await?;
 
     let rows = sqlx::query_as::<_, SupportTicketRecord>(
@@ -5813,8 +7135,14 @@ async fn list_support_tickets(State(state): State<AppState>, headers: HeaderMap)
         AppError::Internal
     })?;
 
-    let items = rows.into_iter().map(support_ticket_to_json).collect::<Vec<_>>();
-    Ok(json_ok("Support tickets fetched", json!({ "items": items })))
+    let items = rows
+        .into_iter()
+        .map(support_ticket_to_json)
+        .collect::<Vec<_>>();
+    Ok(json_ok(
+        "Support tickets fetched",
+        json!({ "items": items }),
+    ))
 }
 
 async fn create_support_ticket(
@@ -5864,16 +7192,25 @@ async fn create_support_ticket(
         &state,
         "support_ticket_created",
         "Ticket support baru",
-        Some(&format!("{} membuat ticket: {}", user.name, created.subject)),
+        Some(&format!(
+            "{} membuat ticket: {}",
+            user.name, created.subject
+        )),
         Some("/dashboard/admin/support"),
         Some(&created.id),
     )
     .await;
 
-    Ok(json_ok("Support ticket created", json!({ "item": support_ticket_to_json(created) })))
+    Ok(json_ok(
+        "Support ticket created",
+        json!({ "item": support_ticket_to_json(created) }),
+    ))
 }
 
-async fn list_admin_support_tickets(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_admin_support_tickets(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let rows = sqlx::query_as::<_, AdminSupportTicketRow>(
@@ -5908,7 +7245,10 @@ async fn list_admin_support_tickets(State(state): State<AppState>, headers: Head
         .map(admin_support_ticket_to_json)
         .collect::<Vec<_>>();
 
-    Ok(json_ok("Admin support tickets fetched", json!({ "items": items })))
+    Ok(json_ok(
+        "Admin support tickets fetched",
+        json!({ "items": items }),
+    ))
 }
 
 async fn update_admin_support_ticket_status(
@@ -5956,13 +7296,22 @@ async fn update_admin_support_ticket_status(
         &updated_ticket.agent_id,
         "support_ticket_updated",
         "Update ticket support",
-        Some(&format!("Ticket '{}' berubah ke status {}", updated_ticket.subject, updated_ticket.status)),
-        Some(&format!("/dashboard/agent/support?id={}", updated_ticket.id)),
+        Some(&format!(
+            "Ticket '{}' berubah ke status {}",
+            updated_ticket.subject, updated_ticket.status
+        )),
+        Some(&format!(
+            "/dashboard/agent/support?id={}",
+            updated_ticket.id
+        )),
         Some(&updated_ticket.id),
     )
     .await;
 
-    Ok(json_ok("Support ticket status updated", json!({ "id": id, "updated": true })))
+    Ok(json_ok(
+        "Support ticket status updated",
+        json!({ "id": id, "updated": true }),
+    ))
 }
 
 #[derive(sqlx::FromRow)]
@@ -6017,7 +7366,10 @@ struct AgentDirectoryRow {
     joined_at: Option<String>,
 }
 
-async fn list_agents(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_agents(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let rows = sqlx::query_as::<_, AgentDirectoryRow>(
@@ -6040,7 +7392,7 @@ async fn list_agents(State(state): State<AppState>, headers: HeaderMap) -> Resul
         LEFT JOIN agent_registrations r ON r.email = u.email
         WHERE u.role = 'agent'
         ORDER BY u.created_at DESC
-        "#
+        "#,
     )
     .fetch_all(&state.pool)
     .await
@@ -6049,10 +7401,16 @@ async fn list_agents(State(state): State<AppState>, headers: HeaderMap) -> Resul
         AppError::Internal
     })?;
 
-    Ok(json_ok("Agents fetched successfully", json!({ "items": rows })))
+    Ok(json_ok(
+        "Agents fetched successfully",
+        json!({ "items": rows }),
+    ))
 }
 
-async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_leaderboard(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
 
     let is_admin = user.role.eq_ignore_ascii_case("admin");
@@ -6077,9 +7435,16 @@ async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> 
     };
 
     // Try to get from cache first
-    if let Ok(Some(cached_items)) = state.cache.get::<Vec<AgentDirectoryRow>>("leaderboard").await {
+    if let Ok(Some(cached_items)) = state
+        .cache
+        .get::<Vec<AgentDirectoryRow>>("leaderboard")
+        .await
+    {
         if is_admin {
-            return Ok(json_ok("Leaderboard fetched from cache", json!({ "items": cached_items })));
+            return Ok(json_ok(
+                "Leaderboard fetched from cache",
+                json!({ "items": cached_items }),
+            ));
         }
         return Ok(json_ok(
             "Leaderboard fetched from cache",
@@ -6107,7 +7472,7 @@ async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> 
         LEFT JOIN agent_registrations r ON r.email = u.email
         WHERE u.role = 'agent'
         ORDER BY points DESC, total_sales DESC, u.created_at ASC
-        "#
+        "#,
     )
     .fetch_all(&state.pool)
     .await
@@ -6120,7 +7485,10 @@ async fn list_leaderboard(State(state): State<AppState>, headers: HeaderMap) -> 
     let _ = state.cache.set("leaderboard", &rows, Some(300)).await;
 
     if is_admin {
-        return Ok(json_ok("Leaderboard fetched successfully", json!({ "items": rows })));
+        return Ok(json_ok(
+            "Leaderboard fetched successfully",
+            json!({ "items": rows }),
+        ));
     }
 
     Ok(json_ok(
@@ -6157,7 +7525,10 @@ fn is_valid_claim_status(status: &str) -> bool {
 }
 
 fn is_valid_job_application_status(status: &str) -> bool {
-    matches!(status, "pending" | "reviewed" | "accepted" | "rejected" | "hired")
+    matches!(
+        status,
+        "pending" | "reviewed" | "accepted" | "rejected" | "hired"
+    )
 }
 
 fn default_reward_value_for_tier(tier_id: &str) -> i64 {
@@ -6210,28 +7581,34 @@ async fn get_agent_performance(
     Path(target_id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    
+
     // Authorization check: Only admin or the agent themselves
     if !user.role.eq_ignore_ascii_case("admin") && user.id != target_id {
         return Err(AppError::Forbidden);
     }
 
     // 1. Get referral slugs for this agent
-    let slugs: Vec<String> = sqlx::query_scalar("SELECT slug FROM referrals WHERE owner_user_id = ?")
-        .bind(&target_id)
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error: {}", e);
-            AppError::Internal
-        })?;
+    let slugs: Vec<String> =
+        sqlx::query_scalar("SELECT slug FROM referrals WHERE owner_user_id = ?")
+            .bind(&target_id)
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error: {}", e);
+                AppError::Internal
+            })?;
 
     // 2. Get daily activity (views/clicks) from telemetry
     let activity_rows = if slugs.is_empty() {
         Vec::new()
     } else {
         // Build placeholders for IN clause
-        let placeholders = slugs.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect::<Vec<_>>().join(",");
+        let placeholders = slugs
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("?{}", i + 1))
+            .collect::<Vec<_>>()
+            .join(",");
         let query = format!(
             "SELECT strftime('%Y-%m-%d', created_at) AS day, COUNT(*) AS count 
              FROM telemetry_events 
@@ -6240,12 +7617,12 @@ async fn get_agent_performance(
              GROUP BY day",
             placeholders
         );
-        
+
         let mut sql = sqlx::query(&query);
         for slug in &slugs {
             sql = sql.bind(slug);
         }
-        
+
         sql.fetch_all(&state.pool).await.map_err(|e| {
             tracing::error!("DB error: {}", e);
             AppError::Internal
@@ -6258,7 +7635,7 @@ async fn get_agent_performance(
          FROM leads 
          WHERE agent_id = ? 
            AND created_at >= datetime('now', '-6 days') 
-         GROUP BY day"
+         GROUP BY day",
     )
     .bind(&target_id)
     .fetch_all(&state.pool)
@@ -6272,13 +7649,16 @@ async fn get_agent_performance(
     let mut stats = HashMap::new();
     let days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
     let now = Utc::now();
-    
+
     for i in 0..7 {
         let d = now - Duration::days(6 - i);
         let date_str = d.format("%Y-%m-%d").to_string();
         let day_idx = d.format("%w").to_string().parse::<usize>().unwrap_or(0) % 7;
         let day_name = days[day_idx];
-        stats.insert(date_str.clone(), json!({ "day": day_name, "date": date_str, "activity": 0, "leads": 0 }));
+        stats.insert(
+            date_str.clone(),
+            json!({ "day": day_name, "date": date_str, "activity": 0, "leads": 0 }),
+        );
     }
 
     use sqlx::Row;
@@ -6301,10 +7681,16 @@ async fn get_agent_performance(
     let mut result: Vec<Value> = stats.into_values().collect();
     result.sort_by_key(|v| v["date"].as_str().unwrap_or("").to_string());
 
-    Ok(json_ok("Agent performance fetched", json!({ "items": result })))
+    Ok(json_ok(
+        "Agent performance fetched",
+        json!({ "items": result }),
+    ))
 }
 
-async fn get_agent_stats(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn get_agent_stats(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Agent]).await?;
 
     let row = sqlx::query_as::<_, AgentStatsRow>(
@@ -6335,7 +7721,10 @@ async fn get_agent_stats(State(state): State<AppState>, headers: HeaderMap) -> R
     Ok(json_ok("Agent stats fetched", data))
 }
 
-async fn list_claims(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_claims(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
 
@@ -6358,10 +7747,17 @@ async fn list_claims(State(state): State<AppState>, headers: HeaderMap) -> Resul
         AppError::Internal
     })?;
 
-    Ok(json_ok("Claims fetched", json!({ "items": rows.into_iter().map(claim_to_json).collect::<Vec<_>>() })))
+    Ok(json_ok(
+        "Claims fetched",
+        json!({ "items": rows.into_iter().map(claim_to_json).collect::<Vec<_>>() }),
+    ))
 }
 
-async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<CreateClaimRequest>) -> Result<ResponseBody, AppError> {
+async fn create_claim(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateClaimRequest>,
+) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Agent]).await?;
 
     let mut errors = Vec::new();
@@ -6372,14 +7768,15 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
         return Err(AppError::Validation { errors });
     }
 
-    let tier_name: Option<String> = sqlx::query_scalar("SELECT name FROM reward_tiers WHERE id = ? AND is_active = 1 LIMIT 1")
-        .bind(payload.tier_id.trim())
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error: {}", e);
-            AppError::Internal
-        })?;
+    let tier_name: Option<String> =
+        sqlx::query_scalar("SELECT name FROM reward_tiers WHERE id = ? AND is_active = 1 LIMIT 1")
+            .bind(payload.tier_id.trim())
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error: {}", e);
+                AppError::Internal
+            })?;
 
     let tier_name = tier_name.ok_or_else(|| AppError::Validation {
         errors: vec!["tierId tidak ditemukan atau tidak aktif".to_string()],
@@ -6422,16 +7819,26 @@ async fn create_claim(State(state): State<AppState>, headers: HeaderMap, Json(pa
         &state,
         "claim_created",
         "Klaim reward baru",
-        Some(&format!("{} mengajukan klaim {}", user.name, created.reward_name)),
+        Some(&format!(
+            "{} mengajukan klaim {}",
+            user.name, created.reward_name
+        )),
         Some(&format!("/dashboard/admin/finance?id={}", created.id)),
         Some(&created.id),
     )
     .await;
 
-    Ok(json_ok("Reward claimed successfully", json!({ "item": claim_to_json(created) })))
+    Ok(json_ok(
+        "Reward claimed successfully",
+        json!({ "item": claim_to_json(created) }),
+    ))
 }
 
-async fn submit_agent_registration(State(state): State<AppState>, headers: HeaderMap, mut multipart: Multipart) -> Result<ResponseBody, AppError> {
+async fn submit_agent_registration(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Result<ResponseBody, AppError> {
     let mut full_name = String::new();
     let mut email = String::new();
     let mut whatsapp = String::new();
@@ -6442,9 +7849,13 @@ async fn submit_agent_registration(State(state): State<AppState>, headers: Heade
     let mut profile_photo_url: Option<String> = None;
     let mut ktp_photo_url: Option<String> = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::Internal)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::Internal)?
+    {
         let name = field.name().unwrap_or_default().to_string();
-        
+
         match name.as_str() {
             "fullName" => full_name = field.text().await.unwrap_or_default(),
             "email" => email = field.text().await.unwrap_or_default(),
@@ -6468,14 +7879,15 @@ async fn submit_agent_registration(State(state): State<AppState>, headers: Heade
                     let file_name = format!("{}_profile.webp", file_id);
                     let file_path = format!("uploads/private/{}", file_name);
 
-                    img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
-                        tracing::error!("Failed to save profile photo as webp: {}", e);
-                        AppError::Internal
-                    })?;
+                    img.save_with_format(&file_path, image::ImageFormat::WebP)
+                        .map_err(|e| {
+                            tracing::error!("Failed to save profile photo as webp: {}", e);
+                            AppError::Internal
+                        })?;
 
                     profile_photo_url = Some(format!("/api/admin/uploads/private/{}", file_name));
                 }
-            },
+            }
             "ktpPhoto" => {
                 let data = field.bytes().await.map_err(|_| AppError::Internal)?;
                 if !data.is_empty() {
@@ -6491,33 +7903,58 @@ async fn submit_agent_registration(State(state): State<AppState>, headers: Heade
                     let file_name = format!("{}_ktp.webp", file_id);
                     let file_path = format!("uploads/private/{}", file_name);
 
-                    img.save_with_format(&file_path, image::ImageFormat::WebP).map_err(|e| {
-                        tracing::error!("Failed to save KTP photo as webp: {}", e);
-                        AppError::Internal
-                    })?;
+                    img.save_with_format(&file_path, image::ImageFormat::WebP)
+                        .map_err(|e| {
+                            tracing::error!("Failed to save KTP photo as webp: {}", e);
+                            AppError::Internal
+                        })?;
 
                     ktp_photo_url = Some(format!("/api/admin/uploads/private/{}", file_name));
                 }
-            },
+            }
             _ => {}
         }
     }
 
     // Basic validation
     let mut errors = Vec::new();
-    if full_name.trim().is_empty() { errors.push("Nama lengkap wajib diisi".to_string()); }
-    if email.trim().is_empty() || !email.contains('@') { errors.push("Email tidak valid".to_string()); }
-    if whatsapp.trim().is_empty() { errors.push("Nomor WhatsApp wajib diisi".to_string()); }
-    if province.trim().is_empty() { errors.push("Provinsi wajib diisi".to_string()); }
-    if city.trim().is_empty() { errors.push("Kota wajib diisi".to_string()); }
-    if !validate_text_length(&full_name, 120) { errors.push("Nama lengkap terlalu panjang".to_string()); }
-    if !validate_text_length(&email, 254) { errors.push("Email terlalu panjang".to_string()); }
-    if !validate_text_length(&whatsapp, 32) { errors.push("Nomor WhatsApp terlalu panjang".to_string()); }
-    if !validate_text_length(&province, 80) { errors.push("Provinsi terlalu panjang".to_string()); }
-    if !validate_text_length(&city, 80) { errors.push("Kota terlalu panjang".to_string()); }
-    if !validate_text_length(&address, 1000) { errors.push("Alamat terlalu panjang".to_string()); }
-    if !validate_text_length(&preferred_products, 1000) { errors.push("Preferensi produk terlalu panjang".to_string()); }
-    
+    if full_name.trim().is_empty() {
+        errors.push("Nama lengkap wajib diisi".to_string());
+    }
+    if email.trim().is_empty() || !email.contains('@') {
+        errors.push("Email tidak valid".to_string());
+    }
+    if whatsapp.trim().is_empty() {
+        errors.push("Nomor WhatsApp wajib diisi".to_string());
+    }
+    if province.trim().is_empty() {
+        errors.push("Provinsi wajib diisi".to_string());
+    }
+    if city.trim().is_empty() {
+        errors.push("Kota wajib diisi".to_string());
+    }
+    if !validate_text_length(&full_name, 120) {
+        errors.push("Nama lengkap terlalu panjang".to_string());
+    }
+    if !validate_text_length(&email, 254) {
+        errors.push("Email terlalu panjang".to_string());
+    }
+    if !validate_text_length(&whatsapp, 32) {
+        errors.push("Nomor WhatsApp terlalu panjang".to_string());
+    }
+    if !validate_text_length(&province, 80) {
+        errors.push("Provinsi terlalu panjang".to_string());
+    }
+    if !validate_text_length(&city, 80) {
+        errors.push("Kota terlalu panjang".to_string());
+    }
+    if !validate_text_length(&address, 1000) {
+        errors.push("Alamat terlalu panjang".to_string());
+    }
+    if !validate_text_length(&preferred_products, 1000) {
+        errors.push("Preferensi produk terlalu panjang".to_string());
+    }
+
     if !errors.is_empty() {
         return Err(AppError::Validation { errors });
     }
@@ -6575,10 +8012,16 @@ async fn submit_agent_registration(State(state): State<AppState>, headers: Heade
     )
     .await;
 
-    Ok(json_ok("Pendaftaran agen berhasil dikirim", json!({ "id": id, "status": "pending" })))
+    Ok(json_ok(
+        "Pendaftaran agen berhasil dikirim",
+        json!({ "id": id, "status": "pending" }),
+    ))
 }
 
-async fn list_agent_registrations(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_agent_registrations(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let rows = sqlx::query_as::<_, AgentRegistrationRow>(
@@ -6593,10 +8036,18 @@ async fn list_agent_registrations(State(state): State<AppState>, headers: Header
 
     tracing::info!("Fetched {} agent registrations", rows.len());
     let items: Vec<Value> = rows.into_iter().map(registration_to_json).collect();
-    Ok(json_ok("Agent registrations fetched", json!({ "items": items })))
+    Ok(json_ok(
+        "Agent registrations fetched",
+        json!({ "items": items }),
+    ))
 }
 
-async fn update_agent_registration_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<AgentRegistrationStatusRequest>) -> Result<ResponseBody, AppError> {
+async fn update_agent_registration_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<AgentRegistrationStatusRequest>,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
     let status = payload.status.trim().to_lowercase();
     if !is_valid_registration_status(&status) {
@@ -6763,14 +8214,15 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
         }
     }
 
-    let registration_email: Option<String> = sqlx::query_scalar("SELECT email FROM agent_registrations WHERE id = ? LIMIT 1")
-        .bind(&id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error fetching registration email: {}", e);
-            AppError::Internal
-        })?;
+    let registration_email: Option<String> =
+        sqlx::query_scalar("SELECT email FROM agent_registrations WHERE id = ? LIMIT 1")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error fetching registration email: {}", e);
+                AppError::Internal
+            })?;
 
     let result = sqlx::query("UPDATE agent_registrations SET status = ? WHERE id = ?")
         .bind(&status)
@@ -6787,14 +8239,18 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
     }
 
     if let Some(email) = registration_email {
-        let agent_user_id = sqlx::query_scalar::<_, String>("SELECT id FROM users WHERE email = ? LIMIT 1")
-            .bind(&email)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching user for registration notification: {}", e);
-                AppError::Internal
-            })?;
+        let agent_user_id =
+            sqlx::query_scalar::<_, String>("SELECT id FROM users WHERE email = ? LIMIT 1")
+                .bind(&email)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        "DB error fetching user for registration notification: {}",
+                        e
+                    );
+                    AppError::Internal
+                })?;
 
         if let Some(agent_id) = agent_user_id {
             create_notification_for_user(
@@ -6813,10 +8269,16 @@ async fn update_agent_registration_status(State(state): State<AppState>, headers
     // Invalidate leaderboard cache since rankings or agent status might change
     let _ = state.cache.invalidate("leaderboard").await;
 
-    Ok(json_ok(format!("Agent registration {} status updated", id), json!({ "updated": true, "status": status })))
+    Ok(json_ok(
+        format!("Agent registration {} status updated", id),
+        json!({ "updated": true, "status": status }),
+    ))
 }
 
-async fn list_all_claims(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn list_all_claims(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
     let rows = sqlx::query_as::<_, ClaimRow>(
         "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id ORDER BY c.submitted_at DESC"
@@ -6828,10 +8290,18 @@ async fn list_all_claims(State(state): State<AppState>, headers: HeaderMap) -> R
         AppError::Internal
     })?;
 
-    Ok(json_ok("All Gamification Claims fetched", json!({ "items": rows.into_iter().map(claim_to_json).collect::<Vec<_>>() })))
+    Ok(json_ok(
+        "All Gamification Claims fetched",
+        json!({ "items": rows.into_iter().map(claim_to_json).collect::<Vec<_>>() }),
+    ))
 }
 
-async fn update_claim_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<ClaimStatusRequest>) -> Result<ResponseBody, AppError> {
+async fn update_claim_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<ClaimStatusRequest>,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
     let status = payload.status.trim().to_lowercase();
     if !is_valid_claim_status(&status) {
@@ -6841,11 +8311,13 @@ async fn update_claim_status(State(state): State<AppState>, headers: HeaderMap, 
     }
 
     let result = if matches!(status.as_str(), "completed" | "cancelled") {
-        sqlx::query("UPDATE reward_claims SET status = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?")
-            .bind(&status)
-            .bind(&id)
-            .execute(&state.pool)
-            .await
+        sqlx::query(
+            "UPDATE reward_claims SET status = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        )
+        .bind(&status)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
     } else {
         sqlx::query("UPDATE reward_claims SET status = ?, processed_at = NULL WHERE id = ?")
             .bind(&status)
@@ -6879,16 +8351,28 @@ async fn update_claim_status(State(state): State<AppState>, headers: HeaderMap, 
         &updated_claim.agent_id,
         "claim_status_updated",
         "Update status klaim reward",
-        Some(&format!("Klaim '{}' berubah ke status {}", updated_claim.reward_name, updated_claim.status)),
-        Some(&format!("/dashboard/agent/earnings?id={}", updated_claim.id)),
+        Some(&format!(
+            "Klaim '{}' berubah ke status {}",
+            updated_claim.reward_name, updated_claim.status
+        )),
+        Some(&format!(
+            "/dashboard/agent/earnings?id={}",
+            updated_claim.id
+        )),
         Some(&updated_claim.id),
     )
     .await;
 
-    Ok(json_ok(format!("Claim {} status updated", id), json!({ "updated": true, "status": status })))
+    Ok(json_ok(
+        format!("Claim {} status updated", id),
+        json!({ "updated": true, "status": status }),
+    ))
 }
 
-async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
+async fn get_telemetry_stats(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let traffic_rows = sqlx::query(
@@ -6940,7 +8424,7 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
          FROM telemetry_events
          GROUP BY COALESCE(source, 'unknown')
          ORDER BY clicks DESC
-         LIMIT 5"
+         LIMIT 5",
     )
     .fetch_all(&state.pool)
     .await
@@ -7101,8 +8585,16 @@ async fn get_telemetry_stats(State(state): State<AppState>, headers: HeaderMap) 
     Ok(json_ok("Telemetry stats fetched", data))
 }
 
-async fn list_job_applications(State(state): State<AppState>, headers: HeaderMap) -> Result<ResponseBody, AppError> {
-    authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn list_job_applications(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
     let applications = sqlx::query_as::<_, JobApplicationRecord>(
         "SELECT id, job_id, job_title, full_name, email, phone, address, education, major, experience, cover_letter, linked_in, portfolio_url, status, applied_at FROM job_applications ORDER BY created_at DESC"
     )
@@ -7115,46 +8607,91 @@ async fn list_job_applications(State(state): State<AppState>, headers: HeaderMap
         .into_iter()
         .map(job_application_to_json)
         .collect::<Vec<_>>();
-    Ok(json_ok("Job applications fetched", json!({ "items": applications })))
+    Ok(json_ok(
+        "Job applications fetched",
+        json!({ "items": applications }),
+    ))
 }
 
-async fn create_job_application(State(state): State<AppState>, headers: HeaderMap, Json(payload): Json<JobApplicationCreateRequest>) -> Result<ResponseBody, AppError> {
+async fn create_job_application(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<JobApplicationCreateRequest>,
+) -> Result<ResponseBody, AppError> {
     let id = format!("app-{}", uuid::Uuid::new_v4().simple());
-    let applied_at = Utc::now().naive_local().date().format("%Y-%m-%d").to_string();
+    let applied_at = Utc::now()
+        .naive_local()
+        .date()
+        .format("%Y-%m-%d")
+        .to_string();
 
     let mut errors = Vec::new();
-    if payload.job_id.trim().is_empty() { errors.push("jobId wajib diisi".to_string()); }
-    if payload.job_title.trim().is_empty() { errors.push("jobTitle wajib diisi".to_string()); }
-    if payload.full_name.trim().is_empty() { errors.push("fullName wajib diisi".to_string()); }
-    if payload.email.trim().is_empty() || !payload.email.contains('@') { errors.push("Email tidak valid".to_string()); }
-    if payload.phone.trim().is_empty() { errors.push("phone wajib diisi".to_string()); }
-    if !validate_text_length(&payload.job_id, 80) { errors.push("jobId terlalu panjang".to_string()); }
-    if !validate_text_length(&payload.job_title, 150) { errors.push("jobTitle terlalu panjang".to_string()); }
-    if !validate_text_length(&payload.full_name, 120) { errors.push("fullName terlalu panjang".to_string()); }
-    if !validate_text_length(&payload.email, 254) { errors.push("Email terlalu panjang".to_string()); }
-    if !validate_text_length(&payload.phone, 32) { errors.push("phone terlalu panjang".to_string()); }
+    if payload.job_id.trim().is_empty() {
+        errors.push("jobId wajib diisi".to_string());
+    }
+    if payload.job_title.trim().is_empty() {
+        errors.push("jobTitle wajib diisi".to_string());
+    }
+    if payload.full_name.trim().is_empty() {
+        errors.push("fullName wajib diisi".to_string());
+    }
+    if payload.email.trim().is_empty() || !payload.email.contains('@') {
+        errors.push("Email tidak valid".to_string());
+    }
+    if payload.phone.trim().is_empty() {
+        errors.push("phone wajib diisi".to_string());
+    }
+    if !validate_text_length(&payload.job_id, 80) {
+        errors.push("jobId terlalu panjang".to_string());
+    }
+    if !validate_text_length(&payload.job_title, 150) {
+        errors.push("jobTitle terlalu panjang".to_string());
+    }
+    if !validate_text_length(&payload.full_name, 120) {
+        errors.push("fullName terlalu panjang".to_string());
+    }
+    if !validate_text_length(&payload.email, 254) {
+        errors.push("Email terlalu panjang".to_string());
+    }
+    if !validate_text_length(&payload.phone, 32) {
+        errors.push("phone terlalu panjang".to_string());
+    }
     if let Some(address) = payload.address.as_deref() {
-        if !validate_text_length(address, 1000) { errors.push("address terlalu panjang".to_string()); }
+        if !validate_text_length(address, 1000) {
+            errors.push("address terlalu panjang".to_string());
+        }
     }
     if let Some(education) = payload.education.as_deref() {
-        if !validate_text_length(education, 255) { errors.push("education terlalu panjang".to_string()); }
+        if !validate_text_length(education, 255) {
+            errors.push("education terlalu panjang".to_string());
+        }
     }
     if let Some(major) = payload.major.as_deref() {
-        if !validate_text_length(major, 255) { errors.push("major terlalu panjang".to_string()); }
+        if !validate_text_length(major, 255) {
+            errors.push("major terlalu panjang".to_string());
+        }
     }
     if let Some(experience) = payload.experience.as_deref() {
-        if !validate_text_length(experience, 2000) { errors.push("experience terlalu panjang".to_string()); }
+        if !validate_text_length(experience, 2000) {
+            errors.push("experience terlalu panjang".to_string());
+        }
     }
     if let Some(cover_letter) = payload.cover_letter.as_deref() {
-        if !validate_text_length(cover_letter, 5000) { errors.push("coverLetter terlalu panjang".to_string()); }
+        if !validate_text_length(cover_letter, 5000) {
+            errors.push("coverLetter terlalu panjang".to_string());
+        }
     }
     if let Some(linked_in) = payload.linked_in.as_deref() {
-        if !linked_in.trim().is_empty() && (!is_allowed_public_url(linked_in) || !validate_text_length(linked_in, 2048)) {
+        if !linked_in.trim().is_empty()
+            && (!is_allowed_public_url(linked_in) || !validate_text_length(linked_in, 2048))
+        {
             errors.push("linkedIn harus berupa URL http/https yang valid".to_string());
         }
     }
     if let Some(portfolio_url) = payload.portfolio_url.as_deref() {
-        if !portfolio_url.trim().is_empty() && (!is_allowed_public_url(portfolio_url) || !validate_text_length(portfolio_url, 2048)) {
+        if !portfolio_url.trim().is_empty()
+            && (!is_allowed_public_url(portfolio_url) || !validate_text_length(portfolio_url, 2048))
+        {
             errors.push("portfolioUrl harus berupa URL http/https yang valid".to_string());
         }
     }
@@ -7168,7 +8705,10 @@ async fn create_job_application(State(state): State<AppState>, headers: HeaderMa
         let mut buckets = state.public_submission_attempts.write().await;
         enforce_rate_limit_bucket(
             &mut buckets,
-            &format!("job_application:email:{}", payload.email.trim().to_lowercase()),
+            &format!(
+                "job_application:email:{}",
+                payload.email.trim().to_lowercase()
+            ),
             5,
             Duration::hours(1),
         )
@@ -7219,11 +8759,24 @@ async fn create_job_application(State(state): State<AppState>, headers: HeaderMa
         tracing::error!("Failed to create notification for new job application: {}", e);
     }
 
-    Ok(json_ok("Application submitted successfully", json!({ "id": id })))
+    Ok(json_ok(
+        "Application submitted successfully",
+        json!({ "id": id }),
+    ))
 }
 
-async fn update_job_application_status(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(payload): Json<JobApplicationStatusUpdateRequest>) -> Result<ResponseBody, AppError> {
-    authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+async fn update_job_application_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<JobApplicationStatusUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
 
     let next_status = payload.status.trim().to_lowercase();
     if !is_valid_job_application_status(&next_status) {
@@ -7231,7 +8784,7 @@ async fn update_job_application_status(State(state): State<AppState>, headers: H
             errors: vec!["Status lamaran tidak valid".to_string()],
         });
     }
-    
+
     let res = sqlx::query("UPDATE job_applications SET status = ? WHERE id = ?")
         .bind(next_status)
         .bind(&id)
@@ -7242,10 +8795,12 @@ async fn update_job_application_status(State(state): State<AppState>, headers: H
     if res.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
-    
-    Ok(json_ok("Application status updated", json!({ "id": id, "updated": true })))
-}
 
+    Ok(json_ok(
+        "Application status updated",
+        json!({ "id": id, "updated": true }),
+    ))
+}
 
 // ─── Blast Contacts Database ──────────────────────────────────────────────────
 
@@ -7275,7 +8830,18 @@ async fn list_blast_contacts(
     headers: HeaderMap,
     Query(query): Query<BlastContactsQuery>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[
+            Role::Admin,
+            Role::WaAdmin,
+            Role::WaOperator,
+            Role::Sales,
+            Role::Agent,
+        ],
+    )
+    .await?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(50).min(200);
@@ -7297,11 +8863,12 @@ async fn list_blast_contacts(
             .fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?;
         (total, rows)
     } else {
-        let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM wa_blast_contacts WHERE user_id = ?"
-        )
-            .bind(&user.id)
-            .fetch_one(&state.pool).await.map_err(|_| AppError::Internal)?;
+        let total: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM wa_blast_contacts WHERE user_id = ?")
+                .bind(&user.id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(|_| AppError::Internal)?;
 
         let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
             "SELECT id, phone, name, labels, notes, created_at, updated_at FROM wa_blast_contacts WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"
@@ -7311,24 +8878,30 @@ async fn list_blast_contacts(
         (total, rows)
     };
 
-    let contacts: Vec<serde_json::Value> = items.iter().map(|(id, phone, name, labels, notes, created_at, updated_at)| {
-        json!({
-            "id": id,
-            "phone": phone,
-            "name": name,
-            "labels": labels,
-            "notes": notes,
-            "created_at": created_at,
-            "updated_at": updated_at,
+    let contacts: Vec<serde_json::Value> = items
+        .iter()
+        .map(|(id, phone, name, labels, notes, created_at, updated_at)| {
+            json!({
+                "id": id,
+                "phone": phone,
+                "name": name,
+                "labels": labels,
+                "notes": notes,
+                "created_at": created_at,
+                "updated_at": updated_at,
+            })
         })
-    }).collect();
+        .collect();
 
-    Ok(json_ok("Blast contacts fetched", json!({
-        "items": contacts,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-    })))
+    Ok(json_ok(
+        "Blast contacts fetched",
+        json!({
+            "items": contacts,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+        }),
+    ))
 }
 
 async fn create_blast_contact(
@@ -7336,11 +8909,26 @@ async fn create_blast_contact(
     headers: HeaderMap,
     Json(payload): Json<BlastContactPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[
+            Role::Admin,
+            Role::WaAdmin,
+            Role::WaOperator,
+            Role::Sales,
+            Role::Agent,
+        ],
+    )
+    .await?;
 
     let phone = match normalize_phone(&payload.phone) {
         Some(p) => p,
-        None => return Err(AppError::Validation { errors: vec!["Nomor telepon tidak valid".to_string()] }),
+        None => {
+            return Err(AppError::Validation {
+                errors: vec!["Nomor telepon tidak valid".to_string()],
+            })
+        }
     };
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -7357,7 +8945,10 @@ async fn create_blast_contact(
             AppError::Internal
         })?;
 
-    Ok(json_ok("Contact saved", json!({ "id": id, "phone": phone })))
+    Ok(json_ok(
+        "Contact saved",
+        json!({ "id": id, "phone": phone }),
+    ))
 }
 
 async fn update_blast_contact(
@@ -7366,11 +8957,26 @@ async fn update_blast_contact(
     Path(id): Path<String>,
     Json(payload): Json<BlastContactPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[
+            Role::Admin,
+            Role::WaAdmin,
+            Role::WaOperator,
+            Role::Sales,
+            Role::Agent,
+        ],
+    )
+    .await?;
 
     let phone = match normalize_phone(&payload.phone) {
         Some(p) => p,
-        None => return Err(AppError::Validation { errors: vec!["Nomor telepon tidak valid".to_string()] }),
+        None => {
+            return Err(AppError::Validation {
+                errors: vec!["Nomor telepon tidak valid".to_string()],
+            })
+        }
     };
 
     let name = payload.name.unwrap_or_default();
@@ -7395,11 +9001,25 @@ async fn delete_blast_contact(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[
+            Role::Admin,
+            Role::WaAdmin,
+            Role::WaOperator,
+            Role::Sales,
+            Role::Agent,
+        ],
+    )
+    .await?;
 
     let result = sqlx::query("DELETE FROM wa_blast_contacts WHERE id = ? AND user_id = ?")
-        .bind(&id).bind(&user.id)
-        .execute(&state.pool).await.map_err(|_| AppError::Internal)?;
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.pool)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -7413,7 +9033,18 @@ async fn upload_blast_contacts_excel(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator, Role::Sales, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[
+            Role::Admin,
+            Role::WaAdmin,
+            Role::WaOperator,
+            Role::Sales,
+            Role::Agent,
+        ],
+    )
+    .await?;
 
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut file_name = String::new();
@@ -7424,16 +9055,22 @@ async fn upload_blast_contacts_excel(
     })? {
         if field.name().unwrap_or_default() == "file" {
             file_name = field.file_name().unwrap_or("upload.xlsx").to_string();
-            file_bytes = Some(field.bytes().await.map_err(|e| {
-                tracing::error!("Failed to read file bytes: {}", e);
-                AppError::Internal
-            })?.to_vec());
+            file_bytes = Some(
+                field
+                    .bytes()
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("Failed to read file bytes: {}", e);
+                        AppError::Internal
+                    })?
+                    .to_vec(),
+            );
             break;
         }
     }
 
-    let file_bytes = file_bytes.ok_or_else(|| {
-        AppError::Validation { errors: vec!["No file uploaded".to_string()] }
+    let file_bytes = file_bytes.ok_or_else(|| AppError::Validation {
+        errors: vec!["No file uploaded".to_string()],
     })?;
 
     let is_csv = file_name.ends_with(".csv");
@@ -7443,70 +9080,106 @@ async fn upload_blast_contacts_excel(
         let mut csv_rows = Vec::new();
         for line in content.lines() {
             let line = line.trim().trim_start_matches('\u{FEFF}');
-            if line.is_empty() { continue; }
-            let cols: Vec<String> = line.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect();
+            if line.is_empty() {
+                continue;
+            }
+            let cols: Vec<String> = line
+                .split(',')
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .collect();
             csv_rows.push(cols);
         }
         csv_rows
     } else {
-        use calamine::{Reader, open_workbook_auto_from_rs};
+        use calamine::{open_workbook_auto_from_rs, Reader};
         use std::io::Cursor;
         let cursor = Cursor::new(&file_bytes);
-        let mut workbook = open_workbook_auto_from_rs(cursor).map_err(|e| {
-            AppError::Validation { errors: vec![format!("Failed to read Excel file: {}", e)] }
-        })?;
+        let mut workbook =
+            open_workbook_auto_from_rs(cursor).map_err(|e| AppError::Validation {
+                errors: vec![format!("Failed to read Excel file: {}", e)],
+            })?;
 
         let sheet_name = workbook.sheet_names().first().cloned().unwrap_or_default();
-        let range = workbook.worksheet_range(&sheet_name).map_err(|e| {
-            AppError::Validation { errors: vec![format!("Failed to read sheet: {}", e)] }
-        })?;
+        let range = workbook
+            .worksheet_range(&sheet_name)
+            .map_err(|e| AppError::Validation {
+                errors: vec![format!("Failed to read sheet: {}", e)],
+            })?;
 
         let mut excel_rows = Vec::new();
         for row in range.rows() {
-            let cols: Vec<String> = row.iter().map(|cell| {
-                use calamine::Data;
-                match cell {
-                    Data::String(s) => s.clone(),
-                    Data::Float(f) => {
-                        if *f == (*f as i64) as f64 { format!("{}", *f as i64) } else { format!("{}", f) }
+            let cols: Vec<String> = row
+                .iter()
+                .map(|cell| {
+                    use calamine::Data;
+                    match cell {
+                        Data::String(s) => s.clone(),
+                        Data::Float(f) => {
+                            if *f == (*f as i64) as f64 {
+                                format!("{}", *f as i64)
+                            } else {
+                                format!("{}", f)
+                            }
+                        }
+                        Data::Int(i) => format!("{}", i),
+                        Data::Bool(b) => format!("{}", b),
+                        _ => String::new(),
                     }
-                    Data::Int(i) => format!("{}", i),
-                    Data::Bool(b) => format!("{}", b),
-                    _ => String::new(),
-                }
-            }).collect();
+                })
+                .collect();
             excel_rows.push(cols);
         }
         excel_rows
     };
 
     if rows.is_empty() {
-        return Err(AppError::Validation { errors: vec!["File kosong".to_string()] });
+        return Err(AppError::Validation {
+            errors: vec!["File kosong".to_string()],
+        });
     }
 
     // Find phone and name columns from header
     let header = &rows[0];
-    let phone_col = header.iter().position(|h| {
-        let h = h.to_lowercase().trim().to_string();
-        h == "phone" || h == "wa" || h == "whatsapp" || h == "nomor" || h == "no_hp" || h == "no hp" || h == "telepon" || h == "hp" || h == "nohp"
-    }).or_else(|| {
-        // Try "no" as fallback (common in Indonesian spreadsheets)
-        header.iter().position(|h| h.to_lowercase().trim() == "no")
-    }).or_else(|| {
-        // Last resort: find first column with phone-like data in row 1
-        if rows.len() > 1 {
-            rows[1].iter().position(|cell| {
-                let digits: String = cell.chars().filter(|c| c.is_ascii_digit()).collect();
-                digits.len() >= 9 && digits.len() <= 15
-            })
-        } else {
-            None
-        }
-    }).unwrap_or(0);
+    let phone_col = header
+        .iter()
+        .position(|h| {
+            let h = h.to_lowercase().trim().to_string();
+            h == "phone"
+                || h == "wa"
+                || h == "whatsapp"
+                || h == "nomor"
+                || h == "no_hp"
+                || h == "no hp"
+                || h == "telepon"
+                || h == "hp"
+                || h == "nohp"
+        })
+        .or_else(|| {
+            // Try "no" as fallback (common in Indonesian spreadsheets)
+            header.iter().position(|h| h.to_lowercase().trim() == "no")
+        })
+        .or_else(|| {
+            // Last resort: find first column with phone-like data in row 1
+            if rows.len() > 1 {
+                rows[1].iter().position(|cell| {
+                    let digits: String = cell.chars().filter(|c| c.is_ascii_digit()).collect();
+                    digits.len() >= 9 && digits.len() <= 15
+                })
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0);
 
     let name_col = header.iter().position(|h| {
         let h = h.to_lowercase().trim().to_string();
-        h == "name" || h == "nama" || h == "nama_konsumen" || h == "nama konsumen" || h == "customer" || h == "pelanggan" || h == "konsumen"
+        h == "name"
+            || h == "nama"
+            || h == "nama_konsumen"
+            || h == "nama konsumen"
+            || h == "customer"
+            || h == "pelanggan"
+            || h == "konsumen"
     });
 
     let mut inserted = 0i64;
@@ -7514,8 +9187,13 @@ async fn upload_blast_contacts_excel(
     let mut invalid = Vec::new();
 
     for (idx, row) in rows.iter().enumerate().skip(1) {
-        let phone_raw = row.get(phone_col).map(|s| s.trim().to_string()).unwrap_or_default();
-        if phone_raw.is_empty() { continue; }
+        let phone_raw = row
+            .get(phone_col)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        if phone_raw.is_empty() {
+            continue;
+        }
 
         let phone = match normalize_phone(&phone_raw) {
             Some(p) => p,
@@ -7525,7 +9203,10 @@ async fn upload_blast_contacts_excel(
             }
         };
 
-        let name = name_col.and_then(|c| row.get(c)).map(|s| s.trim().to_string()).unwrap_or_default();
+        let name = name_col
+            .and_then(|c| row.get(c))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let id = uuid::Uuid::new_v4().to_string();
 
         let result = sqlx::query(
@@ -7536,18 +9217,27 @@ async fn upload_blast_contacts_excel(
 
         match result {
             Ok(r) => {
-                if r.rows_affected() > 0 { inserted += 1; } else { skipped += 1; }
+                if r.rows_affected() > 0 {
+                    inserted += 1;
+                } else {
+                    skipped += 1;
+                }
             }
-            Err(_) => { skipped += 1; }
+            Err(_) => {
+                skipped += 1;
+            }
         }
     }
 
-    Ok(json_ok("Import completed", json!({
-        "inserted": inserted,
-        "skipped": skipped,
-        "invalid": invalid,
-        "total_rows": rows.len() - 1,
-    })))
+    Ok(json_ok(
+        "Import completed",
+        json!({
+            "inserted": inserted,
+            "skipped": skipped,
+            "invalid": invalid,
+            "total_rows": rows.len() - 1,
+        }),
+    ))
 }
 
 async fn import_blast_contacts_to_campaign(
@@ -7556,20 +9246,31 @@ async fn import_blast_contacts_to_campaign(
     Path(campaign_id): Path<String>,
     Json(payload): Json<ImportBlastContactsPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin, Role::WaOperator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
 
     // Verify campaign exists
-    let campaign_exists: Option<(String,)> = sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
-        .bind(&campaign_id)
-        .fetch_optional(&state.pool).await.map_err(|_| AppError::Internal)?;
+    let campaign_exists: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
+            .bind(&campaign_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
     if campaign_exists.is_none() {
         return Err(AppError::NotFound);
     }
 
     // Get campaign config for dedupe
-    let campaign_config: Option<String> = sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
-        .bind(&campaign_id)
-        .fetch_optional(&state.pool).await.map_err(|_| AppError::Internal)?;
+    let campaign_config: Option<String> =
+        sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
+            .bind(&campaign_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
     let config_value = parse_json_value(campaign_config);
     let dedupe_days = wa_config_dedupe_days(&config_value);
 
@@ -7577,21 +9278,28 @@ async fn import_blast_contacts_to_campaign(
     let contacts: Vec<(String, String, String)> = if payload.all.unwrap_or(false) {
         sqlx::query_as("SELECT id, phone, name FROM wa_blast_contacts WHERE user_id = ?")
             .bind(&user.id)
-            .fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?
     } else {
         let ids = payload.contact_ids.unwrap_or_default();
         if ids.is_empty() {
-            return Err(AppError::Validation { errors: vec!["Pilih kontak atau gunakan all: true".to_string()] });
+            return Err(AppError::Validation {
+                errors: vec!["Pilih kontak atau gunakan all: true".to_string()],
+            });
         }
         let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let query_str = format!(
-            "SELECT id, phone, name FROM wa_blast_contacts WHERE user_id = ? AND id IN ({})", placeholders
+            "SELECT id, phone, name FROM wa_blast_contacts WHERE user_id = ? AND id IN ({})",
+            placeholders
         );
         let mut q = sqlx::query_as::<_, (String, String, String)>(&query_str).bind(&user.id);
         for id in &ids {
             q = q.bind(id);
         }
-        q.fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?
+        q.fetch_all(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?
     };
 
     let mut inserted = 0i64;
@@ -7608,7 +9316,11 @@ async fn import_blast_contacts_to_campaign(
             .bind(phone).bind(&dedupe_window)
             .fetch_optional(&state.pool).await.map_err(|_| AppError::Internal)?;
 
-        let status = if duplicate_exists.is_some() { "skipped" } else { "pending" };
+        let status = if duplicate_exists.is_some() {
+            "skipped"
+        } else {
+            "pending"
+        };
 
         let result = sqlx::query(
             "INSERT OR IGNORE INTO wa_recipients (id, campaign_id, phone, variables_json, status) VALUES (?, ?, ?, ?, ?)"
@@ -7617,19 +9329,25 @@ async fn import_blast_contacts_to_campaign(
             .execute(&state.pool).await.map_err(|_| AppError::Internal)?;
 
         if result.rows_affected() > 0 {
-            if status == "pending" { inserted += 1; } else { skipped += 1; }
+            if status == "pending" {
+                inserted += 1;
+            } else {
+                skipped += 1;
+            }
         } else {
             skipped += 1;
         }
     }
 
-    Ok(json_ok("Contacts imported to campaign", json!({
-        "inserted": inserted,
-        "skipped": skipped,
-        "total": contacts.len(),
-    })))
+    Ok(json_ok(
+        "Contacts imported to campaign",
+        json!({
+            "inserted": inserted,
+            "skipped": skipped,
+            "total": contacts.len(),
+        }),
+    ))
 }
-
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────
 
@@ -7658,28 +9376,37 @@ mod tests {
         //     "last_retry_run": Option<String>
         //   }
         // }
-        
+
         // Simulate the response data structure
         let analytics_running = false;
         let last_analytics: Option<String> = None;
         let last_retry: Option<String> = None;
-        
+
         let response_data = json!({
             "status": "healthy",
             "analytics_job_running": analytics_running,
             "last_analytics_run": last_analytics,
             "last_retry_run": last_retry
         });
-        
+
         // Verify the structure
-        assert!(response_data.is_object(), "Response data should be an object");
+        assert!(
+            response_data.is_object(),
+            "Response data should be an object"
+        );
         assert_eq!(response_data["status"], "healthy");
-        assert!(response_data["analytics_job_running"].is_boolean(), 
-                "analytics_job_running should be a boolean");
-        assert!(response_data["last_analytics_run"].is_null(), 
-                "last_analytics_run should be null when not set");
-        assert!(response_data["last_retry_run"].is_null(), 
-                "last_retry_run should be null when not set");
+        assert!(
+            response_data["analytics_job_running"].is_boolean(),
+            "analytics_job_running should be a boolean"
+        );
+        assert!(
+            response_data["last_analytics_run"].is_null(),
+            "last_analytics_run should be null when not set"
+        );
+        assert!(
+            response_data["last_retry_run"].is_null(),
+            "last_retry_run should be null when not set"
+        );
     }
 
     // ── Test: health endpoint timestamp formatting ────────────────────────────
@@ -7692,28 +9419,36 @@ mod tests {
         let now = Utc::now();
         let last_analytics = Some(now.to_rfc3339());
         let last_retry = Some((now - Duration::minutes(5)).to_rfc3339());
-        
+
         let response_data = json!({
             "status": "healthy",
             "analytics_job_running": true,
             "last_analytics_run": last_analytics,
             "last_retry_run": last_retry
         });
-        
+
         // Verify timestamps are strings
-        assert!(response_data["last_analytics_run"].is_string(), 
-                "last_analytics_run should be a string when set");
-        assert!(response_data["last_retry_run"].is_string(), 
-                "last_retry_run should be a string when set");
-        
+        assert!(
+            response_data["last_analytics_run"].is_string(),
+            "last_analytics_run should be a string when set"
+        );
+        assert!(
+            response_data["last_retry_run"].is_string(),
+            "last_retry_run should be a string when set"
+        );
+
         // Verify they can be parsed as RFC3339
         let last_analytics_str = response_data["last_analytics_run"].as_str().unwrap();
         let last_retry_str = response_data["last_retry_run"].as_str().unwrap();
-        
-        assert!(chrono::DateTime::parse_from_rfc3339(last_analytics_str).is_ok(), 
-                "last_analytics_run should be valid RFC3339");
-        assert!(chrono::DateTime::parse_from_rfc3339(last_retry_str).is_ok(), 
-                "last_retry_run should be valid RFC3339");
+
+        assert!(
+            chrono::DateTime::parse_from_rfc3339(last_analytics_str).is_ok(),
+            "last_analytics_run should be valid RFC3339"
+        );
+        assert!(
+            chrono::DateTime::parse_from_rfc3339(last_retry_str).is_ok(),
+            "last_retry_run should be valid RFC3339"
+        );
     }
 
     // ── Test: health endpoint job running state ───────────────────────────────
@@ -7723,17 +9458,17 @@ mod tests {
     #[test]
     fn health_reflects_analytics_job_state() {
         use std::sync::atomic::Ordering;
-        
+
         // Test when job is not running
         let job_running = AtomicBool::new(false);
         let state = job_running.load(Ordering::Relaxed);
         assert_eq!(state, false, "Job should not be running initially");
-        
+
         // Test when job is running
         job_running.store(true, Ordering::Relaxed);
         let state = job_running.load(Ordering::Relaxed);
         assert_eq!(state, true, "Job should be running after store(true)");
-        
+
         // Verify the response would include this state
         let response_data = json!({
             "status": "healthy",
@@ -7741,8 +9476,10 @@ mod tests {
             "last_analytics_run": None::<String>,
             "last_retry_run": None::<String>
         });
-        
-        assert_eq!(response_data["analytics_job_running"], true, 
-                   "Response should reflect job running state");
+
+        assert_eq!(
+            response_data["analytics_job_running"], true,
+            "Response should reflect job running state"
+        );
     }
 }

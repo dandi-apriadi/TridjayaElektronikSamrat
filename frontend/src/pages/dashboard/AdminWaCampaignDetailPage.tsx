@@ -5,13 +5,14 @@ import {
   ArrowLeft, Send, RefreshCw,
   CheckCircle2, AlertTriangle, Clock, Copy, XCircle,
   Plus, Trash2, Check, Eye, FileSpreadsheet, Loader2,
-  Database, Users, Search, ChevronDown, ChevronUp
+  Database, Search
 } from 'lucide-react';
 import AddWaRecipientModal from '../../components/dashboard/AddWaRecipientModal';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import type { WaCampaign, WaRecipient } from '../../types';
 import Pagination from '../../components/ui/Pagination';
+import { readApiError } from '../../utils/apiError';
 
 const statusColorMap: Record<string, string> = {
   pending: 'bg-surface-high text-on-surface-variant border border-outline-variant/30',
@@ -65,7 +66,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
       const res = await fetch(`/api/wa/campaigns/${id}/status`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed to fetch campaign');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memuat campaign'));
       const data = await res.json();
       setCampaign(data.data?.campaign || null);
       setRecipients(data.data?.recipients || []);
@@ -78,21 +79,54 @@ const AdminWaCampaignDetailPage: React.FC = () => {
 
   const handleStart = async () => {
     if (!id) return;
+    
+    // If campaign was already completed/paused/failed, confirm restart
+    if (campaign?.status && campaign.status !== 'draft') {
+      if (!window.confirm('Campaign ini akan dimulai ulang dari awal. Semua penerima yang belum terkirim akan diproses. Lanjutkan?')) return;
+    }
+
     setIsActionLoading(true);
+    console.log('[Campaign] Starting campaign:', id, 'current status:', campaign?.status);
+    
     try {
+      // If campaign is completed/paused, reset recipients to pending first
+      if (campaign?.status === 'completed' || campaign?.status === 'paused') {
+        console.log('[Campaign] Resetting recipients to pending...');
+        const resetRes = await fetch(`/api/wa/campaigns/${id}/reset`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
+        if (!resetRes.ok) {
+          const errMsg = await readApiError(resetRes, 'Gagal reset recipients');
+          console.error('[Campaign] Reset failed:', errMsg);
+          // Try to start anyway — backend might handle it
+        } else {
+          const resetData = await resetRes.json().catch(() => null);
+          console.log('[Campaign] Reset result:', resetData);
+        }
+      }
+
+      console.log('[Campaign] Calling start endpoint...');
       const res = await fetch(`/api/wa/campaigns/${id}/start`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
+      
       const data = await res.json().catch(() => null);
+      console.log('[Campaign] Start response:', res.status, data);
+      
       if (!res.ok) {
-        const errMsg = data?.errors?.join(', ') || data?.message || 'Failed to start campaign';
+        const errMsg = data?.errors?.join(', ') || data?.message || 'Gagal memulai campaign';
+        console.error('[Campaign] Start failed:', errMsg);
         throw new Error(errMsg);
       }
-      const enqueued = data?.data?.enqueued || 0;
-      toast.success('Campaign dimulai', `${enqueued} penerima sedang diproses`);
+      
+      const pending = data?.data?.pending || data?.data?.enqueued || 0;
+      toast.success('Campaign dimulai', `${pending} penerima sedang diproses`);
+      console.log('[Campaign] Started successfully, pending:', pending);
       await fetchCampaignData();
     } catch (error) {
+      console.error('[Campaign] Error:', error);
       toast.error('Gagal memulai campaign', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsActionLoading(false);
@@ -106,11 +140,11 @@ const AdminWaCampaignDetailPage: React.FC = () => {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Gagal menghapus');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menghapus penerima'));
       toast.success('Penerima dihapus');
       fetchCampaignData();
     } catch (error) {
-      toast.error('Gagal', 'Terjadi kesalahan saat menghapus');
+      toast.error('Gagal menghapus penerima', error instanceof Error ? error.message : 'Terjadi kesalahan saat menghapus');
     }
   };
 
@@ -130,11 +164,10 @@ const AdminWaCampaignDetailPage: React.FC = () => {
         headers: { 'Authorization': `Bearer ${accessToken}` },
         body: formData,
       });
-      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const errMsg = data?.errors?.join(', ') || data?.message || 'Gagal upload file';
-        throw new Error(errMsg);
+        throw new Error(await readApiError(res, 'Gagal upload file'));
       }
+      const data = await res.json().catch(() => null);
       const ins = data?.data?.inserted || 0;
       const skip = data?.data?.skipped || 0;
       const inv = data?.data?.invalid?.length || 0;
@@ -159,7 +192,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Gagal menghapus campaign');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menghapus campaign'));
       toast.success('Campaign dihapus');
       navigate('/dashboard/admin/wa/campaigns');
     } catch (error) {
@@ -178,12 +211,12 @@ const AdminWaCampaignDetailPage: React.FC = () => {
       const res = await fetch(`/api/wa/blast-contacts?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memuat database kontak'));
       const data = await res.json();
       setDbContacts(data.data?.items || []);
       setDbTotal(data.data?.total || 0);
-    } catch {
-      toast.error('Gagal memuat database kontak');
+    } catch (error) {
+      toast.error('Gagal memuat database kontak', error instanceof Error ? error.message : 'Terjadi kesalahan');
     } finally {
       setIsLoadingDb(false);
     }
@@ -233,7 +266,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
         },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('Gagal import');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal import'));
       const data = await res.json();
       const ins = data.data?.inserted || 0;
       const skip = data.data?.skipped || 0;
@@ -334,14 +367,14 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             }}
             className="hidden"
           />
-          {campaign.status === 'draft' && (
+          {campaign.status !== 'running' && (
             <button
               onClick={handleStart}
               disabled={isActionLoading}
               className="flex items-center gap-2 px-6 py-2 gradient-primary text-surface rounded-xl hover:shadow-neon-cyan transition-all font-bold disabled:opacity-50"
             >
-              <Send className="w-4 h-4" />
-              <span>Mulai Campaign</span>
+              {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <span>{campaign.status === 'draft' ? 'Mulai Campaign' : 'Start Ulang'}</span>
             </button>
           )}
           <button
@@ -591,7 +624,7 @@ const AdminWaCampaignDetailPage: React.FC = () => {
                             Read
                           </div>
                         )}
-                        {recipient.status === 'failed' && (
+                        {recipient.lastError && (
                           <div className="text-[9px] text-red-400 font-medium italic mt-1 block max-w-[150px] truncate" title={recipient.lastError}>
                             {recipient.lastError}
                           </div>
