@@ -89,8 +89,8 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     console.log('[Campaign] Starting campaign:', id, 'current status:', campaign?.status);
     
     try {
-      // If campaign is completed/paused, reset recipients to pending first
-      if (campaign?.status === 'completed' || campaign?.status === 'paused') {
+      // If campaign is completed/paused/running, reset recipients to pending first
+      if (campaign?.status === 'completed' || campaign?.status === 'paused' || campaign?.status === 'running') {
         console.log('[Campaign] Resetting recipients to pending...');
         const resetRes = await fetch(`/api/wa/campaigns/${id}/reset`, {
           method: 'POST',
@@ -367,16 +367,14 @@ const AdminWaCampaignDetailPage: React.FC = () => {
             }}
             className="hidden"
           />
-          {campaign.status !== 'running' && (
-            <button
-              onClick={handleStart}
-              disabled={isActionLoading}
-              className="flex items-center gap-2 px-6 py-2 gradient-primary text-surface rounded-xl hover:shadow-neon-cyan transition-all font-bold disabled:opacity-50"
-            >
-              {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              <span>{campaign.status === 'draft' ? 'Mulai Campaign' : 'Start Ulang'}</span>
-            </button>
-          )}
+          <button
+            onClick={handleStart}
+            disabled={isActionLoading}
+            className="flex items-center gap-2 px-6 py-2 gradient-primary text-surface rounded-xl hover:shadow-neon-cyan transition-all font-bold disabled:opacity-50"
+          >
+            {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            <span>{campaign.status === 'draft' ? 'Mulai Campaign' : campaign.status === 'running' ? 'Restart' : 'Start Ulang'}</span>
+          </button>
           <button
             onClick={handleDeleteCampaign}
             disabled={isActionLoading}
