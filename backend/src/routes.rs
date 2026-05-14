@@ -4716,7 +4716,7 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
     }
     if let Some(stock) = &payload.stock {
         if !validate_stock(stock) {
-            errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
+            errors.push("stock harus salah satu dari: available, indent, hidden, limited, out_of_stock, discontinued".to_string());
         }
     }
     if payload.stock_quantity.is_some_and(|value| value < 0.0) {
@@ -4782,7 +4782,7 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
         .as_ref()
         .is_some_and(|value| !validate_stock(value))
     {
-        errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
+        errors.push("stock harus salah satu dari: available, indent, hidden, limited, out_of_stock, discontinued".to_string());
     }
     if payload.stock_quantity.is_some_and(|value| value < 0.0) {
         errors.push("stockQuantity tidak boleh negatif".to_string());
@@ -5881,9 +5881,69 @@ async fn bulk_products(
                     summarize_ratings(&ratings, data.rating, data.review.clone());
                 let stock = data.stock.as_deref().unwrap_or("available");
 
-                let result = sqlx::query(
-                    "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                // Check if product with this ID already exists (upsert logic)
+                let existing_image: Option<String> = sqlx::query_scalar(
+                    "SELECT image FROM products WHERE id = ? LIMIT 1"
                 )
+                .bind(&id)
+                .fetch_optional(&mut *tx)
+                .await
+                .unwrap_or(None);
+
+                if let Some(current_image) = existing_image {
+                    // Product exists — update, preserving image if new one is placeholder
+                    let final_image = {
+                        let new_img = image.trim();
+                        if new_img.contains("placehold.co") || new_img.contains("/uploads/placeholders/") || new_img.is_empty() || new_img.contains("logo.webp") {
+                            current_image
+                        } else {
+                            new_img.to_string()
+                        }
+                    };
+
+                    let result = sqlx::query(
+                        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, stock_quantity = ?, colors = ?, ratings = ?, rating = ?, review = ? WHERE id = ?"
+                    )
+                    .bind(slug.trim())
+                    .bind(name)
+                    .bind(category.trim())
+                    .bind(data.subcategory.flatten())
+                    .bind(price)
+                    .bind(data.price_installment)
+                    .bind(data.dp_min)
+                    .bind(&final_image)
+                    .bind(&images)
+                    .bind(&data.badge)
+                    .bind(&data.badge_text)
+                    .bind(&data.short_desc)
+                    .bind(&data.description)
+                    .bind(&specs)
+                    .bind(stock)
+                    .bind(data.stock_quantity)
+                    .bind(&colors)
+                    .bind(&ratings_json)
+                    .bind(next_rating)
+                    .bind(&next_review)
+                    .bind(&id)
+                    .execute(&mut *tx)
+                    .await;
+
+                    match result {
+                        Ok(_) => success_count += 1,
+                        Err(e) => {
+                            let err_msg = e.to_string();
+                            tracing::error!(
+                                "Bulk Upsert(Update) Error at row {} | name='{}' | id='{}' | error: {}",
+                                display_row, name, id, err_msg
+                            );
+                            errors.push(format!("Baris {} ({}): {}", display_row, name, err_msg));
+                        }
+                    }
+                } else {
+                    // Product does not exist — insert new
+                    let result = sqlx::query(
+                        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    )
                 .bind(&id)
                 .bind(slug.trim())
                 .bind(name)
@@ -5922,6 +5982,7 @@ async fn bulk_products(
                         errors.push(format!("Baris {} ({}): {}", display_row, name, err_msg));
                     }
                 }
+                } // end else (insert new)
             }
             BulkOperation::Update {
                 id,

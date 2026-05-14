@@ -143,7 +143,7 @@ const AdminProductBulkImport: React.FC = () => {
       const key = normalizeMatchKey(row.productName || row.productCode || '');
       if (!matchedKeys.has(key)) continue;
       const status = mapStockToStatus(row.physicalStock);
-      if (status === 'hidden') toHidden++;
+      if (status === 'out_of_stock') toHidden++;
       if (status === 'indent') toIndent++;
       if (status === 'available') toAvailable++;
     }
@@ -399,6 +399,7 @@ const AdminProductBulkImport: React.FC = () => {
               type: 'create',
               data: {
                 ...updateData,
+                id: item.newData.productCode || undefined,
                 name: productName,
                 slug: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                 stock: updateData.stock || 'available',
@@ -658,6 +659,7 @@ const AdminProductBulkImport: React.FC = () => {
               type: 'create',
               data: {
                 ...updateData,
+                id: item.newData.productCode || undefined,
                 name: productName,
                 slug: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                 stock: updateData.stock || 'available',
@@ -1077,7 +1079,7 @@ const AdminProductBulkImport: React.FC = () => {
                           <td className="px-4 py-3 text-on-surface-variant">{row.systemStock}</td>
                           <td className="px-4 py-3">
                             <span className="rounded-md bg-primary/15 px-2 py-1 text-xs font-bold uppercase text-primary">
-                              {targetStatus}
+                              {targetStatus === 'out_of_stock' ? 'Indent' : targetStatus}
                             </span>
                           </td>
                           <td className="px-4 py-3">

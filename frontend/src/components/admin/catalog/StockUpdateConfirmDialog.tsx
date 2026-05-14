@@ -55,7 +55,7 @@ export const StockUpdateConfirmDialog: React.FC<StockUpdateConfirmDialogProps> =
           <div className="rounded-lg border border-error/20 bg-error/10 p-3 text-center">
             <div className="text-2xl font-bold text-error">{breakdown.toHidden || 0}</div>
             <div className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-              Hidden
+              Stok Habis
             </div>
           </div>
           <div className="rounded-lg border border-tertiary/20 bg-tertiary/10 p-3 text-center">

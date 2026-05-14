@@ -830,108 +830,126 @@ const AdminProductFormPage: React.FC = () => {
                 <select name="stock" value={formData.stock || 'available'} onChange={handleChange} className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none">
                   <option value="available">Tersedia</option>
                   <option value="indent">Pre-Order (Indent)</option>
-                  <option value="hidden">Habis / Sembunyikan</option>
+                  <option value="out_of_stock">Stok Habis (Indent)</option>
+                  <option value="limited">Stok Terbatas</option>
+                  <option value="hidden">Sembunyikan</option>
+                  <option value="discontinued">Discontinued</option>
                 </select>
               </div>
             </div>
           </div>
 
           {/* Rating & Review Publik */}
-          <div className="glass-card rounded-xl p-6 space-y-4 shadow-sm border border-outline-variant/10">
-            <h3 className="font-display text-title-md font-semibold text-on-surface border-b border-outline-variant/20 pb-2 flex items-center gap-2">
-              <Star className="w-5 h-5 text-yellow-500" /> Rating & Review Publik
-            </h3>
-            <p className="text-body-sm text-on-surface-variant">
-              Isi bagian ini untuk menampilkan lebih dari satu penilaian dan ulasan manual admin di halaman publik produk.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-label-sm font-semibold text-on-surface-variant">Rating Produk (0 - 5)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="5"
-                  step="0.1"
-                  value={newRatingScore}
-                  onChange={(e) => setNewRatingScore(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none"
-                  placeholder="Contoh: 4.8"
-                />
-              </div>
-              <div className="space-y-1.5 md:col-span-3">
-                <label className="text-label-sm font-semibold text-on-surface-variant">Ulasan Admin</label>
-                <textarea
-                  rows={4}
-                  value={newRatingReview}
-                  onChange={(e) => setNewRatingReview(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none"
-                  placeholder="Tulis ulasan singkat yang akan tampil di halaman publik produk..."
-                />
-              </div>
-              <div className="space-y-1.5 md:col-span-1">
-                <label className="text-label-sm font-semibold text-on-surface-variant invisible">Tambah</label>
-                <button
-                  type="button"
-                  onClick={addRatingEntry}
-                  className="w-full h-[44px] px-4 rounded-lg bg-primary/10 text-primary font-semibold hover:bg-primary/20 transition-colors"
-                >
-                  Tambah
-                </button>
-              </div>
+          <div className="glass-card rounded-xl p-6 space-y-5 shadow-sm border border-outline-variant/10">
+            <div className="border-b border-outline-variant/20 pb-3">
+              <h3 className="font-display text-title-md font-semibold text-on-surface flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-500" /> Rating & Review Publik
+              </h3>
+              <p className="text-body-sm text-on-surface-variant mt-1">
+                Isi bagian ini untuk menampilkan lebih dari satu penilaian dan ulasan manual admin di halaman publik produk.
+              </p>
             </div>
 
-            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-surface-high/40 border border-outline-variant/10">
+            {/* Input Form */}
+            <div className="rounded-lg border border-outline-variant/15 bg-surface-low/40 p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4 items-start">
+                <div className="space-y-1.5">
+                  <label className="text-label-xs font-semibold text-on-surface-variant uppercase tracking-wider">Rating (0-5)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    value={newRatingScore}
+                    onChange={(e) => setNewRatingScore(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold"
+                    placeholder="4.8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-label-xs font-semibold text-on-surface-variant uppercase tracking-wider">Ulasan Admin</label>
+                  <textarea
+                    rows={2}
+                    value={newRatingReview}
+                    onChange={(e) => setNewRatingReview(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none resize-none"
+                    placeholder="Tulis ulasan singkat yang akan tampil di halaman publik produk..."
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={addRatingEntry}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary/10 text-primary font-semibold text-label-sm hover:bg-primary/20 transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Tambah Rating
+              </button>
+            </div>
+
+            {/* Summary */}
+            <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-surface-high/50 border border-outline-variant/10">
               <div>
-                <div className="text-label-sm font-semibold text-on-surface">Ringkasan Rating</div>
-                <div className="text-body-sm text-on-surface-variant">
+                <div className="text-label-sm font-bold text-on-surface">Ringkasan Rating</div>
+                <div className="text-body-sm text-on-surface-variant mt-0.5">
                   {ratingSummary.count > 0 ? `${ratingSummary.count} rating tersimpan` : 'Belum ada rating tersimpan'}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-label-sm font-semibold text-yellow-400">Rata-rata</div>
-                <div className="text-title-sm font-bold text-white">
-                  {ratingSummary.count > 0 ? `${ratingSummary.average}/5` : '0/5'}
+              <div className="text-right flex-shrink-0">
+                <div className="text-label-xs font-semibold text-on-surface-variant uppercase tracking-wider">Rata-rata</div>
+                <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                  <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                  <span className="text-title-md font-bold text-on-surface">
+                    {ratingSummary.count > 0 ? ratingSummary.average : '0'}
+                  </span>
+                  <span className="text-body-sm text-on-surface-variant">/5</span>
                 </div>
               </div>
             </div>
 
+            {/* Rating List */}
             <div className="space-y-3">
-              <div className="text-label-sm font-semibold text-on-surface-variant uppercase tracking-wider">Daftar Rating</div>
-              <div className="space-y-3">
-                <AnimatePresence>
-                  {(formData.ratings || []).map((ratingEntry, index) => (
-                    <motion.div
-                      key={`${ratingEntry.score}-${index}`}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="p-4 rounded-xl border border-outline-variant/10 bg-surface-high/30"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-1 rounded-lg bg-yellow-500/15 text-yellow-300 border border-yellow-500/20 text-label-sm font-semibold">
-                              {ratingEntry.score.toFixed(1)}/5
+              <div className="text-label-xs font-semibold text-on-surface-variant uppercase tracking-wider">Daftar Rating</div>
+              {(formData.ratings || []).length === 0 ? (
+                <div className="rounded-lg border border-dashed border-outline-variant/25 p-6 text-center text-body-sm text-on-surface-variant">
+                  Belum ada rating. Tambahkan rating pertama di atas.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <AnimatePresence>
+                    {(formData.ratings || []).map((ratingEntry, index) => (
+                      <motion.div
+                        key={`${ratingEntry.score}-${index}`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        className="p-3 rounded-lg border border-outline-variant/10 bg-surface-high/30 hover:bg-surface-high/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-500/15 text-yellow-500 border border-yellow-500/20 text-label-sm font-bold">
+                              <Star className="w-3 h-3 fill-current" /> {ratingEntry.score.toFixed(1)}
                             </span>
-                            <span className="text-[11px] uppercase tracking-wider text-on-surface-variant">Rating #{index + 1}</span>
+                            <div className="min-w-0">
+                              <span className="text-[10px] uppercase tracking-wider text-on-surface-variant font-semibold">Review #{index + 1}</span>
+                              <p className="text-body-sm text-on-surface leading-relaxed break-words mt-0.5">
+                                {ratingEntry.review}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-body-sm text-on-surface-variant leading-relaxed break-words">
-                            {ratingEntry.review}
-                          </p>
+                          <button
+                            type="button"
+                            onClick={() => removeRatingEntry(index)}
+                            className="flex-shrink-0 p-1.5 rounded-md text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                            aria-label={`Hapus rating ${index + 1}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeRatingEntry(index)}
-                          className="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-                          aria-label={`Hapus rating ${index + 1}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
           </div>
 

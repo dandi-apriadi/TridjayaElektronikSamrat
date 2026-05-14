@@ -127,7 +127,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
                 return null;
               })()}
 
-              {product.stock === 'indent' && (
+              {(product.stock === 'indent' || product.stock === 'out_of_stock' || (product.stockQuantity !== undefined && product.stockQuantity !== null && product.stockQuantity <= 0)) && (
                 <div className="absolute top-3 right-12 px-2.5 py-1 rounded-lg text-label-sm bg-surface-high/80 backdrop-blur-sm text-on-surface-variant">
                   <Clock className="w-3 h-3 inline mr-1" />Indent
                 </div>
@@ -203,6 +203,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
                 <Zap className="w-5 h-5 text-primary" />
               </div>
               <div className="flex items-center gap-2">
+                {(product.stock === 'indent' || product.stock === 'out_of_stock' || (product.stockQuantity !== undefined && product.stockQuantity !== null && product.stockQuantity <= 0)) && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant px-2 py-1 rounded-lg bg-surface-high/80 border border-white/10">
+                    <Clock className="w-3 h-3" />Indent
+                  </span>
+                )}
                 {product.badge && (
                   <span className="text-[11px] font-bold uppercase tracking-wider text-primary px-2 py-1 rounded-lg bg-primary/5 border border-primary/10">
                     {product.badge}

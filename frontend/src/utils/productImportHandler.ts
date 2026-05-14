@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 
 export interface ProductImportRow {
   name: string;
+  productCode?: string;
   price?: number | string;
   stock?: string;
   stockQuantity?: number | string;
@@ -79,7 +80,7 @@ function normalizeStockValue(value: unknown): string | undefined {
   const text = String(value).trim().toLowerCase();
   const numeric = parseImportNumber(value);
   if (numeric !== undefined && /^-?[\d.,\s]+$/.test(text)) {
-    if (numeric <= 0) return 'hidden';
+    if (numeric <= 0) return 'out_of_stock';
     if (numeric <= 5) return 'indent';
     return 'available';
   }
@@ -93,11 +94,11 @@ function normalizeStockValue(value: unknown): string | undefined {
     terbatas: 'limited',
     indent: 'indent',
     inden: 'indent',
-    kosong: 'hidden',
-    habis: 'hidden',
+    kosong: 'out_of_stock',
+    habis: 'out_of_stock',
     hidden: 'hidden',
-    out_of_stock: 'hidden',
-    'out of stock': 'hidden',
+    out_of_stock: 'out_of_stock',
+    'out of stock': 'out_of_stock',
     discontinued: 'discontinued',
   };
 
@@ -146,6 +147,8 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
             // Map common variations
             if (['name', 'nama', 'nama barang', 'nama produk', 'product_name', 'product name'].includes(lowerKey)) {
               normalized.name = String(value || '').trim();
+            } else if (['kode barang', 'kode produk', 'kode', 'sku', 'product_code', 'product code', 'item code', 'id'].includes(lowerKey)) {
+              normalized.productCode = String(value || '').trim();
             } else if (['price', 'harga', 'harga satuan', 'harga jual', 'unit_price', 'unit price'].includes(lowerKey)) {
               const price = parseImportNumber(value);
               if (price !== undefined) {
@@ -178,6 +181,7 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
         }).filter((row) => {
           const productValues = [
             row.name,
+            row.productCode,
             row.price,
             row.stock,
             row.stockQuantity,
@@ -208,24 +212,34 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
 }
 
 /**
- * Match products dari Excel dengan existing products berdasarkan nama.
+ * Match products dari Excel dengan existing products berdasarkan kode barang (id) atau nama.
  * Strategy:
- *   1. Exact match (case-insensitive, trim whitespace) → matched
- *   2. Tidak ada match → new
- *   Tidak ada "similar" — perbedaan 1 karakter pun dianggap produk berbeda.
+ *   1. Match by productCode → id (exact, case-insensitive) → matched
+ *   2. Exact name match (case-insensitive, trim whitespace) → matched
+ *   3. Tidak ada match → new
  */
 export function findSimilarProducts(
   importedName: string,
   existingProducts: Product[],
-  _threshold: number = 1.0 // kept for API compatibility, unused
+  _threshold: number = 1.0, // kept for API compatibility, unused
+  productCode?: string
 ): { match?: Product; similar: Product[] } {
+  // 1. Match by productCode → product.id
+  if (productCode && productCode.trim()) {
+    const code = productCode.trim().toLowerCase();
+    const codeMatch = existingProducts.find(
+      p => p.id.toLowerCase().trim() === code
+    );
+    if (codeMatch) return { match: codeMatch, similar: [] };
+  }
+
   if (!importedName || !importedName.trim()) {
     return { similar: [] };
   }
 
   const searchName = importedName.toLowerCase().trim();
 
-  // Exact match only (case-insensitive, trimmed)
+  // 2. Exact name match (case-insensitive, trimmed)
   const exactMatch = existingProducts.find(
     p => p.name.toLowerCase().trim() === searchName
   );
@@ -243,6 +257,7 @@ export function generateImportPreview(
   existingProducts: Product[]
 ): ImportPreviewItem[] {
   const seenImportedNames = new Set<string>();
+  const seenImportedCodes = new Set<string>();
 
   const items = importedRows.map((row, index): ImportPreviewItem | null => {
     const rowNumber = index + 2; // +2 because Excel is 1-indexed + header row
@@ -258,15 +273,23 @@ export function generateImportPreview(
       };
     }
 
-    const normalizedName = row.name.trim().toLowerCase();
-    if (seenImportedNames.has(normalizedName)) {
-      // Duplikat — skip saja (baris pertama sudah diproses), jangan masukkan ke preview
-      return null;
+    // Deduplicate by productCode first, then by name
+    if (row.productCode && row.productCode.trim()) {
+      const normalizedCode = row.productCode.trim().toLowerCase();
+      if (seenImportedCodes.has(normalizedCode)) {
+        return null;
+      }
+      seenImportedCodes.add(normalizedCode);
+    } else {
+      const normalizedName = row.name.trim().toLowerCase();
+      if (seenImportedNames.has(normalizedName)) {
+        return null;
+      }
+      seenImportedNames.add(normalizedName);
     }
-    seenImportedNames.add(normalizedName);
 
-    // Try to match or find similar
-    const { match, similar } = findSimilarProducts(row.name, existingProducts);
+    // Try to match by productCode (id) or find by name
+    const { match, similar } = findSimilarProducts(row.name, existingProducts, 1.0, row.productCode);
 
     if (match) {
       // Parse both prices as numbers to avoid string vs number false positives

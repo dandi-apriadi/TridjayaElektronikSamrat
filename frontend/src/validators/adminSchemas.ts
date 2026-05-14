@@ -8,7 +8,7 @@ export const adminProductSchema = z.object({
   price: z.number().nonnegative('Harga retail tidak boleh negatif'),
   priceInstallment: z.number().nonnegative('Harga cicilan tidak boleh negatif').nullish().transform(v => v ?? undefined),
   dpMin: z.number().nonnegative('DP minimum tidak boleh negatif').nullish().transform(v => v ?? undefined),
-  stock: z.enum(['available', 'indent', 'hidden']),
+  stock: z.enum(['available', 'indent', 'hidden', 'limited', 'out_of_stock', 'discontinued']),
   stockQuantity: z.number().nonnegative('Stok fisik tidak boleh negatif').nullish().transform(v => v ?? undefined),
   image: z.string().trim().nullish().transform(v => v ?? ''),
   images: z.array(z.string().trim()).transform(arr => arr.filter(Boolean)).optional().default([]),
