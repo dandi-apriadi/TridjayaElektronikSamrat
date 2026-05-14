@@ -1,9 +1,9 @@
 const API_BASE_URL = (process.env.SMOKE_API_BASE_URL || 'http://localhost:8081').replace(/\/$/, '');
 
-const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL || 'admin@tridjaya.com';
-const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || 'Admin123!';
-const AGENT_EMAIL = process.env.SMOKE_AGENT_EMAIL || 'agent@tridjaya.com';
-const AGENT_PASSWORD = process.env.SMOKE_AGENT_PASSWORD || 'Agent123!';
+const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL || 'admin@gmail.com';
+const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || '123';
+const AGENT_EMAIL = process.env.SMOKE_AGENT_EMAIL || 'agent@gmail.com';
+const AGENT_PASSWORD = process.env.SMOKE_AGENT_PASSWORD || '123';
 
 const PASS = 'PASS';
 const FAIL = 'FAIL';

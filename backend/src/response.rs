@@ -69,6 +69,12 @@ pub enum AppError {
     Validation { errors: Vec<String> },
     #[error("unauthorized")]
     Unauthorized,
+    #[error("login email not found")]
+    LoginEmailNotFound,
+    #[error("login invalid password")]
+    LoginInvalidPassword,
+    #[error("login account inactive")]
+    LoginAccountInactive,
     #[error("forbidden")]
     Forbidden,
     #[error("not found")]
@@ -106,6 +112,9 @@ impl AppError {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::LoginEmailNotFound => StatusCode::UNAUTHORIZED,
+            Self::LoginInvalidPassword => StatusCode::UNAUTHORIZED,
+            Self::LoginAccountInactive => StatusCode::FORBIDDEN,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict => StatusCode::CONFLICT,
@@ -122,6 +131,15 @@ impl AppError {
             Self::BadRequest(msg) => msg.clone(),
             Self::Database(msg) => format!("Database error: {}", msg),
             Self::Unauthorized => "Authentication required".to_string(),
+            Self::LoginEmailNotFound => {
+                "Email tidak terdaftar. Periksa kembali email atau hubungi admin.".to_string()
+            }
+            Self::LoginInvalidPassword => {
+                "Password salah. Periksa kembali password Anda.".to_string()
+            }
+            Self::LoginAccountInactive => {
+                "Akun tidak aktif. Hubungi admin untuk mengaktifkan akses.".to_string()
+            }
             Self::Forbidden => "Access denied".to_string(),
             Self::NotFound => "Resource not found".to_string(),
             Self::Conflict => "Conflict detected".to_string(),
@@ -142,6 +160,15 @@ impl IntoResponse for AppError {
         let detail = match &self {
             Self::EmailUnverified => {
                 Some("Email belum terverifikasi. Silakan cek inbox Anda.".to_string())
+            }
+            Self::LoginEmailNotFound => {
+                Some("Tidak ada akun internal yang memakai email tersebut.".to_string())
+            }
+            Self::LoginInvalidPassword => {
+                Some("Email ditemukan, tetapi password yang dimasukkan tidak cocok.".to_string())
+            }
+            Self::LoginAccountInactive => {
+                Some("Akun ini sedang dinonaktifkan atau belum diizinkan login.".to_string())
             }
             _ => None,
         };

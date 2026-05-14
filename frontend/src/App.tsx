@@ -78,13 +78,6 @@ const SalesDeliveryPage = lazy(() => import('./pages/dashboard/SalesDeliveryPage
 const SalesReferralPage = lazy(() => import('./pages/dashboard/SalesReferralPage'));
 const AdminSalesPage = lazy(() => import('./pages/dashboard/AdminSalesPage'));
 
-// Super Admin pages
-const SuperAdminDashboard = lazy(() => import('./pages/dashboard/SuperAdminDashboard'));
-const SuperAdminPixelsPage = lazy(() => import('./pages/dashboard/SuperAdminPixelsPage'));
-const SuperAdminPixelFormPage = lazy(() => import('./pages/dashboard/SuperAdminPixelFormPage'));
-const SuperAdminAnalyticsPage = lazy(() => import('./pages/dashboard/SuperAdminAnalyticsPage'));
-const SuperAdminAuditLogsPage = lazy(() => import('./pages/dashboard/SuperAdminAuditLogsPage'));
-
 // Admin Pixel pages
 const AdminPixelCampaignsPage = lazy(() => import('./pages/dashboard/AdminPixelCampaignsPage'));
 const AdminPixelCampaignFormPage = lazy(() => import('./pages/dashboard/AdminPixelCampaignFormPage'));
@@ -120,12 +113,12 @@ const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) 
 };
  
 // Role-based Guard for individual subroutes
-const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent' | 'sales' | 'super_admin' }> = ({ children, role }) => {
+const RoleGuard: React.FC<{ children: React.ReactElement; roles: string[] }> = ({ children, roles }) => {
   const { user, isInitializing } = useAuthStore();
   
   if (isInitializing) return <RouteLoading />;
  
-  if (user?.role !== role) {
+  if (!user?.role || !roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
  
@@ -135,7 +128,12 @@ const RoleGuard: React.FC<{ children: React.ReactElement; role: 'admin' | 'agent
 // Dashboard Root (Redirects based on role)
 const DashboardRoot = () => {
   const { user } = useAuthStore();
-  return <Navigate to={user?.role === 'super_admin' ? '/dashboard/super-admin' : user?.role === 'admin' ? '/dashboard/admin' : user?.role === 'sales' ? '/dashboard/sales' : '/dashboard/agent'} replace />;
+  const role = user?.role;
+
+  if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
+  if (role === 'operator') return <Navigate to="/dashboard/admin/wa/campaigns" replace />;
+  if (role === 'sales') return <Navigate to="/dashboard/sales" replace />;
+  return <Navigate to="/dashboard/agent" replace />;
 };
 
 // Scroll to top and track telemetry on route change
@@ -256,61 +254,11 @@ const App: React.FC = () => {
         >
           <Route index element={<DashboardRoot />} />
           
-          {/* Super Admin Routes */}
-          <Route
-            path="super-admin"
-            element={
-              <RoleGuard role="super_admin">
-                {lazyPage(SuperAdminDashboard)}
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="super-admin/pixels"
-            element={
-              <RoleGuard role="super_admin">
-                {lazyPage(SuperAdminPixelsPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="super-admin/pixels/new"
-            element={
-              <RoleGuard role="super_admin">
-                {lazyPage(SuperAdminPixelFormPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="super-admin/pixels/:id"
-            element={
-              <RoleGuard role="super_admin">
-                {lazyPage(SuperAdminPixelFormPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="super-admin/analytics"
-            element={
-              <RoleGuard role="super_admin">
-                {lazyPage(SuperAdminAnalyticsPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="super-admin/audit-logs"
-            element={
-              <RoleGuard role="super_admin">
-                {lazyPage(SuperAdminAuditLogsPage)}
-              </RoleGuard>
-            }
-          />
-          
           {/* Admin Routes */}
           <Route
             path="admin"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminDashboard)}
               </RoleGuard>
             }
@@ -318,7 +266,7 @@ const App: React.FC = () => {
           <Route
             path="admin/agents"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminAgentsPage)}
               </RoleGuard>
             }
@@ -326,7 +274,7 @@ const App: React.FC = () => {
           <Route
             path="admin/sales"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminSalesPage)}
               </RoleGuard>
             }
@@ -334,7 +282,7 @@ const App: React.FC = () => {
           <Route
             path="admin/sales/referral"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(SalesReferralPage)}
               </RoleGuard>
             }
@@ -342,7 +290,7 @@ const App: React.FC = () => {
           <Route
             path="admin/catalog"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminCatalogPage)}
               </RoleGuard>
             }
@@ -350,7 +298,7 @@ const App: React.FC = () => {
           <Route
             path="admin/categories"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminProductCategoriesPage)}
               </RoleGuard>
             }
@@ -358,7 +306,7 @@ const App: React.FC = () => {
           <Route
             path="admin/catalog/new"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminProductFormPage)}
               </RoleGuard>
             }
@@ -366,7 +314,7 @@ const App: React.FC = () => {
           <Route
             path="admin/catalog/edit/:id"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminProductFormPage)}
               </RoleGuard>
             }
@@ -374,7 +322,7 @@ const App: React.FC = () => {
           <Route
             path="admin/catalog/bulk-import"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminProductBulkImportPage)}
               </RoleGuard>
             }
@@ -382,7 +330,7 @@ const App: React.FC = () => {
           <Route
             path="admin/promo"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPromoPage)}
               </RoleGuard>
             }
@@ -390,7 +338,7 @@ const App: React.FC = () => {
           <Route
             path="admin/promo/new"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPromoFormPage)}
               </RoleGuard>
             }
@@ -398,7 +346,7 @@ const App: React.FC = () => {
           <Route
             path="admin/promo/edit/:id"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPromoFormPage)}
               </RoleGuard>
             }
@@ -406,7 +354,7 @@ const App: React.FC = () => {
           <Route
             path="admin/content/new"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminArticleFormPage)}
               </RoleGuard>
             }
@@ -414,7 +362,7 @@ const App: React.FC = () => {
           <Route
             path="admin/content/landing-slides"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminLandingSlidesPage)}
               </RoleGuard>
             }
@@ -422,7 +370,7 @@ const App: React.FC = () => {
           <Route
             path="admin/content/edit/:id"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminArticleFormPage)}
               </RoleGuard>
             }
@@ -430,7 +378,7 @@ const App: React.FC = () => {
           <Route
             path="admin/telemetry"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminTelemetryPage)}
               </RoleGuard>
             }
@@ -438,7 +386,7 @@ const App: React.FC = () => {
           <Route
             path="admin/users"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminUsersPage)}
               </RoleGuard>
             }
@@ -446,7 +394,7 @@ const App: React.FC = () => {
           <Route
             path="admin/users/new"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminFormPage)}
               </RoleGuard>
             }
@@ -454,7 +402,7 @@ const App: React.FC = () => {
           <Route
             path="admin/users/edit/:id"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminFormPage)}
               </RoleGuard>
             }
@@ -462,7 +410,7 @@ const App: React.FC = () => {
           <Route
             path="admin/agents/directory"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminAgentDirectoryPage)}
               </RoleGuard>
             }
@@ -470,7 +418,7 @@ const App: React.FC = () => {
           <Route
             path="admin/finance"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminFinancePage)}
               </RoleGuard>
             }
@@ -478,7 +426,7 @@ const App: React.FC = () => {
           <Route
             path="admin/content"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminContentPage)}
               </RoleGuard>
             }
@@ -486,7 +434,7 @@ const App: React.FC = () => {
           <Route
             path="admin/partners"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPartnersPage)}
               </RoleGuard>
             }
@@ -494,7 +442,7 @@ const App: React.FC = () => {
           <Route
             path="admin/leaderboard"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminLeaderboardPage)}
               </RoleGuard>
             }
@@ -502,7 +450,7 @@ const App: React.FC = () => {
           <Route
             path="admin/support"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminSupportTicketsPage)}
               </RoleGuard>
             }
@@ -510,7 +458,7 @@ const App: React.FC = () => {
           <Route
             path="admin/leads"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminLeadsPage)}
               </RoleGuard>
             }
@@ -518,7 +466,7 @@ const App: React.FC = () => {
           <Route
             path="admin/careers"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin"]}>
                 {lazyPage(AdminCareersPage)}
               </RoleGuard>
             }
@@ -526,7 +474,7 @@ const App: React.FC = () => {
           <Route
             path="admin/notifications"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(NotificationsPage)}
               </RoleGuard>
             }
@@ -534,7 +482,7 @@ const App: React.FC = () => {
           <Route
             path="admin/wa/campaigns"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminWaCampaignsPage)}
               </RoleGuard>
             }
@@ -542,7 +490,7 @@ const App: React.FC = () => {
           <Route
             path="admin/wa/accounts"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminWaAccountsPage)}
               </RoleGuard>
             }
@@ -550,7 +498,7 @@ const App: React.FC = () => {
           <Route
             path="admin/wa/blast-contacts"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminWaBlastContactsPage)}
               </RoleGuard>
             }
@@ -558,7 +506,7 @@ const App: React.FC = () => {
           <Route
             path="admin/wa/campaign/new"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminWaCampaignFormPage)}
               </RoleGuard>
             }
@@ -566,7 +514,7 @@ const App: React.FC = () => {
           <Route
             path="admin/wa/campaign/:id"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminWaCampaignDetailPage)}
               </RoleGuard>
             }
@@ -574,7 +522,7 @@ const App: React.FC = () => {
           <Route
             path="admin/pixel-campaigns"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPixelCampaignsPage)}
               </RoleGuard>
             }
@@ -582,7 +530,7 @@ const App: React.FC = () => {
           <Route
             path="admin/pixel-campaigns/new"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPixelCampaignFormPage)}
               </RoleGuard>
             }
@@ -590,7 +538,7 @@ const App: React.FC = () => {
           <Route
             path="admin/pixel-campaigns/:id"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPixelCampaignFormPage)}
               </RoleGuard>
             }
@@ -598,7 +546,7 @@ const App: React.FC = () => {
           <Route
             path="admin/pixel-analytics"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPixelAnalyticsPage)}
               </RoleGuard>
             }
@@ -606,7 +554,7 @@ const App: React.FC = () => {
           <Route
             path="admin/pixel-tester"
             element={
-              <RoleGuard role="admin">
+              <RoleGuard roles={["admin", "operator"]}>
                 {lazyPage(AdminPixelEventTesterPage)}
               </RoleGuard>
             }
@@ -616,7 +564,7 @@ const App: React.FC = () => {
           <Route
             path="agent"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentDashboard)}
               </RoleGuard>
             }
@@ -624,7 +572,7 @@ const App: React.FC = () => {
           <Route
             path="sales"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(AgentDashboard)}
               </RoleGuard>
             }
@@ -632,7 +580,7 @@ const App: React.FC = () => {
           <Route
             path="agent/knowledge"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentKnowledgePage)}
               </RoleGuard>
             }
@@ -640,7 +588,7 @@ const App: React.FC = () => {
           <Route
             path="sales/knowledge"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(AgentKnowledgePage)}
               </RoleGuard>
             }
@@ -648,7 +596,7 @@ const App: React.FC = () => {
           <Route
             path="agent/leads"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentLeadsPage)}
               </RoleGuard>
             }
@@ -656,7 +604,7 @@ const App: React.FC = () => {
           <Route
             path="sales/delivery"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(SalesDeliveryPage)}
               </RoleGuard>
             }
@@ -664,7 +612,7 @@ const App: React.FC = () => {
           <Route
             path="agent/earnings"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentEarningsPage)}
               </RoleGuard>
             }
@@ -672,7 +620,7 @@ const App: React.FC = () => {
           <Route
             path="sales/referral"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(SalesReferralPage)}
               </RoleGuard>
             }
@@ -680,7 +628,7 @@ const App: React.FC = () => {
           <Route
             path="agent/support"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentSupportPage)}
               </RoleGuard>
             }
@@ -688,7 +636,7 @@ const App: React.FC = () => {
           <Route
             path="agent/pixel-analytics"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentPixelAnalyticsPage)}
               </RoleGuard>
             }
@@ -696,7 +644,7 @@ const App: React.FC = () => {
           <Route
             path="sales/support"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(AgentSupportPage)}
               </RoleGuard>
             }
@@ -704,7 +652,7 @@ const App: React.FC = () => {
           <Route
             path="sales/pixel-analytics"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(SalesPixelAnalyticsPage)}
               </RoleGuard>
             }
@@ -712,7 +660,7 @@ const App: React.FC = () => {
           <Route
             path="agent/push"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentPushProspekPage)}
               </RoleGuard>
             }
@@ -720,7 +668,7 @@ const App: React.FC = () => {
           <Route
             path="sales/settings"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(AgentSettingsPage)}
               </RoleGuard>
             }
@@ -728,7 +676,7 @@ const App: React.FC = () => {
           <Route
             path="agent/leaderboard"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentLeaderboardPage)}
               </RoleGuard>
             }
@@ -736,7 +684,7 @@ const App: React.FC = () => {
           <Route
             path="agent/settings"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentSettingsPage)}
               </RoleGuard>
             }
@@ -744,7 +692,7 @@ const App: React.FC = () => {
           <Route
             path="agent/notifications"
             element={
-              <RoleGuard role="agent">
+              <RoleGuard roles={["agent"]}>
                 {lazyPage(NotificationsPage)}
               </RoleGuard>
             }
@@ -752,7 +700,7 @@ const App: React.FC = () => {
           <Route
             path="sales/notifications"
             element={
-              <RoleGuard role="sales">
+              <RoleGuard roles={["sales"]}>
                 {lazyPage(NotificationsPage)}
               </RoleGuard>
             }
@@ -769,7 +717,7 @@ const App: React.FC = () => {
         <Route
           path="/admin/users"
           element={
-            <RoleGuard role="admin">
+            <RoleGuard roles={["admin"]}>
               <Navigate to="/dashboard/admin/users" replace />
             </RoleGuard>
           }

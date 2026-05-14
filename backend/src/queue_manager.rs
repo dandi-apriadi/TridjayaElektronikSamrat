@@ -487,6 +487,13 @@ impl QueueManager {
         let mut redis = self.redis.lock().await;
         redis.remove_campaign_messages(campaign_id).await
     }
+
+    /// Get queue depth for a specific campaign (across all queues and priorities)
+    /// Useful for verification after pause/remove operations
+    pub async fn get_campaign_queue_depth(&self, campaign_id: &str) -> RedisResult<usize> {
+        let mut redis = self.redis.lock().await;
+        redis.get_campaign_queue_depth(campaign_id).await
+    }
 }
 
 /// Campaign statistics

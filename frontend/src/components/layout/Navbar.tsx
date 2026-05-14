@@ -145,11 +145,11 @@ const Navbar: React.FC = () => {
   }, [isSearchOpen]);
   const location = useLocation();
 
-  const dashboardPath = user?.role === 'admin' 
-    ? '/dashboard/admin' 
-    : user?.role === 'agent' 
-      ? '/dashboard/agent' 
-      : '/dashboard';
+  const dashboardPath = user?.role === 'admin' || user?.role === 'operator'
+      ? '/dashboard/admin'
+      : user?.role === 'agent'
+        ? '/dashboard/agent'
+        : '/dashboard';
 
   const uniqueCategories = Array.from(new Set(products.map(p => p.category)))
     .filter(cat => cat && categorize(cat) !== null);

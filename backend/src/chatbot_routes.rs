@@ -1,7 +1,7 @@
 use crate::{
     auth::{authorize, Role},
     response::{json_ok, AppError},
-    state::AppState,
+    state::{AppState, UserRecord},
 };
 use axum::{
     extract::{Path, Query, State},
@@ -223,6 +223,65 @@ async fn check_unique_constraint(
     Ok(())
 }
 
+async fn ensure_account_access(
+    state: &AppState,
+    user: &UserRecord,
+    account_id: &str,
+) -> Result<(), AppError> {
+    if user.role.eq_ignore_ascii_case("admin") {
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ?")
+            .bind(account_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA account access: {}", e);
+                AppError::Internal
+            })?;
+        return if exists > 0 {
+            Ok(())
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
+
+    let exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ? AND created_by = ?")
+            .bind(account_id)
+            .bind(&user.id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA account ownership: {}", e);
+                AppError::Internal
+            })?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+async fn ensure_rule_access(
+    state: &AppState,
+    user: &UserRecord,
+    rule_id: &str,
+) -> Result<String, AppError> {
+    let account_id: String =
+        sqlx::query_scalar("SELECT account_id FROM wa_chatbot_rules WHERE id = ?")
+            .bind(rule_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking chatbot rule access: {}", e);
+                AppError::Internal
+            })?
+            .ok_or(AppError::NotFound)?;
+
+    ensure_account_access(state, user, &account_id).await?;
+    Ok(account_id)
+}
+
 // ============================================================================
 // Route Handlers
 // ============================================================================
@@ -234,7 +293,8 @@ pub async fn create_chatbot_rule(
     Json(payload): Json<CreateChatbotRuleRequest>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_chatbot_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_account_access(&state, &user, &payload.account_id).await?;
 
     // Validate inputs
     validate_keyword(&payload.keyword)?;
@@ -246,23 +306,6 @@ pub async fn create_chatbot_rule(
     // Validate regex syntax if match_mode is regex
     if payload.match_mode == "regex" {
         validate_regex_syntax(&payload.keyword)?;
-    }
-
-    // Verify account exists
-    let account_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wa_accounts WHERE id = ?)")
-            .bind(&payload.account_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error checking account: {}", e);
-                AppError::Internal
-            })?;
-
-    if !account_exists {
-        return Err(AppError::Validation {
-            errors: vec!["Account ID tidak ditemukan".to_string()],
-        });
     }
 
     // Check unique constraint: (account_id, keyword, match_mode)
@@ -317,12 +360,7 @@ pub async fn list_chatbot_rules(
     Query(query): Query<ListChatbotRulesQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_chatbot_manage
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let limit = query.limit.min(100).max(1);
     let offset = (query.page.max(1) - 1) * limit;
@@ -330,6 +368,7 @@ pub async fn list_chatbot_rules(
     // Build query based on filters
     let (rules, total): (Vec<ChatbotRuleResponse>, i64) = if let Some(account_id) = query.account_id
     {
+        ensure_account_access(&state, &user, &account_id).await?;
         let rows = sqlx::query_as::<_, (String, String, String, String, String, i32, i32, bool, String, Option<String>)>(
             "SELECT id, account_id, keyword, match_mode, reply_template, priority, cooldown_seconds, enabled, created_at, updated_at
              FROM wa_chatbot_rules
@@ -388,7 +427,7 @@ pub async fn list_chatbot_rules(
         }
 
         (rules, total)
-    } else {
+    } else if user.role.eq_ignore_ascii_case("admin") {
         let rows = sqlx::query_as::<_, (String, String, String, String, String, i32, i32, bool, String, Option<String>)>(
             "SELECT id, account_id, keyword, match_mode, reply_template, priority, cooldown_seconds, enabled, created_at, updated_at
              FROM wa_chatbot_rules
@@ -411,6 +450,70 @@ pub async fn list_chatbot_rules(
                 tracing::error!("DB error counting chatbot rules: {}", e);
                 AppError::Internal
             })?;
+
+        let mut rules = Vec::new();
+        for (
+            id,
+            account_id,
+            keyword,
+            match_mode,
+            reply_template,
+            priority,
+            cooldown_seconds,
+            enabled,
+            created_at,
+            updated_at,
+        ) in rows
+        {
+            let statistics = fetch_rule_statistics(&state, &id).await.ok();
+            rules.push(ChatbotRuleResponse {
+                id,
+                account_id,
+                keyword,
+                match_mode,
+                reply_template,
+                priority,
+                cooldown_seconds,
+                enabled,
+                created_at,
+                updated_at,
+                statistics,
+            });
+        }
+
+        (rules, total)
+    } else {
+        let rows = sqlx::query_as::<_, (String, String, String, String, String, i32, i32, bool, String, Option<String>)>(
+            "SELECT r.id, r.account_id, r.keyword, r.match_mode, r.reply_template, r.priority, r.cooldown_seconds, r.enabled, r.created_at, r.updated_at
+             FROM wa_chatbot_rules r
+             JOIN wa_accounts a ON a.id = r.account_id
+             WHERE a.created_by = ?
+             ORDER BY r.priority ASC, r.created_at DESC
+             LIMIT ? OFFSET ?"
+        )
+        .bind(&user.id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error listing chatbot rules: {}", e);
+            AppError::Internal
+        })?;
+
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*)
+             FROM wa_chatbot_rules r
+             JOIN wa_accounts a ON a.id = r.account_id
+             WHERE a.created_by = ?",
+        )
+        .bind(&user.id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error counting chatbot rules: {}", e);
+            AppError::Internal
+        })?;
 
         let mut rules = Vec::new();
         for (
@@ -469,7 +572,7 @@ pub async fn update_chatbot_rule(
     Json(payload): Json<UpdateChatbotRuleRequest>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_chatbot_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Verify rule exists and get current account_id
     let current_rule: Option<(String, String, String)> =
@@ -484,6 +587,7 @@ pub async fn update_chatbot_rule(
 
     let (account_id, current_keyword, current_match_mode) =
         current_rule.ok_or(AppError::NotFound)?;
+    ensure_account_access(&state, &user, &account_id).await?;
 
     // Validate inputs if provided
     if let Some(ref keyword) = payload.keyword {
@@ -603,7 +707,8 @@ pub async fn delete_chatbot_rule(
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_chatbot_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_rule_access(&state, &user, &id).await?;
 
     // Delete rule (cascade will delete logs)
     let result = sqlx::query("DELETE FROM wa_chatbot_rules WHERE id = ?")
@@ -634,7 +739,7 @@ pub async fn bulk_update_chatbot_rules(
     Json(payload): Json<BulkUpdateChatbotRulesRequest>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_chatbot_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     if payload.rule_ids.is_empty() {
         return Err(AppError::Validation {
@@ -646,6 +751,10 @@ pub async fn bulk_update_chatbot_rules(
         return Err(AppError::Validation {
             errors: vec!["Maksimal 100 rules dapat diupdate sekaligus".to_string()],
         });
+    }
+
+    for rule_id in &payload.rule_ids {
+        ensure_rule_access(&state, &user, rule_id).await?;
     }
 
     // Build placeholders for IN clause

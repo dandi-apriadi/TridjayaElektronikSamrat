@@ -65,7 +65,7 @@ pub async fn create_campaign(
     headers: HeaderMap,
     Json(req): Json<CreateCampaignRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Validate admin has access to the specified pixel_id
     let access: Option<(String,)> =
@@ -156,7 +156,7 @@ pub async fn list_campaigns(
     headers: HeaderMap,
     Query(params): Query<CampaignListQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let campaigns: Vec<CampaignRecord> = if let Some(ref status) = params.status {
         sqlx::query_as(
@@ -198,7 +198,7 @@ pub async fn get_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let record: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
         .bind(&id)
@@ -237,7 +237,7 @@ pub async fn update_campaign(
     Path(id): Path<String>,
     Json(req): Json<UpdateCampaignRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch existing campaign
     let existing: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
@@ -381,7 +381,7 @@ pub async fn delete_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch existing campaign
     let existing: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
@@ -484,7 +484,7 @@ pub async fn create_custom_conversion(
     Path(campaign_id): Path<String>,
     Json(req): Json<CreateCustomConversionRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign by id
     let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
@@ -569,7 +569,7 @@ pub async fn list_custom_conversions(
     headers: HeaderMap,
     Path(campaign_id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign
     let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
@@ -609,7 +609,7 @@ pub async fn update_custom_conversion(
     Path((campaign_id, conversion_id)): Path<(String, String)>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign
     let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
@@ -729,7 +729,7 @@ pub async fn delete_custom_conversion(
     headers: HeaderMap,
     Path((campaign_id, conversion_id)): Path<(String, String)>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign
     let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")

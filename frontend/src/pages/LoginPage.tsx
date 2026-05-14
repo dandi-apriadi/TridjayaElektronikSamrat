@@ -12,7 +12,7 @@ const benefits = [
   {
     icon: ShieldCheck,
     title: 'Role otomatis di server',
-    description: 'Admin, agent, editor, dan operator dibedakan oleh backend, bukan pilihan manual.',
+    description: 'Admin, operator, sales, dan agent dibedakan oleh backend, bukan pilihan manual.',
   },
   {
     icon: Zap,
@@ -59,7 +59,7 @@ const LoginPage: React.FC = () => {
           'Silakan atur password baru sebelum mengakses fitur lain.'
         );
         // Untuk role agent kita arahkan ke halaman settings yang sudah punya
-        // form ganti password. Untuk role lain (admin/editor/operator) sementara
+        // form ganti password. Untuk role lain (admin/operator/sales) sementara
         // diarahkan ke dashboard utama dengan banner; profil mereka juga sudah
         // bisa ganti password lewat endpoint /api/auth/change-password.
         if (user.role === 'agent') {

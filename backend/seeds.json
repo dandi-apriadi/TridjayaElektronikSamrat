@@ -2,67 +2,67 @@
   "users": [
     {
       "id": "adm-001",
-      "email": "admin@tridjaya.com",
+      "email": "admin@gmail.com",
       "name": "Administrator Tridjaya",
       "role": "Admin",
-      "password": "Admin123!",
+      "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin"
     },
     {
       "id": "age-001",
-      "email": "agent@tridjaya.com",
+      "email": "agent@gmail.com",
       "name": "Agen Samrat Manado",
       "role": "Agent",
-      "password": "Agent123!",
+      "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Agen001"
     },
     {
       "id": "age-002",
-      "email": "dian@tridjaya.com",
+      "email": "agent2@gmail.com",
       "name": "Dian Sales Partner",
       "role": "Agent",
-      "password": "Agent123!",
+      "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Dian"
     },
     {
       "id": "age-003",
-      "email": "krisna@tridjaya.com",
+      "email": "agent3@gmail.com",
       "name": "Krisna Network",
       "role": "Agent",
-      "password": "Agent123!",
+      "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Krisna"
     },
     {
       "id": "age-004",
-      "email": "ratna@tridjaya.com",
+      "email": "agent4@gmail.com",
       "name": "Ratna Mobile Palu",
       "role": "Agent",
-      "password": "Agent123!",
+      "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Ratna"
     },
     {
       "id": "age-005",
-      "email": "bagas@tridjaya.com",
+      "email": "agent5@gmail.com",
       "name": "Bagas Elektro Kendari",
       "role": "Agent",
-      "password": "Agent123!",
+      "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Bagas"
     },
     {
-      "id": "edt-001",
-      "email": "editor@tridjaya.com",
-      "name": "Editor Konten",
-      "role": "Editor",
-      "password": "Editor123!",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Editor"
-    },
-    {
       "id": "opr-001",
-      "email": "operator@tridjaya.com",
+      "email": "operator@gmail.com",
       "name": "Operator Internal",
       "role": "Operator",
-      "password": "Operator123!",
+      "password": "123",
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Operator"
+    },
+    {
+      "id": "sal-001",
+      "email": "sales@gmail.com",
+      "name": "Sales Tridjaya",
+      "role": "Sales",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Sales"
     }
   ],
   "reward_tiers": [

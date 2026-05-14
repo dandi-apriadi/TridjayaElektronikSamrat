@@ -1,7 +1,7 @@
 use crate::{
     auth::{authorize, Role},
     response::{json_ok, AppError},
-    state::AppState,
+    state::{AppState, UserRecord},
 };
 use axum::{
     extract::{Path, Query, State},
@@ -207,6 +207,64 @@ fn validate_retry_config(config: &RetryConfig) -> Result<(), AppError> {
     Ok(())
 }
 
+async fn ensure_account_access(
+    state: &AppState,
+    user: &UserRecord,
+    account_id: &str,
+) -> Result<(), AppError> {
+    if user.role.eq_ignore_ascii_case("admin") {
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ?")
+            .bind(account_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA account access: {}", e);
+                AppError::Internal
+            })?;
+        return if exists > 0 {
+            Ok(())
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
+
+    let exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ? AND created_by = ?")
+            .bind(account_id)
+            .bind(&user.id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA account ownership: {}", e);
+                AppError::Internal
+            })?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+async fn ensure_webhook_access(
+    state: &AppState,
+    user: &UserRecord,
+    webhook_id: &str,
+) -> Result<String, AppError> {
+    let account_id: String = sqlx::query_scalar("SELECT account_id FROM wa_webhooks WHERE id = ?")
+        .bind(webhook_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking webhook access: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::NotFound)?;
+
+    ensure_account_access(state, user, &account_id).await?;
+    Ok(account_id)
+}
+
 // ============================================================================
 // Route Handlers
 // ============================================================================
@@ -218,7 +276,8 @@ pub async fn create_webhook(
     Json(payload): Json<CreateWebhookRequest>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_webhook_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_account_access(&state, &user, &payload.account_id).await?;
 
     // Validate webhook URL
     validate_webhook_url(&payload.webhook_url)?;
@@ -230,23 +289,6 @@ pub async fn create_webhook(
 
     // Test webhook URL accessibility
     test_webhook_url(&payload.webhook_url).await?;
-
-    // Verify account exists
-    let account_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wa_accounts WHERE id = ?)")
-            .bind(&payload.account_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error checking account: {}", e);
-                AppError::Internal
-            })?;
-
-    if !account_exists {
-        return Err(AppError::Validation {
-            errors: vec!["Account ID tidak ditemukan".to_string()],
-        });
-    }
 
     // Generate webhook ID and secret key
     let webhook_id = uuid::Uuid::new_v4().to_string();
@@ -294,12 +336,7 @@ pub async fn list_webhooks(
     Query(query): Query<ListWebhooksQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_webhook_manage
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let limit = query.limit.min(100).max(1);
     let offset = (query.page.max(1) - 1) * limit;
@@ -307,6 +344,7 @@ pub async fn list_webhooks(
     // Build query based on filters
     let (webhooks, total): (Vec<WebhookResponse>, i64) = if let Some(account_id) = query.account_id
     {
+        ensure_account_access(&state, &user, &account_id).await?;
         let rows = sqlx::query_as::<_, (String, String, String, String, bool, Option<String>, String, Option<String>)>(
             "SELECT id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at
              FROM wa_webhooks
@@ -363,7 +401,7 @@ pub async fn list_webhooks(
             .collect();
 
         (webhooks, total)
-    } else {
+    } else if user.role.eq_ignore_ascii_case("admin") {
         let rows = sqlx::query_as::<_, (String, String, String, String, bool, Option<String>, String, Option<String>)>(
             "SELECT id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at
              FROM wa_webhooks
@@ -416,6 +454,65 @@ pub async fn list_webhooks(
             .collect();
 
         (webhooks, total)
+    } else {
+        let rows = sqlx::query_as::<_, (String, String, String, String, bool, Option<String>, String, Option<String>)>(
+            "SELECT w.id, w.account_id, w.webhook_url, w.secret_key, w.enabled, w.retry_config, w.created_at, w.updated_at
+             FROM wa_webhooks w
+             JOIN wa_accounts a ON a.id = w.account_id
+             WHERE a.created_by = ?
+             ORDER BY w.created_at DESC
+             LIMIT ? OFFSET ?"
+        )
+        .bind(&user.id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error listing webhooks: {}", e);
+            AppError::Internal
+        })?;
+
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*)
+             FROM wa_webhooks w
+             JOIN wa_accounts a ON a.id = w.account_id
+             WHERE a.created_by = ?",
+        )
+        .bind(&user.id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error counting webhooks: {}", e);
+            AppError::Internal
+        })?;
+
+        let webhooks = rows
+            .into_iter()
+            .map(
+                |(
+                    id,
+                    account_id,
+                    webhook_url,
+                    secret_key,
+                    enabled,
+                    retry_config,
+                    created_at,
+                    updated_at,
+                )| WebhookResponse {
+                    id,
+                    account_id,
+                    webhook_url,
+                    secret_key_masked: mask_secret_key(&secret_key),
+                    enabled,
+                    retry_config: retry_config.and_then(|json| serde_json::from_str(&json).ok()),
+                    created_at,
+                    updated_at,
+                },
+            )
+            .collect();
+
+        (webhooks, total)
     };
 
     let total_pages = (total as f64 / limit as f64).ceil() as i64;
@@ -442,21 +539,8 @@ pub async fn update_webhook(
     Json(payload): Json<UpdateWebhookRequest>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_webhook_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
-
-    // Verify webhook exists
-    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wa_webhooks WHERE id = ?)")
-        .bind(&id)
-        .fetch_one(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error checking webhook: {}", e);
-            AppError::Internal
-        })?;
-
-    if !exists {
-        return Err(AppError::NotFound);
-    }
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_webhook_access(&state, &user, &id).await?;
 
     // Validate webhook URL if provided
     if let Some(ref webhook_url) = payload.webhook_url {
@@ -532,7 +616,8 @@ pub async fn delete_webhook(
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
     // Check permission: wa_webhook_manage
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_webhook_access(&state, &user, &id).await?;
 
     // Delete webhook (cascade will delete logs)
     let result = sqlx::query("DELETE FROM wa_webhooks WHERE id = ?")

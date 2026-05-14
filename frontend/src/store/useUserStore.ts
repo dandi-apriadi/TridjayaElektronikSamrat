@@ -8,7 +8,7 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'agent' | 'sales' | 'editor' | 'operator' | string;
+  role: 'admin' | 'operator' | 'sales' | 'agent' | string;
   /** Jabatan (title/position) — display only, does NOT affect system access.
    *  Only meaningful for users with role = "sales".
    *  Values: "kepala_cabang" | "supervisor" | "koordinator" | "sales"

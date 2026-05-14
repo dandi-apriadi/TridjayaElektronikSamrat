@@ -139,7 +139,10 @@ pub fn router(state: AppState) -> Router {
             get(serve_private_upload),
         )
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
-        .route("/api/admin/catalogs/paginated", get(list_catalogs_paginated))
+        .route(
+            "/api/admin/catalogs/paginated",
+            get(list_catalogs_paginated),
+        )
         .route("/api/admin/catalogs/match", get(match_catalogs))
         .route("/api/admin/catalogs/bulk", post(bulk_products))
         .route(
@@ -284,10 +287,6 @@ pub fn router(state: AppState) -> Router {
             post(pixel::event_handlers::send_test_event),
         )
         .route(
-            "/api/pixel-analytics/super-admin",
-            get(pixel::analytics_handlers::get_super_admin_dashboard),
-        )
-        .route(
             "/api/pixel-analytics/pixels/{id}",
             get(pixel::analytics_handlers::get_pixel_analytics),
         )
@@ -310,10 +309,6 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/pixel-analytics/sales",
             get(pixel::analytics_handlers::get_sales_pixel_analytics),
-        )
-        .route(
-            "/api/pixel-analytics/editor",
-            get(pixel::analytics_handlers::get_editor_pixel_analytics),
         );
 
     // Upload routes with larger body limit (20MB) for multipart file uploads
@@ -329,6 +324,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/wa/blast-contacts/upload-excel",
             post(upload_blast_contacts_excel),
+        )
+        .route(
+            "/api/wa/campaigns/upload-image",
+            post(upload_campaign_image),
         )
         .layer(axum::extract::DefaultBodyLimit::max(20 * 1024 * 1024));
 
@@ -1044,7 +1043,7 @@ async fn update_auth_profile(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Editor, Role::Operator],
+        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
     )
     .await?;
 
@@ -1091,7 +1090,7 @@ async fn change_auth_password(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Editor, Role::Operator],
+        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
     )
     .await?;
 
@@ -1537,19 +1536,7 @@ fn parse_json_value_or_default(text: Option<String>, default: Value) -> Value {
 
 fn normalize_role(value: &str) -> Option<String> {
     let role = value.trim().to_lowercase();
-    if matches!(
-        role.as_str(),
-        "admin"
-            | "agent"
-            | "sales"
-            | "editor"
-            | "operator"
-            | "wa_admin"
-            | "wa-operator"
-            | "wa_operator"
-            | "waadmin"
-            | "waoperator"
-    ) {
+    if matches!(role.as_str(), "admin" | "agent" | "sales" | "operator") {
         Some(role.replace(" ", "_"))
     } else {
         None
@@ -1670,7 +1657,7 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("name wajib diisi".to_string());
     }
     if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin, agent, sales, editor, operator, wa_admin, wa_operator".to_string());
+        errors.push("role harus salah satu dari: admin, operator, sales, agent".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
@@ -1719,7 +1706,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         .as_ref()
         .is_some_and(|value| normalize_role(value).is_none())
     {
-        errors.push("role harus salah satu dari: admin, agent, sales, editor, operator, wa_admin, wa_operator".to_string());
+        errors.push("role harus salah satu dari: admin, operator, sales, agent".to_string());
     }
     if payload
         .password
@@ -2433,12 +2420,7 @@ async fn upload_admin_image(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let mut uploaded_url: Option<String> = None;
 
@@ -2534,18 +2516,22 @@ async fn list_wa_accounts(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
-    let rows = sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
-        "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at FROM wa_accounts ORDER BY created_at DESC",
-    )
-    .fetch_all(&state.pool)
-    .await
+    let rows = if user.role.eq_ignore_ascii_case("admin") {
+        sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
+            "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at FROM wa_accounts ORDER BY created_at DESC",
+        )
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
+            "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at FROM wa_accounts WHERE created_by = ? ORDER BY created_at DESC",
+        )
+        .bind(&user.id)
+        .fetch_all(&state.pool)
+        .await
+    }
     .map_err(|e| {
         tracing::error!("DB error fetching WA accounts: {}", e);
         AppError::Internal
@@ -2583,12 +2569,52 @@ async fn list_wa_accounts(
     Ok(json_ok("WA accounts fetched", json!({ "items": items })))
 }
 
+async fn ensure_wa_account_access(
+    state: &AppState,
+    user: &UserRecord,
+    account_id: &str,
+) -> Result<(), AppError> {
+    if user.role.eq_ignore_ascii_case("admin") {
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ?")
+            .bind(account_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA account access: {}", e);
+                AppError::Internal
+            })?;
+
+        return if exists > 0 {
+            Ok(())
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
+
+    let exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ? AND created_by = ?")
+            .bind(account_id)
+            .bind(&user.id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA account ownership: {}", e);
+                AppError::Internal
+            })?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 async fn create_wa_account(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<WaAccountCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let name = payload.name.trim();
     if name.is_empty() {
@@ -2631,7 +2657,8 @@ async fn update_wa_account(
     Path(id): Path<String>,
     Json(payload): Json<WaAccountUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_account_access(&state, &user, &id).await?;
 
     if let Some(name) = &payload.name {
         sqlx::query("UPDATE wa_accounts SET name = ? WHERE id = ?")
@@ -2668,7 +2695,8 @@ async fn delete_wa_account(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_account_access(&state, &user, &id).await?;
 
     sqlx::query("DELETE FROM wa_accounts WHERE id = ?")
         .bind(&id)
@@ -2683,18 +2711,22 @@ async fn list_wa_campaigns(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
-    let rows = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
-        "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id ORDER BY c.created_at DESC",
-    )
-    .fetch_all(&state.pool)
-    .await
+    let rows = if user.role.eq_ignore_ascii_case("admin") {
+        sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
+            "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id ORDER BY c.created_at DESC",
+        )
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
+            "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.created_by = ? GROUP BY c.id ORDER BY c.created_at DESC",
+        )
+        .bind(&user.id)
+        .fetch_all(&state.pool)
+        .await
+    }
     .map_err(|e| {
         tracing::error!("DB error fetching WA campaigns: {}", e);
         AppError::Internal
@@ -2734,12 +2766,96 @@ async fn list_wa_campaigns(
     Ok(json_ok("WA campaigns fetched", json!({ "items": items })))
 }
 
+async fn ensure_wa_campaign_access(
+    state: &AppState,
+    user: &UserRecord,
+    campaign_id: &str,
+) -> Result<(), AppError> {
+    if user.role.eq_ignore_ascii_case("admin") {
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_campaigns WHERE id = ?")
+            .bind(campaign_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA campaign access: {}", e);
+                AppError::Internal
+            })?;
+
+        return if exists > 0 {
+            Ok(())
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
+
+    let exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_campaigns WHERE id = ? AND created_by = ?")
+            .bind(campaign_id)
+            .bind(&user.id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA campaign ownership: {}", e);
+                AppError::Internal
+            })?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+async fn ensure_wa_recipient_access(
+    state: &AppState,
+    user: &UserRecord,
+    recipient_id: &str,
+) -> Result<(), AppError> {
+    if user.role.eq_ignore_ascii_case("admin") {
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_recipients WHERE id = ?")
+            .bind(recipient_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA recipient access: {}", e);
+                AppError::Internal
+            })?;
+
+        return if exists > 0 {
+            Ok(())
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
+
+    let exists: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM wa_recipients r
+         JOIN wa_campaigns c ON c.id = r.campaign_id
+         WHERE r.id = ? AND c.created_by = ?",
+    )
+    .bind(recipient_id)
+    .bind(&user.id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error checking WA recipient ownership: {}", e);
+        AppError::Internal
+    })?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 async fn create_wa_campaign(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<WaCampaignCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let name = payload.name.trim();
     if name.is_empty() {
@@ -2779,12 +2895,8 @@ async fn get_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
     let item = fetch_wa_campaign_summary(&state, &id).await?;
     Ok(json_ok("WA campaign fetched", json!({ "item": item })))
 }
@@ -2795,7 +2907,8 @@ async fn update_wa_campaign(
     Path(id): Path<String>,
     Json(payload): Json<WaCampaignUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     if let Some(name) = &payload.name {
         sqlx::query("UPDATE wa_campaigns SET name = ? WHERE id = ?")
@@ -2832,7 +2945,8 @@ async fn delete_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     sqlx::query("DELETE FROM wa_recipients WHERE campaign_id = ?")
         .bind(&id)
@@ -2855,12 +2969,8 @@ async fn add_wa_recipients(
     Path(id): Path<String>,
     Json(payload): Json<WaRecipientsPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     let campaign_config: Option<String> =
         sqlx::query_scalar("SELECT config FROM wa_campaigns WHERE id = ? LIMIT 1")
@@ -2957,12 +3067,7 @@ async fn download_recipients_template(
     State(state): State<AppState>,
 ) -> Result<axum::response::Response, AppError> {
     use axum::response::IntoResponse;
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Generate CSV template with BOM for Excel compatibility
     let bom = "\u{FEFF}";
@@ -2992,12 +3097,8 @@ async fn upload_wa_recipients_excel(
     Path(id): Path<String>,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // Verify campaign exists
     let campaign_exists: Option<(String,)> =
@@ -3442,12 +3543,8 @@ async fn start_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // 1. Validate campaign exists and is not already running
     let campaign_status: Option<(String,)> =
@@ -3486,12 +3583,16 @@ async fn start_wa_campaign(
     }
 
     // 3. Validate at least one WA account is enabled and connected
-    let mut account_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1 AND status = 'connected'",
-    )
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
+    let account_count_sql = if user.role.eq_ignore_ascii_case("admin") {
+        "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1 AND status = 'connected'"
+    } else {
+        "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1 AND status = 'connected' AND created_by = ?"
+    };
+    let mut count_query = sqlx::query_as::<_, (i64,)>(account_count_sql);
+    if !user.role.eq_ignore_ascii_case("admin") {
+        count_query = count_query.bind(&user.id);
+    }
+    let mut account_count: (i64,) = count_query.fetch_one(&state.pool).await.map_err(|e| {
         tracing::error!("DB error: {}", e);
         AppError::Internal
     })?;
@@ -3501,12 +3602,11 @@ async fn start_wa_campaign(
 
         let restore_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
         while tokio::time::Instant::now() < restore_deadline {
-            account_count = sqlx::query_as(
-                "SELECT COUNT(*) FROM wa_accounts WHERE enabled = 1 AND status = 'connected'",
-            )
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
+            let mut count_query = sqlx::query_as::<_, (i64,)>(account_count_sql);
+            if !user.role.eq_ignore_ascii_case("admin") {
+                count_query = count_query.bind(&user.id);
+            }
+            account_count = count_query.fetch_one(&state.pool).await.map_err(|e| {
                 tracing::error!("DB error: {}", e);
                 AppError::Internal
             })?;
@@ -3545,11 +3645,19 @@ async fn start_wa_campaign(
     // 5. Optionally enqueue to Redis for BlastEngine (if available)
     let mut enqueued: usize = 0;
     if let Some(qm) = &state.queue_manager {
-        let account_ids: Vec<(String,)> =
+        let account_ids: Vec<(String,)> = if user.role.eq_ignore_ascii_case("admin") {
             sqlx::query_as("SELECT id FROM wa_accounts WHERE enabled = 1 AND status = 'connected'")
                 .fetch_all(&state.pool)
                 .await
-                .unwrap_or_default();
+        } else {
+            sqlx::query_as(
+                "SELECT id FROM wa_accounts WHERE enabled = 1 AND status = 'connected' AND created_by = ?",
+            )
+            .bind(&user.id)
+            .fetch_all(&state.pool)
+            .await
+        }
+        .unwrap_or_default();
 
         let account_id_list: Vec<String> = account_ids.into_iter().map(|r| r.0).collect();
         if !account_id_list.is_empty() {
@@ -3589,12 +3697,8 @@ async fn pause_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     let current_status: Option<String> =
         sqlx::query_scalar("SELECT status FROM wa_campaigns WHERE id = ?")
@@ -3616,40 +3720,146 @@ async fn pause_wa_campaign(
         });
     }
 
+    // ATOMIC TRANSACTION: Update campaign status and mark pending recipients as paused
+    // This ensures that blast engine workers will skip all pending messages
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        AppError::Internal
+    })?;
+
+    // Update campaign status to 'paused'
     sqlx::query("UPDATE wa_campaigns SET status = 'paused' WHERE id = ?")
         .bind(&id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| {
-            tracing::error!("DB error pausing WA campaign: {}", e);
+            tracing::error!("DB error pausing WA campaign in transaction: {}", e);
             AppError::Internal
         })?;
 
-    let removed_from_queue = if let Some(qm) = &state.queue_manager {
-        qm.remove_campaign_messages(&id).await.unwrap_or_else(|e| {
-            tracing::warn!(
-                "Failed to remove queued messages for paused campaign {}: {}",
-                id,
-                e
-            );
-            0
-        })
-    } else {
-        0
-    };
+    // Mark all pending recipients as 'paused' to prevent any in-flight sends
+    // This is defensive - blast engine should skip based on campaign status,
+    // but marking recipients ensures double protection against race conditions
+    let paused_recipients: i64 = sqlx::query_scalar(
+        "UPDATE wa_recipients SET status = 'paused' WHERE campaign_id = ? AND status = 'pending' RETURNING COUNT(*)"
+    )
+    .bind(&id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error marking recipients as paused: {}", e);
+        AppError::Internal
+    })?
+    .unwrap_or(0);
+
+    // Commit transaction atomically
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit pause transaction: {}", e);
+        AppError::Internal
+    })?;
 
     tracing::info!(
-        "Campaign {} paused by {}. Removed {} queued messages",
+        "Campaign {} status updated to 'paused' by {}. Marked {} pending recipients as paused.",
         id,
         user.email,
-        removed_from_queue
+        paused_recipients
+    );
+
+    // NOW remove from Redis queues (after DB is committed)
+    let (queue_depth_before, removed_from_queue, queue_depth_after) = if let Some(qm) = &state.queue_manager {
+        // Get queue depth before removal (for verification)
+        let before = match qm.get_campaign_queue_depth(&id).await {
+            Ok(count) => {
+                tracing::info!(
+                    "Campaign {} has {} messages in Redis queue before removal",
+                    id, count
+                );
+                count
+            }
+            Err(e) => {
+                tracing::warn!("Failed to get queue depth before removal: {}", e);
+                0
+            }
+        };
+
+        // Remove messages from queue
+        let removed = match qm.remove_campaign_messages(&id).await {
+            Ok(count) => {
+                tracing::info!(
+                    "Successfully removed {} queued messages for campaign {} from Redis",
+                    count,
+                    id
+                );
+                count
+            }
+            Err(e) => {
+                tracing::error!(
+                    "CRITICAL: Failed to remove queued messages for paused campaign {}: {}",
+                    id,
+                    e
+                );
+                0
+            }
+        };
+
+        // Get queue depth after removal (for verification)
+        let after = match qm.get_campaign_queue_depth(&id).await {
+            Ok(count) => {
+                if count > 0 {
+                    tracing::warn!(
+                        "WARNING: Campaign {} still has {} messages in Redis queue after removal. \
+                         This may indicate a removal failure or race condition.",
+                        id, count
+                    );
+                } else {
+                    tracing::info!(
+                        "Campaign {} queue successfully cleared. All {} messages removed.",
+                        id, removed
+                    );
+                }
+                count
+            }
+            Err(e) => {
+                tracing::warn!("Failed to verify queue depth after removal: {}", e);
+                0
+            }
+        };
+
+        (before, removed, after)
+    } else {
+        tracing::warn!("Queue manager not available, cannot remove queued messages for campaign {}", id);
+        (0, 0, 0)
+    };
+
+    // Log comprehensive pause operation summary
+    tracing::info!(
+        "Campaign {} pause operation completed. Summary:\n\
+         - Requested by: {}\n\
+         - DB: {} pending recipients marked as 'paused'\n\
+         - Redis queue before: {} messages\n\
+         - Redis queue removed: {} messages\n\
+         - Redis queue after: {} messages\n\
+         - Status: {}",
+        id,
+        user.email,
+        paused_recipients,
+        queue_depth_before,
+        removed_from_queue,
+        queue_depth_after,
+        if queue_depth_after == 0 { "✅ CLEAN" } else { "⚠️ INCOMPLETE" }
     );
 
     Ok(json_ok(
         "Campaign paused",
         json!({
             "item": fetch_wa_campaign_summary(&state, &id).await?,
-            "removed_from_queue": removed_from_queue,
+            "pending_recipients_paused": paused_recipients,
+            "queue_metrics": {
+                "before": queue_depth_before,
+                "removed": removed_from_queue,
+                "after": queue_depth_after,
+                "clean": queue_depth_after == 0,
+            }
         }),
     ))
 }
@@ -3659,12 +3869,8 @@ async fn reset_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // Verify campaign exists
     let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
@@ -3717,12 +3923,8 @@ async fn get_wa_campaign_status(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
     let campaign = fetch_wa_campaign_summary(&state, &id).await?;
 
     let recipient_rows = sqlx::query_as::<_, (String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>(
@@ -3787,12 +3989,8 @@ async fn get_wa_campaign_metrics(
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
     // Authorize user with appropriate roles
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // Get complete campaign metrics response
     let metrics_response = crate::campaign_metrics::get_campaign_metrics_response(&state.pool, &id)
@@ -3836,6 +4034,65 @@ async fn get_wa_campaign_metrics(
             "hourlyMetrics": metrics_response.hourly_metrics,
         }),
     ))
+}
+
+async fn upload_campaign_image(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+
+    let mut uploaded_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Multipart error: {}", e);
+        AppError::Internal
+    })? {
+        if field.name().unwrap_or_default() != "file" {
+            continue;
+        }
+
+        let file_name_orig = field.file_name().unwrap_or("unknown").to_string();
+        tracing::info!("Receiving campaign image upload: {}", file_name_orig);
+
+        let data = field.bytes().await.map_err(|e| {
+            tracing::error!("Failed to get bytes for {}: {}", file_name_orig, e);
+            AppError::Internal
+        })?;
+
+        if data.is_empty() {
+            tracing::warn!("Received empty data for {}", file_name_orig);
+            continue;
+        }
+
+        // Validate file size (max 16MB for images)
+        const MAX_IMAGE_SIZE: usize = 16 * 1024 * 1024;
+        if data.len() > MAX_IMAGE_SIZE {
+            return Err(AppError::Validation {
+                errors: vec![format!(
+                    "Gambar terlalu besar: {}MB (maks 16MB)",
+                    data.len() / 1024 / 1024
+                )],
+            });
+        }
+
+        // Decode and validate image
+        tracing::info!("Loading and validating image from memory...");
+        let image = decode_uploaded_image(&data)?;
+
+        // Save as WebP
+        let url = save_image_as_webp(image, "campaign")?;
+        uploaded_url = Some(url);
+        break;
+    }
+
+    let url = uploaded_url.ok_or(AppError::Validation {
+        errors: vec!["File gambar wajib diunggah".to_string()],
+    })?;
+
+    tracing::info!("Campaign image successfully uploaded: {}", url);
+    Ok(json_ok("Campaign image uploaded", json!({ "url": url, "media_url": url })))
 }
 
 async fn fetch_wa_campaign_summary(
@@ -3900,12 +4157,8 @@ async fn add_wa_recipients_from_leads(
     Path(id): Path<String>,
     Json(payload): Json<AddRecipientsFromLeadsRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &id).await?;
 
     let mut inserted = 0;
     let mut skipped = 0;
@@ -3957,7 +4210,8 @@ async fn delete_wa_recipient(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_recipient_access(&state, &user, &id).await?;
 
     sqlx::query("DELETE FROM wa_recipients WHERE id = ?")
         .bind(&id)
@@ -3980,7 +4234,8 @@ async fn update_wa_recipient(
     Path(id): Path<String>,
     Json(payload): Json<WaRecipientUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::WaAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_recipient_access(&state, &user, &id).await?;
 
     if let Some(phone) = payload.phone {
         let phone_norm = normalize_phone(&phone).ok_or(AppError::Validation {
@@ -4505,9 +4760,10 @@ fn find_price_markup<'a>(
     let category_match = markups.iter().find(|rule| {
         rule.is_active == 1
             && rule.scope == "category"
-            && rule.target_value.as_deref().is_some_and(|target| {
-                normalize_markup_target(target).to_lowercase() == category
-            })
+            && rule
+                .target_value
+                .as_deref()
+                .is_some_and(|target| normalize_markup_target(target).to_lowercase() == category)
     });
     if category_match.is_some() {
         return category_match;
@@ -5245,7 +5501,7 @@ async fn list_catalogs_paginated(
     headers: HeaderMap,
     Query(params): Query<CatalogPaginatedQuery>,
 ) -> Result<ResponseBody, AppError> {
-    authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let page = params.page.unwrap_or(1).max(1);
     let limit = params.limit.unwrap_or(20).min(100);
@@ -5562,12 +5818,7 @@ async fn match_catalogs(
     headers: HeaderMap,
     Query(query): Query<CatalogMatchQuery>,
 ) -> Result<ResponseBody, AppError> {
-    authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     if query.names.len() > MAX_CATALOG_MATCH_QUERY_CHARS {
         return Err(AppError::Validation {
@@ -5705,12 +5956,7 @@ async fn list_price_markups(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let items = sqlx::query_as::<_, ProductPriceMarkupRecord>(
         "SELECT id, scope, target_value, markup_type, markup_value, is_active, created_at, updated_at \
@@ -5863,12 +6109,7 @@ async fn create_catalog(
     headers: HeaderMap,
     Json(payload): Json<CatalogCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_catalog_create(&payload)?;
 
     let name = payload.name.trim().to_string();
@@ -5977,12 +6218,7 @@ async fn update_catalog(
     Path(id): Path<String>,
     Json(payload): Json<CatalogUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_catalog_update(&payload)?;
 
     let current = find_catalog_by_id_or_slug(&state, &id).await?;
@@ -6108,12 +6344,7 @@ async fn bulk_products(
     headers: HeaderMap,
     Json(payload): Json<BulkCatalogRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     tracing::info!(
         "Starting bulk import for {} operations by {}",
         payload.operations.len(),
@@ -6214,19 +6445,22 @@ async fn bulk_products(
                 let stock = data.stock.as_deref().unwrap_or("available");
 
                 // Check if product with this ID already exists (upsert logic)
-                let existing_image: Option<String> = sqlx::query_scalar(
-                    "SELECT image FROM products WHERE id = ? LIMIT 1"
-                )
-                .bind(&id)
-                .fetch_optional(&mut *tx)
-                .await
-                .unwrap_or(None);
+                let existing_image: Option<String> =
+                    sqlx::query_scalar("SELECT image FROM products WHERE id = ? LIMIT 1")
+                        .bind(&id)
+                        .fetch_optional(&mut *tx)
+                        .await
+                        .unwrap_or(None);
 
                 if let Some(current_image) = existing_image {
                     // Product exists — update, preserving image if new one is placeholder
                     let final_image = {
                         let new_img = image.trim();
-                        if new_img.contains("placehold.co") || new_img.contains("/uploads/placeholders/") || new_img.is_empty() || new_img.contains("logo.webp") {
+                        if new_img.contains("placehold.co")
+                            || new_img.contains("/uploads/placeholders/")
+                            || new_img.is_empty()
+                            || new_img.contains("logo.webp")
+                        {
                             current_image
                         } else {
                             new_img.to_string()
@@ -6300,20 +6534,20 @@ async fn bulk_products(
                 .execute(&mut *tx)
                 .await;
 
-                match result {
-                    Ok(_) => success_count += 1,
-                    Err(e) => {
-                        let err_msg = e.to_string();
-                        tracing::error!(
-                            "Bulk Create Error at row {} | name='{}' | slug='{}' | error: {}",
-                            display_row,
-                            name,
-                            slug,
-                            err_msg
-                        );
-                        errors.push(format!("Baris {} ({}): {}", display_row, name, err_msg));
+                    match result {
+                        Ok(_) => success_count += 1,
+                        Err(e) => {
+                            let err_msg = e.to_string();
+                            tracing::error!(
+                                "Bulk Create Error at row {} | name='{}' | slug='{}' | error: {}",
+                                display_row,
+                                name,
+                                slug,
+                                err_msg
+                            );
+                            errors.push(format!("Baris {} ({}): {}", display_row, name, err_msg));
+                        }
                     }
-                }
                 } // end else (insert new)
             }
             BulkOperation::Update {
@@ -6480,7 +6714,7 @@ async fn create_promotion(
     headers: HeaderMap,
     Json(payload): Json<PromotionCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_promotion_create(&payload)?;
 
     let id = payload
@@ -6526,7 +6760,7 @@ async fn update_promotion(
     Path(id): Path<String>,
     Json(payload): Json<PromotionUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_promotion_update(&payload)?;
 
     let current = find_promotion_by_id(&state, &id).await?;
@@ -7174,7 +7408,12 @@ async fn generate_referral(
     headers: HeaderMap,
     Json(payload): Json<GenerateReferralRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+    )
+    .await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
     let owner_user_id = if is_admin {
         payload.owner_user_id.unwrap_or_else(|| user.id.clone())
@@ -7219,7 +7458,12 @@ async fn list_referrals(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+    )
+    .await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
     let rows = if is_admin {
         sqlx::query_as::<_, ReferralRecord>(
@@ -7251,7 +7495,12 @@ async fn get_referral(
     headers: HeaderMap,
     Path(slug): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+    )
+    .await?;
     let row = sqlx::query_as::<_, ReferralRecord>(
         "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE slug = ? LIMIT 1"
     )
@@ -7279,7 +7528,12 @@ async fn get_referral_stats(
     headers: HeaderMap,
     Path(slug): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+    )
+    .await?;
     let row = sqlx::query_as::<_, ReferralRecord>(
         "SELECT id, slug, owner_user_id, label, target_path, clicks, leads, is_active, created_at FROM referrals WHERE slug = ? LIMIT 1"
     )
@@ -7667,12 +7921,7 @@ async fn create_job(
     headers: HeaderMap,
     Json(payload): Json<JobCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_job_create(&payload)?;
 
     let id = payload
@@ -7730,12 +7979,7 @@ async fn update_job(
     Path(id): Path<String>,
     Json(payload): Json<JobUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_job_update(&payload)?;
 
     let current = sqlx::query_as::<_, JobRecord>(
@@ -7805,12 +8049,7 @@ async fn delete_job(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let result = sqlx::query("DELETE FROM job_listings WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -7849,7 +8088,7 @@ async fn create_article(
     headers: HeaderMap,
     Json(payload): Json<ArticleCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_article_create(&payload)?;
 
     let id = payload
@@ -7907,7 +8146,7 @@ async fn update_article(
     Path(id): Path<String>,
     Json(payload): Json<ArticleUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     validate_article_update(&payload)?;
 
     let current = sqlx::query_as::<_, ArticleRecord>(
@@ -7973,7 +8212,7 @@ async fn delete_article(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Editor]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let result = sqlx::query("DELETE FROM blog_posts WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -9726,12 +9965,7 @@ async fn list_job_applications(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let applications = sqlx::query_as::<_, JobApplicationRecord>(
         "SELECT id, job_id, job_title, full_name, email, phone, address, education, major, experience, cover_letter, linked_in, portfolio_url, status, applied_at FROM job_applications ORDER BY created_at DESC"
     )
@@ -9908,12 +10142,7 @@ async fn update_job_application_status(
     Path(id): Path<String>,
     Json(payload): Json<JobApplicationStatusUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::Editor, Role::Operator],
-    )
-    .await?;
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let next_status = payload.status.trim().to_lowercase();
     if !is_valid_job_application_status(&next_status) {
@@ -9970,13 +10199,7 @@ async fn list_blast_contacts(
     let user = authorize(
         &state,
         &headers,
-        &[
-            Role::Admin,
-            Role::WaAdmin,
-            Role::WaOperator,
-            Role::Sales,
-            Role::Agent,
-        ],
+        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
     )
     .await?;
 
@@ -10049,13 +10272,7 @@ async fn create_blast_contact(
     let user = authorize(
         &state,
         &headers,
-        &[
-            Role::Admin,
-            Role::WaAdmin,
-            Role::WaOperator,
-            Role::Sales,
-            Role::Agent,
-        ],
+        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
     )
     .await?;
 
@@ -10097,13 +10314,7 @@ async fn update_blast_contact(
     let user = authorize(
         &state,
         &headers,
-        &[
-            Role::Admin,
-            Role::WaAdmin,
-            Role::WaOperator,
-            Role::Sales,
-            Role::Agent,
-        ],
+        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
     )
     .await?;
 
@@ -10141,13 +10352,7 @@ async fn delete_blast_contact(
     let user = authorize(
         &state,
         &headers,
-        &[
-            Role::Admin,
-            Role::WaAdmin,
-            Role::WaOperator,
-            Role::Sales,
-            Role::Agent,
-        ],
+        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
     )
     .await?;
 
@@ -10173,13 +10378,7 @@ async fn upload_blast_contacts_excel(
     let user = authorize(
         &state,
         &headers,
-        &[
-            Role::Admin,
-            Role::WaAdmin,
-            Role::WaOperator,
-            Role::Sales,
-            Role::Agent,
-        ],
+        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
     )
     .await?;
 
@@ -10383,12 +10582,8 @@ async fn import_blast_contacts_to_campaign(
     Path(campaign_id): Path<String>,
     Json(payload): Json<ImportBlastContactsPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_wa_campaign_access(&state, &user, &campaign_id).await?;
 
     // Verify campaign exists
     let campaign_exists: Option<(String,)> =

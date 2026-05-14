@@ -17,7 +17,6 @@ const roleConfig: Record<string, { cls: string; label: string; icon: React.React
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
   agent:    { cls: 'bg-secondary/15 text-secondary', label: 'Agent',  icon: <Users className="w-3 h-3" /> },
   sales:    { cls: 'bg-tertiary/15 text-tertiary', label: 'Sales',   icon: <UserCog className="w-3 h-3" /> },
-  editor:   { cls: 'bg-primary/10 text-primary', label: 'Editor', icon: <Eye className="w-3 h-3" /> },
   operator: { cls: 'bg-tertiary/15 text-tertiary', label: 'Operator', icon: <UserCog className="w-3 h-3" /> },
 };
 
@@ -31,7 +30,7 @@ const permissions = [
   { role: 'Admin',    perms: ['Dashboard Overview', 'Kelola Agen', 'Kelola Katalog', 'Kelola Promo', 'Kelola Konten', 'Keuangan & Payout', 'User & Akses', 'Telemetri'] },
   { role: 'Agent',    perms: ['Command Center', 'Product Knowledge', 'Pipeline Prospek', 'Push Prospek', 'Referral & Link', 'Komisi & Earning'] },
   { role: 'Sales',    perms: ['Product Knowledge', 'Jadwal Pengiriman', 'Referral & Share Link'] },
-  { role: 'Operator', perms: ['Dashboard Overview', 'Kelola Katalog', 'Kelola Konten'] },
+  { role: 'Operator', perms: ['WA Blast', 'Akun WA pribadi', 'Kelola Katalog', 'Kelola Konten', 'Pixel Campaign'] },
 ];
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
@@ -169,7 +168,7 @@ const AdminUsersPage: React.FC = () => {
 
   const totalAdmin    = users.filter((u) => u.role.toLowerCase() === 'admin').length;
   const totalAgent    = users.filter((u) => u.role.toLowerCase() === 'agent').length;
-  const totalOperator = users.filter((u) => u.role.toLowerCase() === 'operator' || u.role.toLowerCase() === 'editor').length;
+  const totalOperator = users.filter((u) => u.role.toLowerCase() === 'operator').length;
   const totalSuspended = users.filter((u) => !u.is_active).length;
 
   if (isLoading) {
@@ -279,7 +278,7 @@ const AdminUsersPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="w-4 h-4 text-on-surface-variant" />
-            {['Semua', 'Admin', 'Agent', 'Sales', 'Editor', 'Operator'].map((r) => (
+            {['Semua', 'Admin', 'Operator', 'Sales', 'Agent'].map((r) => (
               <button key={r} type="button" onClick={() => setRoleFilter(r)}
                 className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${roleFilter === r ? 'bg-primary/20 text-primary' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
                 {r}

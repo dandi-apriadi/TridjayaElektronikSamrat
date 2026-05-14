@@ -102,7 +102,7 @@ const AdminSalesPage: React.FC = () => {
     toast.success('Link Referral Disalin', 'Siap dibagikan ke customer.');
   };
 
-  const salesUsers = users.filter(u => ['sales', 'kepala_cabang', 'supervisor', 'koordinator'].includes(u.role.toLowerCase()));
+  const salesUsers = users.filter(u => u.role.toLowerCase() === 'sales');
 
   const filtered = salesUsers.filter((u) => {
     const matchSearch = `${u.name} ${u.email} ${u.referral_slug || ''}`.toLowerCase().includes(search.toLowerCase());

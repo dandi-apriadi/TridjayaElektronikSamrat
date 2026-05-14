@@ -456,6 +456,36 @@ impl RedisManager {
         Ok(depth)
     }
 
+    /// Get queue depth for a specific campaign across all queues and priorities
+    /// Used for verification after pause operations
+    pub async fn get_campaign_queue_depth(&mut self, campaign_id: &str) -> RedisResult<usize> {
+        let mut keys = vec![self.retry_queue_key()];
+
+        for priority in [Priority::High, Priority::Normal, Priority::Low] {
+            keys.push(self.global_queue_key(priority));
+            let pattern = format!("wa:queue:*:{}", priority.queue_suffix());
+            let account_keys: Vec<String> = self.conn().keys(&pattern).await.unwrap_or_default();
+            keys.extend(account_keys);
+        }
+
+        keys.sort();
+        keys.dedup();
+
+        let mut count = 0_usize;
+        for key in keys {
+            let messages: Vec<String> = self.conn().zrange(&key, 0, -1).await.unwrap_or_default();
+            for message_json in messages {
+                if let Ok(message) = serde_json::from_str::<QueueMessage>(&message_json) {
+                    if message.campaign_id == campaign_id {
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        Ok(count)
+    }
+
     /// Get comprehensive queue metrics
     ///
     /// **Validates: Requirements 2.7, 2.8**

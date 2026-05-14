@@ -10,7 +10,10 @@ pub mod sessions;
 pub mod templates;
 pub mod webhooks;
 
-use crate::response::AppError;
+use crate::{
+    response::AppError,
+    state::{AppState, UserRecord},
+};
 
 pub fn generate_id() -> String {
     uuid::Uuid::new_v4().to_string()
@@ -34,4 +37,48 @@ pub fn normalize_phone(phone: &str) -> Result<String, AppError> {
     };
 
     Ok(normalized)
+}
+
+pub fn is_admin(user: &UserRecord) -> bool {
+    user.role.eq_ignore_ascii_case("admin")
+}
+
+pub async fn ensure_session_access(
+    state: &AppState,
+    user: &UserRecord,
+    session_id: &str,
+) -> Result<(), AppError> {
+    if is_admin(user) {
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ?")
+            .bind(session_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA session access: {}", e);
+                AppError::Internal
+            })?;
+
+        return if exists > 0 {
+            Ok(())
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
+
+    let exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ? AND created_by = ?")
+            .bind(session_id)
+            .bind(&user.id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking WA session ownership: {}", e);
+                AppError::Internal
+            })?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
 }

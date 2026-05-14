@@ -160,27 +160,37 @@ export function getImageUrl(path: string | undefined | null): string {
 
   const placeholderAssetMap: Record<string, string> = {
     'default': '/assets/images/logo.webp',
-    'tv': '/assets/images/tv.webp',
-    'mesin_cuci': '/assets/images/polytron-washer.webp',
-    'ac': '/assets/images/sharp-ac.webp',
-    'sepeda_listrik': '/assets/images/hero-bike.webp',
-    'kursi': '/assets/images/sofa.webp',
-    'kulkas': '/assets/images/fridge.webp',
-    'sofa': '/assets/images/sofa.webp',
-    'kompor': '/assets/images/fridge.webp',
-    'speaker': '/assets/images/tv.webp',
-    'handphone': '/assets/images/genio-x2.webp',
-    'kasur': '/assets/images/sofa.webp',
-    'magic_com': '/assets/images/fridge.webp',
-    'kipas_angin': '/assets/images/tv.webp',
-    'dispenser': '/assets/images/fridge.webp',
-    'blender': '/assets/images/fridge.webp',
-    'oven': '/assets/images/fridge.webp',
+    'tv': '/assets/images/defaults/default-tv.webp',
+    'mesin_cuci': '/assets/images/defaults/default-mesin-cuci.webp',
+    'ac': '/assets/images/defaults/default-ac.webp',
+    'sepeda_listrik': '/assets/images/defaults/default-sepeda-listrik.webp',
+    'kursi': '/assets/images/defaults/default-kursi.webp',
+    'kulkas': '/assets/images/defaults/default-kulkas.webp',
+    'sofa': '/assets/images/defaults/default-sofa.webp',
+    'kompor': '/assets/images/defaults/default-kompor.webp',
+    'speaker': '/assets/images/defaults/default-speaker.webp',
+    'handphone': '/assets/images/defaults/default-handphone.webp',
+    'kasur': '/assets/images/defaults/default-kasur.webp',
+    'magic_com': '/assets/images/defaults/default-magicom.webp',
+    'kipas_angin': '/assets/images/defaults/default-kipas.webp',
+    'dispenser': '/assets/images/defaults/default-dispenser.webp',
+    'blender': '/assets/images/defaults/default-blender.webp',
+    'oven': '/assets/images/defaults/default-oven.webp',
   };
+
+  // Modern defaults matching
+  if (path.includes('default-') && path.endsWith('.webp')) {
+    return path;
+  }
 
   const placeholderMatch = path.match(/\/uploads\/placeholders\/([^/.]+)\.(?:png|jpg|jpeg|webp)$/i);
   if (placeholderMatch) {
-    return placeholderAssetMap[placeholderMatch[1].toLowerCase()] ?? placeholderAssetMap.default;
+    const legacyKey = placeholderMatch[1].toLowerCase();
+    if (placeholderAssetMap[legacyKey]) {
+      return placeholderAssetMap[legacyKey];
+    }
+    const slug = legacyKey.replace(/_/g, '-');
+    return `/assets/images/defaults/default-${slug}.webp`;
   }
   
   // Handle local Vite assets in development

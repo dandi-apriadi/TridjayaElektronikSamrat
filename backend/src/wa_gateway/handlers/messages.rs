@@ -5,10 +5,12 @@
  */
 use axum::{
     extract::{Multipart, Path, Query, State},
+    http::HeaderMap,
     Json,
 };
 use chrono::Utc;
 
+use crate::auth::{authorize, Role};
 use crate::bridge::BridgeClient;
 use crate::response::{json_ok, AppError, ResponseBody};
 use crate::state::AppState;
@@ -17,13 +19,16 @@ use super::super::models::{
     ListQueryParams, PaginatedResponse, PaginationInfo, SendMessageRequest, SendMessageResponse,
     SendTemplateRequest,
 };
-use super::{generate_id, normalize_phone};
+use super::{ensure_session_access, generate_id, is_admin, normalize_phone};
 
 /// Send a single message
 pub async fn send_message(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<SendMessageRequest>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_session_access(&state, &user, &req.session_id).await?;
     let phone = normalize_phone(&req.to)?;
 
     // Validate session
@@ -133,8 +138,12 @@ pub async fn send_message(
 /// Send using template
 pub async fn send_template(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<SendTemplateRequest>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_session_access(&state, &user, &req.session_id).await?;
+
     // Get template
     let template: Option<(String, Option<String>)> = sqlx::query_as(
         "SELECT content, variables FROM wa_templates WHERE id = ? AND is_active = 1",
@@ -173,14 +182,16 @@ pub async fn send_template(
         scheduled_at: None,
     };
 
-    send_message(State(state), Json(send_req)).await
+    send_message(State(state), headers, Json(send_req)).await
 }
 
 /// Send media with upload
 pub async fn send_media(
     State(state): State<AppState>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let mut session_id = None;
     let mut to = None;
     let mut caption = None;
@@ -230,6 +241,7 @@ pub async fn send_media(
     let session_id = session_id.ok_or_else(|| AppError::Validation {
         errors: vec!["session_id required".to_string()],
     })?;
+    ensure_session_access(&state, &user, &session_id).await?;
     let to = to.ok_or_else(|| AppError::Validation {
         errors: vec!["to required".to_string()],
     })?;
@@ -291,11 +303,21 @@ pub async fn send_media(
 /// Bulk send
 pub async fn bulk_send(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(reqs): Json<Vec<SendMessageRequest>>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let mut results = Vec::new();
 
     for req in reqs {
+        if let Err(e) = ensure_session_access(&state, &user, &req.session_id).await {
+            results.push(serde_json::json!({
+                "status": "failed",
+                "error": e.to_string()
+            }));
+            continue;
+        }
+
         let phone = match normalize_phone(&req.to) {
             Ok(p) => p,
             Err(e) => {
@@ -346,24 +368,51 @@ pub async fn bulk_send(
 /// List message history
 pub async fn list_messages(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(params): Query<ListQueryParams>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).min(100);
     let offset = (page - 1) * per_page;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_messages")
+    let total: i64 = if is_admin(&user) {
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_messages")
+            .fetch_one(&state.pool)
+            .await
+    } else {
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM wa_messages m JOIN wa_accounts a ON a.id = m.session_id WHERE a.created_by = ?",
+        )
+        .bind(&user.id)
         .fetch_one(&state.pool)
         .await
-        .unwrap_or(0);
+    }
+    .unwrap_or(0);
 
-    let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, sent_at, delivered_at, read_at, created_at FROM wa_messages ORDER BY created_at DESC LIMIT ? OFFSET ?"
-    )
-    .bind(per_page)
-    .bind(offset)
-    .fetch_all(&state.pool)
-    .await
+    let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String)> = if is_admin(&user) {
+        sqlx::query_as(
+            "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, sent_at, delivered_at, read_at, created_at FROM wa_messages ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as(
+            "SELECT m.id, m.session_id, m.contact_id, m.direction, m.message_type, m.content, m.media_url, m.status, m.sent_at, m.delivered_at, m.read_at, m.created_at
+             FROM wa_messages m
+             JOIN wa_accounts a ON a.id = m.session_id
+             WHERE a.created_by = ?
+             ORDER BY m.created_at DESC
+             LIMIT ? OFFSET ?"
+        )
+        .bind(&user.id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await
+    }
     .map_err(|e| {
         tracing::error!("DB error: {}", e);
         AppError::Internal
@@ -397,14 +446,29 @@ pub async fn list_messages(
 /// Get single message
 pub async fn get_message(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let row: Option<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, sent_at, delivered_at, read_at, created_at FROM wa_messages WHERE id = ?"
-    )
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let row: Option<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String)> = if is_admin(&user) {
+        sqlx::query_as(
+            "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, sent_at, delivered_at, read_at, created_at FROM wa_messages WHERE id = ?"
+        )
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+    } else {
+        sqlx::query_as(
+            "SELECT m.id, m.session_id, m.contact_id, m.direction, m.message_type, m.content, m.media_url, m.status, m.sent_at, m.delivered_at, m.read_at, m.created_at
+             FROM wa_messages m
+             JOIN wa_accounts a ON a.id = m.session_id
+             WHERE m.id = ? AND a.created_by = ?"
+        )
+        .bind(&id)
+        .bind(&user.id)
+        .fetch_optional(&state.pool)
+        .await
+    }
     .map_err(|e| {
         tracing::error!("DB error: {}", e);
         AppError::Internal
@@ -424,14 +488,28 @@ pub async fn get_message(
 /// Retry failed message
 pub async fn retry_message(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let result = sqlx::query(
-        "UPDATE wa_message_queue SET status = 'queued', retry_count = retry_count + 1 WHERE id = ?",
-    )
-    .bind(&id)
-    .execute(&state.pool)
-    .await
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let result = if is_admin(&user) {
+        sqlx::query(
+            "UPDATE wa_message_queue SET status = 'queued', retry_count = retry_count + 1 WHERE id = ?",
+        )
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+    } else {
+        sqlx::query(
+            "UPDATE wa_message_queue
+             SET status = 'queued', retry_count = retry_count + 1
+             WHERE id = ? AND session_id IN (SELECT id FROM wa_accounts WHERE created_by = ?)",
+        )
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.pool)
+        .await
+    }
     .map_err(|e| {
         tracing::error!("DB error: {}", e);
         AppError::Internal

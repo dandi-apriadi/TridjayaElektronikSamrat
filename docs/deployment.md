@@ -97,6 +97,9 @@ Minimal monitor:
 - Endpoint auth (`/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`) sekarang mengelola `refresh_token` via cookie `HttpOnly`.
 - Frontend auth request harus mengaktifkan `credentials: 'include'` agar cookie ikut terkirim.
 - Untuk environment HTTPS production, aktifkan `COOKIE_SECURE=true` supaya cookie dikirim dengan atribut `Secure` dan `SameSite=None`.
+- Set `APP_ENV=production`, `ALLOWED_ORIGINS`, `PIXEL_ENCRYPTION_KEY`, `REDIS_PASSWORD`, dan `TRUST_PROXY_HEADERS=true` di `.env` server sebelum menjalankan Docker Compose.
+- Database SQLite production disimpan di volume `backend_data` pada `/app/data/tridjaya.db`; uploads dan session WhatsApp memakai volume terpisah agar tidak hilang saat container restart.
+- Jadwalkan backup harian database dengan `scripts/backup_sqlite.sh`, contoh crontab: `0 3 * * * PROJECT_NAME=tridjaya-manado BACKUP_DIR=/backups/tridjaya /path/to/repo/scripts/backup_sqlite.sh`.
 - Arus lama berbasis bearer token tetap dipertahankan untuk kompatibilitas bertahap.
 
 ### 9.3 Operational QA Cadence

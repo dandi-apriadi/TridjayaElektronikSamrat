@@ -3,39 +3,101 @@
  */
 use axum::{
     extract::{Path, Query, State},
+    http::HeaderMap,
     response::IntoResponse,
     Json,
 };
 use chrono::Utc;
 
+use crate::auth::{authorize, Role};
 use crate::response::{json_created, json_ok, AppError, ResponseBody};
 use crate::state::AppState;
 
 use super::super::models::{
     ContactResponse, CreateContactRequest, ListQueryParams, PaginatedResponse, PaginationInfo,
 };
-use super::{generate_id, normalize_phone};
+use super::{generate_id, is_admin, normalize_phone};
+
+async fn ensure_contact_access(
+    state: &AppState,
+    user_id: &str,
+    contact_id: &str,
+) -> Result<(), AppError> {
+    let exists: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM wa_contacts c
+         JOIN wa_messages m ON m.contact_id = c.id
+         JOIN wa_accounts a ON a.id = m.session_id
+         WHERE c.id = ? AND a.created_by = ?",
+    )
+    .bind(contact_id)
+    .bind(user_id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error checking contact ownership: {}", e);
+        AppError::Internal
+    })?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
 
 pub async fn list_contacts(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(params): Query<ListQueryParams>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).min(100);
     let offset = (page - 1) * per_page;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_contacts")
+    let total: i64 = if is_admin(&user) {
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_contacts")
+            .fetch_one(&state.pool)
+            .await
+    } else {
+        sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT c.id)
+             FROM wa_contacts c
+             JOIN wa_messages m ON m.contact_id = c.id
+             JOIN wa_accounts a ON a.id = m.session_id
+             WHERE a.created_by = ?",
+        )
+        .bind(&user.id)
         .fetch_one(&state.pool)
         .await
-        .unwrap_or(0);
+    }
+    .unwrap_or(0);
 
-    let rows: Vec<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<bool>, Option<bool>, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, phone, name, profile_pic_url, about, labels, is_blocked, is_group, last_chat_at, created_at FROM wa_contacts ORDER BY updated_at DESC LIMIT ? OFFSET ?"
-    )
-    .bind(per_page)
-    .bind(offset)
-    .fetch_all(&state.pool)
-    .await
+    let rows: Vec<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<bool>, Option<bool>, Option<String>, String)> = if is_admin(&user) {
+        sqlx::query_as(
+            "SELECT id, phone, name, profile_pic_url, about, labels, is_blocked, is_group, last_chat_at, created_at FROM wa_contacts ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as(
+            "SELECT DISTINCT c.id, c.phone, c.name, c.profile_pic_url, c.about, c.labels, c.is_blocked, c.is_group, c.last_chat_at, c.created_at
+             FROM wa_contacts c
+             JOIN wa_messages m ON m.contact_id = c.id
+             JOIN wa_accounts a ON a.id = m.session_id
+             WHERE a.created_by = ?
+             ORDER BY c.updated_at DESC
+             LIMIT ? OFFSET ?"
+        )
+        .bind(&user.id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await
+    }
     .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
 
     let contacts: Vec<ContactResponse> = rows
@@ -73,8 +135,14 @@ pub async fn list_contacts(
 
 pub async fn get_contact(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    if !is_admin(&user) {
+        ensure_contact_access(&state, &user.id, &id).await?;
+    }
+
     let row: Option<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<bool>, Option<bool>, Option<String>, String)> = sqlx::query_as(
         "SELECT id, phone, name, profile_pic_url, about, labels, is_blocked, is_group, last_chat_at, created_at FROM wa_contacts WHERE id = ?"
     )
@@ -106,8 +174,10 @@ pub async fn get_contact(
 
 pub async fn create_contact(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<CreateContactRequest>,
 ) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let id = generate_id();
     let phone = normalize_phone(&req.phone)?;
     let now = Utc::now().naive_utc();
@@ -133,9 +203,15 @@ pub async fn create_contact(
 
 pub async fn update_contact(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<CreateContactRequest>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    if !is_admin(&user) {
+        ensure_contact_access(&state, &user.id, &id).await?;
+    }
+
     let phone = normalize_phone(&req.phone)?;
 
     sqlx::query(
@@ -158,8 +234,14 @@ pub async fn update_contact(
 
 pub async fn delete_contact(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    if !is_admin(&user) {
+        ensure_contact_access(&state, &user.id, &id).await?;
+    }
+
     sqlx::query("DELETE FROM wa_contacts WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -172,7 +254,12 @@ pub async fn delete_contact(
     Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }
 
-pub async fn sync_contacts(State(_state): State<AppState>) -> Result<ResponseBody, AppError> {
+pub async fn sync_contacts(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    // Sync implementation is account-aware in the bridge layer; keep this route authenticated.
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     Ok(json_ok(
         "Sync started",
         serde_json::json!({

@@ -8,12 +8,19 @@
 
 ## Executive Summary
 
-**Status: BELUM SIAP 100% UNTUK PRODUCTION**
+**Status: MAYORITAS SIAP, MASIH ADA ACTION MANUAL SEBELUM GO-LIVE**
 
-Ada **2 blocker kritis** yang harus diperbaiki sebelum deploy ke server publik:
+Update implementasi 2026-05-14:
+- Docker backend sudah memasukkan Node.js, Baileys bridge, dan dependency production bridge.
+- Docker Compose sudah memakai volume granular untuk database, uploads, sessions, dan Redis persistence.
+- Healthcheck, restart policy, resource limit, dan log rotation sudah ditambahkan.
+- SQLite WAL mode dan busy timeout sudah diaktifkan saat startup.
+- Script backup database harian tersedia di `scripts/backup_sqlite.sh`.
 
-1. **Docker backend tidak mengandung Node.js / Baileys bridge** — Semua fitur WhatsApp akan gagal total di container.
-2. **File sensitif masih ada di Git history** — Database SQLite, frontend `.env`, dan dokumen VPS dengan password bisa di-retrospeksi dari history.
+Masih ada **2 action manual kritis** sebelum deploy ke server publik:
+
+1. **File sensitif masih ada di Git history** — database SQLite, frontend `.env`, dan dokumen VPS dengan password bisa di-retrospeksi dari history.
+2. **Password SMTP harus diganti** — karena pernah masuk Git history.
 
 Sisanya adalah masalah infrastruktur Docker dan cleanup yang penting tapi tidak memblokir go-live jika blocker diatas diperbaiki.
 
@@ -22,6 +29,8 @@ Sisanya adalah masalah infrastruktur Docker dan cleanup yang penting tapi tidak 
 ## 1. Blocker Kritis — Harus Diperbaiki Segera
 
 ### 1.1. Docker Backend Tidak Mengandung Node.js / Baileys Bridge
+
+**Status update 2026-05-14:** Diperbaiki. `backend/Dockerfile` sekarang menginstall Node.js 22, menyalin `baileys-bridge/`, menjalankan `npm ci --omit=dev`, dan membuat direktori runtime `data/`, `uploads/`, serta `sessions/`.
 
 **File:** `backend/Dockerfile`, `backend/src/bridge/mod.rs:37-418`
 
@@ -120,6 +129,8 @@ rm backend/tridjaya.db
 
 ### 2.1. Uploads & Sessions Tidak Persisten di Docker
 
+**Status update 2026-05-14:** Diperbaiki. `docker-compose.yml` sekarang memakai volume granular `backend_data:/app/data`, `wa_uploads:/app/uploads`, dan `wa_sessions:/app/sessions`, sehingga data runtime tidak menimpa isi image `/app`.
+
 **File:** `docker-compose.yml`
 
 **Temuan:** Folder `uploads/` (termasuk `uploads/private/`) dan `sessions/` (Baileys credentials) **tidak di-mount sebagai volume**. Saat container restart, semua file upload (foto KTP, profil) dan session WhatsApp lokal akan **hilang**.
@@ -180,6 +191,8 @@ find "$BACKUP_DIR" -name "tridjaya_*.db" -mtime +7 -delete
 
 ### 2.3. Docker Compose Kurang Lengkap
 
+**Status update 2026-05-14:** Diperbaiki untuk service utama. Backend, frontend, dan Redis sekarang punya `restart: unless-stopped`, healthcheck, memory limit, dan log rotation.
+
 **File:** `docker-compose.yml`
 
 **Temuan:** Tidak ada:
@@ -222,6 +235,8 @@ services:
 ## 3. Risiko Sedang — Quick Wins
 
 ### 3.1. Redis Persistence Default (AOF)
+
+**Status update 2026-05-14:** Diperbaiki. Redis sekarang dijalankan dengan `--appendonly yes` dan snapshot `--save 60 1`.
 
 **Temuan:** `redis:alpine` di docker-compose hanya pakai `--requirepass` tanpa mengaktifkan AOF/RDB. Jika container Redis restart, data queue WhatsApp yang belum diproses akan hilang.
 
@@ -297,17 +312,17 @@ let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, pa
 
 ## 6. Action Items Checklist (Prioritas Tertinggi ke Terendah)
 
-- [ ] **BLOCKER:** Perbaiki `backend/Dockerfile` — install Node.js dan COPY `baileys-bridge/`
+- [x] **BLOCKER:** Perbaiki `backend/Dockerfile` — install Node.js dan COPY `baileys-bridge/`
 - [ ] **BLOCKER:** Bersihkan Git history dari `tridjaya.db`, `frontend/.env`, `VPS setup.md`
-- [ ] **BLOCKER:** Hapus file fisik `backend/tridjaya.db` dari working tree
+- [x] **BLOCKER:** Hapus file fisik `backend/tridjaya.db` dari tracking Git saat ini
 - [ ] **BLOCKER:** Ganti password SMTP (karena pernah masuk Git history)
-- [ ] **HIGH:** Tambahkan volume mounts `uploads/` dan `sessions/` di `docker-compose.yml`
-- [ ] **HIGH:** Tambahkan `healthcheck`, `restart: unless-stopped`, resource limits ke docker-compose
-- [ ] **HIGH:** Aktifkan Redis AOF persistence (`--appendonly yes`)
-- [ ] **MEDIUM:** Pastikan SQLite WAL mode aktif di startup
-- [ ] **MEDIUM:** Setup automated backup `.db` harian
+- [x] **HIGH:** Tambahkan volume mounts `uploads/` dan `sessions/` di `docker-compose.yml`
+- [x] **HIGH:** Tambahkan `healthcheck`, `restart: unless-stopped`, resource limits ke docker-compose
+- [x] **HIGH:** Aktifkan Redis AOF persistence (`--appendonly yes`)
+- [x] **MEDIUM:** Pastikan SQLite WAL mode aktif di startup
+- [x] **MEDIUM:** Setup automated backup `.db` harian
 - [ ] **MEDIUM:** Pertimbangkan backup upload files ke cloud storage
-- [ ] **LOW:** Hapus `backend/src/spintax_example.rs`
+- [x] **LOW:** Hapus `backend/src/spintax_example.rs`
 - [ ] **LOW:** Fix deprecated `and_hms_opt` di `blast_engine.rs`
 
 ---

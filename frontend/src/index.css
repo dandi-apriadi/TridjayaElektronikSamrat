@@ -541,6 +541,68 @@ body.light-mode .glass-card {
   will-change: transform;
 }
 
+.input-field {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(var(--color-outline-variant) / 0.32);
+  background: rgb(var(--color-surface-high) / 0.5);
+  color: rgb(var(--color-on-surface));
+  padding: 0.62rem 0.78rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.input-field::placeholder {
+  color: rgb(var(--color-on-surface-variant) / 0.72);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: rgb(var(--color-primary) / 0.55);
+  box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.14);
+  background: rgb(var(--color-surface-high) / 0.65);
+}
+
+.input-field option {
+  background: rgb(var(--color-surface-low));
+  color: rgb(var(--color-on-surface));
+}
+
+body.light-mode .input-field {
+  background: rgb(var(--color-surface-low));
+  border-color: rgb(var(--color-outline-variant) / 0.85);
+}
+
+body.light-mode .input-field:focus {
+  background: rgb(var(--color-surface));
+}
+
+.btn-primary {
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-primary-dim)) 100%);
+  color: rgb(var(--color-on-primary));
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 0.68rem 0.95rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px -10px rgb(var(--color-primary) / 0.85);
+}
+
+.btn-primary:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .glass-dark {
   background: rgb(var(--color-surface-container) / 0.4);
   backdrop-filter: blur(16px);

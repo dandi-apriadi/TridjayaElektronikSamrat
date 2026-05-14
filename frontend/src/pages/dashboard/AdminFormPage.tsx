@@ -71,7 +71,7 @@ const AdminFormPage: React.FC = () => {
   const [subcategory, setSubcategory] = useState('');
 
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'admin' | 'agent' | 'sales' | 'editor' | 'operator'>('sales');
+  const [role, setRole] = useState<'admin' | 'operator' | 'sales' | 'agent'>('sales');
   const [jabatan, setJabatan] = useState<'sales' | 'kepala_cabang' | 'supervisor' | 'koordinator'>('sales');
   const [password, setPassword] = useState('');
   const [avatar, setAvatar] = useState('');
@@ -761,10 +761,9 @@ const AdminFormPage: React.FC = () => {
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
                 >
                   <option value="admin">Admin</option>
-                  <option value="agent">Agent</option>
-                  <option value="sales">Sales</option>
-                  <option value="editor">Editor</option>
                   <option value="operator">Operator</option>
+                  <option value="sales">Sales</option>
+                  <option value="agent">Agent</option>
                 </select>
                 <p className="text-label-xs text-on-surface-variant">Menentukan dashboard dan fitur yang bisa diakses.</p>
               </div>

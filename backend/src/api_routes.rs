@@ -402,7 +402,10 @@ async fn execute_bomber(
         })?;
 
     let is_admin = user
-        .map(|(role,)| role.to_lowercase() == "admin" || role.to_lowercase() == "wa_admin")
+        .map(|(role,)| {
+            let normalized = role.to_lowercase();
+            normalized == "admin" || normalized == "operator"
+        })
         .unwrap_or(false);
 
     // Get Redis connection for bomber engine

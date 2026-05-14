@@ -1,6 +1,6 @@
 const API_BASE_URL = (process.env.SMOKE_API_BASE_URL || 'http://localhost:8081').replace(/\/$/, '');
-const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL || 'admin@tridjaya.com';
-const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || 'Admin123!';
+const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL || 'admin@gmail.com';
+const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || '123';
 const STRICT = process.argv.includes('--strict');
 
 const PASS = 'PASS';

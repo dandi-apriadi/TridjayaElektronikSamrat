@@ -108,23 +108,6 @@ const DashboardLayout: React.FC = () => {
 
   const activeItemPath = location.pathname;
 
-  const superAdminSections = React.useMemo(() => [
-    {
-      title: 'Pixel Management',
-      items: [
-        { label: 'Pixels Overview', icon: LayoutDashboard, path: '/dashboard/super-admin' },
-        { label: 'Manage Pixels', icon: BarChart3, path: '/dashboard/super-admin/pixels' },
-        { label: 'Audit Logs', icon: FileText, path: '/dashboard/super-admin/audit-logs' },
-      ]
-    },
-    {
-      title: 'Analytics',
-      items: [
-        { label: 'Platform Analytics', icon: TrendingUp, path: '/dashboard/super-admin/analytics' },
-      ]
-    }
-  ], []);
-
   const adminSections = React.useMemo(() => [
     {
       title: 'Utama',
@@ -226,22 +209,52 @@ const DashboardLayout: React.FC = () => {
     }
   ], []);
 
-  const navSections = user?.role === 'super_admin' ? superAdminSections : user?.role === 'admin' ? adminSections : user?.role === 'sales' ? salesSections : agentSections;
+  const operatorSections = React.useMemo(() => [
+    {
+      title: 'Katalog & Konten',
+      items: [
+        { label: 'Katalog Produk', icon: Package, path: '/dashboard/admin/catalog' },
+        { label: 'Kategori Produk', icon: BookOpen, path: '/dashboard/admin/categories' },
+        { label: 'Promo & Campaign', icon: Ticket, path: '/dashboard/admin/promo' },
+        { label: 'Konten & Blog', icon: FileText, path: '/dashboard/admin/content' },
+        { label: 'Landing Slides', icon: Images, path: '/dashboard/admin/content/landing-slides' },
+        { label: 'Partner Brand', icon: Handshake, path: '/dashboard/admin/partners' },
+      ]
+    },
+    {
+      title: 'WhatsApp Blast',
+      items: [
+        { label: 'Campaigns', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns' },
+        { label: 'Akun WA', icon: Shield, path: '/dashboard/admin/wa/accounts' },
+        { label: 'Kontak Blast', icon: Users, path: '/dashboard/admin/wa/blast-contacts' },
+      ]
+    },
+    {
+      title: 'Pixel Campaign',
+      items: [
+        { label: 'Campaigns', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns' },
+        { label: 'Pixel Analytics', icon: TrendingUp, path: '/dashboard/admin/pixel-analytics' },
+        { label: 'Pixel Tester', icon: FlaskConical, path: '/dashboard/admin/pixel-tester' },
+      ]
+    },
+  ], []);
+
+  const navSections = user?.role === 'admin' ? adminSections
+    : user?.role === 'operator' ? operatorSections
+    : user?.role === 'sales' ? salesSections
+    : agentSections;
 
   const toggleSectionHandler = (title: string) => {
     toggleSection(title);
   };
 
-  const quickActions = user?.role === 'super_admin'
-    ? [
-        { label: 'Pixels', icon: BarChart3, path: '/dashboard/super-admin/pixels', color: 'text-primary' },
-        { label: 'Analytics', icon: TrendingUp, path: '/dashboard/super-admin/analytics', color: 'text-secondary' },
-      ]
-    : user?.role === 'admin'
+  const quickActions = (user?.role === 'admin' || user?.role === 'operator')
     ? [
         { label: 'Produk', icon: Package, path: '/dashboard/admin/catalog', color: 'text-primary' },
-        { label: 'Agen', icon: UserCheck, path: '/dashboard/admin/agents', color: 'text-secondary' },
-        { label: 'Finance', icon: Wallet, path: '/dashboard/admin/finance', color: 'text-tertiary' },
+        ...(user?.role === 'admin' ? [{ label: 'Agen', icon: UserCheck, path: '/dashboard/admin/agents', color: 'text-secondary' }] : []),
+        ...(user?.role === 'admin' ? [{ label: 'Finance', icon: Wallet, path: '/dashboard/admin/finance', color: 'text-tertiary' }] : []),
+        ...(user?.role === 'operator' ? [{ label: 'WA Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns', color: 'text-secondary' }] : []),
+        ...(user?.role === 'operator' ? [{ label: 'Pixel', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns', color: 'text-tertiary' }] : []),
       ]
     : [
         { label: 'Knowledge', icon: BookOpen, path: user?.role === 'sales' ? '/dashboard/sales/knowledge' : '/dashboard/agent/knowledge', color: 'text-primary' },
@@ -250,9 +263,7 @@ const DashboardLayout: React.FC = () => {
 
   const allNavItems = navSections.flatMap(s => s.items);
   const activeItem = allNavItems.find((item) => activeItemPath === item.path);
-  const notificationsPath = user?.role === 'super_admin'
-    ? '/dashboard/admin/notifications'
-    : user?.role === 'admin'
+  const notificationsPath = (user?.role === 'admin' || user?.role === 'operator')
     ? '/dashboard/admin/notifications'
     : user?.role === 'sales'
       ? '/dashboard/sales/notifications'

@@ -34,14 +34,14 @@ pub struct AuditQuery {
     pub end_date: Option<String>,
 }
 
-/// Super Admin dashboard analytics
+/// Platform monitoring dashboard analytics.
 /// Requirements: 11.1, 11.2, 11.3, 11.4, 11.6, 18.3
-pub async fn get_super_admin_dashboard(
+pub async fn get_platform_monitoring_dashboard(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<Response, AppError> {
-    authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    authorize(&state, &headers, &[Role::Admin]).await?;
 
     let period_type = query.period_type;
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -133,7 +133,7 @@ pub async fn get_super_admin_dashboard(
     .unwrap_or(0);
 
     Ok(json_ok(
-        "Super Admin dashboard analytics",
+        "Platform monitoring dashboard analytics",
         json!({
             "pixel_analytics": pixel_data,
             "campaign_analytics": campaign_data,
@@ -153,7 +153,7 @@ pub async fn get_pixel_analytics(
     Path(pixel_id): Path<String>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<Response, AppError> {
-    authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    authorize(&state, &headers, &[Role::Admin]).await?;
 
     let period_type = query.period_type;
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -214,7 +214,7 @@ pub async fn get_audit_logs(
     headers: HeaderMap,
     Query(query): Query<AuditQuery>,
 ) -> Result<Response, AppError> {
-    authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    authorize(&state, &headers, &[Role::Admin]).await?;
 
     let mut sql = "SELECT * FROM pixel_audit_logs WHERE 1=1".to_string();
     let mut params: Vec<String> = Vec::new();
@@ -285,7 +285,7 @@ pub async fn get_admin_dashboard(
     headers: HeaderMap,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let period_type = query.period_type;
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -427,7 +427,7 @@ pub async fn get_campaign_analytics(
     Path(campaign_id): Path<String>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Verify admin owns the campaign
     let campaign =
@@ -640,14 +640,14 @@ pub async fn get_sales_pixel_analytics(
     ))
 }
 
-/// Editor (Marketing) pixel analytics
+/// Operator pixel analytics
 /// Requirements: 13.3, 13.4, 13.5
-pub async fn get_editor_pixel_analytics(
+pub async fn get_operator_pixel_analytics(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Editor]).await?;
+    let user = authorize(&state, &headers, &[Role::Operator]).await?;
 
     let period_type = query.period_type;
     let start_date = query.start_date.unwrap_or_else(|| {
@@ -659,7 +659,7 @@ pub async fn get_editor_pixel_analytics(
         .end_date
         .unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
 
-    // Get campaign-level metrics for campaigns the editor has permission to view
+    // Get campaign-level metrics for campaigns the operator has permission to view
     // Check pixel_admins.permissions for view access
     let analytics = sqlx::query(
         "SELECT 
@@ -683,7 +683,7 @@ pub async fn get_editor_pixel_analytics(
     .fetch_all(&state.pool)
     .await
     .map_err(|e| {
-        tracing::error!("Failed to fetch editor analytics: {}", e);
+        tracing::error!("Failed to fetch operator analytics: {}", e);
         AppError::Internal
     })?;
 
@@ -703,7 +703,7 @@ pub async fn get_editor_pixel_analytics(
         .collect();
 
     Ok(json_ok(
-        "Editor analytics",
+        "Operator analytics",
         json!({
             "analytics": data,
             "period_type": period_type,

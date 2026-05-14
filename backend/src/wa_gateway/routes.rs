@@ -26,12 +26,7 @@ async fn require_wa_gateway_auth(
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    authorize(
-        &state,
-        &headers,
-        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
-    )
-    .await?;
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     Ok(next.run(request).await)
 }

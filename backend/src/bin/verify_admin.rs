@@ -11,15 +11,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&database_url)
         .await?;
 
-    let admins = [
-        ("admin@tridjaya.com", "adm-001"),
-        ("admin@gmail.com", "adm-002"),
-    ];
+    let admins = [("admin@gmail.com", "adm-001")];
     let default_avatar = "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin";
 
     for (email, id) in admins {
         println!("Verifying and resetting password for account: {}", email);
-        let hash = hash_password("Admin123!");
+        let hash = hash_password("123");
 
         let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = ?")
             .bind(email)

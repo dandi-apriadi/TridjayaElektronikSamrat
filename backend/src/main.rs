@@ -27,6 +27,11 @@ fn is_production_runtime() -> bool {
     )
 }
 
+fn is_valid_pixel_encryption_key(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.len() == 64 && trimmed.chars().all(|ch| ch.is_ascii_hexdigit())
+}
+
 /// Middleware to block public access to /uploads/private/ directory
 async fn block_private_uploads(request: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let path = request.uri().path();
@@ -167,6 +172,21 @@ async fn main() {
         })
         .expect("Failed to connect to SQLite. Check if DATABASE_URL is correct and file permissions are okay.");
 
+    match sqlx::query_scalar::<_, String>("PRAGMA journal_mode = WAL")
+        .fetch_one(&pool)
+        .await
+    {
+        Ok(mode) => tracing::info!("SQLite journal mode set to {}", mode),
+        Err(e) => tracing::warn!("Failed to enable SQLite WAL journal mode: {}", e),
+    }
+
+    if let Err(e) = sqlx::query("PRAGMA busy_timeout = 5000")
+        .execute(&pool)
+        .await
+    {
+        tracing::warn!("Failed to set SQLite busy_timeout: {}", e);
+    }
+
     // Run Migrations
     tracing::info!("Running database migrations...");
     sqlx::migrate!("./migrations")
@@ -231,9 +251,18 @@ async fn main() {
             tracing::error!("FATAL: COOKIE_SECURE must be set to 'true' in production!");
             panic!("COOKIE_SECURE must be true in production");
         }
-        if std::env::var("PIXEL_ENCRYPTION_KEY").is_err() {
-            tracing::error!("FATAL: PIXEL_ENCRYPTION_KEY must be set in production!");
-            panic!("PIXEL_ENCRYPTION_KEY must be set in production");
+        match std::env::var("PIXEL_ENCRYPTION_KEY") {
+            Ok(value) if is_valid_pixel_encryption_key(&value) => {}
+            Ok(_) => {
+                tracing::error!(
+                    "FATAL: PIXEL_ENCRYPTION_KEY must be a 64-character hex string in production!"
+                );
+                panic!("PIXEL_ENCRYPTION_KEY must be a valid 64-character hex string");
+            }
+            Err(_) => {
+                tracing::error!("FATAL: PIXEL_ENCRYPTION_KEY must be set in production!");
+                panic!("PIXEL_ENCRYPTION_KEY must be set in production");
+            }
         }
         tracing::info!("Production security guards passed");
     }
@@ -438,7 +467,13 @@ async fn main() {
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 
-    let addr: SocketAddr = "0.0.0.0:8081".parse().expect("valid listen address");
+    let listen_port = std::env::var("PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(8081);
+    let addr: SocketAddr = format!("0.0.0.0:{}", listen_port)
+        .parse()
+        .expect("valid listen address");
     tracing::info!("Backend listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr)

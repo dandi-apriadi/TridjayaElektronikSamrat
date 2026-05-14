@@ -342,7 +342,7 @@ pub async fn send_test_event(
     headers: HeaderMap,
     Json(req): Json<TestEventRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    authorize(&state, &headers, &[Role::Admin]).await?;
+    authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch the pixel's encrypted access_token from the DB.
     let row: Option<(String,)> =

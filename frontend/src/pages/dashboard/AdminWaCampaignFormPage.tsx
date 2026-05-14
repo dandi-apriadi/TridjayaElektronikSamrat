@@ -5,7 +5,7 @@ import {
   ArrowLeft, Save, Upload, Plus, Trash2,
   FileUp, Download, FileSpreadsheet,
   MessageSquare, Users, Smartphone, ChevronRight,
-  Lock, Phone, Loader2, CheckCircle2, Info
+  Lock, Phone, Loader2, CheckCircle2, Info, Image as ImageIcon, X
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
@@ -44,6 +44,12 @@ const AdminWaCampaignFormPage: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [newPhone, setNewPhone] = useState('');
   const [newName, setNewName] = useState('');
+  
+  // Media upload fields
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string>('');
+  const [mediaPreview, setMediaPreview] = useState<string>('');
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   // WA Accounts
   const [waAccounts, setWaAccounts] = useState<WaAccount[]>([]);
@@ -92,6 +98,12 @@ const AdminWaCampaignFormPage: React.FC = () => {
         setDedupeDays(cfg.dedupe_days ?? 30);
         if (cfg.accounts?.length > 0) setSelectedAccountId(cfg.accounts[0]);
         setRecipientCount(c.recipient_total ?? c.totalRecipients ?? 0);
+        
+        // Load media if exists
+        if (cfg.media_config?.media_url) {
+          setMediaUrl(cfg.media_config.media_url);
+          setMediaPreview(cfg.media_config.media_url);
+        }
       }
     } catch (error) {
       toast.error('Gagal memuat campaign', error instanceof Error ? error.message : 'Unknown error');
@@ -103,6 +115,15 @@ const AdminWaCampaignFormPage: React.FC = () => {
     if (messageTemplate.trim()) cfg.message_template = messageTemplate;
     if (selectedAccountId) cfg.accounts = [selectedAccountId];
     cfg.dedupe_days = dedupeDays;
+    
+    // Add media configuration if image is uploaded
+    if (mediaUrl) {
+      cfg.media_config = {
+        media_type: 'image',
+        media_url: mediaUrl,
+      };
+    }
+    
     return cfg;
   };
 
@@ -251,6 +272,73 @@ const AdminWaCampaignFormPage: React.FC = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleMediaChange = (file: File | null) => {
+    if (!file) {
+      setMediaFile(null);
+      setMediaPreview('');
+      return;
+    }
+
+    // Validate file type and size
+    const validExt = file.name.match(/\.(jpg|jpeg|png|webp)$/i);
+    if (!validExt) {
+      toast.error('Format tidak didukung', 'Upload file gambar (.jpg, .png, .webp) dengan ukuran maksimal 16MB');
+      return;
+    }
+
+    const maxSize = 16 * 1024 * 1024; // 16MB
+    if (file.size > maxSize) {
+      toast.error('File terlalu besar', `Ukuran file ${(file.size / 1024 / 1024).toFixed(2)}MB melebihi batas 16MB`);
+      return;
+    }
+
+    setMediaFile(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setMediaPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadMedia = async () => {
+    if (!mediaFile) return;
+    
+    setIsUploadingMedia(true);
+    const formData = new FormData();
+    formData.append('file', mediaFile);
+
+    try {
+      const res = await fetch('/api/wa/campaigns/upload-image', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(await readApiError(res, 'Gagal upload gambar'));
+      }
+      const data = await res.json();
+      const uploadedUrl = data.data?.url || data.data?.media_url;
+      
+      setMediaUrl(uploadedUrl);
+      setMediaFile(null);
+      toast.success('Gambar berhasil diupload');
+    } catch (error) {
+      toast.error('Gagal upload gambar', error instanceof Error ? error.message : 'Unknown error');
+      setMediaPreview('');
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  const handleRemoveMedia = () => {
+    setMediaUrl('');
+    setMediaFile(null);
+    setMediaPreview('');
   };
 
   const handleUploadManualRecipients = async () => {
@@ -412,7 +500,90 @@ const AdminWaCampaignFormPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dedupe Days */}
+              {/* Media Upload - Image */}
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">
+                  Gambar (Opsional - Maksimal 1)
+                </label>
+                
+                {mediaUrl ? (
+                  // Show uploaded image with preview
+                  <div className="space-y-3">
+                    <div className="relative bg-surface-high/30 border border-outline-variant/20 rounded-xl p-4">
+                      <img 
+                        src={mediaPreview} 
+                        alt="Media preview" 
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <button
+                        onClick={handleRemoveMedia}
+                        className="absolute top-2 right-2 p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-400 transition-colors"
+                        title="Hapus gambar"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-on-surface-variant/60 ml-1">
+                      ✓ Gambar sudah diupload. Gambar akan dikirim terlebih dahulu sebelum teks pesan.
+                    </p>
+                  </div>
+                ) : mediaFile ? (
+                  // Show preview before upload
+                  <div className="space-y-3">
+                    <div className="relative bg-surface-high/30 border border-outline-variant/20 rounded-xl p-4">
+                      <img 
+                        src={mediaPreview} 
+                        alt="Media preview" 
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      <button
+                        onClick={() => handleMediaChange(null)}
+                        className="absolute top-2 right-2 p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-400 transition-colors"
+                        title="Batal"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleUploadMedia}
+                      disabled={isUploadingMedia}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 gradient-primary text-surface rounded-xl hover:shadow-neon-cyan disabled:opacity-50 transition-all font-bold text-sm"
+                    >
+                      {isUploadingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      {isUploadingMedia ? 'Mengupload...' : 'Upload Gambar'}
+                    </button>
+                  </div>
+                ) : (
+                  // Upload area
+                  <div
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files[0];
+                      if (file) handleMediaChange(file);
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="border-2 border-dashed border-outline-variant/30 rounded-xl p-6 text-center hover:border-primary/50 hover:bg-primary/5 transition-all group"
+                  >
+                    <ImageIcon className="w-8 h-8 text-on-surface-variant/20 mx-auto mb-2 group-hover:text-primary transition-colors" />
+                    <p className="text-xs text-on-surface-variant mb-2">Drag & drop gambar di sini atau</p>
+                    <label className="inline-block">
+                      <span className="text-primary font-bold hover:shadow-neon-cyan transition-all px-5 py-2 rounded-xl bg-primary/10 border border-primary/20 cursor-pointer text-sm">
+                        Pilih Gambar
+                      </span>
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) handleMediaChange(e.target.files[0]);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-[10px] text-on-surface-variant/40 mt-2">Format: .jpg, .png, .webp (maks 16MB)</p>
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">
                   Cek Duplikat (Hari)

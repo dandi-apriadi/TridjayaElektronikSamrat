@@ -3,17 +3,24 @@
  */
 use axum::{
     extract::{Path, State},
+    http::HeaderMap,
     response::IntoResponse,
     Json,
 };
 
+use crate::auth::{authorize, Role};
 use crate::response::{json_created, json_ok, AppError, ResponseBody};
 use crate::state::AppState;
 
 use super::super::models::WebhookConfigRequest;
 use super::generate_id;
 
-pub async fn list_webhooks(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+pub async fn list_webhooks(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+
     let webhooks: Vec<(String, String, String, Option<String>, Option<bool>, Option<String>, Option<i64>, Option<i64>, String)> = sqlx::query_as(
         "SELECT id, name, url, events, is_active, last_triggered_at, success_count, fail_count, created_at FROM wa_webhooks WHERE is_active = 1 ORDER BY created_at DESC"
     )
@@ -39,8 +46,11 @@ pub async fn list_webhooks(State(state): State<AppState>) -> Result<ResponseBody
 
 pub async fn get_webhook(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+
     let webhook: Option<(String, String, String, Option<String>, Option<String>, Option<String>, Option<i32>, Option<i32>, Option<bool>, Option<String>, Option<String>, Option<i64>, Option<i64>)> = sqlx::query_as(
         "SELECT id, name, url, events, headers, secret, retry_count, timeout_seconds, is_active, last_triggered_at, last_error, success_count, fail_count FROM wa_webhooks WHERE id = ?"
     )
@@ -66,8 +76,11 @@ pub async fn get_webhook(
 
 pub async fn create_webhook(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<WebhookConfigRequest>,
 ) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+
     let id = generate_id();
     let now = chrono::Utc::now().naive_utc();
 
@@ -99,9 +112,12 @@ pub async fn create_webhook(
 
 pub async fn update_webhook(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<WebhookConfigRequest>,
 ) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+
     sqlx::query(
         "UPDATE wa_webhooks SET name = ?, url = ?, secret = ?, events = ?, headers = ?, retry_count = ?, timeout_seconds = ?, updated_at = ? WHERE id = ?"
     )
@@ -126,8 +142,11 @@ pub async fn update_webhook(
 
 pub async fn delete_webhook(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+
     sqlx::query("DELETE FROM wa_webhooks WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)

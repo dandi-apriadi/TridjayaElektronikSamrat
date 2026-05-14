@@ -89,13 +89,13 @@ async fn write_audit_log(
 
 // ─── Pixel CRUD ───────────────────────────────────────────────────────────────
 
-/// `POST /api/pixels` — Super Admin only.
+/// `POST /api/pixels` — Admin only.
 pub async fn create_pixel(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<CreatePixelRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Validate pixel_id uniqueness
     let existing: Option<(String,)> = sqlx::query_as("SELECT id FROM pixels WHERE pixel_id = ?")
@@ -171,23 +171,39 @@ pub async fn create_pixel(
     Ok(json_ok("Pixel created", record))
 }
 
-/// `GET /api/pixels` — Super Admin only.
+/// `GET /api/pixels` — Admin and operator.
 pub async fn list_pixels(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<axum::response::Response, AppError> {
-    authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
-    let pixels: Vec<PixelWithStats> = sqlx::query_as(
-        r#"SELECT
-               p.*,
-               (SELECT COUNT(*) FROM pixel_admins pa WHERE pa.pixel_id = p.id) AS assigned_admins_count,
-               (SELECT COUNT(*) FROM pixel_events pe WHERE pe.pixel_id = p.id) AS total_events
-           FROM pixels p
-           ORDER BY p.created_at DESC"#,
-    )
-    .fetch_all(&state.pool)
-    .await
+    let pixels: Vec<PixelWithStats> = if user.role.eq_ignore_ascii_case("admin") {
+        sqlx::query_as(
+            r#"SELECT
+                   p.*,
+                   (SELECT COUNT(*) FROM pixel_admins pa WHERE pa.pixel_id = p.id) AS assigned_admins_count,
+                   (SELECT COUNT(*) FROM pixel_events pe WHERE pe.pixel_id = p.id) AS total_events
+               FROM pixels p
+               ORDER BY p.created_at DESC"#,
+        )
+        .fetch_all(&state.pool)
+        .await
+    } else {
+        sqlx::query_as(
+            r#"SELECT
+                   p.*,
+                   (SELECT COUNT(*) FROM pixel_admins pa2 WHERE pa2.pixel_id = p.id) AS assigned_admins_count,
+                   (SELECT COUNT(*) FROM pixel_events pe WHERE pe.pixel_id = p.id) AS total_events
+               FROM pixels p
+               JOIN pixel_admins pa ON pa.pixel_id = p.id
+               WHERE pa.user_id = ?
+               ORDER BY p.created_at DESC"#,
+        )
+        .bind(&user.id)
+        .fetch_all(&state.pool)
+        .await
+    }
     .map_err(|e| {
         tracing::error!("Failed to list pixels: {}", e);
         AppError::Internal
@@ -196,22 +212,32 @@ pub async fn list_pixels(
     Ok(json_ok("Pixels retrieved", pixels))
 }
 
-/// `GET /api/pixels/:id` — Super Admin only.
+/// `GET /api/pixels/:id` — Admin and operator.
 pub async fn get_pixel(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
-    authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
-    let record: Option<PixelRecord> = sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
+    let record: Option<PixelRecord> = if user.role.eq_ignore_ascii_case("admin") {
+        sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+    } else {
+        sqlx::query_as(
+            "SELECT p.* FROM pixels p JOIN pixel_admins pa ON pa.pixel_id = p.id WHERE p.id = ? AND pa.user_id = ?",
+        )
         .bind(&id)
+        .bind(&user.id)
         .fetch_optional(&state.pool)
         .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch pixel: {}", e);
-            AppError::Internal
-        })?;
+    }
+    .map_err(|e| {
+        tracing::error!("Failed to fetch pixel: {}", e);
+        AppError::Internal
+    })?;
 
     match record {
         Some(r) => Ok(json_ok("Pixel retrieved", r)),
@@ -219,14 +245,14 @@ pub async fn get_pixel(
     }
 }
 
-/// `PATCH /api/pixels/:id` — Super Admin only.
+/// `PATCH /api/pixels/:id` — Admin only.
 pub async fn update_pixel(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<UpdatePixelRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch existing pixel
     let existing: Option<PixelRecord> = sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
@@ -339,13 +365,13 @@ pub async fn update_pixel(
     Ok(json_ok("Pixel updated", updated))
 }
 
-/// `DELETE /api/pixels/:id` — Super Admin only.
+/// `DELETE /api/pixels/:id` — Admin only.
 pub async fn delete_pixel(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch existing pixel
     let existing: Option<PixelRecord> = sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
@@ -393,14 +419,14 @@ pub async fn delete_pixel(
 
 // ─── Admin assignment ─────────────────────────────────────────────────────────
 
-/// `POST /api/pixels/:id/admins` — Super Admin only.
+/// `POST /api/pixels/:id/admins` — Admin only.
 pub async fn assign_admin(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(pixel_id): Path<String>,
     Json(req): Json<AssignAdminRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Validate pixel exists
     let pixel_exists: Option<(String,)> = sqlx::query_as("SELECT id FROM pixels WHERE id = ?")
@@ -416,7 +442,7 @@ pub async fn assign_admin(
         return Err(AppError::NotFound);
     }
 
-    // Validate target user exists and has role = 'admin'
+    // Validate target user exists and can operate pixel campaigns.
     let target: Option<(String, String)> =
         sqlx::query_as("SELECT id, role FROM users WHERE id = ?")
             .bind(&req.user_id)
@@ -433,10 +459,10 @@ pub async fn assign_admin(
                 errors: vec!["Target user not found".to_string()],
             });
         }
-        Some((_, role)) if role != "admin" => {
+        Some((_, role)) if role != "admin" && role != "operator" => {
             return Err(AppError::Validation {
                 errors: vec![format!(
-                    "User must have role 'admin', but has role '{}'",
+                    "User must have role 'admin' or 'operator', but has role '{}'",
                     role
                 )],
             });
@@ -511,13 +537,13 @@ pub async fn assign_admin(
     Ok(json_ok("Admin assigned", record))
 }
 
-/// `DELETE /api/pixels/:pixel_id/admins/:user_id` — Super Admin only.
+/// `DELETE /api/pixels/:pixel_id/admins/:user_id` — Admin only.
 pub async fn revoke_admin(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path((pixel_id, user_id)): Path<(String, String)>,
 ) -> Result<axum::response::Response, AppError> {
-    let actor = authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    let actor = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let result = sqlx::query("DELETE FROM pixel_admins WHERE pixel_id = ? AND user_id = ?")
         .bind(&pixel_id)
@@ -554,13 +580,13 @@ pub async fn revoke_admin(
     ))
 }
 
-/// `GET /api/pixels/:id/admins` — Super Admin only.
+/// `GET /api/pixels/:id/admins` — Admin only.
 pub async fn list_pixel_admins(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(pixel_id): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
-    authorize(&state, &headers, &[Role::SuperAdmin]).await?;
+    authorize(&state, &headers, &[Role::Admin]).await?;
 
     let admins: Vec<PixelAdminWithUser> = sqlx::query_as(
         r#"SELECT
@@ -618,8 +644,8 @@ mod tests {
         use crate::auth::Role;
         use std::str::FromStr;
 
-        let allowed = vec![Role::SuperAdmin];
-        let caller_role = Role::from_str("admin").unwrap();
+        let allowed = vec![Role::Admin];
+        let caller_role = Role::from_str("agent").unwrap();
 
         let is_allowed = allowed.iter().any(|r| r == &caller_role);
         let result: Result<(), AppError> = if is_allowed {
@@ -630,7 +656,7 @@ mod tests {
 
         assert!(
             matches!(result, Err(AppError::Forbidden)),
-            "Expected Forbidden for non-SuperAdmin role"
+            "Expected Forbidden for non-admin role"
         );
     }
 
@@ -699,7 +725,7 @@ mod tests {
         }
 
         // Roles that must be rejected
-        for bad_role in &["agent", "sales", "editor", "operator", "super_admin", ""] {
+        for bad_role in &["agent", "sales", "operator", ""] {
             assert!(
                 matches!(check_user_role(bad_role), Err(AppError::Validation { .. })),
                 "Expected Validation error for role '{}'",

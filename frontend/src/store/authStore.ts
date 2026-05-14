@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type UserRole = 'admin' | 'agent' | 'sales' | 'editor' | 'operator' | 'super_admin';
+export type UserRole = 'admin' | 'operator' | 'sales' | 'agent';
 
 interface User {
   id: string;
@@ -34,6 +34,19 @@ interface LoginResponse {
   access_token: string;
   refresh_token: string;
   user: User;
+}
+
+interface ApiErrorPayload {
+  message?: string;
+  detail?: string | null;
+  errors?: string[];
+}
+
+function getApiErrorMessage(payload: ApiErrorPayload | null, fallback: string): string {
+  if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+    return payload.errors.filter(Boolean).join(', ');
+  }
+  return payload?.detail || payload?.message || fallback;
 }
 
 interface AuthState {
@@ -81,8 +94,8 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
-            const payload = await response.json().catch(() => null);
-            throw new Error(payload?.message || 'Login gagal');
+            const payload = await response.json().catch(() => null) as ApiErrorPayload | null;
+            throw new Error(getApiErrorMessage(payload, 'Login gagal. Silakan coba lagi.'));
           }
 
           const payload = (await response.json()) as { data?: LoginResponse };

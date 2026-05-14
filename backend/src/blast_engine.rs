@@ -429,6 +429,23 @@ impl BlastEngine {
             return Ok(());
         }
 
+        // Additional check: Verify recipient status is still 'pending'
+        // This protects against race conditions where pause marks recipients as paused
+        let recipient_status: Option<String> =
+            sqlx::query_scalar("SELECT status FROM wa_recipients WHERE id = ?")
+                .bind(&recipient_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if !matches!(recipient_status.as_deref(), Some("pending")) {
+            info!(
+                "Skipping queued message {} for recipient {} because status is {:?} (not 'pending'). \
+                 This likely means campaign was paused or recipient was manually updated.",
+                message.message_id, recipient_id, recipient_status
+            );
+            return Ok(());
+        }
+
         // Get or create semaphore for account (limit concurrent sends per account)
         let semaphore = {
             let mut semaphores = self.account_semaphores.write().await;
@@ -803,6 +820,27 @@ impl BlastEngine {
         &self,
         media_url: &str,
     ) -> Result<crate::media_handler::MediaFile, Box<dyn std::error::Error + Send + Sync>> {
+        if !Self::is_remote_media_url(media_url) {
+            let local_path = Self::resolve_local_media_path(media_url);
+            let data = tokio::fs::read(&local_path).await?;
+            let (media_type, mime_type) = Self::infer_media_type_from_path(&local_path)?;
+
+            info!(
+                "Loaded local media for campaign: path={}, type={:?}, size={} bytes",
+                local_path.display(),
+                media_type,
+                data.len()
+            );
+
+            return Ok(crate::media_handler::MediaFile {
+                media_type,
+                mime_type,
+                size_bytes: data.len(),
+                data,
+                thumbnail: None,
+            });
+        }
+
         let mut handler = self.media_handler.lock().await;
 
         // Download and cache media (with cache check)
@@ -816,6 +854,40 @@ impl BlastEngine {
         Ok(media)
     }
 
+    fn is_remote_media_url(media_url: &str) -> bool {
+        media_url.starts_with("http://") || media_url.starts_with("https://")
+    }
+
+    fn resolve_local_media_path(media_url: &str) -> std::path::PathBuf {
+        let trimmed = media_url.trim_start_matches('/');
+        std::env::current_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .join(trimmed)
+    }
+
+    fn infer_media_type_from_path(
+        media_path: &std::path::Path,
+    ) -> Result<(crate::media_handler::MediaType, String), Box<dyn std::error::Error + Send + Sync>> {
+        let extension = media_path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let (media_type, mime_type) = match extension.as_str() {
+            "jpg" | "jpeg" => (crate::media_handler::MediaType::Image, "image/jpeg".to_string()),
+            "png" => (crate::media_handler::MediaType::Image, "image/png".to_string()),
+            "webp" => (crate::media_handler::MediaType::Image, "image/webp".to_string()),
+            "pdf" => (crate::media_handler::MediaType::Pdf, "application/pdf".to_string()),
+            "mp4" => (crate::media_handler::MediaType::Video, "video/mp4".to_string()),
+            other => {
+                return Err(format!("Unsupported local media file extension: {}", other).into());
+            }
+        };
+
+        Ok((media_type, mime_type))
+    }
+
     /// Compose and send message with text, media, and caption
     ///
     /// **Validates: Requirements 7.5**
@@ -825,13 +897,61 @@ impl BlastEngine {
         processed_text: &str,
         media_data: Option<&crate::media_handler::MediaFile>,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let mut temp_media_path: Option<std::path::PathBuf> = None;
+
+        let media_path = if let Some(media) = media_data {
+            if let Some(media_url) = &message.media_url {
+                if Self::is_remote_media_url(media_url) {
+                    let temp_dir = std::env::current_dir()?.join("uploads").join("wa_temp");
+                    tokio::fs::create_dir_all(&temp_dir).await?;
+
+                    let extension = match media.media_type {
+                        crate::media_handler::MediaType::Image => "webp",
+                        crate::media_handler::MediaType::Pdf => "pdf",
+                        crate::media_handler::MediaType::Video => "mp4",
+                    };
+
+                    let temp_path = temp_dir.join(format!(
+                        "{}_media.{}",
+                        message.message_id,
+                        extension
+                    ));
+                    tokio::fs::write(&temp_path, &media.data).await?;
+                    temp_media_path = Some(temp_path.clone());
+                    temp_path
+                } else {
+                    Self::resolve_local_media_path(media_url)
+                }
+            } else {
+                let temp_dir = std::env::current_dir()?.join("uploads").join("wa_temp");
+                tokio::fs::create_dir_all(&temp_dir).await?;
+
+                let extension = match media.media_type {
+                    crate::media_handler::MediaType::Image => "webp",
+                    crate::media_handler::MediaType::Pdf => "pdf",
+                    crate::media_handler::MediaType::Video => "mp4",
+                };
+
+                let temp_path = temp_dir.join(format!(
+                    "{}_media.{}",
+                    message.message_id,
+                    extension
+                ));
+                tokio::fs::write(&temp_path, &media.data).await?;
+                temp_media_path = Some(temp_path.clone());
+                temp_path
+            }
+        } else {
+            std::path::PathBuf::new()
+        };
+
         let params = if let Some(media) = media_data {
             // Send media message with caption via send_media
             serde_json::json!({
                 "session_id": message.account_id,
                 "phone": message.phone,
                 "media_type": format!("{:?}", media.media_type).to_lowercase(),
-                "media_path": message.media_url,
+                "media_path": media_path.to_string_lossy().to_string(),
                 "caption": processed_text,
             })
         } else {
@@ -853,6 +973,16 @@ impl BlastEngine {
             .bridge_client
             .send_request(&message.account_id, method.to_string(), params)
             .await?;
+
+        if let Some(temp_path) = temp_media_path {
+            if let Err(e) = tokio::fs::remove_file(&temp_path).await {
+                warn!(
+                    path = %temp_path.display(),
+                    error = %e,
+                    "Failed to remove temporary media file"
+                );
+            }
+        }
 
         debug!("Bridge send result: {:?}", result);
         let wa_message_id = result
@@ -1225,6 +1355,32 @@ mod tests {
 
         // Verify message text can be used as caption
         assert!(!message_text.is_empty());
+    }
+
+    #[test]
+    fn test_local_media_path_resolution() {
+        let cwd = std::env::current_dir().unwrap();
+        let resolved = BlastEngine::resolve_local_media_path("/uploads/campaign/example.webp");
+
+        assert_eq!(resolved, cwd.join("uploads/campaign/example.webp"));
+    }
+
+    #[test]
+    fn test_remote_media_url_detection() {
+        assert!(BlastEngine::is_remote_media_url("https://example.com/image.jpg"));
+        assert!(BlastEngine::is_remote_media_url("http://example.com/image.jpg"));
+        assert!(!BlastEngine::is_remote_media_url("/uploads/campaign/example.webp"));
+    }
+
+    #[test]
+    fn test_infer_media_type_from_path() {
+        let (media_type, mime_type) = BlastEngine::infer_media_type_from_path(
+            std::path::Path::new("/uploads/campaign/example.webp"),
+        )
+        .unwrap();
+
+        assert_eq!(media_type, crate::media_handler::MediaType::Image);
+        assert_eq!(mime_type, "image/webp");
     }
 
     /// **Validates: Requirements 10.1, 10.8**

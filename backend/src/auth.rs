@@ -28,11 +28,7 @@ pub enum Role {
     Admin,
     Agent,
     Sales,
-    Editor,
     Operator,
-    WaAdmin,
-    WaOperator,
-    SuperAdmin,
 }
 
 impl Display for Role {
@@ -41,11 +37,7 @@ impl Display for Role {
             Self::Admin => write!(f, "admin"),
             Self::Agent => write!(f, "agent"),
             Self::Sales => write!(f, "sales"),
-            Self::Editor => write!(f, "editor"),
             Self::Operator => write!(f, "operator"),
-            Self::WaAdmin => write!(f, "wa_admin"),
-            Self::WaOperator => write!(f, "wa_operator"),
-            Self::SuperAdmin => write!(f, "super_admin"),
         }
     }
 }
@@ -57,11 +49,7 @@ impl FromStr for Role {
             "admin" => Ok(Self::Admin),
             "agent" => Ok(Self::Agent),
             "sales" => Ok(Self::Sales),
-            "editor" => Ok(Self::Editor),
             "operator" => Ok(Self::Operator),
-            "wa_admin" | "wa-admin" | "waadmin" => Ok(Self::WaAdmin),
-            "wa_operator" | "wa-operator" | "waoperator" => Ok(Self::WaOperator),
-            "super_admin" | "superadmin" => Ok(Self::SuperAdmin),
             _ => Err(()),
         }
     }
@@ -69,15 +57,15 @@ impl FromStr for Role {
 
 impl Role {
     pub fn can_manage_wa(&self) -> bool {
-        matches!(self, Self::Admin | Self::WaAdmin)
+        matches!(self, Self::Admin | Self::Operator)
     }
 
     pub fn can_operate_wa(&self) -> bool {
-        matches!(self, Self::Admin | Self::WaAdmin | Self::WaOperator)
+        matches!(self, Self::Admin | Self::Operator)
     }
 
     pub fn can_manage_pixels(&self) -> bool {
-        matches!(self, Self::SuperAdmin)
+        matches!(self, Self::Admin | Self::Operator)
     }
 }
 
@@ -166,7 +154,7 @@ pub async fn login_with_request(
         })?
         .ok_or_else(|| {
             tracing::warn!("Login failed: user not found for email '{}'", email_log);
-            AppError::Unauthorized
+            AppError::LoginEmailNotFound
         })?;
 
     tracing::debug!(
@@ -181,12 +169,12 @@ pub async fn login_with_request(
             "Login failed: account is suspended for email '{}'",
             email_log
         );
-        return Err(AppError::Unauthorized);
+        return Err(AppError::LoginAccountInactive);
     }
 
     if !verify_password(&password, &user.password_hash) {
         tracing::warn!("Login failed: incorrect password for email '{}'", email_log);
-        return Err(AppError::Unauthorized);
+        return Err(AppError::LoginInvalidPassword);
     }
 
     if !user.is_verified {

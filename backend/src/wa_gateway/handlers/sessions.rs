@@ -2,19 +2,35 @@
  * WA Gateway - Session Handlers
  */
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 
+use crate::auth::{authorize, Role};
 use crate::response::{json_ok, AppError, ResponseBody};
-use crate::state::AppState;
+use crate::state::{AppState, UserRecord};
 
 use super::super::models::{SessionMetrics, SessionStatusResponse};
 
-pub async fn list_sessions(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
-    let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, name, phone_number, status, last_connected_at, message_count_today, last_error, created_at FROM wa_accounts ORDER BY created_at DESC"
-    )
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|_| AppError::Internal)?;
+pub async fn list_sessions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, String)> =
+        if user.role.eq_ignore_ascii_case("admin") {
+            sqlx::query_as(
+                "SELECT id, name, phone_number, status, last_connected_at, message_count_today, last_error, created_at FROM wa_accounts ORDER BY created_at DESC"
+            )
+            .fetch_all(&state.pool)
+            .await
+        } else {
+            sqlx::query_as(
+                "SELECT id, name, phone_number, status, last_connected_at, message_count_today, last_error, created_at FROM wa_accounts WHERE created_by = ? ORDER BY created_at DESC"
+            )
+            .bind(&user.id)
+            .fetch_all(&state.pool)
+            .await
+        }
+        .map_err(|_| AppError::Internal)?;
 
     let sessions: Vec<SessionStatusResponse> = rows
         .into_iter()
@@ -34,10 +50,48 @@ pub async fn list_sessions(State(state): State<AppState>) -> Result<ResponseBody
     Ok(json_ok("Sessions retrieved", sessions))
 }
 
+async fn ensure_session_access(
+    state: &AppState,
+    user: &UserRecord,
+    session_id: &str,
+) -> Result<(), AppError> {
+    if user.role.eq_ignore_ascii_case("admin") {
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ?")
+            .bind(session_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        return if exists > 0 {
+            Ok(())
+        } else {
+            Err(AppError::NotFound)
+        };
+    }
+
+    let exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM wa_accounts WHERE id = ? AND created_by = ?")
+            .bind(session_id)
+            .bind(&user.id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+    if exists > 0 {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 pub async fn get_session_status(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_session_access(&state, &user, &id).await?;
+
     let account: Option<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>)> = sqlx::query_as(
         "SELECT id, name, phone_number, status, last_connected_at, message_count_today, last_error FROM wa_accounts WHERE id = ?"
     )
@@ -99,8 +153,12 @@ pub async fn get_session_status(
 
 pub async fn get_session_qr(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_session_access(&state, &user, &id).await?;
+
     let qr: Option<(Option<String>,)> = sqlx::query_as(
         "SELECT qr_code FROM wa_session_health WHERE session_id = ? AND qr_expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1"
     )
@@ -123,8 +181,12 @@ pub async fn get_session_qr(
 
 pub async fn connect_session(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_session_access(&state, &user, &id).await?;
+
     let account_status: Option<String> =
         sqlx::query_scalar("SELECT status FROM wa_accounts WHERE id = ?")
             .bind(&id)
@@ -245,8 +307,12 @@ pub async fn connect_session(
 
 pub async fn disconnect_session(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    ensure_session_access(&state, &user, &id).await?;
+
     // Try graceful disconnect first (Baileys logout), then kill process
     let _ = state
         .bridge_client
