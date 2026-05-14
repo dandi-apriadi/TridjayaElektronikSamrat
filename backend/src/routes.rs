@@ -139,6 +139,7 @@ pub fn router(state: AppState) -> Router {
             get(serve_private_upload),
         )
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
+        .route("/api/admin/catalogs/paginated", get(list_catalogs_paginated))
         .route("/api/admin/catalogs/match", get(match_catalogs))
         .route("/api/admin/catalogs/bulk", post(bulk_products))
         .route(
@@ -5223,6 +5224,337 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
         .collect();
 
     Ok(json_ok("Catalogs fetched", json!({ "items": items })))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogPaginatedQuery {
+    page: Option<u32>,
+    limit: Option<u32>,
+    category: Option<String>,
+    status: Option<String>,
+    search: Option<String>,
+    sort: Option<String>,
+}
+
+/// Lightweight paginated catalog listing for admin dashboard.
+/// Only returns fields needed for the list view (no description, specs, ratings, etc.)
+/// Runs product query, analytics, and markups in parallel via tokio::join!
+async fn list_catalogs_paginated(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(params): Query<CatalogPaginatedQuery>,
+) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin, Role::Editor, Role::Operator]).await?;
+
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(20).min(100);
+    let offset = (page - 1) * limit;
+
+    // Build WHERE clauses
+    let mut conditions: Vec<String> = Vec::new();
+    let mut bind_values: Vec<String> = Vec::new();
+
+    if let Some(ref category) = params.category {
+        let cat = category.trim();
+        if !cat.is_empty() && cat.to_lowercase() != "semua" {
+            bind_values.push(cat.to_string());
+            conditions.push(format!("p.category = ?{}", bind_values.len()));
+        }
+    }
+
+    if let Some(ref search) = params.search {
+        let s = search.trim();
+        if !s.is_empty() {
+            let like_val = format!("%{}%", s);
+            // Bind the same LIKE value 4 times for each column
+            bind_values.push(like_val.clone());
+            let idx1 = bind_values.len();
+            bind_values.push(like_val.clone());
+            let idx2 = bind_values.len();
+            bind_values.push(like_val.clone());
+            let idx3 = bind_values.len();
+            bind_values.push(like_val);
+            let idx4 = bind_values.len();
+            conditions.push(format!(
+                "(p.name LIKE ?{} OR p.id LIKE ?{} OR p.category LIKE ?{} OR p.subcategory LIKE ?{})",
+                idx1, idx2, idx3, idx4
+            ));
+        }
+    }
+
+    // Stock-based status filter
+    if let Some(ref status) = params.status {
+        let st = status.trim().to_lowercase();
+        match st.as_str() {
+            "active" => {
+                conditions.push("(p.stock_quantity IS NULL OR p.stock_quantity > 5) AND p.stock NOT IN ('hidden', 'out_of_stock', 'discontinued')".to_string());
+            }
+            "low stock" | "low_stock" => {
+                conditions.push("((p.stock_quantity IS NOT NULL AND p.stock_quantity > 0 AND p.stock_quantity <= 5) OR p.stock IN ('indent', 'limited'))".to_string());
+            }
+            "out of stock" | "out_of_stock" => {
+                conditions.push("((p.stock_quantity IS NOT NULL AND p.stock_quantity <= 0) OR p.stock IN ('hidden', 'out_of_stock', 'discontinued'))".to_string());
+            }
+            _ => {} // "semua" or unknown — no filter
+        }
+    }
+
+    let where_clause = if conditions.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", conditions.join(" AND "))
+    };
+
+    // Sort clause
+    let sort_field = match params.sort.as_deref() {
+        Some("leads") => "leads",
+        Some("conversionRate") | Some("conversion") => "conversion_rate",
+        _ => "views", // default
+    };
+
+    // Build the main query with analytics joined in
+    let main_query = format!(
+        r#"
+        SELECT
+            p.id, p.slug, p.name, p.category, p.subcategory, p.price,
+            p.price_installment, p.dp_min, p.image, p.badge, p.badge_text,
+            p.stock, p.stock_quantity, p.ratings, p.rating, p.review,
+            COALESCE(a.views, 0) AS views,
+            COALESCE(a.leads, 0) AS leads,
+            COALESCE(a.conversions, 0) AS conversions,
+            CASE WHEN COALESCE(a.views, 0) > 0
+                 THEN (CAST(COALESCE(a.leads, 0) AS REAL) / CAST(a.views AS REAL)) * 100.0
+                 ELSE 0.0
+            END AS conversion_rate
+        FROM products p
+        LEFT JOIN (
+            SELECT
+                COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
+                SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END) AS views,
+                SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads,
+                SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS conversions
+            FROM telemetry_events
+            WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
+              AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''
+            GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))
+        ) a ON a.product_slug = p.slug
+        {where_clause}
+        ORDER BY {sort_field} DESC
+        LIMIT {limit} OFFSET {offset}
+        "#
+    );
+
+    let count_query = format!(
+        r#"
+        SELECT COUNT(*) as total,
+            SUM(CASE WHEN (p.stock_quantity IS NULL OR p.stock_quantity > 5) AND p.stock NOT IN ('hidden', 'out_of_stock', 'discontinued') THEN 1 ELSE 0 END) AS total_active,
+            SUM(CASE WHEN (p.stock_quantity IS NOT NULL AND p.stock_quantity > 0 AND p.stock_quantity <= 5) OR p.stock IN ('indent', 'limited') THEN 1 ELSE 0 END) AS total_low_stock,
+            SUM(CASE WHEN (p.stock_quantity IS NOT NULL AND p.stock_quantity <= 0) OR p.stock IN ('hidden', 'out_of_stock', 'discontinued') THEN 1 ELSE 0 END) AS total_out_of_stock
+        FROM products p
+        LEFT JOIN (
+            SELECT
+                COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
+                SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END) AS views,
+                SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads,
+                SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS conversions
+            FROM telemetry_events
+            WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
+              AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''
+            GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))
+        ) a ON a.product_slug = p.slug
+        {where_clause}
+        "#
+    );
+
+    // Run queries in parallel: main data + count + markups
+    let (main_result, count_result, markups_result) = tokio::join!(
+        async {
+            let mut q = sqlx::query(&main_query);
+            for val in &bind_values {
+                q = q.bind(val);
+            }
+            q.fetch_all(&state.pool).await
+        },
+        async {
+            let mut q = sqlx::query(&count_query);
+            for val in &bind_values {
+                q = q.bind(val);
+            }
+            q.fetch_one(&state.pool).await
+        },
+        fetch_active_price_markups(&state)
+    );
+
+    let rows = main_result.map_err(|e| {
+        tracing::error!("DB error (paginated catalog): {}", e);
+        AppError::Internal
+    })?;
+
+    let count_row = count_result.map_err(|e| {
+        tracing::error!("DB error (catalog count): {}", e);
+        AppError::Internal
+    })?;
+
+    let markups = markups_result?;
+
+    use sqlx::Row;
+
+    let total: i64 = count_row.get("total");
+    let total_active: i64 = count_row.try_get("total_active").unwrap_or(0);
+    let total_low_stock: i64 = count_row.try_get("total_low_stock").unwrap_or(0);
+    let total_out_of_stock: i64 = count_row.try_get("total_out_of_stock").unwrap_or(0);
+
+    // Also compute total views/leads/conversions from the aggregates query
+    let totals_query = sqlx::query(
+        "SELECT
+            COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS total_views,
+            COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS total_leads,
+            COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS total_conversions
+         FROM telemetry_events
+         WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
+           AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''"
+    )
+    .fetch_one(&state.pool)
+    .await
+    .ok();
+
+    let (total_views, total_leads, total_conversions) = totals_query
+        .map(|row| {
+            (
+                row.get::<i64, _>("total_views"),
+                row.get::<i64, _>("total_leads"),
+                row.get::<i64, _>("total_conversions"),
+            )
+        })
+        .unwrap_or((0, 0, 0));
+
+    // Build lean response items
+    let items: Vec<Value> = rows
+        .into_iter()
+        .map(|row| {
+            let id: String = row.get("id");
+            let slug: String = row.get("slug");
+            let name: String = row.get("name");
+            let category: String = row.get("category");
+            let subcategory: Option<String> = row.get("subcategory");
+            let price: f64 = row.get("price");
+            let price_installment: Option<f64> = row.get("price_installment");
+            let dp_min: Option<f64> = row.get("dp_min");
+            let image: String = row.get("image");
+            let badge: Option<String> = row.get("badge");
+            let badge_text: Option<String> = row.get("badge_text");
+            let stock: String = row.get("stock");
+            let stock_quantity: Option<f64> = row.get("stock_quantity");
+            let views: i64 = row.get("views");
+            let leads: i64 = row.get("leads");
+            let conversions: i64 = row.get("conversions");
+            let conversion_rate: f64 = row.get("conversion_rate");
+            let ratings_raw: Option<String> = row.get("ratings");
+            let rating_legacy: Option<f64> = row.get("rating");
+            let review_legacy: Option<String> = row.get("review");
+
+            // Compute rating summary
+            let ratings = parse_ratings_or_default(ratings_raw.as_deref());
+            let (rating_average, _latest_review, rating_count) =
+                summarize_ratings(&ratings, rating_legacy, review_legacy);
+
+            // Compute display price with markup
+            let product_record_for_markup = ProductRecord {
+                id: id.clone(),
+                slug: slug.clone(),
+                name: name.clone(),
+                category: category.clone(),
+                subcategory: subcategory.clone(),
+                price,
+                price_installment,
+                dp_min,
+                image: image.clone(),
+                images: None,
+                badge: badge.clone(),
+                badge_text: badge_text.clone(),
+                short_desc: None,
+                description: None,
+                specs: None,
+                stock: stock.clone(),
+                stock_quantity,
+                colors: None,
+                ratings: ratings_raw,
+                rating: rating_legacy,
+                review: None,
+            };
+            let markup_rule = find_price_markup(&product_record_for_markup, Some(&markups));
+            let display_price = apply_display_price(price, markup_rule);
+            let markup_value = markup_rule.map(|rule| {
+                json!({
+                    "id": rule.id,
+                    "scope": rule.scope,
+                    "targetValue": rule.target_value,
+                    "markupType": rule.markup_type,
+                    "markupValue": rule.markup_value,
+                })
+            });
+
+            json!({
+                "id": id,
+                "slug": slug,
+                "name": name,
+                "category": category,
+                "subcategory": subcategory,
+                "price": price,
+                "displayPrice": display_price,
+                "priceMarkup": markup_value,
+                "priceInstallment": price_installment,
+                "dpMin": dp_min,
+                "image": image,
+                "badge": badge,
+                "badgeText": badge_text,
+                "stock": stock,
+                "stockQuantity": stock_quantity,
+                "ratingAverage": rating_average,
+                "ratingCount": rating_count,
+                "views": views,
+                "leads": leads,
+                "conversions": conversions,
+                "conversionRate": conversion_rate,
+            })
+        })
+        .collect();
+
+    // Fetch distinct categories for filter dropdown
+    let categories_rows = sqlx::query("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category <> '' ORDER BY category")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+    let categories: Vec<String> = categories_rows
+        .iter()
+        .map(|row| row.get::<String, _>("category"))
+        .collect();
+
+    let total_pages = ((total as f64) / (limit as f64)).ceil() as u32;
+
+    Ok(json_ok(
+        "Paginated catalogs fetched",
+        json!({
+            "items": items,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "totalPages": total_pages,
+            },
+            "aggregates": {
+                "totalActive": total_active,
+                "totalLowStock": total_low_stock,
+                "totalOutOfStock": total_out_of_stock,
+                "totalViews": total_views,
+                "totalLeads": total_leads,
+                "totalConversions": total_conversions,
+            },
+            "categories": categories,
+        }),
+    ))
 }
 
 async fn match_catalogs(

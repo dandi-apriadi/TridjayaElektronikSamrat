@@ -7,14 +7,13 @@ import {
   DollarSign, Percent, Save, X
 } from 'lucide-react';
 
-import { useProductStore } from '../../store/useProductStore';
+import { useCatalogStore, type CatalogItem } from '../../store/useCatalogStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import { usePersistedState } from '../../hooks/usePersistedState';
+import { useDebounce } from '../../hooks/useDebounce';
 import { apiFetch, getImageUrl } from '../../utils/apiClient';
-import { getPublicPrice } from '../../utils/publicPricing';
-import type { Product } from '../../types';
 
 type ProductPriceMarkup = {
   id: string;
@@ -25,7 +24,7 @@ type ProductPriceMarkup = {
   isActive: number | boolean;
 };
 
-const statuses   = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
+const statuses = ['Semua', 'Active', 'Low Stock', 'Out of Stock'];
 
 const statusStyle: Record<string, string> = {
   'Active':       'bg-secondary/15 text-secondary',
@@ -37,18 +36,18 @@ const formatCurrency = (value: number) => (
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
 );
 
-const hasPriceMarkup = (product: Product) => (
+const hasPriceMarkup = (product: CatalogItem) => (
   typeof product.displayPrice === 'number' && Math.round(product.displayPrice) !== Math.round(product.price)
 );
 
-const getNumericStock = (product: Product): number | null => {
+const getNumericStock = (product: CatalogItem): number | null => {
   const value = product.stockQuantity;
   if (value === undefined || value === null) return null;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
 };
 
-const getProductStatus = (product: Product) => {
+const getProductStatus = (product: CatalogItem) => {
   const numericStock = getNumericStock(product);
   if (numericStock !== null) {
     if (numericStock <= 0) return 'Out of Stock';
@@ -61,14 +60,14 @@ const getProductStatus = (product: Product) => {
   return 'Active';
 };
 
-const getStockToneClass = (product: Product) => {
+const getStockToneClass = (product: CatalogItem) => {
   const status = getProductStatus(product);
   if (status === 'Out of Stock') return 'text-error';
   if (status === 'Low Stock') return 'text-tertiary';
   return 'text-secondary';
 };
 
-const getStockLabel = (product: Product) => {
+const getStockLabel = (product: CatalogItem) => {
   const numericStock = getNumericStock(product);
   if (numericStock !== null) {
     return `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(numericStock)} unit`;
@@ -79,7 +78,7 @@ const getStockLabel = (product: Product) => {
   return 'Stok belum diisi';
 };
 
-const getStockStatusHint = (product: Product) => {
+const getStockStatusHint = (product: CatalogItem) => {
   const status = getProductStatus(product);
   if (status === 'Out of Stock') return 'Habis';
   if (status === 'Low Stock') return 'Stok kritis';
@@ -90,11 +89,12 @@ const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, trans
 const itemVariants = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 const AdminCatalogPage: React.FC = () => {
-  const { products, isLoading, error, deleteProduct, fetchProducts } = useProductStore();
-  const [search, setSearch]     = usePersistedState('adminCatalog:search', '');
+  const { items, pagination, aggregates, categories: serverCategories, isLoading, error, fetchCatalogPage, invalidate } = useCatalogStore();
+
+  const [search, setSearch] = usePersistedState('adminCatalog:search', '');
   const [category, setCategory] = usePersistedState('adminCatalog:category', 'Semua');
-  const [status, setStatus]     = usePersistedState('adminCatalog:status', 'Semua');
-  const [sortBy, setSortBy]     = usePersistedState('adminCatalog:sortBy', 'views');
+  const [status, setStatus] = usePersistedState('adminCatalog:status', 'Semua');
+  const [sortBy, setSortBy] = usePersistedState('adminCatalog:sortBy', 'views');
   const [currentPage, setCurrentPage] = React.useState(1);
   const [isMarkupOpen, setIsMarkupOpen] = React.useState(false);
   const [markups, setMarkups] = React.useState<ProductPriceMarkup[]>([]);
@@ -106,16 +106,26 @@ const AdminCatalogPage: React.FC = () => {
     markupValue: '',
     isActive: true,
   });
-  const itemsPerPage = 8;
 
-  // Reset ke halaman 1 setiap kali filter berubah
+  const itemsPerPage = 20;
+  const debouncedSearch = useDebounce(search, 300);
+
+  // Reset page when filters change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, category, status, sortBy]);
+  }, [debouncedSearch, category, status, sortBy]);
 
+  // Fetch paginated data from server whenever filters/page change
   React.useEffect(() => {
-    fetchProducts(true);
-  }, [fetchProducts]);
+    fetchCatalogPage({
+      page: currentPage,
+      limit: itemsPerPage,
+      category,
+      status,
+      search: debouncedSearch,
+      sort: sortBy,
+    });
+  }, [fetchCatalogPage, currentPage, debouncedSearch, category, status, sortBy]);
 
   const fetchMarkups = React.useCallback(async () => {
     try {
@@ -134,67 +144,25 @@ const AdminCatalogPage: React.FC = () => {
 
   const handleDelete = async (id: string, name: string) => {
     if (window.confirm(`Apakah Anda yakin ingin menghapus produk "${name}"?`)) {
-      const success = await deleteProduct(id);
-      if (success) {
-        toast.success('Produk Berhasil Dihapus', `Produk ${name} telah dihapus dari katalog.`);
-      } else {
+      try {
+        const res = await apiFetch(`/api/catalogs/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast.success('Produk Berhasil Dihapus', `Produk ${name} telah dihapus dari katalog.`);
+          invalidate();
+        } else {
+          toast.error('Gagal Menghapus', 'Terjadi kesalahan saat menghapus produk.');
+        }
+      } catch {
         toast.error('Gagal Menghapus', 'Terjadi kesalahan saat menghapus produk.');
       }
     }
   };
 
+  // Categories from server response
   const categories = React.useMemo(() => {
-    const productCategories = products
-      .map((product) => product.category?.trim())
-      .filter((item): item is string => Boolean(item));
-    return ['Semua', ...Array.from(new Set(productCategories)).sort((a, b) => a.localeCompare(b, 'id'))];
-  }, [products]);
+    return ['Semua', ...serverCategories.sort((a, b) => a.localeCompare(b, 'id'))];
+  }, [serverCategories]);
 
-  const categoryCounts = React.useMemo(() => {
-    const counts = new Map<string, number>();
-    products.forEach((product) => {
-      const name = product.category?.trim() || 'Tanpa Kategori';
-      counts.set(name, (counts.get(name) || 0) + 1);
-    });
-    return counts;
-  }, [products]);
-
-  if (isLoading) {
-    return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data produk...</div>;
-  }
-  if (error) {
-    return <div className="text-center py-20 text-error">Galat memuat data: {error}</div>;
-  }
-
-  const filtered = products
-    .filter((p) => {
-      const matchSearch   = search.trim() === '' || 
-        `${p.name} ${p.id} ${p.category} ${p.subcategory || ''}`.toLowerCase().includes(search.toLowerCase());
-      const matchCategory = category === 'Semua' || p.category === category;
-      
-      const pStatus = getProductStatus(p);
-      const matchStatus   = status === 'Semua'   || pStatus === status;
-      return matchSearch && matchCategory && matchStatus;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'views') return (b.views || 0) - (a.views || 0);
-      if (sortBy === 'leads') return (b.leads || 0) - (a.leads || 0);
-      if (sortBy === 'conversionRate') return (b.conversionRate || 0) - (a.conversionRate || 0);
-      return 0;
-    });
-
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const paginated = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const totalActive   = products.filter((p) => getProductStatus(p) === 'Active').length;
-  const totalLow      = products.filter((p) => getProductStatus(p) === 'Low Stock').length;
-  const totalOut      = products.filter((p) => getProductStatus(p) === 'Out of Stock').length;
-  const totalViews    = products.reduce((s, p) => s + (p.views || 0), 0);
-  const totalLeads    = products.reduce((s, p) => s + (p.leads || 0), 0);
-  const totalConversions = products.reduce((s, p) => s + (p.conversions || 0), 0);
   const activeMarkupCount = markups.filter((item) => item.isActive === true || item.isActive === 1).length;
 
   const formatMarkup = (item: ProductPriceMarkup) => (
@@ -240,7 +208,7 @@ const AdminCatalogPage: React.FC = () => {
       toast.success('MarkUp harga disimpan', 'Harga publik akan memakai aturan MarkUp terbaru.');
       setMarkupForm({ scope: 'category', targetValue: '', markupType: 'amount', markupValue: '', isActive: true });
       await fetchMarkups();
-      await fetchProducts(true);
+      invalidate();
     } catch (err) {
       toast.error('Gagal menyimpan MarkUp', err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
@@ -255,11 +223,14 @@ const AdminCatalogPage: React.FC = () => {
       if (!res.ok) throw new Error('Gagal menghapus MarkUp');
       toast.success('MarkUp dihapus', 'Aturan harga publik berhasil dihapus.');
       await fetchMarkups();
-      await fetchProducts(true);
+      invalidate();
     } catch (err) {
       toast.error('Gagal menghapus MarkUp', err instanceof Error ? err.message : 'Terjadi kesalahan');
     }
   };
+
+  // Use server-provided aggregates
+  const { totalActive, totalLowStock: totalLow, totalOutOfStock: totalOut, totalViews, totalLeads, totalConversions } = aggregates;
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -314,9 +285,9 @@ const AdminCatalogPage: React.FC = () => {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Produk Aktif', value: totalActive,  sub: 'di semua kategori',   color: 'text-secondary', bg: 'bg-secondary/10', icon: Package },
-          { label: 'Stok Kritis',         value: totalLow,    sub: '< 5 unit tersisa',     color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: AlertTriangle },
-          { label: 'Habis Stok',          value: totalOut,    sub: 'perlu restock segera', color: 'text-error',     bg: 'bg-error/10',     icon: AlertTriangle },
+          { label: 'Total Produk Aktif', value: totalActive, sub: 'di semua kategori', color: 'text-secondary', bg: 'bg-secondary/10', icon: Package },
+          { label: 'Stok Kritis', value: totalLow, sub: '< 5 unit tersisa', color: 'text-tertiary', bg: 'bg-tertiary/10', icon: AlertTriangle },
+          { label: 'Habis Stok', value: totalOut, sub: 'perlu restock segera', color: 'text-error', bg: 'bg-error/10', icon: AlertTriangle },
           { label: 'Total Lead Katalog', value: totalLeads.toLocaleString('id-ID'), sub: `${totalViews.toLocaleString('id-ID')} views • ${totalConversions.toLocaleString('id-ID')} conversions`, color: 'text-primary', bg: 'bg-primary/10', icon: TrendingUp },
         ].map((k) => (
           <motion.div key={k.label} variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
@@ -388,8 +359,8 @@ const AdminCatalogPage: React.FC = () => {
                       className="w-full rounded-lg border border-outline-variant/20 bg-surface-high px-3 py-2.5 text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/40"
                     >
                       <option value="">Pilih kategori</option>
-                      {categories.filter((item) => item !== 'Semua').map((item) => (
-                        <option key={item} value={item}>{item} ({categoryCounts.get(item) || 0})</option>
+                      {serverCategories.map((item) => (
+                        <option key={item} value={item}>{item}</option>
                       ))}
                     </select>
                   </div>
@@ -404,7 +375,7 @@ const AdminCatalogPage: React.FC = () => {
                       className="w-full rounded-lg border border-outline-variant/20 bg-surface-high px-3 py-2.5 text-body-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/40"
                     >
                       <option value="">Pilih produk</option>
-                      {products
+                      {items
                         .slice()
                         .sort((a, b) => a.name.localeCompare(b.name, 'id'))
                         .map((item) => (
@@ -537,7 +508,7 @@ const AdminCatalogPage: React.FC = () => {
               searchPlaceholder="Cari kategori..."
               options={categories.map((c) => ({
                 value: c,
-                label: c === 'Semua' ? `Semua Kategori (${products.length})` : `${c} (${categoryCounts.get(c) || 0})`,
+                label: c === 'Semua' ? `Semua Kategori (${pagination.total})` : c,
               }))}
             />
           </div>
@@ -604,131 +575,145 @@ const AdminCatalogPage: React.FC = () => {
           </div>
         )}
 
+        {/* Loading state */}
+        {isLoading && (
+          <div className="text-center py-10 text-on-surface-variant animate-pulse">Memuat data produk...</div>
+        )}
+
+        {/* Error state */}
+        {error && !isLoading && (
+          <div className="text-center py-10 text-error">{error}</div>
+        )}
+
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[860px]">
-            <thead>
-              <tr className="text-label-xs text-on-surface-variant border-b border-outline-variant/20 uppercase tracking-widest">
-                <th className="py-3 pr-4">Produk</th>
-                <th className="py-3 pr-4">Kategori</th>
-                <th className="py-3 pr-4">Harga</th>
-                <th className="py-3 pr-4">Stok</th>
-                <th className="py-3 pr-4">Popularitas</th>
-                <th className="py-3 pr-4">Status</th>
-                <th className="py-3">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.map((p) => (
-                <tr key={p.id} className="border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
-                  <td className="py-3 pr-4">
-                    <div className="flex items-center gap-3">
-                      {/* Thumbnail */}
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface-highest flex-shrink-0 border border-outline-variant/20">
-                        {p.image ? (
-                          <img
-                            src={getImageUrl(p.image)}
-                            alt={p.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-on-surface-variant/30">
-                            <Package className="w-4 h-4" />
+        {!isLoading && !error && (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left min-w-[860px]">
+                <thead>
+                  <tr className="text-label-xs text-on-surface-variant border-b border-outline-variant/20 uppercase tracking-widest">
+                    <th className="py-3 pr-4">Produk</th>
+                    <th className="py-3 pr-4">Kategori</th>
+                    <th className="py-3 pr-4">Harga</th>
+                    <th className="py-3 pr-4">Stok</th>
+                    <th className="py-3 pr-4">Popularitas</th>
+                    <th className="py-3 pr-4">Status</th>
+                    <th className="py-3">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((p) => (
+                    <tr key={p.id} className="border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
+                      <td className="py-3 pr-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface-highest flex-shrink-0 border border-outline-variant/20">
+                            {p.image ? (
+                              <img
+                                src={getImageUrl(p.image)}
+                                alt={p.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-on-surface-variant/30">
+                                <Package className="w-4 h-4" />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-on-surface text-body-sm group-hover:text-primary transition-colors truncate max-w-[200px]">{p.name}</div>
-                        <div className="text-label-xs text-on-surface-variant truncate max-w-[200px]">{p.id}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 pr-4">
-                    <span className="px-2 py-0.5 rounded-md bg-surface-highest text-on-surface-variant text-label-xs font-semibold inline-flex items-center gap-1">
-                      <Tag className="w-2.5 h-2.5" />{p.category}
-                    </span>
-                  </td>
-                  <td className="py-3.5 pr-4">
-                    <div className={`font-semibold text-body-sm ${hasPriceMarkup(p) ? 'gradient-text-primary' : 'text-on-surface'}`}>
-                      {formatCurrency(getPublicPrice(p))}
-                    </div>
-                    {hasPriceMarkup(p) ? (
-                      <div className="mt-0.5 flex flex-col gap-0.5 text-label-xs text-on-surface-variant">
-                        <span>Sistem: {formatCurrency(p.price)}</span>
-                        <span className="text-tertiary">MarkUp publik aktif</span>
-                      </div>
-                    ) : (
-                      <div className="mt-0.5 text-label-xs text-on-surface-variant">Harga sistem</div>
-                    )}
-                  </td>
-                  <td className="py-3.5 pr-4">
-                    <div className={`font-bold text-body-sm ${getStockToneClass(p)}`}>
-                      {getStockLabel(p)}
-                    </div>
-                    <div className="mt-0.5 text-label-xs text-on-surface-variant">
-                      {getStockStatusHint(p)}
-                    </div>
-                  </td>
-                  <td className="py-3.5 pr-4">
-                    <div className="font-bold text-secondary text-body-sm">{Math.round(p.conversionRate || 0)}%</div>
-                    <div className="text-label-xs text-on-surface-variant mt-0.5">
-                      {p.leads || 0} lead / {p.views || 0} views
-                    </div>
-                  </td>
-                  <td className="py-3.5 pr-4">
-                    {(() => {
-                      const productStatus = getProductStatus(p);
-                      return (
-                        <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold ${statusStyle[productStatus]}`}>
-                          {productStatus}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-on-surface text-body-sm group-hover:text-primary transition-colors truncate max-w-[200px]">{p.name}</div>
+                            <div className="text-label-xs text-on-surface-variant truncate max-w-[200px]">{p.id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 pr-4">
+                        <span className="px-2 py-0.5 rounded-md bg-surface-highest text-on-surface-variant text-label-xs font-semibold inline-flex items-center gap-1">
+                          <Tag className="w-2.5 h-2.5" />{p.category}
                         </span>
-                      );
-                    })()}
-                  </td>
-                  <td className="py-3.5">
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Link to={`/produk/${p.slug}`} className="p-1.5 rounded-md bg-surface-highest text-on-surface-variant hover:text-primary transition-colors" title="Preview">
-                        <Eye className="w-4 h-4" />
-                      </Link>
-                      <Link to={`/dashboard/admin/catalog/edit/${p.id}`} className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Edit">
-                        <Edit3 className="w-4 h-4" />
-                      </Link>
-                      <button 
-                        onClick={() => handleDelete(p.id, p.name)}
-                        className="p-1.5 rounded-md bg-error/10 text-error hover:bg-error/20 transition-colors" 
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant text-body-sm">Tidak ada produk yang sesuai filter.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="py-3.5 pr-4">
+                        <div className={`font-semibold text-body-sm ${hasPriceMarkup(p) ? 'gradient-text-primary' : 'text-on-surface'}`}>
+                          {formatCurrency(p.displayPrice ?? p.price)}
+                        </div>
+                        {hasPriceMarkup(p) ? (
+                          <div className="mt-0.5 flex flex-col gap-0.5 text-label-xs text-on-surface-variant">
+                            <span>Sistem: {formatCurrency(p.price)}</span>
+                            <span className="text-tertiary">MarkUp publik aktif</span>
+                          </div>
+                        ) : (
+                          <div className="mt-0.5 text-label-xs text-on-surface-variant">Harga sistem</div>
+                        )}
+                      </td>
+                      <td className="py-3.5 pr-4">
+                        <div className={`font-bold text-body-sm ${getStockToneClass(p)}`}>
+                          {getStockLabel(p)}
+                        </div>
+                        <div className="mt-0.5 text-label-xs text-on-surface-variant">
+                          {getStockStatusHint(p)}
+                        </div>
+                      </td>
+                      <td className="py-3.5 pr-4">
+                        <div className="font-bold text-secondary text-body-sm">{Math.round(p.conversionRate || 0)}%</div>
+                        <div className="text-label-xs text-on-surface-variant mt-0.5">
+                          {p.leads || 0} lead / {p.views || 0} views
+                        </div>
+                      </td>
+                      <td className="py-3.5 pr-4">
+                        {(() => {
+                          const productStatus = getProductStatus(p);
+                          return (
+                            <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold ${statusStyle[productStatus]}`}>
+                              {productStatus}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="py-3.5">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Link to={`/produk/${p.slug}`} className="p-1.5 rounded-md bg-surface-highest text-on-surface-variant hover:text-primary transition-colors" title="Preview">
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                          <Link to={`/dashboard/admin/catalog/edit/${p.id}`} className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Edit">
+                            <Edit3 className="w-4 h-4" />
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(p.id, p.name)}
+                            className="p-1.5 rounded-md bg-error/10 text-error hover:bg-error/20 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {items.length === 0 && (
+                    <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant text-body-sm">Tidak ada produk yang sesuai filter.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={(page) => setCurrentPage(page)}
-          className="mt-4 border-t border-outline-variant/10"
-        />
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={(page) => setCurrentPage(page)}
+              className="mt-4 border-t border-outline-variant/10"
+            />
 
-        <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-          <div className="text-label-sm text-on-surface-variant">
-            Menampilkan <strong className="text-on-surface">{filtered.length}</strong> dari {products.length} produk
-          </div>
-          <Link to="/produk/bike" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
-            Lihat Katalog Publik <ArrowUpRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+            <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+              <div className="text-label-sm text-on-surface-variant">
+                Menampilkan <strong className="text-on-surface">{items.length}</strong> dari {pagination.total} produk
+              </div>
+              <Link to="/produk/bike" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
+                Lihat Katalog Publik <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );
