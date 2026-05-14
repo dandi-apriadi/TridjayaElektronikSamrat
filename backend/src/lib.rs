@@ -10,6 +10,7 @@ pub mod campaign_metrics;
 pub mod chatbot_engine;
 pub mod chatbot_routes;
 pub mod cleanup;
+pub mod landing_routes;
 pub mod mail;
 pub mod media_handler;
 pub mod pixel;

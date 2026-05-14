@@ -5,6 +5,8 @@ export interface ProductImportRow {
   name: string;
   price?: number | string;
   stock?: string;
+  stockQuantity?: number | string;
+  stockDisplayQuantity?: number | string;
   category?: string;
   subcategory?: string;
   description?: string;
@@ -40,6 +42,68 @@ export interface ImportResult {
   details: ImportPreviewItem[];
 }
 
+function normalizeColumnName(key: string): string {
+  return key.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function parseImportNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return undefined;
+  }
+  if (typeof value === 'number') return value;
+
+  let cleaned = String(value).trim().replace(/^rp\s*/i, '');
+  const commaParts = cleaned.split(',');
+  let decimalPart = '';
+  if (commaParts.length > 1) {
+    decimalPart = commaParts.pop() ?? '';
+    cleaned = commaParts.join('');
+  }
+
+  const isNegative = cleaned.trimStart().startsWith('-');
+  cleaned = cleaned.replace(/\./g, '').replace(/[^0-9]/g, '');
+  if (isNegative && cleaned) cleaned = `-${cleaned}`;
+
+  const numeric = decimalPart
+    ? `${cleaned}.${decimalPart.replace(/[^0-9]/g, '')}`
+    : cleaned;
+  const parsed = Number(numeric);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeStockValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return undefined;
+  }
+
+  const text = String(value).trim().toLowerCase();
+  const numeric = parseImportNumber(value);
+  if (numeric !== undefined && /^-?[\d.,\s]+$/.test(text)) {
+    if (numeric <= 0) return 'hidden';
+    if (numeric <= 5) return 'indent';
+    return 'available';
+  }
+
+  const statusMap: Record<string, string> = {
+    tersedia: 'available',
+    ready: 'available',
+    available: 'available',
+    ada: 'available',
+    limited: 'limited',
+    terbatas: 'limited',
+    indent: 'indent',
+    inden: 'indent',
+    kosong: 'hidden',
+    habis: 'hidden',
+    hidden: 'hidden',
+    out_of_stock: 'hidden',
+    'out of stock': 'hidden',
+    discontinued: 'discontinued',
+  };
+
+  return statusMap[text] ?? text;
+}
+
 /**
  * Parse Excel file dan return array of product data
  */
@@ -64,7 +128,7 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
         }
 
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet);
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
         // Validasi struktur data
         if (!jsonData || jsonData.length === 0) {
@@ -77,18 +141,26 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
           const normalized: ProductImportRow = { name: '' };
           
           for (const [key, value] of Object.entries(row)) {
-            const lowerKey = (key as string).toLowerCase().trim();
+            const lowerKey = normalizeColumnName(key as string);
             
             // Map common variations
-            if (['name', 'nama', 'product_name', 'product name'].includes(lowerKey)) {
+            if (['name', 'nama', 'nama barang', 'nama produk', 'product_name', 'product name'].includes(lowerKey)) {
               normalized.name = String(value || '').trim();
-            } else if (['price', 'harga', 'unit_price', 'unit price'].includes(lowerKey)) {
-              normalized.price = parseFloat(String(value || '0').replace(/[^0-9.-]/g, ''));
-            } else if (['stock', 'stok', 'stock_status', 'stock status'].includes(lowerKey)) {
-              normalized.stock = String(value || 'available').trim().toLowerCase();
+            } else if (['price', 'harga', 'harga satuan', 'harga jual', 'unit_price', 'unit price'].includes(lowerKey)) {
+              const price = parseImportNumber(value);
+              if (price !== undefined) {
+                normalized.price = price;
+              }
+            } else if (['stock', 'stok', 'stok akhir', 'stock_status', 'stock status'].includes(lowerKey)) {
+              const stockQuantity = parseImportNumber(value);
+              normalized.stockQuantity = stockQuantity !== undefined ? stockQuantity : String(value || '').trim();
+              normalized.stock = normalizeStockValue(value);
+            } else if (['stok display', 'display stock', 'stock display'].includes(lowerKey)) {
+              const stockDisplayQuantity = parseImportNumber(value);
+              normalized.stockDisplayQuantity = stockDisplayQuantity !== undefined ? stockDisplayQuantity : String(value || '').trim();
             } else if (['category', 'kategori'].includes(lowerKey)) {
               normalized.category = String(value || '').trim();
-            } else if (['subcategory', 'sub_category', 'sub category', 'subkategori'].includes(lowerKey)) {
+            } else if (['subcategory', 'sub_category', 'sub category', 'subkategori', 'merk/tipe', 'merk tipe', 'brand', 'merk'].includes(lowerKey)) {
               normalized.subcategory = String(value || '').trim();
             } else if (['description', 'deskripsi', 'desc'].includes(lowerKey)) {
               normalized.description = String(value || '').trim();
@@ -103,6 +175,22 @@ export async function parseExcelFile(file: File): Promise<ProductImportRow[]> {
           }
           
           return normalized;
+        }).filter((row) => {
+          const productValues = [
+            row.name,
+            row.price,
+            row.stock,
+            row.stockQuantity,
+            row.stockDisplayQuantity,
+            row.category,
+            row.subcategory,
+            row.description,
+            row.shortDesc,
+            row.image,
+          ];
+          return productValues.some((value) => (
+            value !== undefined && value !== null && String(value).trim() !== ''
+          ));
         });
 
         resolve(normalized);
@@ -210,6 +298,20 @@ export function generateImportPreview(
       if (row.stock && row.stock !== match.stock) {
         fieldChanges.push({ field: 'Stok', old: match.stock, new: row.stock });
       }
+      if (row.stockQuantity !== undefined && row.stockQuantity !== null) {
+        const importedStockQuantity = Number(row.stockQuantity);
+        const existingStockQuantity = Number(match.stockQuantity);
+        if (
+          Number.isFinite(importedStockQuantity) &&
+          (!Number.isFinite(existingStockQuantity) || importedStockQuantity !== existingStockQuantity)
+        ) {
+          fieldChanges.push({
+            field: 'Stok Fisik',
+            old: Number.isFinite(existingStockQuantity) ? existingStockQuantity : '(belum ada)',
+            new: importedStockQuantity
+          });
+        }
+      }
 
       return {
         rowNumber,
@@ -277,6 +379,13 @@ export function prepareUpdateData(
     }
   }
 
+  if (importRow.stockQuantity !== undefined && importRow.stockQuantity !== null && String(importRow.stockQuantity).trim() !== '') {
+    const stockQuantity = parseFloat(String(importRow.stockQuantity).replace(/[^0-9.-]/g, ''));
+    if (!isNaN(stockQuantity) && stockQuantity >= 0) {
+      updateData.stockQuantity = stockQuantity;
+    }
+  }
+
   if (importRow.category) {
     updateData.category = importRow.category.trim() as any;
   }
@@ -304,28 +413,23 @@ export function prepareUpdateData(
  * Get placeholder image based on category
  */
 export function getCategoryPlaceholder(category?: string): string {
-  if (!category) return '/uploads/placeholders/default.png';
+  if (!category) return '/assets/images/logo.webp';
   
   const cat = category.toLowerCase().trim();
   
-  if (cat.includes('tv')) return '/uploads/placeholders/tv.png';
-  if (cat.includes('cuci')) return '/uploads/placeholders/mesin_cuci.png';
-  if (cat.includes('ac')) return '/uploads/placeholders/ac.png';
-  if (cat.includes('sepeda') || cat.includes('selis')) return '/uploads/placeholders/sepeda_listrik.png';
-  if (cat.includes('kursi') || cat.includes('meja') || cat.includes('lemari')) return '/uploads/placeholders/kursi.png';
-  if (cat.includes('kulkas') || cat.includes('freezer') || cat.includes('showcase')) return '/uploads/placeholders/kulkas.png';
-  if (cat.includes('sofa')) return '/uploads/placeholders/sofa.png';
-  if (cat.includes('kompor')) return '/uploads/placeholders/kompor.png';
-  if (cat.includes('speaker') || cat.includes('audio')) return '/uploads/placeholders/speaker.png';
-  if (cat.includes('hp') || cat.includes('handphone') || cat.includes('ponsel')) return '/uploads/placeholders/handphone.png';
-  if (cat.includes('kasur') || cat.includes('springbed')) return '/uploads/placeholders/kasur.png';
-  if (cat.includes('magic com') || cat.includes('rice cooker')) return '/uploads/placeholders/magic_com.png';
-  if (cat.includes('kipas')) return '/uploads/placeholders/kipas_angin.png';
-  if (cat.includes('dispenser')) return '/uploads/placeholders/dispenser.png';
-  if (cat.includes('blender')) return '/uploads/placeholders/blender.png';
-  if (cat.includes('oven') || cat.includes('fryer') || cat.includes('cooker')) return '/uploads/placeholders/oven.png';
+  if (cat.includes('tv')) return '/assets/images/tv.webp';
+  if (cat.includes('cuci')) return '/assets/images/polytron-washer.webp';
+  if (cat.includes('ac')) return '/assets/images/sharp-ac.webp';
+  if (cat.includes('sepeda') || cat.includes('selis')) return '/assets/images/hero-bike.webp';
+  if (cat.includes('kursi') || cat.includes('meja') || cat.includes('lemari')) return '/assets/images/sofa.webp';
+  if (cat.includes('kulkas') || cat.includes('freezer') || cat.includes('showcase')) return '/assets/images/fridge.webp';
+  if (cat.includes('sofa')) return '/assets/images/sofa.webp';
+  if (cat.includes('hp') || cat.includes('handphone') || cat.includes('ponsel')) return '/assets/images/genio-x2.webp';
+  if (cat.includes('kasur') || cat.includes('springbed')) return '/assets/images/sofa.webp';
+  if (cat.includes('kompor') || cat.includes('magic com') || cat.includes('rice cooker') || cat.includes('oven') || cat.includes('fryer') || cat.includes('cooker') || cat.includes('dispenser') || cat.includes('blender')) return '/assets/images/fridge.webp';
+  if (cat.includes('speaker') || cat.includes('audio') || cat.includes('kipas')) return '/assets/images/tv.webp';
   
-  return '/uploads/placeholders/default.png';
+  return '/assets/images/logo.webp';
 }
 
 /**

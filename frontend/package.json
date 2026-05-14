@@ -10,7 +10,10 @@
     "smoke:api": "node ./scripts/smoke-release.mjs",
     "baseline:monitor": "node ./scripts/baseline-monitor.mjs",
     "qa:ops": "npm run smoke:api && npm run baseline:monitor -- --strict",
-    "release:gate": "npm run build && npm run smoke:api && npm run baseline:monitor"
+    "release:gate": "npm run build && npm run smoke:api && npm run baseline:monitor",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
@@ -18,11 +21,15 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/ui": "^4.1.6",
     "autoprefixer": "^10.5.0",
+    "fast-check": "^4.8.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.10",
     "tailwindcss": "~3.4.1",
     "typescript": "~6.0.2",
-    "vite": "^8.0.4"
+    "vite": "^8.0.4",
+    "vitest": "^4.1.6"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -39,7 +46,7 @@
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.14.1",
     "recharts": "^3.8.1",
-    "xlsx": "^0.18.5",
+    "xlsx": "npm:@e965/xlsx@^0.20.3",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"
   }

@@ -62,7 +62,8 @@ struct JsonRpcRequest {
 /// JSON-RPC response structure
 #[derive(Debug, Clone, Deserialize)]
 struct JsonRpcResponse {
-    jsonrpc: String,
+    #[serde(rename = "jsonrpc")]
+    _jsonrpc: String,
     id: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     result: Option<serde_json::Value>,
@@ -82,7 +83,8 @@ pub struct JsonRpcError {
 /// JSON-RPC notification (event from Node.js)
 #[derive(Debug, Clone, Deserialize)]
 struct JsonRpcNotification {
-    jsonrpc: String,
+    #[serde(rename = "jsonrpc")]
+    _jsonrpc: String,
     method: String,
     params: serde_json::Value,
 }
@@ -123,10 +125,8 @@ struct BridgeProcess {
     child: std::process::Child,
     stdin: std::process::ChildStdin,
     response_channels: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
-    event_tx: mpsc::UnboundedSender<BridgeEvent>,
     next_request_id: Arc<AtomicU64>,
     expected_shutdown: Arc<AtomicBool>,
-    restart_count: usize,
 }
 
 impl BridgeProcess {
@@ -164,10 +164,8 @@ impl BridgeProcess {
             child,
             stdin,
             response_channels,
-            event_tx,
             next_request_id,
             expected_shutdown,
-            restart_count: 0,
         }
     }
 
@@ -376,7 +374,6 @@ pub struct BridgeEvent {
 pub struct BridgeClient {
     processes: Arc<RwLock<HashMap<String, BridgeProcess>>>,
     event_tx: mpsc::UnboundedSender<BridgeEvent>,
-    event_rx: Arc<Mutex<mpsc::UnboundedReceiver<BridgeEvent>>>,
     process_semaphore: Arc<Semaphore>,
     node_path: PathBuf,
     bridge_script_path: PathBuf,
@@ -387,13 +384,9 @@ impl BridgeClient {
     pub fn new() -> (Self, mpsc::UnboundedReceiver<BridgeEvent>) {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
 
-        // Create a dummy receiver for the client (won't be used)
-        let (_dummy_tx, dummy_rx) = mpsc::unbounded_channel();
-
         let client = Self {
             processes: Arc::new(RwLock::new(HashMap::new())),
             event_tx,
-            event_rx: Arc::new(Mutex::new(dummy_rx)),
             process_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_PROCESSES)),
             node_path: PathBuf::from("node"),
             bridge_script_path: PathBuf::from(BAILEYS_BRIDGE_PATH),
@@ -624,7 +617,7 @@ mod tests {
         let json = r#"{"jsonrpc":"2.0","id":1,"result":{"status":"ok"}}"#;
         let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
 
-        assert_eq!(response.jsonrpc, "2.0");
+        assert_eq!(response._jsonrpc, "2.0");
         assert_eq!(response.id, 1);
         assert!(response.result.is_some());
         assert!(response.error.is_none());
@@ -636,7 +629,7 @@ mod tests {
             r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}"#;
         let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
 
-        assert_eq!(response.jsonrpc, "2.0");
+        assert_eq!(response._jsonrpc, "2.0");
         assert_eq!(response.id, 1);
         assert!(response.result.is_none());
         assert!(response.error.is_some());
@@ -651,7 +644,7 @@ mod tests {
         let json = r#"{"jsonrpc":"2.0","method":"message_received","params":{"text":"hello"}}"#;
         let notification: JsonRpcNotification = serde_json::from_str(json).unwrap();
 
-        assert_eq!(notification.jsonrpc, "2.0");
+        assert_eq!(notification._jsonrpc, "2.0");
         assert_eq!(notification.method, "message_received");
         assert!(notification.params.is_object());
     }

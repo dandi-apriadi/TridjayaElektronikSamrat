@@ -48,6 +48,7 @@ const AdminProductFormPage: React.FC = () => {
     priceInstallment: 0,
     dpMin: 0,
     stock: 'available',
+    stockQuantity: undefined,
     image: '',
     images: [],
     description: '',
@@ -162,11 +163,11 @@ const AdminProductFormPage: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    const numericFields = new Set(['price', 'priceInstallment', 'dpMin', 'rating']);
+    const numericFields = new Set(['price', 'priceInstallment', 'dpMin', 'rating', 'stockQuantity']);
     setFormData(prev => ({
       ...prev,
       [name]: numericFields.has(name)
-        ? (name === 'rating' && value === '' ? undefined : Number(value))
+        ? ((name === 'rating' || name === 'stockQuantity') && value === '' ? undefined : Number(value))
         : value
     }));
   };
@@ -400,6 +401,7 @@ const AdminProductFormPage: React.FC = () => {
       rating: undefined,
       priceInstallment: formData.priceInstallment ?? undefined,
       dpMin: formData.dpMin ?? undefined,
+      stockQuantity: formData.stockQuantity ?? undefined,
       image: formData.image ?? '',
       images: (formData.images ?? []).filter(Boolean),
       colors: (formData.colors ?? []).filter(Boolean),
@@ -806,6 +808,21 @@ const AdminProductFormPage: React.FC = () => {
               <div className="space-y-1.5">
                 <label className="text-label-sm font-semibold text-on-surface-variant">Cicilan / Bulan (Manual)</label>
                 <input name="priceInstallment" value={formData.priceInstallment || ''} onChange={handleChange} type="number" min="0" className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none font-bold text-secondary" placeholder="Atau biarkan 0 untuk hitungan otomatis" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-label-sm font-semibold text-on-surface-variant">Stok Fisik (Unit)</label>
+                <input
+                  name="stockQuantity"
+                  value={formData.stockQuantity ?? ''}
+                  onChange={handleChange}
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="w-full px-4 py-2.5 bg-surface-high border border-outline-variant/20 rounded-lg text-body-sm focus:ring-2 focus:ring-primary/40 outline-none"
+                  placeholder="Contoh: 12"
+                />
+                <p className="text-[10px] text-on-surface-variant">Angka ini yang tampil di katalog admin dan dipakai untuk status kritis/habis.</p>
               </div>
 
               <div className="space-y-1.5">

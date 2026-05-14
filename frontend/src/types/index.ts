@@ -7,6 +7,14 @@ export interface Product {
   category: 'bike' | 'electronics' | 'furniture';
   subcategory: string;
   price: number;
+  displayPrice?: number;
+  priceMarkup?: {
+    id: string;
+    scope: 'all' | 'category' | 'product';
+    targetValue?: string | null;
+    markupType: 'amount' | 'percent';
+    markupValue: number;
+  } | null;
   priceInstallment?: number;
   dpMin?: number;
   image: string;
@@ -25,7 +33,8 @@ export interface Product {
   specs: Record<string, string>;
   description: string;
   shortDesc: string;
-  stock: 'available' | 'indent' | 'hidden';
+  stock: 'available' | 'indent' | 'hidden' | 'limited' | 'out_of_stock' | 'discontinued';
+  stockQuantity?: number | null;
   colors?: string[];
   highlights?: string[];
   sellingPoints?: string[];
@@ -104,6 +113,75 @@ export interface PartnerItem {
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface LandingMetricSpec {
+  iconKey: string;
+  value: string;
+  label: string;
+}
+
+export interface LandingHeroSlideData {
+  id: string;
+  eyebrow: string;
+  title: string;
+  accent: string;
+  copy: string;
+  href: string;
+  cta: string;
+  bgImageUrl: string;
+  productImageUrl: string;
+  productAlt: string;
+  iconKey: string;
+  price: string;
+  oldPrice: string;
+  detailLine: string;
+  metrics: LandingMetricSpec[];
+  specs: LandingMetricSpec[];
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface LandingCategoryPanelData {
+  id: string;
+  label: string;
+  copy: string;
+  href: string;
+  imageUrl: string;
+  tags: string[];
+  tone: string;
+  iconKey: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface LandingSmartRideData {
+  id: string;
+  eyebrow: string;
+  title: string;
+  copy: string;
+  mainImageUrl: string;
+  mainImageAlt: string;
+  overlayTitle: string;
+  overlayCopy: string;
+  stats: Array<{ value: string; label: string }>;
+  isActive: boolean;
+}
+
+export interface LandingSmartRideFeatureData {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface LandingHomeData {
+  heroSlides: LandingHeroSlideData[];
+  categoryPanels: LandingCategoryPanelData[];
+  smartRide: LandingSmartRideData | null;
+  smartRideFeatures: LandingSmartRideFeatureData[];
 }
 
 export type Theme = 'dark' | 'light';

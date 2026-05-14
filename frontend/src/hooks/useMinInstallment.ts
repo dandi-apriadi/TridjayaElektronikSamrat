@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { loadCreditData, calculateInstallments, mapProductToCreditCategory } from '../utils/creditCalculator';
 import type { Product } from '../types';
+import { getPublicPrice } from '../utils/publicPricing';
 
 export interface CreditSummary {
   /** Angsuran bulanan termurah (tenor terpanjang = 15x) */
@@ -27,11 +28,12 @@ export function useMinInstallment(product: Product | null): number | null {
     loadCreditData().then((data) => {
       try {
         const category = mapProductToCreditCategory(product.category, product.subcategory);
+        const publicPrice = getPublicPrice(product);
 
-        const resultNew = calculateInstallments(data, product.price, 'NEW', category);
+        const resultNew = calculateInstallments(data, publicPrice, 'NEW', category);
         const valuesNew = Object.values(resultNew.installments).filter((v): v is number => !!v);
 
-        const resultRO = calculateInstallments(data, product.price, 'RO', category);
+        const resultRO = calculateInstallments(data, publicPrice, 'RO', category);
         const valuesRO = Object.values(resultRO.installments).filter((v): v is number => !!v);
 
         const allValues = [...valuesNew, ...valuesRO];
@@ -43,7 +45,7 @@ export function useMinInstallment(product: Product | null): number | null {
         console.error('Error calculating min installment:', e);
       }
     }).catch(err => console.error('Failed to load credit data:', err));
-  }, [product?.id, product?.price, product?.category, product?.subcategory]);
+  }, [product?.id, product?.price, product?.displayPrice, product?.category, product?.subcategory]);
 
   return minInstallment;
 }
@@ -66,11 +68,12 @@ export function useCreditSummary(product: Product | null): CreditSummary {
     loadCreditData().then((data) => {
       try {
         const category = mapProductToCreditCategory(product.category, product.subcategory);
+        const publicPrice = getPublicPrice(product);
 
         // NEW customer installments
-        const resultNew = calculateInstallments(data, product.price, 'NEW', category);
+        const resultNew = calculateInstallments(data, publicPrice, 'NEW', category);
         // RO customer installments
-        const resultRO = calculateInstallments(data, product.price, 'RO', category);
+        const resultRO = calculateInstallments(data, publicPrice, 'RO', category);
 
         // Collect all installment values across both customer types
         const allValues = [
@@ -95,7 +98,7 @@ export function useCreditSummary(product: Product | null): CreditSummary {
         console.error('Error calculating credit summary:', e);
       }
     }).catch(err => console.error('Failed to load credit data:', err));
-  }, [product?.id, product?.price, product?.category, product?.subcategory]);
+  }, [product?.id, product?.price, product?.displayPrice, product?.category, product?.subcategory]);
 
   return summary;
 }

@@ -5,7 +5,7 @@ use axum::{
 };
 use serde_json::json;
 use tower::ServiceExt;
-use tridjaya_backend::{response::AppError, state::AppState, wa_webhook_handlers};
+use tridjaya_backend::{state::AppState, wa_webhook_handlers};
 
 #[cfg(test)]
 mod webhook_routes_tests {

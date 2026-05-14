@@ -16,6 +16,7 @@ import { useProductStore } from '../../store/useProductStore';
 import { usePersistedState } from '../../hooks/usePersistedState';
 import { useAuthStore } from '../../store/authStore';
 import { getFrontendBaseUrl } from '../../utils/apiClient';
+import { getPublicPrice } from '../../utils/publicPricing';
 import { 
   loadCreditData, 
   calculateInstallments, 
@@ -105,6 +106,7 @@ const AgentKnowledgePage: React.FC = () => {
 
   const handleCopyMaterial = async (p: Product) => {
     const mkt = getMarketingInfo(p);
+    const publicPrice = getPublicPrice(p);
     const encodedSlug = p.slug.split('+').map(part => encodeURIComponent(part)).join('+');
     const productUrl = `${getFrontendBaseUrl()}/produk/${encodedSlug}`;
 
@@ -114,8 +116,8 @@ const AgentKnowledgePage: React.FC = () => {
     try {
       const data = await loadCreditData();
       const cat = mapProductToCreditCategory(p.category, p.subcategory);
-      const resultNew = calculateInstallments(data, p.price, 'NEW', cat);
-      const resultRO  = calculateInstallments(data, p.price, 'RO',  cat);
+      const resultNew = calculateInstallments(data, publicPrice, 'NEW', cat);
+      const resultRO  = calculateInstallments(data, publicPrice, 'RO',  cat);
       const dp15New = resultNew.installments['15x'] ?? null;
       const dp15RO  = resultRO.installments['15x']  ?? null;
       const minDp   = dp15New !== null && dp15RO !== null
@@ -135,7 +137,7 @@ const AgentKnowledgePage: React.FC = () => {
       if (p.priceInstallment) cicilLine = `💳 Cicilan: ${formatPrice(p.priceInstallment)}/bln\n`;
     }
 
-    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(p.price)}\n${dpLine}${cicilLine}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
+    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(publicPrice)}\n${dpLine}${cicilLine}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
 
     navigator.clipboard.writeText(text);
     addNotification({
@@ -311,7 +313,7 @@ const AgentKnowledgePage: React.FC = () => {
                 
                 <div className="hidden lg:flex items-center gap-8 flex-shrink-0 mr-4">
                   <div className="text-right w-32">
-                    <div className="font-bold text-on-surface text-body-sm gradient-text-primary">{formatPrice(item.price)}</div>
+                    <div className="font-bold text-on-surface text-body-sm gradient-text-primary">{formatPrice(getPublicPrice(item))}</div>
                     <div className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Harga Cash</div>
                   </div>
                 </div>
@@ -453,7 +455,7 @@ const AgentKnowledgePage: React.FC = () => {
                                     const categoryKey = mapProductToCreditCategory(item.category);
                                     const result = calculateInstallments(
                                       creditData, 
-                                      item.price, 
+                                      getPublicPrice(item), 
                                       customerType, 
                                       categoryKey
                                     );

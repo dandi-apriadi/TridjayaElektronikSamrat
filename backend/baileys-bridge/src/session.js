@@ -36,8 +36,15 @@ export class BaileysSession {
     this.qrCode = null;
     this.connected = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 3;
-    this.reconnectDelays = [5000, 15000, 45000]; // Exponential backoff: 5s, 15s, 45s
+    const configuredMaxReconnectAttempts = Number.parseInt(process.env.WA_MAX_RECONNECT_ATTEMPTS || '0', 10);
+    this.maxReconnectAttempts = Number.isFinite(configuredMaxReconnectAttempts) && configuredMaxReconnectAttempts > 0
+      ? configuredMaxReconnectAttempts
+      : null; // null = keep reconnecting until logged out or manually disconnected
+    const configuredMaxReconnectDelay = Number.parseInt(process.env.WA_MAX_RECONNECT_DELAY_MS || '300000', 10);
+    this.maxReconnectDelay = Number.isFinite(configuredMaxReconnectDelay) && configuredMaxReconnectDelay > 0
+      ? configuredMaxReconnectDelay
+      : 300000;
+    this.reconnectDelays = [5000, 15000, 45000, 120000, this.maxReconnectDelay]; // Capped backoff
     this.reconnectTimer = null;
     
     // Session storage directory
@@ -203,20 +210,29 @@ export class BaileysSession {
    * Handle disconnection with reconnection logic
    */
   async handleDisconnection(lastDisconnect) {
+    const statusCode = lastDisconnect?.error instanceof Boom
+      ? lastDisconnect.error.output?.statusCode
+      : null;
     const shouldReconnect = lastDisconnect?.error
       ? (lastDisconnect.error instanceof Boom
-          ? lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut
+          ? statusCode !== DisconnectReason.loggedOut
           : true)
       : true;
+    const hasReconnectAttemptsRemaining = this.maxReconnectAttempts === null
+      || this.reconnectAttempts < this.maxReconnectAttempts;
 
     this.logger.info({
       reason: lastDisconnect?.error?.message,
       shouldReconnect,
-      reconnectAttempts: this.reconnectAttempts
+      reconnectAttempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts ?? 'unlimited'
     }, 'Connection closed');
 
-    if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-      const delay = this.reconnectDelays[this.reconnectAttempts] || 45000;
+    if (shouldReconnect && hasReconnectAttemptsRemaining) {
+      const delay = Math.min(
+        this.reconnectDelays[Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1)] || this.maxReconnectDelay,
+        this.maxReconnectDelay
+      );
       this.reconnectAttempts++;
 
       this.logger.info({ delay, attempt: this.reconnectAttempts }, 'Scheduling reconnection');
@@ -224,7 +240,7 @@ export class BaileysSession {
       this.sendEvent('reconnecting', {
         session_id: this.sessionId,
         attempt: this.reconnectAttempts,
-        max_attempts: this.maxReconnectAttempts,
+        max_attempts: this.maxReconnectAttempts ?? 0,
         delay_ms: delay
       });
 
@@ -239,12 +255,13 @@ export class BaileysSession {
             session_id: this.sessionId,
             error: error.message
           });
+          await this.handleDisconnection({ error });
         }
       }, delay);
     } else {
-      // Max reconnect attempts reached or logged out
+      // Max reconnect attempts reached by explicit config, or WhatsApp logged the session out.
       const reason = lastDisconnect?.error instanceof Boom
-        ? lastDisconnect.error.output?.statusCode === DisconnectReason.loggedOut
+        ? statusCode === DisconnectReason.loggedOut
           ? 'logged_out'
           : 'connection_failed'
         : 'max_reconnect_attempts';

@@ -7,6 +7,7 @@ import { SectionHeader } from '../components/ui';
 import { usePromoStore } from '../store/usePromoStore';
 import { useProductStore } from '../store/useProductStore';
 import { recordTelemetry } from '../utils/telemetry';
+import { getPublicPrice } from '../utils/publicPricing';
 
 const PromoDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -220,10 +221,10 @@ const PromoDetailPage: React.FC = () => {
                       <div className="mt-auto pt-6 border-t border-outline-variant/10 flex items-center justify-between">
                         <div>
                           <div className="text-label-xs text-on-surface-variant line-through mb-0.5">
-                            {formatPrice(product.price)}
+                            {formatPrice(getPublicPrice(product))}
                           </div>
                           <div className="text-title-lg font-bold text-on-surface">
-                            {formatPrice(product.price * (1 - promo.discount / 100))}
+                            {formatPrice(getPublicPrice(product) * (1 - promo.discount / 100))}
                           </div>
                         </div>
                         <Link 

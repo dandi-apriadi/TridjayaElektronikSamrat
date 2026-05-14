@@ -14,9 +14,21 @@ import {
 } from '../utils/productImportHandler';
 import { formatRupiah } from '../utils/creditCalculator';
 import { apiFetch } from '../utils/apiClient';
+import StockAnalyticsDashboard from './admin/catalog/StockAnalyticsDashboard';
+import StockUpdateConfirmDialog from './admin/catalog/StockUpdateConfirmDialog';
+import {
+  computePriceAnalytics,
+  mapStockToStatus,
+  type ParsedStockRow,
+  type PriceDiscrepancy,
+  type RestockItem,
+  type StockAnalytics,
+  type UpdateBreakdown,
+} from '../utils/stockReport';
 
 interface BulkImportHistory {
   id: string;
+  type?: 'stock_report' | 'standard_import';
   timestamp: number;
   fileName: string;
   successCount: number;
@@ -24,15 +36,60 @@ interface BulkImportHistory {
   results: string[];
   details?: Array<{ rowNumber?: number; name?: string; status: string; reason?: string }>;
   totalItems: number;
+  analyticsSnapshot?: unknown;
 }
+
+type MatchedCatalogProduct = {
+  inputName: string;
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  subcategory?: string | null;
+  price: number;
+  stock: string;
+};
+
+const getPreviewStockValue = (item: ImportPreviewItem) => {
+  const value = item.newData.stockQuantity ?? item.newData.stock;
+  if (value === undefined || value === null || String(value).trim() === '') return '-';
+  return String(value);
+};
+
+const getPreviewStockToneClass = (item: ImportPreviewItem) => {
+  const numeric = Number(item.newData.stockQuantity);
+  if (!Number.isFinite(numeric)) return 'text-on-surface';
+  if (numeric <= 0) return 'text-error';
+  if (numeric <= 5) return 'text-yellow-500';
+  return 'text-neon-lime';
+};
+
+const getPreviewStockHint = (item: ImportPreviewItem) => {
+  const numeric = Number(item.newData.stockQuantity);
+  if (!Number.isFinite(numeric)) return 'stok';
+  if (numeric <= 0) return 'kosong';
+  if (numeric <= 5) return 'rendah';
+  return 'tersedia';
+};
 
 const AdminProductBulkImport: React.FC = () => {
   const { products } = useProductStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
-  const [step, setStep] = useState<'upload' | 'preview' | 'processing' | 'done' | 'history'>('upload');
+  const [step, setStep] = useState<'upload' | 'preview' | 'stock-report' | 'processing' | 'done' | 'history'>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewItem[]>([]);
+  const [stockRows, setStockRows] = useState<ParsedStockRow[]>([]);
+  const [stockAnalytics, setStockAnalytics] = useState<StockAnalytics | null>(null);
+  const [restockItems, setRestockItems] = useState<RestockItem[]>([]);
+  const [priceDiscrepancies, setPriceDiscrepancies] = useState<PriceDiscrepancy[]>([]);
+  const [matchedCatalogProducts, setMatchedCatalogProducts] = useState<MatchedCatalogProduct[]>([]);
+  const [unmatchedStockNames, setUnmatchedStockNames] = useState<string[]>([]);
+  const [stockLocation] = useState<string | null>(null);
+  const [stockReportDate] = useState<string | null>(null);
+  const [highlightedStockKey, setHighlightedStockKey] = useState<string | null>(null);
+  const [isStockConfirmOpen, setIsStockConfirmOpen] = useState(false);
+  const [isStockUpdating, setIsStockUpdating] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'similar' | 'new' | 'error'>('all');
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -71,6 +128,35 @@ const AdminProductBulkImport: React.FC = () => {
     const updated = [entry, ...bulkHistory].slice(0, 50); // Keep last 50 imports
     setBulkHistory(updated);
     localStorage.setItem('bulkImportHistory', JSON.stringify(updated));
+  };
+
+  const normalizeMatchKey = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+  const stockRowDomId = (value: string) => `stock-row-${encodeURIComponent(normalizeMatchKey(value))}`;
+
+  const buildStockUpdateBreakdown = (): UpdateBreakdown & { toHidden: number; toIndent: number; toAvailable: number } => {
+    const matchedKeys = new Set(matchedCatalogProducts.map((product) => normalizeMatchKey(product.inputName)));
+    let toHidden = 0;
+    let toIndent = 0;
+    let toAvailable = 0;
+
+    for (const row of stockRows) {
+      const key = normalizeMatchKey(row.productName || row.productCode || '');
+      if (!matchedKeys.has(key)) continue;
+      const status = mapStockToStatus(row.physicalStock);
+      if (status === 'hidden') toHidden++;
+      if (status === 'indent') toIndent++;
+      if (status === 'available') toAvailable++;
+    }
+
+    return {
+      itemsToUpdate: toHidden + toIndent + toAvailable,
+      itemsUnchanged: 0,
+      itemsWithIssues: unmatchedStockNames.length,
+      estimatedValueAdjustment: 0,
+      toHidden,
+      toIndent,
+      toAvailable,
+    };
   };
 
   // Extract unique categories from preview items
@@ -159,6 +245,15 @@ const AdminProductBulkImport: React.FC = () => {
 
     try {
       setSelectedFile(file);
+      setPreview([]);
+      setStockRows([]);
+      setStockAnalytics(null);
+      setRestockItems([]);
+      setPriceDiscrepancies([]);
+      setMatchedCatalogProducts([]);
+      setUnmatchedStockNames([]);
+      setProcessSummary(null);
+
       const importedRows = await parseExcelFile(file);
       const generatedPreview = generateImportPreview(importedRows, products);
       setPreview(generatedPreview);
@@ -416,6 +511,7 @@ const AdminProductBulkImport: React.FC = () => {
       // Save to history (include structured details)
       saveHistory({
         id: `bulk_${Date.now()}`,
+        type: 'standard_import',
         timestamp: Date.now(),
         fileName: selectedFile?.name || 'Import',
         successCount: totalSuccess,
@@ -632,6 +728,7 @@ const AdminProductBulkImport: React.FC = () => {
       setProcessSummary({ ...summaryResult, failedProducts });
       saveHistory({
         id: `bulk_all_${Date.now()}`,
+        type: 'standard_import',
         timestamp: Date.now(),
         fileName: `[IMPORT ALL] ${selectedFile?.name || 'Import'}`,
         successCount: totalSuccess,
@@ -647,6 +744,121 @@ const AdminProductBulkImport: React.FC = () => {
       setStep('preview');
       toast.error('Terjadi error saat bulk processing');
       console.error('[BulkImport:All] Fatal error:', error);
+    }
+  };
+
+  const handleStockProductClick = (productKey: string) => {
+    const key = normalizeMatchKey(productKey);
+    setHighlightedStockKey(key);
+    window.setTimeout(() => {
+      setHighlightedStockKey((current) => (current === key ? null : current));
+    }, 2000);
+
+    window.requestAnimationFrame(() => {
+      document.getElementById(stockRowDomId(productKey))?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    });
+  };
+
+  const handleConfirmStockUpdate = async () => {
+    const productByName = new Map(
+      matchedCatalogProducts.map((product) => [normalizeMatchKey(product.inputName), product])
+    );
+    const operations = stockRows
+      .map((row, index) => {
+        const key = normalizeMatchKey(row.productName || row.productCode || '');
+        const product = productByName.get(key);
+        if (!product) return null;
+        const data: Record<string, unknown> = {
+          id: product.id,
+          stock: mapStockToStatus(row.physicalStock),
+          rowNumber: index + 2,
+        };
+        if (row.unitCost !== undefined && !Number.isNaN(row.unitCost)) {
+          data.price = row.unitCost;
+        }
+        return { type: 'update', data };
+      })
+      .filter((item): item is { type: 'update'; data: Record<string, unknown> } => item !== null);
+
+    if (operations.length === 0) {
+      toast.error('Tidak ada produk katalog yang cocok untuk diupdate');
+      return;
+    }
+
+    setIsStockUpdating(true);
+    try {
+      const response = await apiFetch('/api/admin/catalogs/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operations }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.message || payload?.error || 'Gagal update stok');
+      }
+
+      const payload = await response.json();
+      const successCount = payload.data?.successCount || 0;
+      const errors: string[] = payload.data?.errors || [];
+      const analyticsSnapshot = stockAnalytics
+        ? {
+            timestamp: new Date().toISOString(),
+            stock: stockAnalytics,
+            restockItems,
+            priceAnalytics: computePriceAnalytics(
+              stockRows,
+              matchedCatalogProducts.map((product) => ({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+              }))
+            ).priceAnalytics,
+            topDiscrepancies: [],
+          }
+        : undefined;
+
+      saveHistory({
+        id: `stock_report_${Date.now()}`,
+        type: 'stock_report',
+        timestamp: Date.now(),
+        fileName: selectedFile?.name || 'Laporan Stok',
+        successCount,
+        errorCount: errors.length + unmatchedStockNames.length,
+        results: [
+          `✅ ${successCount} produk berhasil diupdate`,
+          ...(errors.length > 0 ? errors.map((error) => `❌ ${error}`) : []),
+          ...(unmatchedStockNames.length > 0
+            ? [`ℹ️ ${unmatchedStockNames.length} produk tidak ditemukan di katalog`]
+            : []),
+        ],
+        totalItems: stockRows.length,
+        analyticsSnapshot,
+      });
+
+      setProcessSummary({
+        successCount,
+        errorCount: errors.length + unmatchedStockNames.length,
+        results: [
+          `✅ ${successCount} produk berhasil diupdate`,
+          ...(errors.length > 0 ? errors.map((error) => `❌ ${error}`) : []),
+        ],
+        failedProducts: errors.map((error, index) => ({
+          row: index + 1,
+          name: `Error ${index + 1}`,
+          reason: error,
+        })),
+      });
+      setIsStockConfirmOpen(false);
+      setStep('done');
+      toast.success('Update stok selesai', `${successCount} produk berhasil diperbarui`);
+    } catch (error) {
+      toast.error('Gagal update stok', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsStockUpdating(false);
     }
   };
 
@@ -680,6 +892,18 @@ const AdminProductBulkImport: React.FC = () => {
             }`}
           >
             👁️ Preview ({preview.length})
+          </button>
+        )}
+        {stockRows.length > 0 && (
+          <button
+            onClick={() => setStep('stock-report')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              step === 'stock-report'
+                ? 'bg-primary text-on-primary'
+                : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            Analytics Stok ({stockRows.length})
           </button>
         )}
         {processSummary && (
@@ -776,6 +1000,107 @@ const AdminProductBulkImport: React.FC = () => {
                 <Download className="w-4 h-4" />
                 Download Template
               </button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 'stock-report' && stockAnalytics && (
+          <motion.div
+            key="stock-report"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-4"
+          >
+            <StockAnalyticsDashboard
+              rows={stockRows}
+              analytics={stockAnalytics}
+              restockItems={restockItems}
+              priceDiscrepancies={priceDiscrepancies}
+              location={stockLocation}
+              reportDate={stockReportDate}
+              matchedCount={matchedCatalogProducts.length}
+              unmatchedCount={unmatchedStockNames.length}
+              onProductClick={handleStockProductClick}
+            />
+
+            <div className="glass-card rounded-lg border border-outline overflow-hidden">
+              <div className="flex flex-col gap-3 border-b border-outline/30 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="font-bold text-on-surface">Preview Update Stok</h3>
+                  <p className="text-sm text-on-surface-variant">
+                    Produk yang cocok akan diupdate ke status hidden, indent, atau available.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsStockConfirmOpen(true)}
+                  disabled={matchedCatalogProducts.length === 0 || isStockUpdating}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50"
+                >
+                  <Play className="h-4 w-4" />
+                  Update Stok ({matchedCatalogProducts.length})
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[860px] text-left text-sm">
+                  <thead className="border-b border-outline/30 bg-surface-container/40 text-xs uppercase tracking-widest text-on-surface-variant">
+                    <tr>
+                      <th className="px-4 py-3">Produk Report</th>
+                      <th className="px-4 py-3">Stok Fisik</th>
+                      <th className="px-4 py-3">Stok Sistem</th>
+                      <th className="px-4 py-3">Status Target</th>
+                      <th className="px-4 py-3">Katalog</th>
+                      <th className="px-4 py-3">Harga Report</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline/15">
+                    {stockRows.map((row, index) => {
+                      const key = normalizeMatchKey(row.productName || row.productCode || '');
+                      const matched = matchedCatalogProducts.find((product) => normalizeMatchKey(product.inputName) === key);
+                      const targetStatus = mapStockToStatus(row.physicalStock);
+                      const isHighlighted = highlightedStockKey === key;
+                      return (
+                        <tr
+                          key={`${key}-${index}`}
+                          id={stockRowDomId(row.productName || row.productCode || '')}
+                          className={`transition-colors ${isHighlighted ? 'bg-primary/15' : 'hover:bg-surface-container/30'}`}
+                        >
+                          <td className="px-4 py-3 font-medium text-on-surface">
+                            {row.productName || row.productCode || '-'}
+                            {row.productCode && row.productName && (
+                              <div className="text-xs text-on-surface-variant">{row.productCode}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-on-surface">{row.physicalStock}</td>
+                          <td className="px-4 py-3 text-on-surface-variant">{row.systemStock}</td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-md bg-primary/15 px-2 py-1 text-xs font-bold uppercase text-primary">
+                              {targetStatus}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {matched ? (
+                              <div>
+                                <div className="font-semibold text-secondary">{matched.name}</div>
+                                <div className="text-xs text-on-surface-variant">
+                                  Saat ini: {matched.stock}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-error">Produk tidak ditemukan di katalog</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-on-surface-variant">
+                            {row.unitCost !== undefined ? formatRupiah(row.unitCost) : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </motion.div>
         )}
@@ -1005,6 +1330,7 @@ const AdminProductBulkImport: React.FC = () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-on-surface">Row</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-on-surface">Status</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-on-surface">Nama Produk</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-on-surface">Stok Akhir</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-on-surface">Info</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-on-surface">Aksi</th>
                     </tr>
@@ -1037,6 +1363,16 @@ const AdminProductBulkImport: React.FC = () => {
                             )}
                           </td>
                           <td className="px-4 py-3 text-sm font-medium text-on-surface">{item.name}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="min-w-[5.5rem] leading-none">
+                              <div className={`text-base font-bold tabular-nums ${getPreviewStockToneClass(item)}`}>
+                                {getPreviewStockValue(item)} <span className="text-[11px] font-semibold text-on-surface-variant">unit</span>
+                              </div>
+                              <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/70">
+                                {getPreviewStockHint(item)}
+                              </div>
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-sm text-on-surface-variant">
                             <div className="flex flex-col gap-1">
                               {item.priceChange && (
@@ -1092,7 +1428,7 @@ const AdminProductBulkImport: React.FC = () => {
                         </tr>
                         {expandedRows.has(item.rowNumber) && (
                           <tr className="bg-surface-low">
-                            <td colSpan={5} className="px-4 py-4">
+                            <td colSpan={6} className="px-4 py-4">
                               <div className="space-y-3 text-sm">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {item.matchedProduct && (
@@ -1141,7 +1477,19 @@ const AdminProductBulkImport: React.FC = () => {
                                           </td>
                                         </tr>
                                         <tr>
-                                          <td className="py-1 text-on-surface-variant">Stok</td>
+                                          <td className="py-1 text-on-surface-variant">Stok Akhir</td>
+                                          <td className={`py-1 text-right ${item.fieldChanges?.some(f => f.field === 'Stok') ? 'text-primary font-bold' : ''}`}>
+                                            {getPreviewStockValue(item)}
+                                          </td>
+                                        </tr>
+                                        <tr>
+                                          <td className="py-1 text-on-surface-variant">Stok Display</td>
+                                          <td className="py-1 text-right">
+                                            {item.newData.stockDisplayQuantity ?? '-'}
+                                          </td>
+                                        </tr>
+                                        <tr>
+                                          <td className="py-1 text-on-surface-variant">Status Update</td>
                                           <td className={`py-1 text-right capitalize ${item.fieldChanges?.some(f => f.field === 'Stok') ? 'text-primary font-bold' : ''}`}>
                                             {(item.newData.stock || '-').replace(/_/g, ' ')}
                                           </td>
@@ -1521,6 +1869,13 @@ const AdminProductBulkImport: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
                             <span className="font-semibold text-on-surface">{entry.fileName}</span>
+                            <span className={`text-xs px-2 py-1 rounded-full font-bold ${
+                              entry.type === 'stock_report'
+                                ? 'bg-primary/15 text-primary'
+                                : 'bg-surface-high text-on-surface-variant'
+                            }`}>
+                              {entry.type === 'stock_report' ? 'Stock Report' : 'Standard Import'}
+                            </span>
                             <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                               entry.errorCount === 0
                                 ? 'bg-green-500/20 text-green-600'
@@ -1601,6 +1956,14 @@ const AdminProductBulkImport: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <StockUpdateConfirmDialog
+        open={isStockConfirmOpen}
+        breakdown={buildStockUpdateBreakdown()}
+        isSubmitting={isStockUpdating}
+        onConfirm={handleConfirmStockUpdate}
+        onCancel={() => setIsStockConfirmOpen(false)}
+      />
     </div>
   );
 };

@@ -76,8 +76,13 @@ async fn restore_wa_sessions(state: AppState) {
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false);
         let has_local_credentials = [
-            PathBuf::from("sessions").join(&session_id).join("creds.json"),
-            PathBuf::from("backend").join("sessions").join(&session_id).join("creds.json"),
+            PathBuf::from("sessions")
+                .join(&session_id)
+                .join("creds.json"),
+            PathBuf::from("backend")
+                .join("sessions")
+                .join(&session_id)
+                .join("creds.json"),
         ]
         .iter()
         .any(|path| path.exists());
@@ -107,7 +112,10 @@ async fn restore_wa_sessions(state: AppState) {
                 .await?;
 
             let mut params = serde_json::json!({ "session_id": session_id.clone() });
-            if let Some(credentials) = credentials.as_ref().filter(|value| !value.trim().is_empty()) {
+            if let Some(credentials) = credentials
+                .as_ref()
+                .filter(|value| !value.trim().is_empty())
+            {
                 params["credentials"] = serde_json::Value::String(credentials.clone());
             }
 

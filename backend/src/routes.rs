@@ -1,5 +1,6 @@
 use crate::api_routes;
 use crate::chatbot_routes;
+use crate::landing_routes;
 use crate::pixel;
 use crate::wa_gateway;
 use crate::wa_webhook_handlers;
@@ -138,7 +139,16 @@ pub fn router(state: AppState) -> Router {
             get(serve_private_upload),
         )
         .route("/api/catalogs", get(list_catalogs).post(create_catalog))
+        .route("/api/admin/catalogs/match", get(match_catalogs))
         .route("/api/admin/catalogs/bulk", post(bulk_products))
+        .route(
+            "/api/admin/catalogs/price-markups",
+            get(list_price_markups).post(create_price_markup),
+        )
+        .route(
+            "/api/admin/catalogs/price-markups/{id}",
+            patch(update_price_markup).delete(delete_price_markup),
+        )
         .route(
             "/api/catalogs/{id}",
             get(get_catalog)
@@ -326,8 +336,11 @@ pub fn router(state: AppState) -> Router {
     // Merge with API routes (for N8N integration)
     let main_router = main_router.merge(api_routes::router());
 
+    // Merge landing content routes
+    let main_router = main_router.merge(landing_routes::router());
+
     // Merge with WA Gateway API (self-hosted gateway)
-    let main_router = main_router.merge(wa_gateway::router());
+    let main_router = main_router.merge(wa_gateway::router(state.clone()));
 
     // Apply state after all merges
     main_router.with_state(state)
@@ -3323,23 +3336,27 @@ async fn upload_wa_recipients_excel(
 
 fn has_local_wa_credentials(session_id: &str) -> bool {
     [
-        PathBuf::from("sessions").join(session_id).join("creds.json"),
-        PathBuf::from("backend").join("sessions").join(session_id).join("creds.json"),
+        PathBuf::from("sessions")
+            .join(session_id)
+            .join("creds.json"),
+        PathBuf::from("backend")
+            .join("sessions")
+            .join(session_id)
+            .join("creds.json"),
     ]
     .iter()
     .any(|path| path.exists())
 }
 
 async fn restore_enabled_wa_sessions(state: &AppState) -> Result<(), AppError> {
-    let accounts: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT id, credentials, status FROM wa_accounts WHERE enabled = 1",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error loading WA accounts for restore: {}", e);
-        AppError::Internal
-    })?;
+    let accounts: Vec<(String, Option<String>, Option<String>)> =
+        sqlx::query_as("SELECT id, credentials, status FROM wa_accounts WHERE enabled = 1")
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error loading WA accounts for restore: {}", e);
+                AppError::Internal
+            })?;
 
     if accounts.is_empty() {
         return Ok(());
@@ -3370,27 +3387,33 @@ async fn restore_enabled_wa_sessions(state: &AppState) -> Result<(), AppError> {
             "Attempting automatic WA session restore before starting campaign"
         );
 
-        sqlx::query("UPDATE wa_accounts SET status = 'reconnecting', last_error = NULL WHERE id = ?")
-            .bind(&session_id)
-            .execute(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error marking WA account reconnecting: {}", e);
-                AppError::Internal
-            })?;
+        sqlx::query(
+            "UPDATE wa_accounts SET status = 'reconnecting', last_error = NULL WHERE id = ?",
+        )
+        .bind(&session_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error marking WA account reconnecting: {}", e);
+            AppError::Internal
+        })?;
 
         if let Err(e) = state.bridge_client.spawn_process(session_id.clone()).await {
             tracing::warn!(session_id = %session_id, error = %e, "Failed to spawn WA bridge during automatic restore");
-            let _ = sqlx::query("UPDATE wa_accounts SET status = 'error', last_error = ? WHERE id = ?")
-                .bind(format!("Automatic restore spawn failed: {}", e))
-                .bind(&session_id)
-                .execute(&state.pool)
-                .await;
+            let _ =
+                sqlx::query("UPDATE wa_accounts SET status = 'error', last_error = ? WHERE id = ?")
+                    .bind(format!("Automatic restore spawn failed: {}", e))
+                    .bind(&session_id)
+                    .execute(&state.pool)
+                    .await;
             continue;
         }
 
         let mut params = json!({ "session_id": session_id.clone() });
-        if let Some(credentials) = credentials.as_ref().filter(|value| !value.trim().is_empty()) {
+        if let Some(credentials) = credentials
+            .as_ref()
+            .filter(|value| !value.trim().is_empty())
+        {
             params["credentials"] = Value::String(credentials.clone());
         }
 
@@ -3401,11 +3424,12 @@ async fn restore_enabled_wa_sessions(state: &AppState) -> Result<(), AppError> {
         {
             tracing::warn!(session_id = %session_id, error = %e, "Failed to initialize WA session during automatic restore");
             let _ = state.bridge_client.kill_process(&session_id).await;
-            let _ = sqlx::query("UPDATE wa_accounts SET status = 'error', last_error = ? WHERE id = ?")
-                .bind(format!("Automatic restore init failed: {}", e))
-                .bind(&session_id)
-                .execute(&state.pool)
-                .await;
+            let _ =
+                sqlx::query("UPDATE wa_accounts SET status = 'error', last_error = ? WHERE id = ?")
+                    .bind(format!("Automatic restore init failed: {}", e))
+                    .bind(&session_id)
+                    .execute(&state.pool)
+                    .await;
         }
     }
 
@@ -4178,10 +4202,34 @@ struct ProductRecord {
     description: Option<String>,
     specs: Option<String>,
     stock: String,
+    stock_quantity: Option<f64>,
     colors: Option<String>,
     ratings: Option<String>,
     rating: Option<f64>,
     review: Option<String>,
+}
+
+#[derive(Clone, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+struct ProductPriceMarkupRecord {
+    id: String,
+    scope: String,
+    target_value: Option<String>,
+    markup_type: String,
+    markup_value: f64,
+    is_active: i64,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProductPriceMarkupRequest {
+    scope: String,
+    target_value: Option<String>,
+    markup_type: String,
+    markup_value: f64,
+    is_active: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -4217,6 +4265,7 @@ struct CatalogCreateRequest {
     description: Option<String>,
     specs: Option<Value>,
     stock: Option<String>,
+    stock_quantity: Option<f64>,
     colors: Option<Value>,
     ratings: Option<Vec<ProductRatingEntry>>,
     rating: Option<f64>,
@@ -4241,6 +4290,7 @@ struct CatalogUpdateRequest {
     description: Option<String>,
     specs: Option<Value>,
     stock: Option<String>,
+    stock_quantity: Option<f64>,
     colors: Option<Value>,
     ratings: Option<Vec<ProductRatingEntry>>,
     rating: Option<f64>,
@@ -4266,6 +4316,73 @@ enum BulkOperation {
 #[derive(Deserialize)]
 struct BulkCatalogRequest {
     operations: Vec<BulkOperation>,
+}
+
+#[derive(Deserialize)]
+struct CatalogMatchQuery {
+    names: String,
+}
+
+const MAX_CATALOG_MATCH_QUERY_CHARS: usize = 20_000;
+const MAX_CATALOG_MATCH_NAMES: usize = 500;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MatchedProduct {
+    input_name: String,
+    id: String,
+    slug: String,
+    name: String,
+    category: String,
+    subcategory: Option<String>,
+    price: f64,
+    stock: String,
+    stock_quantity: Option<f64>,
+}
+
+#[derive(sqlx::FromRow)]
+struct CatalogMatchRecord {
+    id: String,
+    slug: String,
+    name: String,
+    category: String,
+    subcategory: Option<String>,
+    price: f64,
+    stock: String,
+    stock_quantity: Option<f64>,
+}
+
+fn normalize_catalog_match_name(name: &str) -> String {
+    name.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+#[cfg(test)]
+fn catalog_names_match(left: &str, right: &str) -> bool {
+    normalize_catalog_match_name(left) == normalize_catalog_match_name(right)
+}
+
+#[cfg(test)]
+fn count_catalog_name_matches(
+    requested_names: &[String],
+    catalog_names: &[String],
+) -> (usize, usize) {
+    let catalog_index: std::collections::HashSet<String> = catalog_names
+        .iter()
+        .map(|name| normalize_catalog_match_name(name))
+        .collect();
+
+    requested_names
+        .iter()
+        .fold((0, 0), |(matched, unmatched), name| {
+            if catalog_index.contains(&normalize_catalog_match_name(name)) {
+                (matched + 1, unmatched)
+            } else {
+                (matched, unmatched + 1)
+            }
+        })
 }
 
 fn parse_json_or_default(raw: Option<&str>, fallback: Value) -> Value {
@@ -4362,16 +4479,160 @@ fn summarize_ratings(
     (average, latest_review, count)
 }
 
-fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSummary>) -> Value {
+fn normalize_markup_target(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn find_price_markup<'a>(
+    record: &ProductRecord,
+    markups: Option<&'a [ProductPriceMarkupRecord]>,
+) -> Option<&'a ProductPriceMarkupRecord> {
+    let markups = markups?;
+    let product_match = markups.iter().find(|rule| {
+        rule.is_active == 1
+            && rule.scope == "product"
+            && rule
+                .target_value
+                .as_deref()
+                .is_some_and(|target| target == record.id || target == record.slug)
+    });
+    if product_match.is_some() {
+        return product_match;
+    }
+
+    let category = normalize_markup_target(&record.category).to_lowercase();
+    let category_match = markups.iter().find(|rule| {
+        rule.is_active == 1
+            && rule.scope == "category"
+            && rule.target_value.as_deref().is_some_and(|target| {
+                normalize_markup_target(target).to_lowercase() == category
+            })
+    });
+    if category_match.is_some() {
+        return category_match;
+    }
+
+    markups
+        .iter()
+        .find(|rule| rule.is_active == 1 && rule.scope == "all")
+}
+
+fn apply_display_price(price: f64, rule: Option<&ProductPriceMarkupRecord>) -> f64 {
+    if price <= 0.0 {
+        return price;
+    }
+
+    let Some(rule) = rule else {
+        return price;
+    };
+
+    let marked = if rule.markup_type == "percent" {
+        price * (1.0 + (rule.markup_value / 100.0))
+    } else {
+        price + rule.markup_value
+    };
+
+    marked.max(price).round()
+}
+
+async fn fetch_active_price_markups(
+    state: &AppState,
+) -> Result<Vec<ProductPriceMarkupRecord>, AppError> {
+    sqlx::query_as::<_, ProductPriceMarkupRecord>(
+        "SELECT id, scope, target_value, markup_type, markup_value, is_active, created_at, updated_at \
+         FROM product_price_markups WHERE is_active = 1 \
+         ORDER BY CASE scope WHEN 'product' THEN 1 WHEN 'category' THEN 2 ELSE 3 END, updated_at DESC, created_at DESC, id DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching product price markups: {}", e);
+        AppError::Internal
+    })
+}
+
+async fn deactivate_conflicting_price_markups(
+    state: &AppState,
+    scope: &str,
+    target: Option<&str>,
+    except_id: Option<&str>,
+) -> Result<(), AppError> {
+    let result = if scope == "all" {
+        if let Some(except_id) = except_id {
+            sqlx::query(
+                "UPDATE product_price_markups \
+                 SET is_active = 0, updated_at = CURRENT_TIMESTAMP \
+                 WHERE is_active = 1 AND scope = 'all' AND id <> ?",
+            )
+            .bind(except_id)
+            .execute(&state.pool)
+            .await
+        } else {
+            sqlx::query(
+                "UPDATE product_price_markups \
+                 SET is_active = 0, updated_at = CURRENT_TIMESTAMP \
+                 WHERE is_active = 1 AND scope = 'all'",
+            )
+            .execute(&state.pool)
+            .await
+        }
+    } else {
+        let target = target.unwrap_or("").trim();
+        if let Some(except_id) = except_id {
+            sqlx::query(
+                "UPDATE product_price_markups \
+                 SET is_active = 0, updated_at = CURRENT_TIMESTAMP \
+                 WHERE is_active = 1 AND scope = ? AND lower(trim(target_value)) = lower(trim(?)) AND id <> ?",
+            )
+            .bind(scope)
+            .bind(target)
+            .bind(except_id)
+            .execute(&state.pool)
+            .await
+        } else {
+            sqlx::query(
+                "UPDATE product_price_markups \
+                 SET is_active = 0, updated_at = CURRENT_TIMESTAMP \
+                 WHERE is_active = 1 AND scope = ? AND lower(trim(target_value)) = lower(trim(?))",
+            )
+            .bind(scope)
+            .bind(target)
+            .execute(&state.pool)
+            .await
+        }
+    };
+
+    result.map(|_| ()).map_err(|e| {
+        tracing::error!("DB error deactivating conflicting price markups: {}", e);
+        AppError::Internal
+    })
+}
+
+fn product_to_json(
+    record: ProductRecord,
+    analytics: Option<&ProductAnalyticsSummary>,
+    markups: Option<&[ProductPriceMarkupRecord]>,
+) -> Value {
     let analytics = analytics.cloned().unwrap_or_default();
     let ratings = parse_ratings_or_default(record.ratings.as_deref());
     let (rating_average, latest_review, rating_count) =
-        summarize_ratings(&ratings, record.rating, record.review);
+        summarize_ratings(&ratings, record.rating, record.review.clone());
     let conversion_rate = if analytics.views > 0 {
         (analytics.leads as f64 / analytics.views as f64) * 100.0
     } else {
         0.0
     };
+    let markup_rule = find_price_markup(&record, markups);
+    let display_price = apply_display_price(record.price, markup_rule);
+    let markup_value = markup_rule.map(|rule| {
+        json!({
+            "id": rule.id,
+            "scope": rule.scope,
+            "targetValue": rule.target_value,
+            "markupType": rule.markup_type,
+            "markupValue": rule.markup_value,
+        })
+    });
 
     json!({
         "id": record.id,
@@ -4380,6 +4641,8 @@ fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSum
         "category": record.category,
         "subcategory": record.subcategory,
         "price": record.price,
+        "displayPrice": display_price,
+        "priceMarkup": markup_value,
         "priceInstallment": record.price_installment,
         "dpMin": record.dp_min,
         "image": record.image,
@@ -4390,6 +4653,7 @@ fn product_to_json(record: ProductRecord, analytics: Option<&ProductAnalyticsSum
         "description": record.description,
         "specs": parse_json_or_default(record.specs.as_deref(), json!({})),
         "stock": record.stock,
+        "stockQuantity": record.stock_quantity,
         "colors": parse_json_or_default(record.colors.as_deref(), json!([])),
         "ratings": ratings,
         "rating": rating_average,
@@ -4455,6 +4719,9 @@ fn validate_catalog_create(payload: &CatalogCreateRequest) -> Result<(), AppErro
             errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
         }
     }
+    if payload.stock_quantity.is_some_and(|value| value < 0.0) {
+        errors.push("stockQuantity tidak boleh negatif".to_string());
+    }
 
     if errors.is_empty() {
         Ok(())
@@ -4517,6 +4784,9 @@ fn validate_catalog_update(payload: &CatalogUpdateRequest) -> Result<(), AppErro
     {
         errors.push("stock harus salah satu dari: available, indent, hidden".to_string());
     }
+    if payload.stock_quantity.is_some_and(|value| value < 0.0) {
+        errors.push("stockQuantity tidak boleh negatif".to_string());
+    }
 
     if errors.is_empty() {
         Ok(())
@@ -4530,7 +4800,7 @@ async fn find_catalog_by_id_or_slug(
     id_or_slug: &str,
 ) -> Result<ProductRecord, AppError> {
     sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
     )
     .bind(id_or_slug)
     .bind(id_or_slug)
@@ -4615,27 +4885,6 @@ struct PartnerRecord {
     is_active: bool,
     created_at: String,
     updated_at: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PartnerCreateRequest {
-    id: Option<String>,
-    name: String,
-    logo_url: String,
-    website_url: Option<String>,
-    sort_order: Option<i64>,
-    is_active: Option<bool>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PartnerUpdateRequest {
-    name: Option<String>,
-    logo_url: Option<String>,
-    website_url: Option<String>,
-    sort_order: Option<i64>,
-    is_active: Option<bool>,
 }
 
 fn promo_to_json(record: PromoRecord) -> Value {
@@ -4729,52 +4978,6 @@ fn validate_promotion_update(payload: &PromotionUpdateRequest) -> Result<(), App
     }
     if payload.promo_price.is_some_and(|value| value < 0.0) {
         errors.push("promoPrice tidak boleh negatif".to_string());
-    }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(AppError::Validation { errors })
-    }
-}
-
-fn validate_partner_create(payload: &PartnerCreateRequest) -> Result<(), AppError> {
-    let mut errors = Vec::new();
-    if payload.name.trim().is_empty() {
-        errors.push("name wajib diisi".to_string());
-    }
-    if payload.logo_url.trim().is_empty() {
-        errors.push("logoUrl wajib diisi".to_string());
-    }
-    if payload.sort_order.is_some_and(|value| value < 0) {
-        errors.push("sortOrder tidak boleh negatif".to_string());
-    }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(AppError::Validation { errors })
-    }
-}
-
-fn validate_partner_update(payload: &PartnerUpdateRequest) -> Result<(), AppError> {
-    let mut errors = Vec::new();
-    if payload
-        .name
-        .as_ref()
-        .is_some_and(|value| value.trim().is_empty())
-    {
-        errors.push("name tidak boleh kosong".to_string());
-    }
-    if payload
-        .logo_url
-        .as_ref()
-        .is_some_and(|value| value.trim().is_empty())
-    {
-        errors.push("logoUrl tidak boleh kosong".to_string());
-    }
-    if payload.sort_order.is_some_and(|value| value < 0) {
-        errors.push("sortOrder tidak boleh negatif".to_string());
     }
 
     if errors.is_empty() {
@@ -4963,7 +5166,7 @@ async fn delete_product_category(
 
 async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let products = sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review FROM products"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products"
     )
         .fetch_all(&state.pool)
         .await
@@ -5009,16 +5212,318 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
             ))
         })
         .collect();
+    let markups = fetch_active_price_markups(&state).await?;
 
     let items: Vec<Value> = products
         .into_iter()
         .map(|product| {
             let analytics = analytics_map.get(&product.slug);
-            product_to_json(product, analytics)
+            product_to_json(product, analytics, Some(&markups))
         })
         .collect();
 
     Ok(json_ok("Catalogs fetched", json!({ "items": items })))
+}
+
+async fn match_catalogs(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<CatalogMatchQuery>,
+) -> Result<ResponseBody, AppError> {
+    authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
+
+    if query.names.len() > MAX_CATALOG_MATCH_QUERY_CHARS {
+        return Err(AppError::Validation {
+            errors: vec![format!(
+                "Jumlah karakter nama produk terlalu besar. Maksimal {} karakter per request.",
+                MAX_CATALOG_MATCH_QUERY_CHARS
+            )],
+        });
+    }
+
+    let requested_names: Vec<String> = query
+        .names
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(ToString::to_string)
+        .collect();
+
+    if requested_names.len() > MAX_CATALOG_MATCH_NAMES {
+        return Err(AppError::Validation {
+            errors: vec![format!(
+                "Jumlah nama produk terlalu banyak. Maksimal {} nama produk per request.",
+                MAX_CATALOG_MATCH_NAMES
+            )],
+        });
+    }
+
+    if requested_names.is_empty() {
+        return Ok(json_ok(
+            "Catalog match completed",
+            json!({
+                "matched": [],
+                "unmatched": [],
+                "matchedCount": 0,
+                "unmatchedCount": 0,
+                "total": 0,
+            }),
+        ));
+    }
+
+    let records = sqlx::query_as::<_, CatalogMatchRecord>(
+        "SELECT id, slug, name, category, subcategory, price, stock, stock_quantity FROM products",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error matching catalog products: {}", e);
+        AppError::Internal
+    })?;
+
+    let mut catalog_by_name: HashMap<String, CatalogMatchRecord> = HashMap::new();
+    for record in records {
+        catalog_by_name
+            .entry(normalize_catalog_match_name(&record.name))
+            .or_insert(record);
+    }
+
+    let mut matched = Vec::new();
+    let mut unmatched = Vec::new();
+
+    for input_name in requested_names {
+        let normalized = normalize_catalog_match_name(&input_name);
+        if let Some(product) = catalog_by_name.get(&normalized) {
+            matched.push(MatchedProduct {
+                input_name,
+                id: product.id.clone(),
+                slug: product.slug.clone(),
+                name: product.name.clone(),
+                category: product.category.clone(),
+                subcategory: product.subcategory.clone(),
+                price: product.price,
+                stock: product.stock.clone(),
+                stock_quantity: product.stock_quantity,
+            });
+        } else {
+            unmatched.push(input_name);
+        }
+    }
+
+    let matched_count = matched.len();
+    let unmatched_count = unmatched.len();
+
+    Ok(json_ok(
+        "Catalog match completed",
+        json!({
+            "matched": matched,
+            "unmatched": unmatched,
+            "matchedCount": matched_count,
+            "unmatchedCount": unmatched_count,
+            "total": matched_count + unmatched_count,
+        }),
+    ))
+}
+
+fn validate_price_markup_payload(payload: &ProductPriceMarkupRequest) -> Result<(), AppError> {
+    let mut errors = Vec::new();
+    if !matches!(payload.scope.as_str(), "all" | "category" | "product") {
+        errors.push("scope harus all, category, atau product".to_string());
+    }
+    if !matches!(payload.markup_type.as_str(), "amount" | "percent") {
+        errors.push("markupType harus amount atau percent".to_string());
+    }
+    if payload.markup_value < 0.0 {
+        errors.push("markupValue tidak boleh negatif".to_string());
+    }
+    if payload.markup_type == "percent" && payload.markup_value > 300.0 {
+        errors.push("markup persentase maksimal 300%".to_string());
+    }
+    if payload.scope == "all" {
+        if payload
+            .target_value
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            errors.push("targetValue harus kosong untuk scope all".to_string());
+        }
+    } else if payload
+        .target_value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        errors.push("targetValue wajib untuk scope category/product".to_string());
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::Validation { errors })
+    }
+}
+
+async fn list_price_markups(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Editor, Role::Operator],
+    )
+    .await?;
+
+    let items = sqlx::query_as::<_, ProductPriceMarkupRecord>(
+        "SELECT id, scope, target_value, markup_type, markup_value, is_active, created_at, updated_at \
+         FROM product_price_markups \
+         ORDER BY is_active DESC, CASE scope WHEN 'product' THEN 1 WHEN 'category' THEN 2 ELSE 3 END, updated_at DESC, created_at DESC, id DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error listing price markups: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Price markups fetched", json!({ "items": items })))
+}
+
+async fn create_price_markup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ProductPriceMarkupRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    validate_price_markup_payload(&payload)?;
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let target = if payload.scope == "all" {
+        None
+    } else {
+        payload
+            .target_value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+    };
+    let is_active = payload.is_active.unwrap_or(true);
+    if is_active {
+        deactivate_conflicting_price_markups(&state, &payload.scope, target.as_deref(), None)
+            .await?;
+    }
+
+    sqlx::query(
+        "INSERT INTO product_price_markups (id, scope, target_value, markup_type, markup_value, is_active, created_by) \
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&payload.scope)
+    .bind(&target)
+    .bind(&payload.markup_type)
+    .bind(payload.markup_value)
+    .bind(if is_active { 1 } else { 0 })
+    .bind(&user.id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error creating price markup: {}", e);
+        AppError::Internal
+    })?;
+
+    let item = sqlx::query_as::<_, ProductPriceMarkupRecord>(
+        "SELECT id, scope, target_value, markup_type, markup_value, is_active, created_at, updated_at \
+         FROM product_price_markups WHERE id = ? LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching created price markup: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok("Price markup created", json!({ "item": item })))
+}
+
+async fn update_price_markup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<ProductPriceMarkupRequest>,
+) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+    validate_price_markup_payload(&payload)?;
+
+    let target = if payload.scope == "all" {
+        None
+    } else {
+        payload
+            .target_value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+    };
+    let is_active = payload.is_active.unwrap_or(true);
+    if is_active {
+        deactivate_conflicting_price_markups(&state, &payload.scope, target.as_deref(), Some(&id))
+            .await?;
+    }
+
+    let result = sqlx::query(
+        "UPDATE product_price_markups \
+         SET scope = ?, target_value = ?, markup_type = ?, markup_value = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP \
+         WHERE id = ?",
+    )
+    .bind(&payload.scope)
+    .bind(&target)
+    .bind(&payload.markup_type)
+    .bind(payload.markup_value)
+    .bind(if is_active { 1 } else { 0 })
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error updating price markup: {}", e);
+        AppError::Internal
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Price markup updated", json!({ "updated": true })))
+}
+
+async fn delete_price_markup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    authorize(&state, &headers, &[Role::Admin]).await?;
+
+    let result = sqlx::query("DELETE FROM product_price_markups WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error deleting price markup: {}", e);
+            AppError::Internal
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(json_ok("Price markup deleted", json!({ "deleted": true })))
 }
 
 async fn create_catalog(
@@ -5088,7 +5593,7 @@ async fn create_catalog(
         .unwrap_or_else(|| "available".to_string());
 
     sqlx::query(
-        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(&slug)
@@ -5106,6 +5611,7 @@ async fn create_catalog(
     .bind(payload.description)
     .bind(specs)
     .bind(stock)
+    .bind(payload.stock_quantity)
     .bind(colors)
     .bind(ratings_json)
     .bind(next_rating)
@@ -5117,7 +5623,7 @@ async fn create_catalog(
     let created = find_catalog_by_id_or_slug(&state, &id).await?;
     Ok(json_ok(
         format!("Catalog created by {}", user.email),
-        json!({ "item": product_to_json(created, None) }),
+        json!({ "item": product_to_json(created, None, None) }),
     ))
 }
 
@@ -5126,9 +5632,10 @@ async fn get_catalog(
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
     let item = find_catalog_by_id_or_slug(&state, &id).await?;
+    let markups = fetch_active_price_markups(&state).await?;
     Ok(json_ok(
         "Catalog fetched",
-        json!({ "item": product_to_json(item, None) }),
+        json!({ "item": product_to_json(item, None, Some(&markups)) }),
     ))
 }
 
@@ -5172,6 +5679,7 @@ async fn update_catalog(
         .trim()
         .to_string();
     let next_stock = payload.stock.unwrap_or(current.stock.clone());
+    let next_stock_quantity = payload.stock_quantity.or(current.stock_quantity);
     let next_images = serde_json::to_string(
         &payload
             .images
@@ -5203,7 +5711,7 @@ async fn update_catalog(
     );
 
     sqlx::query(
-        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, colors = ?, ratings = ?, rating = ?, review = ? WHERE id = ?"
+        "UPDATE products SET slug = ?, name = ?, category = ?, subcategory = ?, price = ?, price_installment = ?, dp_min = ?, image = ?, images = ?, badge = ?, badge_text = ?, short_desc = ?, description = ?, specs = ?, stock = ?, stock_quantity = ?, colors = ?, ratings = ?, rating = ?, review = ? WHERE id = ?"
     )
     .bind(next_slug)
     .bind(next_name)
@@ -5220,6 +5728,7 @@ async fn update_catalog(
     .bind(payload.description.or(current.description))
     .bind(next_specs)
     .bind(next_stock)
+    .bind(next_stock_quantity)
     .bind(next_colors)
     .bind(next_ratings_json)
     .bind(next_rating)
@@ -5232,7 +5741,7 @@ async fn update_catalog(
     let updated = find_catalog_by_id_or_slug(&state, &current.id).await?;
     Ok(json_ok(
         format!("Catalog {} updated by {}", current.id, user.email),
-        json!({ "item": product_to_json(updated, None) }),
+        json!({ "item": product_to_json(updated, None, None) }),
     ))
 }
 
@@ -5373,7 +5882,7 @@ async fn bulk_products(
                 let stock = data.stock.as_deref().unwrap_or("available");
 
                 let result = sqlx::query(
-                    "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "INSERT INTO products (id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 )
                 .bind(&id)
                 .bind(slug.trim())
@@ -5391,6 +5900,7 @@ async fn bulk_products(
                 .bind(data.description)
                 .bind(specs)
                 .bind(stock)
+                .bind(data.stock_quantity)
                 .bind(colors)
                 .bind(ratings_json)
                 .bind(next_rating)
@@ -5450,6 +5960,9 @@ async fn bulk_products(
                 if data.stock.is_some() {
                     updates.push("stock = ?");
                 }
+                if data.stock_quantity.is_some() {
+                    updates.push("stock_quantity = ?");
+                }
                 if data.short_desc.is_some() {
                     updates.push("short_desc = ?");
                 }
@@ -5491,6 +6004,9 @@ async fn bulk_products(
                     q = q.bind(val.trim());
                 }
                 if let Some(ref val) = data.stock {
+                    q = q.bind(val);
+                }
+                if let Some(val) = data.stock_quantity {
                     q = q.bind(val);
                 }
                 if let Some(ref val) = data.short_desc {
@@ -9582,8 +10098,8 @@ async fn import_blast_contacts_to_campaign(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{atomic::AtomicBool, Arc};
-    use tokio::sync::RwLock;
+    use proptest::prelude::*;
+    use std::sync::atomic::AtomicBool;
 
     // ── Test: health endpoint response structure ──────────────────────────────
     //
@@ -9677,6 +10193,35 @@ mod tests {
             chrono::DateTime::parse_from_rfc3339(last_retry_str).is_ok(),
             "last_retry_run should be valid RFC3339"
         );
+    }
+
+    proptest! {
+        #[test]
+        fn catalog_name_matching_uses_trimmed_case_insensitive_exact_names(
+            base in "[A-Za-z0-9][A-Za-z0-9 ]{0,60}",
+            prefix_ws in "\\s{0,3}",
+            suffix_ws in "\\s{0,3}",
+            extra in "[A-Za-z0-9]{1,12}",
+        ) {
+            let canonical = normalize_catalog_match_name(&base);
+            prop_assume!(!canonical.is_empty());
+
+            let same_with_whitespace = format!("{}{}{}", prefix_ws, base.to_uppercase(), suffix_ws);
+            prop_assert!(catalog_names_match(&base, &same_with_whitespace));
+
+            let different = format!("{} {}", base, extra);
+            prop_assume!(normalize_catalog_match_name(&different) != canonical);
+            prop_assert!(!catalog_names_match(&base, &different));
+        }
+
+        #[test]
+        fn catalog_match_count_invariant_holds(
+            requested in proptest::collection::vec("[A-Za-z0-9][A-Za-z0-9 ]{0,40}", 0..50),
+            catalog in proptest::collection::vec("[A-Za-z0-9][A-Za-z0-9 ]{0,40}", 0..50),
+        ) {
+            let (matched, unmatched) = count_catalog_name_matches(&requested, &catalog);
+            prop_assert_eq!(matched + unmatched, requested.len());
+        }
     }
 
     // ── Test: health endpoint job running state ───────────────────────────────

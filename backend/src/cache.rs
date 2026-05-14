@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use redis::AsyncCommands;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;

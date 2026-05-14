@@ -66,6 +66,7 @@ mod api_routes_tests {
                 permissions TEXT,
                 expires_at TIMESTAMP,
                 last_used_at TIMESTAMP,
+                token_prefix TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
@@ -163,29 +164,32 @@ mod api_routes_tests {
         account_id
     }
 
+    fn test_redis_url() -> String {
+        std::env::var("TEST_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/15".to_string())
+    }
+
     /// Helper function to create test app state with mock Redis
     async fn create_test_state() -> Result<AppState, Box<dyn std::error::Error>> {
         let pool = setup_test_db().await;
 
-        // Try to connect to Redis (skip test if Redis not available)
-        let redis_url =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+        // Use an isolated Redis DB so integration tests never feed the dev/prod queue.
+        let redis_url = test_redis_url();
 
         let redis_client = redis::Client::open(redis_url)?;
         let redis_conn = redis_client.get_connection_manager().await?;
         let cache = Arc::new(CacheManager::new(redis_conn));
 
         // Create state without queue_manager (will be added in tests that need it)
-        Ok(AppState::new(pool, cache))
+        let (state, _bridge_rx) = AppState::new(pool, cache);
+        Ok(state)
     }
 
     /// Helper function to create test app state with Redis queue manager
     async fn create_test_state_with_queue() -> Result<AppState, Box<dyn std::error::Error>> {
         let pool = setup_test_db().await;
 
-        // Try to connect to Redis (skip test if Redis not available)
-        let redis_url =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+        // Use an isolated Redis DB so integration tests never feed the dev/prod queue.
+        let redis_url = test_redis_url();
 
         let redis_client = redis::Client::open(redis_url.clone())?;
         let redis_conn = redis_client.get_connection_manager().await?;
@@ -194,7 +198,8 @@ mod api_routes_tests {
         let redis_manager = RedisManager::new(&redis_url).await?;
         let queue_manager = Arc::new(QueueManager::new(redis_manager, pool.clone()));
 
-        let state = AppState::new(pool, cache).with_queue_manager(queue_manager);
+        let (state, _bridge_rx) = AppState::new(pool, cache);
+        let state = state.with_queue_manager(queue_manager);
 
         Ok(state)
     }
@@ -219,7 +224,7 @@ mod api_routes_tests {
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
         let account_id = create_test_wa_account(&state.pool, &user_id, "connected").await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         let request = Request::builder()
             .method("POST")
@@ -266,7 +271,7 @@ mod api_routes_tests {
                 return;
             }
         };
-        let app = api_routes::router(state);
+        let app = api_routes::router().with_state(state);
 
         let request = Request::builder()
             .method("POST")
@@ -303,7 +308,7 @@ mod api_routes_tests {
                 return;
             }
         };
-        let app = api_routes::router(state);
+        let app = api_routes::router().with_state(state);
 
         let request = Request::builder()
             .method("POST")
@@ -362,7 +367,7 @@ mod api_routes_tests {
         .await
         .expect("Failed to create expired token");
 
-        let app = api_routes::router(state);
+        let app = api_routes::router().with_state(state);
 
         let request = Request::builder()
             .method("POST")
@@ -446,7 +451,7 @@ mod api_routes_tests {
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
         let account_id = create_test_wa_account(&state.pool, &user_id, "connected").await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         let request = Request::builder()
             .method("POST")
@@ -507,7 +512,7 @@ mod api_routes_tests {
         let user_id = create_test_user(&state.pool).await;
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         let request = Request::builder()
             .method("POST")
@@ -561,7 +566,7 @@ mod api_routes_tests {
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
         let account_id = create_test_wa_account(&state.pool, &user_id, "disconnected").await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         let request = Request::builder()
             .method("POST")
@@ -612,7 +617,7 @@ mod api_routes_tests {
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
         let account_id = create_test_wa_account(&state.pool, &user_id, "connected").await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         // Test with invalid phone number (missing +)
         let request = Request::builder()
@@ -664,7 +669,7 @@ mod api_routes_tests {
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
         let account_id = create_test_wa_account(&state.pool, &user_id, "connected").await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         let request = Request::builder()
             .method("POST")
@@ -715,7 +720,7 @@ mod api_routes_tests {
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
         let account_id = create_test_wa_account(&state.pool, &user_id, "connected").await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         // Test with low priority
         let request = Request::builder()
@@ -777,7 +782,7 @@ mod api_routes_tests {
         let (_, plain_token) = create_test_api_token(&state.pool, &user_id).await;
         let account_id = create_test_wa_account(&state.pool, &user_id, "connected").await;
 
-        let app = api_routes::router(state.clone());
+        let app = api_routes::router().with_state(state.clone());
 
         // Test with message containing control characters
         let request = Request::builder()

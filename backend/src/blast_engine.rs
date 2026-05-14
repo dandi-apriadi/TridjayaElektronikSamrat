@@ -739,14 +739,15 @@ impl BlastEngine {
                 .fetch_optional(&self.pool)
                 .await?;
 
-        let mut variables: HashMap<String, String> = if let Some((Some(variables_json),)) = recipient {
-            serde_json::from_str(&variables_json).unwrap_or_else(|e| {
-                warn!("Failed to parse recipient variables JSON: {}", e);
+        let mut variables: HashMap<String, String> =
+            if let Some((Some(variables_json),)) = recipient {
+                serde_json::from_str(&variables_json).unwrap_or_else(|e| {
+                    warn!("Failed to parse recipient variables JSON: {}", e);
+                    HashMap::new()
+                })
+            } else {
                 HashMap::new()
-            })
-        } else {
-            HashMap::new()
-        };
+            };
 
         Self::normalize_recipient_variables(&mut variables);
 
@@ -758,7 +759,9 @@ impl BlastEngine {
         for (key, value) in existing {
             let normalized_key = key.trim().to_lowercase();
             if normalized_key != key {
-                variables.entry(normalized_key.clone()).or_insert(value.clone());
+                variables
+                    .entry(normalized_key.clone())
+                    .or_insert(value.clone());
             }
             if matches!(
                 normalized_key.as_str(),
@@ -988,26 +991,6 @@ impl BlastEngine {
         .execute(&self.pool)
         .await?;
 
-        Ok(())
-    }
-
-    /// Send message via bridge client
-    async fn send_message_via_bridge(
-        &self,
-        message: &crate::redis_manager::QueueMessage,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let params = serde_json::json!({
-            "phone": message.phone,
-            "message": message.message_text,
-            "media_url": message.media_url,
-        });
-
-        let result = self
-            .bridge_client
-            .send_request(&message.account_id, "send_message".to_string(), params)
-            .await?;
-
-        debug!("Bridge send result: {:?}", result);
         Ok(())
     }
 
@@ -1265,27 +1248,15 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::media_handler::MediaHandler;
     use crate::queue_manager::QueueManager;
     use crate::redis_manager::{Priority, RedisManager};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use tokio::sync::Mutex as TokioMutex;
 
     /// Mock BridgeClient for testing without actual Node.js processes
     #[derive(Clone)]
     struct MockBridgeClient {
         send_count: Arc<AtomicUsize>,
         should_fail: Arc<AtomicBool>,
-        send_delay_ms: Arc<TokioMutex<u64>>,
-        sent_messages: Arc<TokioMutex<Vec<MockSentMessage>>>,
-    }
-
-    #[derive(Debug, Clone)]
-    struct MockSentMessage {
-        account_id: String,
-        phone: String,
-        message: String,
-        media_url: Option<String>,
     }
 
     impl MockBridgeClient {
@@ -1293,23 +1264,11 @@ mod integration_tests {
             Self {
                 send_count: Arc::new(AtomicUsize::new(0)),
                 should_fail: Arc::new(AtomicBool::new(false)),
-                send_delay_ms: Arc::new(TokioMutex::new(0)),
-                sent_messages: Arc::new(TokioMutex::new(Vec::new())),
             }
         }
 
         fn set_should_fail(&self, should_fail: bool) {
             self.should_fail.store(should_fail, Ordering::SeqCst);
-        }
-
-        async fn set_send_delay(&self, delay_ms: u64) {
-            let mut delay = self.send_delay_ms.lock().await;
-            *delay = delay_ms;
-        }
-
-        async fn get_sent_messages(&self) -> Vec<MockSentMessage> {
-            let messages = self.sent_messages.lock().await;
-            messages.clone()
         }
 
         fn get_send_count(&self) -> usize {
@@ -1322,33 +1281,12 @@ mod integration_tests {
             _method: String,
             params: serde_json::Value,
         ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-            // Simulate network delay
-            let delay = *self.send_delay_ms.lock().await;
-            if delay > 0 {
-                tokio::time::sleep(Duration::from_millis(delay)).await;
-            }
-
             // Check if should fail
             if self.should_fail.load(Ordering::SeqCst) {
                 return Err("Mock send failure".into());
             }
 
-            // Record sent message
-            let phone = params["phone"].as_str().unwrap_or("").to_string();
-            let message = params["message"].as_str().unwrap_or("").to_string();
-            let media_url = params["media_url"].as_str().map(|s| s.to_string());
-
-            let sent_msg = MockSentMessage {
-                account_id: account_id.to_string(),
-                phone,
-                message,
-                media_url,
-            };
-
-            {
-                let mut messages = self.sent_messages.lock().await;
-                messages.push(sent_msg);
-            }
+            debug!("Mock bridge send to {}: {:?}", account_id, params);
 
             // Increment counter
             self.send_count.fetch_add(1, Ordering::SeqCst);
@@ -1456,14 +1394,6 @@ mod integration_tests {
         // Create queue manager
         let queue_manager = QueueManager::new(redis.clone(), pool.clone());
 
-        // Create media handler
-        let redis_conn = redis::Client::open("redis://127.0.0.1:6379")
-            .unwrap()
-            .get_connection_manager()
-            .await
-            .unwrap();
-        let media_handler = MediaHandler::new(redis_conn);
-
         // Create mock bridge
         let mock_bridge = Arc::new(MockBridgeClient::new());
 
@@ -1475,10 +1405,7 @@ mod integration_tests {
             pool: pool.clone(),
             rate_limits: Arc::new(RwLock::new(HashMap::new())),
             account_semaphores: Arc::new(RwLock::new(HashMap::new())),
-            worker_health: Arc::new(RwLock::new(HashMap::new())),
-            shutdown: Arc::new(Mutex::new(false)),
             spintax_processor: Arc::new(Mutex::new(crate::spintax::SpintaxProcessor::new())),
-            media_handler: Arc::new(Mutex::new(media_handler)),
         };
 
         (engine, queue_manager, redis, mock_bridge)
@@ -1492,10 +1419,7 @@ mod integration_tests {
         pool: SqlitePool,
         rate_limits: Arc<RwLock<HashMap<String, AccountRateLimit>>>,
         account_semaphores: Arc<RwLock<HashMap<String, Arc<Semaphore>>>>,
-        worker_health: Arc<RwLock<HashMap<usize, bool>>>,
-        shutdown: Arc<Mutex<bool>>,
         spintax_processor: Arc<Mutex<crate::spintax::SpintaxProcessor>>,
-        media_handler: Arc<Mutex<MediaHandler>>,
     }
 
     impl TestBlastEngine {
@@ -2237,7 +2161,7 @@ mod integration_tests {
         let pool = setup_test_db().await;
 
         let config = BlastEngineConfig::default();
-        let (engine, queue_manager, mut redis, mock_bridge) =
+        let (engine, queue_manager, mut redis, _mock_bridge) =
             create_test_blast_engine(pool.clone(), config).await;
 
         let account_id = "test_account_completion";

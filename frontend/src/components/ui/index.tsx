@@ -9,6 +9,7 @@ import { getImageUrl, getFrontendBaseUrl } from '../../utils/apiClient';
 import { useMinInstallment } from '../../hooks/useMinInstallment';
 import { useAuthStore } from '../../store/authStore';
 import { recordTelemetry } from '../../utils/telemetry';
+import { getPublicPrice } from '../../utils/publicPricing';
 
 interface ProductCardProps {
   product: Product;
@@ -26,6 +27,7 @@ const badgeConfig = {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isCompact }) => {
   const minInstallment = useMinInstallment(product);
+  const publicPrice = getPublicPrice(product);
   const { user: loggedInUser } = useAuthStore();
   const salesReferralSlug = loggedInUser?.role === 'sales' ? loggedInUser.referral_slug?.trim() : null;
   
@@ -167,7 +169,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
                       {product.review && <span className="text-on-surface-variant line-clamp-1">{product.review}</span>}
                     </div>
                   ) : null}
-                  {product.price === 0 ? (
+                  {publicPrice === 0 ? (
                     <div>
                       <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-label-md mb-1">
                         <Clock className="w-3.5 h-3.5" />
@@ -178,7 +180,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
                   ) : (
                     <div>
                       <div className="font-display text-headline-sm font-bold gradient-text-primary">
-                        {formatPrice(product.price)}
+                        {formatPrice(publicPrice)}
                       </div>
                       {(minInstallment || product.priceInstallment) && (
                         <div className="font-body text-body-sm text-on-surface-variant">
@@ -243,7 +245,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
               ) : null}
               <div className="flex items-center justify-between">
                 <div>
-                  {product.price === 0 ? (
+                  {publicPrice === 0 ? (
                     <div>
                       <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-[11px] mb-0.5">
                         <Clock className="w-3 h-3" />
@@ -254,7 +256,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
                   ) : (
                     <div>
                       <div className="font-display text-title-md font-bold text-primary">
-                        {formatPrice(product.price)}
+                        {formatPrice(publicPrice)}
                       </div>
                       <div className="font-body text-[10px] text-on-surface-variant font-medium">
                         Cicilan: {formatPrice(minInstallment || product.priceInstallment || 0)}/bln

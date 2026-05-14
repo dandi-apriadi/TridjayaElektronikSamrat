@@ -1,17 +1,42 @@
-use crate::state::AppState;
+use crate::{
+    auth::{authorize, Role},
+    response::AppError,
+    state::AppState,
+};
 /**
  * WA Gateway - Routes
  *
  * Route definitions for the Gateway API
  */
 use axum::{
+    body::Body,
+    extract::State,
+    http::{HeaderMap, Request},
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
     Router,
 };
 
 use super::handlers::{contacts, dashboard, messages, sessions, templates, webhooks};
 
-pub fn router() -> Router<AppState> {
+async fn require_wa_gateway_auth(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Request<Body>,
+    next: Next,
+) -> Result<Response, AppError> {
+    authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::WaAdmin, Role::WaOperator],
+    )
+    .await?;
+
+    Ok(next.run(request).await)
+}
+
+pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         // Message APIs
         .route("/api/v1/wa/send", post(messages::send_message))
@@ -81,4 +106,8 @@ pub fn router() -> Router<AppState> {
         )
         // Health
         .route("/api/v1/wa/health", get(dashboard::health_check))
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            require_wa_gateway_auth,
+        ))
 }

@@ -17,6 +17,7 @@ export default defineConfig({
   },
   plugins: [react()],
   build: {
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -27,6 +28,12 @@ export default defineConfig({
           if (id.includes('recharts')) return 'vendor-charts';
           if (id.includes('lucide-react')) return 'vendor-icons';
           if (id.includes('zustand')) return 'vendor-state';
+          if (id.includes('@e965/xlsx') || id.includes('/xlsx/')) return 'vendor-xlsx';
+          if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('dompurify')) return 'vendor-pdf';
+          if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-maps';
+          if (id.includes('@hello-pangea/dnd')) return 'vendor-dnd';
+          if (id.includes('date-fns')) return 'vendor-date';
+          if (id.includes('zod')) return 'vendor-validation';
           return 'vendor-misc';
         },
       },

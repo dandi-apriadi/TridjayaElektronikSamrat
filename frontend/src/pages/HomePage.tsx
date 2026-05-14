@@ -23,27 +23,16 @@ import {
 import { PartnerLogos, ProductCard, SectionHeader } from '../components/ui';
 import { recordTelemetry } from '../utils/telemetry';
 import { useProductStore } from '../store/useProductStore';
-import type { Product } from '../types';
-
-import heroLatteBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-latte.webp';
-import heroCappuccinoBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-cappuccino.webp';
-import heroPolarisBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-polaris.webp';
-import heroKingkongBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-kingkong.webp';
-import heroD66BBg from '../assets/images/landing/generated-pro/hero-products/hero-bg-d66b.webp';
-import heroLatteProduct from '../assets/images/landing/hero-custom/hero-latte-red.webp';
-import heroCappuccinoProduct from '../assets/images/landing/hero-custom/hero-cappuccino-green.webp';
-import heroPolarisProduct from '../assets/images/landing/hero-custom/hero-polaris-family.webp';
-import heroKingkongProduct from '../assets/images/landing/hero-custom/hero-kingkong-white.webp';
-import heroD66BProduct from '../assets/images/landing/hero-custom/hero-uwinfly-d66b-pink.webp';
-import categoryMobilityPro from '../assets/images/landing/categories/cat-mobility.webp';
-import categoryElectronicsPro from '../assets/images/landing/categories/cat-electronics.webp';
-import categoryFurniturePro from '../assets/images/landing/categories/cat-furniture.webp';
-import categoryDiningPro from '../assets/images/landing/categories/cat-dining.webp';
-import smartRideShowcasePro from '../assets/images/landing/smart-ride/smart-ride-main.png';
-import smartRideLamp from '../assets/images/landing/smart-ride/smart-ride-lamp.png';
-import smartRideBattery from '../assets/images/landing/smart-ride/smart-ride-battery.png';
-import smartRideSeat from '../assets/images/landing/smart-ride/smart-ride-seat.png';
-import smartRideBody from '../assets/images/landing/smart-ride/smart-ride-body.png';
+import { useLandingStore } from '../store/useLandingStore';
+import { getImageUrl } from '../utils/apiClient';
+import { getPublicPrice } from '../utils/publicPricing';
+import type {
+  LandingCategoryPanelData,
+  LandingHeroSlideData,
+  LandingSmartRideData,
+  LandingSmartRideFeatureData,
+  Product,
+} from '../types';
 
 type LandingSlide = {
   id: string;
@@ -64,153 +53,65 @@ type LandingSlide = {
   specs: { icon: React.ElementType; value: string; label: string }[];
 };
 
-const landingSlides: LandingSlide[] = [
-  {
-    id: 'latte',
-    eyebrow: 'Saige Latte',
-    title: 'Latte merah premium untuk mobilitas harian.',
-    accent: 'Desain modern, cicilan ringan, siap pakai.',
-    copy: 'Skuter listrik bergaya urban dengan bodi kompak, warna merah berani, dan pilihan kredit yang mudah untuk dipakai harian.',
-    href: '/produk?kategori=Sepeda+Listrik',
-    cta: 'Lihat Saige Latte',
-    bg: heroLatteBg,
-    product: heroLatteProduct,
-    productAlt: 'Saige Latte merah',
-    icon: Bike,
-    price: 'Rp 4.700.000',
-    oldPrice: 'Rp 5.200.000',
-    detailLine: 'Motor 60V 800W | Baterai lithium 60V 20Ah | Ban tubeless 2.75-10',
-    metrics: [
-      { icon: Zap, value: '800W', label: 'motor' },
-      { icon: Battery, value: '50-70 km', label: 'jarak tempuh' },
-      { icon: Gauge, value: '45 km/jam', label: 'kecepatan maks.' },
-    ],
-    specs: [
-      { icon: Zap, value: '800W', label: 'motor' },
-      { icon: Battery, value: '60V 20Ah', label: 'lithium' },
-      { icon: MapPin, value: '50-70 km', label: 'jarak tempuh' },
-      { icon: Gauge, value: '45 km/jam', label: 'kecepatan' },
-      { icon: Wrench, value: '6-8 jam', label: 'pengisian' },
-      { icon: Shield, value: '170 kg', label: 'beban maks.' },
-    ],
-  },
-  {
-    id: 'cappuccino',
-    eyebrow: 'Saige Cappuccino',
-    title: 'Cappuccino tampil retro, tetap bertenaga.',
-    accent: 'Baterai lithium, warna kalem, gaya premium.',
-    copy: 'Pilihan retro-premium untuk perjalanan santai, dengan posisi berkendara nyaman dan detail warna yang terlihat rapi di showroom.',
-    href: '/produk?kategori=Sepeda+Listrik',
-    cta: 'Lihat Cappuccino',
-    bg: heroCappuccinoBg,
-    product: heroCappuccinoProduct,
-    productAlt: 'Saige Cappuccino hijau krem',
-    icon: Bike,
-    price: 'Rp 8.000.000',
-    oldPrice: 'Rp 8.700.000',
-    detailLine: 'Motor 48/60V 800W | Baterai 48/60V 20Ah | Rem disc/drum',
-    metrics: [
-      { icon: Zap, value: '800W', label: 'motor' },
-      { icon: Battery, value: '60-80 km', label: 'jarak tempuh' },
-      { icon: Shield, value: '48/60V', label: 'sistem' },
-    ],
-    specs: [
-      { icon: Zap, value: '800W', label: 'motor' },
-      { icon: Battery, value: '48/60V 20Ah', label: 'baterai' },
-      { icon: MapPin, value: '60-80 km', label: 'jarak tempuh' },
-      { icon: Gauge, value: '25/33 km/jam', label: 'kecepatan' },
-      { icon: Wrench, value: '6-8 jam', label: 'pengisian' },
-      { icon: Shield, value: '170 kg', label: 'beban maks.' },
-    ],
-  },
-  {
-    id: 'polaris',
-    eyebrow: 'Saige Polaris',
-    title: 'Polaris nyaman untuk keluarga dan usaha.',
-    accent: 'Tiga roda stabil, jok lebar, kapasitas besar.',
-    copy: 'Tiga roda yang stabil untuk belanja, antar-jemput, dan kebutuhan usaha ringan dengan ruang duduk yang lega.',
-    href: '/produk?kategori=Sepeda+Listrik',
-    cta: 'Lihat Saige Polaris',
-    bg: heroPolarisBg,
-    product: heroPolarisProduct,
-    productAlt: 'Saige Polaris tiga roda',
-    icon: Bike,
-    price: 'Rp 12.700.000',
-    oldPrice: 'Rp 13.200.000',
-    detailLine: 'Motor 800W 48/60V | Baterai 60V 20Ah | Drum brake | Ban vacuum 300-8',
-    metrics: [
-      { icon: Zap, value: '800W', label: 'motor' },
-      { icon: Battery, value: '60 km', label: 'jarak tempuh' },
-      { icon: Shield, value: '3 roda', label: 'stabil' },
-    ],
-    specs: [
-      { icon: Zap, value: '800W', label: 'motor' },
-      { icon: Battery, value: '60V 20Ah', label: 'baterai' },
-      { icon: MapPin, value: '60 km', label: 'jarak tempuh' },
-      { icon: Gauge, value: '3 mode', label: 'controller' },
-      { icon: Wrench, value: '6-8 jam', label: 'pengisian' },
-      { icon: Shield, value: '300-8', label: 'ban vacuum' },
-    ],
-  },
-  {
-    id: 'kingkong',
-    eyebrow: 'Goda Mecha Kingkong',
-    title: 'Mecha Kingkong 199 Max bertenaga tinggi.',
-    accent: '72V 20Ah, motor 1500W, suspensi siap jalan jauh.',
-    copy: 'Model Goda dengan motor high-torque, dual disc brake, dan fitur Auto-P untuk pengendara yang butuh tenaga lebih dari sepeda listrik biasa.',
-    href: '/produk?kategori=Sepeda+Listrik',
-    cta: 'Lihat Mecha Kingkong',
-    bg: heroKingkongBg,
-    product: heroKingkongProduct,
-    productAlt: 'Goda Mecha Kingkong Blue Saber',
-    icon: Bike,
-    price: 'Cek Promo',
-    oldPrice: 'Harga mengikuti varian dan stok toko',
-    detailLine: '72V 20Ah battery + 1500W motor | 220mm dual disc brake | 3 power modes',
-    metrics: [
-      { icon: Zap, value: '1500W', label: 'motor' },
-      { icon: Battery, value: '72V 20Ah', label: 'baterai' },
-      { icon: Shield, value: 'Dual disc', label: 'rem' },
-    ],
-    specs: [
-      { icon: Zap, value: '1500W', label: 'motor' },
-      { icon: Battery, value: '72V 20Ah', label: 'baterai' },
-      { icon: Shield, value: '220mm', label: 'dual disc' },
-      { icon: Wrench, value: 'USD fork', label: 'suspensi' },
-      { icon: Gauge, value: 'LCD', label: 'panel' },
-      { icon: Sparkles, value: 'Auto-P', label: 'smart tech' },
-    ],
-  },
-  {
-    id: 'd66b',
-    eyebrow: 'Uwinfly D66B',
-    title: 'Uwinfly D66B modern untuk perjalanan dekat.',
-    accent: 'Smart key, jok sofa, bagasi 13 liter.',
-    copy: 'Smart e-bike Uwinfly dengan motor BLDC 600W, baterai SLA 48V 12Ah, dan desain kompak yang cocok untuk mobilitas harian jarak dekat.',
-    href: '/produk?kategori=Sepeda+Listrik',
-    cta: 'Lihat Uwinfly D66B',
-    bg: heroD66BBg,
-    product: heroD66BProduct,
-    productAlt: 'Uwinfly D66B pink',
-    icon: Bike,
-    price: 'Cek Promo',
-    oldPrice: 'Tanyakan harga terbaru ke sales',
-    detailLine: '600W BLDC | 48V 12Ah SLA | +/- 42 km | disc brake | bagasi 13L',
-    metrics: [
-      { icon: Zap, value: '600W', label: 'motor' },
-      { icon: Battery, value: '42 km', label: 'jarak tempuh' },
-      { icon: Gauge, value: '33 km/jam', label: 'kecepatan' },
-    ],
-    specs: [
-      { icon: Zap, value: '600W', label: 'BLDC' },
-      { icon: Battery, value: '48V 12Ah', label: 'SLA' },
-      { icon: MapPin, value: '+/- 42 km', label: 'jarak tempuh' },
-      { icon: Gauge, value: '+/- 33 km/jam', label: 'kecepatan' },
-      { icon: Shield, value: '150 kg', label: 'beban maks.' },
-      { icon: Sparkles, value: 'U-Connect', label: 'smart key' },
-    ],
-  },
-];
+type LandingCategory = {
+  id: string;
+  label: string;
+  copy: string;
+  href: string;
+  image: string;
+  icon: React.ElementType;
+  tone: string;
+  tags: string[];
+};
+
+const iconMap: Record<string, React.ElementType> = {
+  battery: Battery,
+  bike: Bike,
+  clock: Clock,
+  creditCard: CreditCard,
+  gauge: Gauge,
+  mapPin: MapPin,
+  shield: Shield,
+  sofa: Sofa,
+  sparkles: Sparkles,
+  smartphone: Smartphone,
+  truck: Truck,
+  utensils: Utensils,
+  wrench: Wrench,
+  zap: Zap,
+};
+
+const resolveIcon = (iconKey?: string) => iconMap[iconKey ?? ''] ?? Bike;
+
+const mapLandingSlide = (slide: LandingHeroSlideData): LandingSlide => ({
+  id: slide.id,
+  eyebrow: slide.eyebrow,
+  title: slide.title,
+  accent: slide.accent,
+  copy: slide.copy,
+  href: slide.href,
+  cta: slide.cta,
+  bg: getImageUrl(slide.bgImageUrl),
+  product: getImageUrl(slide.productImageUrl),
+  productAlt: slide.productAlt,
+  icon: resolveIcon(slide.iconKey),
+  price: slide.price,
+  oldPrice: slide.oldPrice,
+  detailLine: slide.detailLine,
+  metrics: slide.metrics.map((item) => ({ ...item, icon: resolveIcon(item.iconKey) })),
+  specs: slide.specs.map((item) => ({ ...item, icon: resolveIcon(item.iconKey) })),
+});
+
+const mapLandingCategory = (category: LandingCategoryPanelData): LandingCategory => ({
+  id: category.id,
+  label: category.label,
+  copy: category.copy,
+  href: category.href,
+  image: getImageUrl(category.imageUrl),
+  icon: resolveIcon(category.iconKey),
+  tone: category.tone,
+  tags: Array.isArray(category.tags) ? category.tags : [],
+});
 
 const heroProductHints = ['latte', 'cappuccino', 'polaris', 'kingkong', 'king kong', 'd66b', 'd66 b'];
 
@@ -226,49 +127,10 @@ const getProductStoryItems = (products: Product[]) => {
     .sort((a, b) => {
       const scoreA = (a.views ?? 0) + (a.leads ?? 0) * 3 + (a.conversions ?? 0) * 8;
       const scoreB = (b.views ?? 0) + (b.leads ?? 0) * 3 + (b.conversions ?? 0) * 8;
-      return scoreB - scoreA || b.price - a.price;
+      return scoreB - scoreA || getPublicPrice(b) - getPublicPrice(a);
     })
     .slice(0, 3);
 };
-
-const categoryPanels = [
-  {
-    label: 'Sepeda Listrik',
-    copy: 'Solusi mobilitas cerdas dengan performa tinggi dan desain futuristik untuk gaya hidup modern.',
-    href: '/produk?kategori=Sepeda+Listrik',
-    image: categoryMobilityPro,
-    icon: Bike,
-    tone: 'cyan',
-    tags: ['Eco Performance', '800W Power', 'Smart Tech'],
-  },
-  {
-    label: 'Elektronik',
-    copy: 'Lengkapi rumah Anda dengan teknologi visual dan audio tercanggih dari brand ternama dunia.',
-    href: '/produk?kategori=AC',
-    image: categoryElectronicsPro,
-    icon: Smartphone,
-    tone: 'lime',
-    tags: ['4K Ultra HD', 'Smart Home', 'Energy Efficient'],
-  },
-  {
-    label: 'Furniture',
-    copy: 'Ciptakan kenyamanan maksimal di setiap sudut ruangan dengan koleksi furniture eksklusif kami.',
-    href: '/produk?kategori=SOPA',
-    image: categoryFurniturePro,
-    icon: Sofa,
-    tone: 'pink',
-    tags: ['Premium Fabric', 'Ergonomic', 'Elegant Design'],
-  },
-  {
-    label: 'Dining Set',
-    copy: 'Hadirkan kehangatan di ruang makan dengan set furnitur berkualitas yang dirancang dengan presisi.',
-    href: '/produk?kategori=Meja',
-    image: categoryDiningPro,
-    icon: Utensils,
-    tone: 'amber',
-    tags: ['Luxury Dining', 'Craftsmanship', 'Durable'],
-  },
-];
 
 const serviceHighlights = [
   { 
@@ -291,13 +153,6 @@ const serviceHighlights = [
     label: 'Pengiriman Cepat', 
     desc: 'Layanan kirim aman dan instalasi langsung oleh tim profesional kami untuk wilayah Manado dan sekitarnya.' 
   },
-];
-
-const smartRideFeatures = [
-  { title: 'Lampu LED Modern', desc: 'Tampilan tajam, terang, dan hemat energi.', img: smartRideLamp },
-  { title: 'Baterai Efisien', desc: 'Dirancang untuk mobilitas harian yang lebih hemat.', img: smartRideBattery },
-  { title: 'Jok Nyaman', desc: 'Posisi duduk ergonomis untuk pengendara dan penumpang.', img: smartRideSeat },
-  { title: 'Body Futuristik', desc: 'Finishing glossy dengan detail produk yang terasa premium.', img: smartRideBody },
 ];
 
 const toneClass: Record<string, string> = {
@@ -409,21 +264,48 @@ const HeroSpecPanel: React.FC<{ slide: LandingSlide; className?: string }> = ({ 
 
 // Badge components removed - focusing on specs and promo only
 
-const HeroSection: React.FC = () => {
+const LandingHeroSkeleton = () => (
+  <section className="brochure-hero landing-theme-surface relative overflow-hidden bg-[#0a1628]">
+    <div className="container-custom flex min-h-[calc(100svh-4rem)] items-center py-16 lg:py-20">
+      <div className="w-full animate-pulse space-y-6">
+        <div className="h-10 w-48 rounded-full bg-white/10" />
+        <div className="max-w-3xl space-y-3">
+          <div className="h-14 rounded-2xl bg-white/10" />
+          <div className="h-14 w-3/4 rounded-2xl bg-white/10" />
+        </div>
+        <div className="h-5 max-w-xl rounded-full bg-white/10" />
+        <div className="h-12 w-44 rounded-xl bg-primary/30" />
+      </div>
+    </div>
+  </section>
+);
+
+const HeroSection: React.FC<{ slides: LandingSlide[] }> = ({ slides }) => {
   const [current, setCurrent] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
   const { scrollYProgress } = useScroll();
   const contentY = useTransform(scrollYProgress, [0, 0.35], [0, 42]);
-  const slide = landingSlides[current];
+  const slide = slides[Math.min(current, Math.max(slides.length - 1, 0))];
 
-  const goNext = useCallback(() => setCurrent((value) => (value + 1) % landingSlides.length), []);
-  const goPrev = useCallback(() => setCurrent((value) => (value - 1 + landingSlides.length) % landingSlides.length), []);
+  const goNext = useCallback(() => {
+    if (slides.length <= 1) return;
+    setCurrent((value) => (value + 1) % slides.length);
+  }, [slides.length]);
+
+  const goPrev = useCallback(() => {
+    if (slides.length <= 1) return;
+    setCurrent((value) => (value - 1 + slides.length) % slides.length);
+  }, [slides.length]);
 
   useEffect(() => {
-    if (!autoplay) return;
+    if (!autoplay || slides.length <= 1) return;
     const timer = window.setInterval(goNext, 6200);
     return () => window.clearInterval(timer);
-  }, [autoplay, goNext]);
+  }, [autoplay, goNext, slides.length]);
+
+  useEffect(() => {
+    if (current >= slides.length) setCurrent(0);
+  }, [current, slides.length]);
 
   // Drag / swipe handling
   const dragStartX = useRef<number | null>(null);
@@ -465,6 +347,8 @@ const HeroSection: React.FC = () => {
     if (dragStartX.current !== null) handleDragEnd(e.clientX);
   }, [handleDragEnd]);
 
+  if (!slide) return <LandingHeroSkeleton />;
+
   return (
     <section
       className="brochure-hero landing-theme-surface relative overflow-hidden bg-[#eef6ff]"
@@ -487,7 +371,7 @@ const HeroSection: React.FC = () => {
           exit={{ opacity: 0, scale: 1.02 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         >
-          <img src={slide.bg} alt="" className="brochure-bg-image h-full w-full object-cover object-center" />
+          <img src={slide.bg} alt="" className="brochure-bg-image h-full w-full object-cover object-center" decoding="async" />
           <div className="landing-hero-overlay-x absolute inset-0" />
           <div className="landing-hero-overlay-y absolute inset-0" />
         </motion.div>
@@ -513,7 +397,7 @@ const HeroSection: React.FC = () => {
                     <span className="truncate font-body text-[0.7rem] font-black uppercase text-white/80">{slide.eyebrow}</span>
                     <span className="h-1 w-1 rounded-full bg-secondary" />
                     <span className="font-body text-[0.7rem] font-black text-white/50">
-                      {String(current + 1).padStart(2, '0')} / {String(landingSlides.length).padStart(2, '0')}
+                      {String(current + 1).padStart(2, '0')} / {String(slides.length).padStart(2, '0')}
                     </span>
                   </div>
                 </div>
@@ -562,6 +446,7 @@ const HeroSection: React.FC = () => {
                     src={slide.product}
                     alt={slide.productAlt}
                     className="landing-product-image relative z-10 h-full w-full object-contain mix-blend-screen drop-shadow-[0_24px_42px_rgba(0,0,0,0.48)]"
+                    decoding="async"
                     animate={{ y: [0, -10, 0] }}
                     transition={{ duration: 5.6, repeat: Infinity, ease: 'easeInOut' }}
                   />
@@ -588,6 +473,7 @@ const HeroSection: React.FC = () => {
                   src={slide.product}
                   alt={slide.productAlt}
                   className="landing-product-image relative z-10 h-full w-full object-contain mix-blend-screen drop-shadow-[0_24px_42px_rgba(0,0,0,0.48)]"
+                  decoding="async"
                   animate={{ y: [0, -10, 0] }}
                   transition={{ duration: 5.6, repeat: Infinity, ease: 'easeInOut' }}
                 />
@@ -629,7 +515,7 @@ const HeroSection: React.FC = () => {
 
         {/* Dots */}
         <div className="flex items-center gap-1.5">
-          {landingSlides.map((item, index) => (
+          {slides.map((item, index) => (
             <button
               key={item.id}
               type="button"
@@ -718,7 +604,7 @@ const ProductStorySection = () => {
   );
 };
 
-const CategoryCard = ({ category, index }: { category: typeof categoryPanels[0], index: number }) => {
+const CategoryCard = ({ category, index }: { category: LandingCategory, index: number }) => {
   const Icon = category.icon;
 
   return (
@@ -739,6 +625,8 @@ const CategoryCard = ({ category, index }: { category: typeof categoryPanels[0],
             src={category.image}
             alt={category.label}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+            loading="lazy"
+            decoding="async"
           />
           {/* Badge */}
           <div className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 backdrop-blur-md ${toneClass[category.tone]}`}>
@@ -764,7 +652,9 @@ const CategoryCard = ({ category, index }: { category: typeof categoryPanels[0],
   );
 };
 
-const CategoryShowcase = () => {
+const CategoryShowcase = ({ categories }: { categories: LandingCategory[] }) => {
+  if (categories.length === 0) return null;
+
   return (
     <section className="landing-section section-padding bg-[#060f1e]">
       <div className="container-custom">
@@ -774,8 +664,8 @@ const CategoryShowcase = () => {
           subtitle="Temukan produk terbaik dari setiap kategori — sepeda listrik, elektronik rumah tangga, hingga furniture."
         />
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {categoryPanels.map((category, index) => (
-            <CategoryCard key={category.label} category={category} index={index} />
+          {categories.map((category, index) => (
+            <CategoryCard key={category.id} category={category} index={index} />
           ))}
         </div>
       </div>
@@ -783,7 +673,24 @@ const CategoryShowcase = () => {
   );
 };
 
-const SmartRideSection = () => (
+const SmartRideSection = ({
+  smartRide,
+  features,
+}: {
+  smartRide: LandingSmartRideData | null;
+  features: LandingSmartRideFeatureData[];
+}) => {
+  if (!smartRide) return null;
+  const stats = smartRide.stats
+    .map((item, index) => {
+      if (Array.isArray(item)) {
+        return { value: String(item[0] ?? ''), label: String(item[1] ?? `Stat ${index + 1}`) };
+      }
+      return item;
+    })
+    .filter((item) => item.value && item.label);
+
+  return (
   <section className="landing-section-alt relative overflow-hidden bg-[#0a1628] py-20 lg:py-28">
     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_50%,rgba(37,99,235,0.08),transparent_60%)] dark-only" />
     <div className="container-custom relative">
@@ -791,17 +698,17 @@ const SmartRideSection = () => (
         <motion.div initial={{ opacity: 0, x: -28 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-100px' }} transition={{ duration: 0.6 }}>
           <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-blue-500/25 bg-blue-500/10 px-4 py-2">
             <Zap className="h-4 w-4 landing-text-accent text-blue-400" />
-            <span className="landing-text-accent font-body text-label-sm font-black uppercase text-blue-400">Smart Ride System</span>
+            <span className="landing-text-accent font-body text-label-sm font-black uppercase text-blue-400">{smartRide.eyebrow}</span>
           </div>
           <h2 className="landing-text-heading font-display text-display-sm font-black leading-tight text-white sm:text-display-md">
-            Detail produk dibuat seperti microsite, bukan katalog biasa.
+            {smartRide.title}
           </h2>
           <p className="landing-text-body mt-5 max-w-xl text-body-lg leading-relaxed text-blue-200/65">
-            Bagian ini cocok untuk sepeda listrik unggulan: ada highlight performa, kartu fitur, dan animasi scanning yang terasa elektronik tanpa mengganggu keterbacaan.
+            {smartRide.copy}
           </p>
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[['800W','Motor'],['60 km','Jarak'],['4-6 jam','Charging'],['150 kg','Beban']].map(([value, label]) => (
-              <div key={label} className="landing-card rounded-xl border border-blue-800/35 bg-[#0d1f38] p-4">
+            {stats.map(({ value, label }, index) => (
+              <div key={`${label}-${index}`} className="landing-card rounded-xl border border-blue-800/35 bg-[#0d1f38] p-4">
                 <p className="landing-text-accent font-display text-title-lg font-black text-blue-400">{value}</p>
                 <p className="landing-text-muted mt-1 text-body-sm font-bold uppercase text-blue-200/50">{label}</p>
               </div>
@@ -811,33 +718,46 @@ const SmartRideSection = () => (
         <motion.div initial={{ opacity: 0, x: 28 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-100px' }} transition={{ duration: 0.6 }} className="relative">
           <div className="landing-card relative overflow-hidden rounded-2xl border border-blue-800/35 bg-[#0d1f38] p-4">
             <div className="relative aspect-[16/11] overflow-hidden rounded-xl bg-[#060f1e]">
-              <img src={smartRideShowcasePro} alt="Showcase teknologi sepeda listrik" className="h-full w-full object-cover" />
+              <img
+                src={getImageUrl(smartRide.mainImageUrl)}
+                alt={smartRide.mainImageAlt}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
               <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(6,15,30,0.72),transparent_58%)]" />
               <div className="absolute left-5 top-5 max-w-[210px]">
-                <p className="font-display text-title-lg font-black text-white">Eco mode active</p>
-                <p className="mt-2 text-body-sm text-blue-200/70">Baterai, rem, suspensi, dan jarak tempuh lebih gampang dipahami.</p>
+                <p className="font-display text-title-lg font-black text-white">{smartRide.overlayTitle}</p>
+                <p className="mt-2 text-body-sm text-blue-200/70">{smartRide.overlayCopy}</p>
               </div>
             </div>
           </div>
         </motion.div>
       </div>
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {smartRideFeatures.map((feature, index) => (
-          <motion.article key={feature.title} initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: index * 0.06 }}
+        {features.map((feature, index) => (
+          <motion.article key={feature.id || `${feature.title}-${index}`} initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: index * 0.06 }}
             className="landing-card group overflow-hidden rounded-2xl border border-blue-800/30 bg-[#0d1f38] transition duration-300 hover:-translate-y-0.5">
             <div className="aspect-[4/3] overflow-hidden">
-              <img src={feature.img} alt={feature.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.06]" />
+              <img
+                src={getImageUrl(feature.imageUrl)}
+                alt={feature.title}
+                className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.06]"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <div className="p-5">
               <h3 className="landing-text-heading font-display text-title-md font-black text-white">{feature.title}</h3>
-              <p className="landing-text-body mt-2 text-body-sm text-blue-200/65">{feature.desc}</p>
+              <p className="landing-text-body mt-2 text-body-sm text-blue-200/65">{feature.description}</p>
             </div>
           </motion.article>
         ))}
       </div>
     </div>
   </section>
-);
+  );
+};
 
 const TrendingProducts = () => {
   const { products } = useProductStore();
@@ -899,7 +819,7 @@ const WhyUs = () => (
   </section>
 );
 
-const CTASection = () => (
+const CTASection = ({ productImage, productAlt }: { productImage?: string; productAlt?: string }) => (
   <section className="landing-section relative overflow-hidden bg-surface py-24">
     {/* Ambient background glows */}
     <div className="absolute left-1/4 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/8 blur-[120px]" />
@@ -973,15 +893,19 @@ const CTASection = () => (
           </div>
 
           {/* Right: product image */}
-          <div className="relative hidden w-[340px] shrink-0 overflow-hidden lg:block xl:w-[400px]">
-            <motion.img
-              src={heroLatteProduct}
-              alt="Saige Latte - Sepeda Listrik"
-              className="h-full w-full object-contain object-center p-8"
-              animate={{ y: [0, -12, 0] }}
-              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          </div>
+          {productImage ? (
+            <div className="relative hidden w-[340px] shrink-0 overflow-hidden lg:block xl:w-[400px]">
+              <motion.img
+                src={productImage}
+                alt={productAlt || 'Produk Tridjaya'}
+                className="h-full w-full object-contain object-center p-8"
+                loading="lazy"
+                decoding="async"
+                animate={{ y: [0, -12, 0] }}
+                transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1013,27 +937,39 @@ const CTASection = () => (
   </section>
 );
 
-const HomePage: React.FC = () => (
-  <>
-    <HeroSection />
-    <ServiceRibbon />
-    <ProductStorySection />
-    <CategoryShowcase />
-    <SmartRideSection />
-    <TrendingProducts />
-    <WhyUs />
-    <section className="landing-section section-padding-sm bg-surface">
-      <div className="container-custom">
-        <SectionHeader
-          title="Partner Strategis Kami"
-          subtitle="Brand dan leasing terpercaya untuk pilihan produk yang lebih luas."
-          align="center"
-        />
-        <PartnerLogos />
-      </div>
-    </section>
-    <CTASection />
-  </>
-);
+const HomePage: React.FC = () => {
+  const { home, fetchHome } = useLandingStore();
+
+  useEffect(() => {
+    fetchHome();
+  }, [fetchHome]);
+
+  const slides = useMemo(() => home?.heroSlides.map(mapLandingSlide) ?? [], [home?.heroSlides]);
+  const categories = useMemo(() => home?.categoryPanels.map(mapLandingCategory) ?? [], [home?.categoryPanels]);
+  const ctaSlide = slides[0];
+
+  return (
+    <>
+      <HeroSection slides={slides} />
+      <ServiceRibbon />
+      <ProductStorySection />
+      <CategoryShowcase categories={categories} />
+      <SmartRideSection smartRide={home?.smartRide ?? null} features={home?.smartRideFeatures ?? []} />
+      <TrendingProducts />
+      <WhyUs />
+      <section className="landing-section section-padding-sm bg-surface">
+        <div className="container-custom">
+          <SectionHeader
+            title="Partner Strategis Kami"
+            subtitle="Brand dan leasing terpercaya untuk pilihan produk yang lebih luas."
+            align="center"
+          />
+          <PartnerLogos />
+        </div>
+      </section>
+      <CTASection productImage={ctaSlide?.product} productAlt={ctaSlide?.productAlt} />
+    </>
+  );
+};
 
 export default HomePage;

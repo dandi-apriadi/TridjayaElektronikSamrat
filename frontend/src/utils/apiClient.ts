@@ -154,9 +154,34 @@ export async function apiJson<T = any>(
  * Helper for image URLs from backend
  */
 export function getImageUrl(path: string | undefined | null): string {
-  if (!path) return `${API_BASE_URL}/uploads/default-product.png`;
+  if (!path) return `${API_BASE_URL}/uploads/default-product.webp`;
   if (path.startsWith('http')) return path;
   if (path.startsWith('data:')) return path;
+
+  const placeholderAssetMap: Record<string, string> = {
+    'default': '/assets/images/logo.webp',
+    'tv': '/assets/images/tv.webp',
+    'mesin_cuci': '/assets/images/polytron-washer.webp',
+    'ac': '/assets/images/sharp-ac.webp',
+    'sepeda_listrik': '/assets/images/hero-bike.webp',
+    'kursi': '/assets/images/sofa.webp',
+    'kulkas': '/assets/images/fridge.webp',
+    'sofa': '/assets/images/sofa.webp',
+    'kompor': '/assets/images/fridge.webp',
+    'speaker': '/assets/images/tv.webp',
+    'handphone': '/assets/images/genio-x2.webp',
+    'kasur': '/assets/images/sofa.webp',
+    'magic_com': '/assets/images/fridge.webp',
+    'kipas_angin': '/assets/images/tv.webp',
+    'dispenser': '/assets/images/fridge.webp',
+    'blender': '/assets/images/fridge.webp',
+    'oven': '/assets/images/fridge.webp',
+  };
+
+  const placeholderMatch = path.match(/\/uploads\/placeholders\/([^/.]+)\.(?:png|jpg|jpeg|webp)$/i);
+  if (placeholderMatch) {
+    return placeholderAssetMap[placeholderMatch[1].toLowerCase()] ?? placeholderAssetMap.default;
+  }
   
   // Handle local Vite assets in development
   if (path.startsWith('/src') || path.startsWith('/assets') || path.startsWith('/@fs')) {

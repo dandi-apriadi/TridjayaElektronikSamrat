@@ -18,6 +18,7 @@ import { ShippingCalculator } from '../components/ShippingCalculator';
 import { useAuthStore } from '../store/authStore';
 import { getFrontendBaseUrl } from '../utils/apiClient';
 import { saveReferralCode, getActiveReferralCode } from '../utils/referralSession';
+import { getPublicPrice } from '../utils/publicPricing';
 
 const ProductDetailPage: React.FC = () => {
   const { slug: rawSlug } = useParams<{ slug: string }>();
@@ -44,6 +45,7 @@ const ProductDetailPage: React.FC = () => {
   }, [products.length, isLoading, fetchProducts]);
 
   const product = getProductBySlug(slug || '');
+  const publicPrice = product ? getPublicPrice(product) : 0;
 
   const minInstallment = useMinInstallment(product || null);
   const { minDp } = useCreditSummary(product || null);
@@ -342,7 +344,7 @@ const ProductDetailPage: React.FC = () => {
 
               {/* Price card */}
               <div className="glass-card rounded-2xl p-5 mb-6">
-                {product.price === 0 ? (
+                {publicPrice === 0 ? (
                   <div>
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-title-sm mb-2">
                       <Clock className="w-5 h-5" />
@@ -356,7 +358,7 @@ const ProductDetailPage: React.FC = () => {
                 ) : (
                   <div>
                     <div className="font-display text-display-sm font-bold gradient-text-primary mb-1">
-                      {formatPrice(product.price)}
+                      {formatPrice(publicPrice)}
                     </div>
                     {(minInstallment || product.priceInstallment) && (
                       <div className="flex items-center gap-3 flex-wrap">
@@ -436,7 +438,7 @@ const ProductDetailPage: React.FC = () => {
                   className="mb-6"
                 >
                   <CreditSimulator
-                    productPrice={product.price}
+                    productPrice={publicPrice}
                     productCategory={product.category}
                     productSubcategory={product.subcategory}
                     onSelectPlan={setSelectedCreditPlan}

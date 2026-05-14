@@ -311,6 +311,13 @@ impl CleanupManager {
                 let metadata = entry.metadata()?;
 
                 if metadata.is_dir() {
+                    if path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.eq_ignore_ascii_case("landing"))
+                    {
+                        continue;
+                    }
                     stack.push(path);
                     continue;
                 }

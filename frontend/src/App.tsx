@@ -53,6 +53,7 @@ const AgentSupportPage = lazy(() => import('./pages/dashboard/AgentSupportPage')
 const AdminAgentDirectoryPage = lazy(() => import('./pages/dashboard/AdminAgentDirectoryPage'));
 const AdminFinancePage = lazy(() => import('./pages/dashboard/AdminFinancePage'));
 const AdminContentPage = lazy(() => import('./pages/dashboard/AdminContentPage'));
+const AdminLandingSlidesPage = lazy(() => import('./pages/dashboard/AdminLandingSlidesPage'));
 const AdminFormPage = lazy(() => import('./pages/dashboard/AdminFormPage'));
 const AdminProductFormPage = lazy(() => import('./pages/dashboard/AdminProductFormPage'));
 const AdminProductBulkImportPage = lazy(() => import('./pages/dashboard/AdminProductBulkImportPage'));
@@ -407,6 +408,14 @@ const App: React.FC = () => {
             element={
               <RoleGuard role="admin">
                 {lazyPage(AdminArticleFormPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/content/landing-slides"
+            element={
+              <RoleGuard role="admin">
+                {lazyPage(AdminLandingSlidesPage)}
               </RoleGuard>
             }
           />

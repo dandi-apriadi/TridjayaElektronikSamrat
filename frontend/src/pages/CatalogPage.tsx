@@ -7,6 +7,7 @@ import { ProductCard, Badge } from '../components/ui';
 import heroBike from '../assets/images/hero-bike.webp';
 import { useThemeStore } from '../store/themeStore';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { getPublicPrice } from '../utils/publicPricing';
 
 const sortOptions = ['Terpopuler', 'Harga Terendah', 'Harga Tertinggi', 'Terbaru'];
 
@@ -131,11 +132,11 @@ const CatalogPage: React.FC = () => {
 
   const filteredByPrice = priceFilter === 'all'
     ? filteredByStock
-    : filteredByStock.filter((b) => (priceFilter === 'under20' ? b.price < 20000000 : b.price >= 20000000));
+    : filteredByStock.filter((b) => (priceFilter === 'under20' ? getPublicPrice(b) < 20000000 : getPublicPrice(b) >= 20000000));
 
   const filtered = [...filteredByPrice].sort((a, b) => {
-    if (activeSort === 'Harga Terendah') return a.price - b.price;
-    if (activeSort === 'Harga Tertinggi') return b.price - a.price;
+    if (activeSort === 'Harga Terendah') return getPublicPrice(a) - getPublicPrice(b);
+    if (activeSort === 'Harga Tertinggi') return getPublicPrice(b) - getPublicPrice(a);
     if (activeSort === 'Terbaru') {
       const aNew = a.badge === 'new' ? 1 : 0;
       const bNew = b.badge === 'new' ? 1 : 0;

@@ -4,20 +4,11 @@
  * Tests all CRUD operations, validation, and statistics calculation
  * for the chatbot rules management endpoints.
  */
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-};
-use serde_json::json;
-use tower::ServiceExt;
-
 // Note: These tests require a running test database and authentication setup
 // They are integration tests that verify the complete API functionality
 
 #[cfg(test)]
 mod chatbot_routes_tests {
-    use super::*;
-
     // Helper function to create test app (would need actual implementation)
     // async fn create_test_app() -> Router { ... }
 
@@ -144,8 +135,6 @@ mod chatbot_routes_tests {
 // Unit tests for validation functions
 #[cfg(test)]
 mod validation_tests {
-    use super::*;
-
     #[test]
     fn test_match_mode_validation() {
         // Test valid match modes: exact, contains, starts_with, ends_with, regex

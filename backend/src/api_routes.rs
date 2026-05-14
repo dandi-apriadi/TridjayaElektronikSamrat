@@ -1,16 +1,10 @@
 use crate::{
     bomber::{BomberEngine, BomberRequest},
-    campaign_metrics::calculate_campaign_metrics,
     redis_manager::Priority,
     response::{json_ok, AppError},
     state::AppState,
 };
-use axum::{
-    extract::{Path, State},
-    http::HeaderMap,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, http::HeaderMap, routing::post, Json, Router};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -44,8 +38,10 @@ struct ApiTokenRecord {
     name: String,
     permissions: Option<String>, // JSON array
     expires_at: Option<String>,
-    last_used_at: Option<String>,
-    token_prefix: Option<String>,
+    #[sqlx(rename = "last_used_at")]
+    _last_used_at: Option<String>,
+    #[sqlx(rename = "token_prefix")]
+    _token_prefix: Option<String>,
 }
 
 /// Verify API token from Authorization header
@@ -347,67 +343,6 @@ async fn send_message(
     };
 
     Ok(json_ok("Message queued successfully", response))
-}
-
-/// GET /api/wa/campaigns/{id}/metrics - Get campaign metrics
-/// **Validates: Requirements 10.5, 10.6**
-///
-/// This endpoint returns real-time campaign metrics calculated from the wa_recipients table.
-///
-/// Authentication: Bearer token (from wa_api_tokens table)
-///
-/// Response:
-/// - campaign_id: Campaign identifier
-/// - total_recipients: Total number of recipients in campaign
-/// - total_sent: Number of messages sent
-/// - total_delivered: Number of messages delivered
-/// - total_read: Number of messages read
-/// - total_replied: Number of recipients who replied
-/// - delivered_rate: Delivery rate percentage (0-100)
-/// - read_rate: Read rate percentage (0-100)
-/// - reply_rate: Reply rate percentage (0-100)
-/// - last_updated: Timestamp of metrics calculation
-async fn get_campaign_metrics(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Path(campaign_id): Path<String>,
-) -> Result<axum::response::Response, AppError> {
-    // Verify API token
-    let _token_record = verify_api_token(&state, &headers).await?;
-
-    // Check if campaign exists
-    let campaign_exists: Option<String> =
-        sqlx::query_scalar("SELECT id FROM wa_campaigns WHERE id = ?")
-            .bind(&campaign_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Database error checking campaign: {}", e);
-                AppError::Internal
-            })?;
-
-    if campaign_exists.is_none() {
-        return Err(AppError::NotFound);
-    }
-
-    // Calculate metrics
-    let metrics = calculate_campaign_metrics(&state.pool, &campaign_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to calculate campaign metrics: {}", e);
-            AppError::Internal
-        })?;
-
-    tracing::info!(
-        "Campaign metrics retrieved: {} (sent: {}, delivered: {:.2}%, read: {:.2}%, reply: {:.2}%)",
-        campaign_id,
-        metrics.total_sent,
-        metrics.delivered_rate,
-        metrics.read_rate,
-        metrics.reply_rate
-    );
-
-    Ok(json_ok("Campaign metrics retrieved successfully", metrics))
 }
 
 /// POST /api/wa/bomber - Execute bomber feature

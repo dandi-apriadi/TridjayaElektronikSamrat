@@ -29,6 +29,7 @@ import {
   TrendingUp,
   Handshake,
   Briefcase,
+  Images,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
@@ -159,6 +160,7 @@ const DashboardLayout: React.FC = () => {
         { label: 'Kategori Produk', icon: BookOpen, path: '/dashboard/admin/categories' },
         { label: 'Promo & Campaign', icon: Ticket, path: '/dashboard/admin/promo' },
         { label: 'Konten & Blog', icon: FileText, path: '/dashboard/admin/content' },
+        { label: 'Landing Slides', icon: Images, path: '/dashboard/admin/content/landing-slides' },
         { label: 'Partner Brand', icon: Handshake, path: '/dashboard/admin/partners' },
       ]
     },

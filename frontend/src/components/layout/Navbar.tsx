@@ -9,6 +9,7 @@ import logoHorizontal from '../../assets/images/logo-horizontal.webp';
 import { useProductStore } from '../../store/useProductStore';
 import { getImageUrl } from '../../utils/apiClient';
 import { formatPrice } from '../../utils/formatters';
+import { getPublicPrice } from '../../utils/publicPricing';
 
 const getCategoryIcon = (cat: string) => {
   const c = cat.toLowerCase();
@@ -206,6 +207,13 @@ const Navbar: React.FC = () => {
     return item;
   });
 
+  const hasDropdownContent = (item: NavItem) => {
+    if (item.isMega) {
+      return Object.values(item.groups ?? {}).some((children) => children.length > 0);
+    }
+    return Boolean(item.children?.length);
+  };
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
@@ -245,10 +253,10 @@ const Navbar: React.FC = () => {
               <div
                 key={item.label}
                 className="relative"
-                onMouseEnter={() => (item.children || item.isMega) && setActiveDropdown(item.label)}
+                onMouseEnter={() => hasDropdownContent(item) && setActiveDropdown(item.label)}
                 onMouseLeave={() => setActiveDropdown(null)}
               >
-                {(item.children || item.isMega) ? (
+                {hasDropdownContent(item) ? (
                   <>
                     <Link
                       to={item.href}
@@ -274,8 +282,8 @@ const Navbar: React.FC = () => {
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 15, scale: 0.98 }}
                             transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                            className={`absolute top-full left-1/2 -translate-x-1/2 pt-4 z-[60] ${
-                              item.isMega ? 'w-[900px]' : 'w-56'
+                            className={`absolute top-full left-1/2 z-[60] -translate-x-1/2 pt-4 ${
+                              item.isMega ? 'w-[min(900px,calc(100vw-2rem))]' : 'w-56'
                             }`}
                           >
                             <div className={`glass-premium rounded-3xl overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] border border-white/10 !bg-surface/98 relative ${
@@ -459,7 +467,7 @@ const Navbar: React.FC = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    {item.isMega ? (
+                    {item.isMega && hasDropdownContent(item) ? (
                       <div className="space-y-4">
                         <button
                           onClick={() => setIsMobileProductsExpanded(!isMobileProductsExpanded)}
@@ -511,12 +519,12 @@ const Navbar: React.FC = () => {
                           )}
                         </AnimatePresence>
                       </div>
-                    ) : item.children ? (
+                    ) : hasDropdownContent(item) ? (
                       <div>
                         <div className="px-4 py-3 text-on-surface-variant font-body text-title-sm font-semibold uppercase tracking-widest text-xs">
                           {item.label}
                         </div>
-                        {item.children.map((child) => (
+                        {(item.children ?? []).map((child) => (
                           <Link
                             key={child.label}
                             to={child.href}
@@ -716,7 +724,7 @@ const Navbar: React.FC = () => {
                           {/* Price + Arrow */}
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <p className="text-primary text-sm font-bold">
-                              {product.price > 0 ? formatPrice(product.price) : '—'}
+                              {getPublicPrice(product) > 0 ? formatPrice(getPublicPrice(product)) : '—'}
                             </p>
                             <ChevronRight className="w-4 h-4 text-on-surface-variant/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                           </div>
