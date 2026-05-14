@@ -238,4 +238,4 @@ The test script verifies:
 - Each session maintains its own auth state using Baileys' `useMultiFileAuthState`
 - The session automatically saves credentials on every `creds.update` event
 - Message retry counter cache is maintained in memory for reliability
-- The session uses custom browser identifier: "DandStore Gateway"
+- The session uses custom browser identifier: "Tridjaya.com"

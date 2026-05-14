@@ -123,7 +123,7 @@ export class BaileysSession {
       generateHighQualityLinkPreview: true,
       syncFullHistory: false,
       markOnlineOnConnect: true,
-      browser: ['DandStore Gateway', 'Chrome', '120.0.0'] // Custom browser identifier
+      browser: ['Tridjaya.com', 'Chrome', '120.0.0'] // Custom browser identifier
     });
 
     // Register event handlers
