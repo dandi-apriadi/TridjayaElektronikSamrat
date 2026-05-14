@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Save, Plus, Pencil, Trash2, Link as LinkIcon, Building2, Upload, GripVertical } from 'lucide-react';
+import { Save, Plus, Pencil, Trash2, Link as LinkIcon, Building2, Upload, GripVertical, ArrowDown, ArrowUp } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { usePartnerStore } from '../../store/usePartnerStore';
 import type { PartnerItem } from '../../types';
 import { getImageUrl } from '../../utils/apiClient';
+import { toast } from '../../store/useNotificationStore';
 
 type PartnerForm = {
   name: string;
@@ -24,7 +25,7 @@ const initialForm: PartnerForm = {
 };
 
 const AdminPartnersPage: React.FC = () => {
-  const { partners, isLoading, error, fetchPartners, createPartner, updatePartner, deletePartner } = usePartnerStore();
+  const { partners, isLoading, error, fetchPartners, createPartner, updatePartner, updatePartnerOrder, deletePartner } = usePartnerStore();
   const [form, setForm] = useState<PartnerForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -91,7 +92,6 @@ const AdminPartnersPage: React.FC = () => {
       logoUrl: form.logoUrl.trim(),
       logo: form.logoFile, // This will be handled as multipart
       websiteUrl: form.websiteUrl.trim() || null,
-      sortOrder: Number.isFinite(form.sortOrder) ? form.sortOrder : 0,
       isActive: form.isActive,
     };
 
@@ -119,6 +119,29 @@ const AdminPartnersPage: React.FC = () => {
     }));
   };
 
+  const applyPartnerOrder = async (items: PartnerItem[], successMessage = 'Urutan partner diperbarui') => {
+    const updates = items.map((item, index) => ({
+      id: item.id,
+      sortOrder: (index + 1) * 10,
+    }));
+
+    const success = await updatePartnerOrder(updates);
+    if (success) {
+      toast.success(successMessage);
+    } else {
+      toast.error('Gagal mengurutkan partner');
+    }
+  };
+
+  const movePartner = async (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= sortedPartners.length) return;
+
+    const reordered = [...sortedPartners];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(nextIndex, 0, moved);
+    await applyPartnerOrder(reordered);
+  };
 
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm('Hapus partner ini?');
@@ -131,26 +154,13 @@ const AdminPartnersPage: React.FC = () => {
     if (!result.destination) return;
     
     const items = Array.from(sortedPartners);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
+    const pageOffset = (currentPage - 1) * itemsPerPage;
+    const sourceIndex = pageOffset + result.source.index;
+    const destinationIndex = pageOffset + result.destination.index;
+    const [reorderedItem] = items.splice(sourceIndex, 1);
+    items.splice(destinationIndex, 0, reorderedItem);
 
-    // Update sort orders locally for instant feedback
-    // We'll use index * 10 to keep gaps for future inserts
-    const updates = items.map((item, index) => ({
-      id: item.id,
-      sortOrder: (index + 1) * 10
-    }));
-
-    // Optimistically update the UI or just wait for the loop
-    // To keep it simple, we loop and update
-    for (const update of updates) {
-      const original = partners.find(p => p.id === update.id);
-      if (original && original.sortOrder !== update.sortOrder) {
-        await updatePartner(update.id, { sortOrder: update.sortOrder });
-      }
-    }
-    
-    await fetchPartners(true, true);
+    await applyPartnerOrder(items);
   };
 
   return (
@@ -226,18 +236,7 @@ const AdminPartnersPage: React.FC = () => {
             />
           </label>
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="space-y-1">
-              <span className="text-label-sm text-on-surface-variant">Urutan</span>
-              <input
-                type="number"
-                min={0}
-                value={form.sortOrder}
-                onChange={(e) => setForm((prev) => ({ ...prev, sortOrder: Number(e.target.value) || 0 }))}
-                className="w-full px-3 py-2 rounded-lg bg-surface-high border border-outline-variant/20 focus:border-primary/40 focus:outline-none"
-              />
-            </label>
-
+          <div className="grid grid-cols-1 gap-3">
             <label className="space-y-1">
               <span className="text-label-sm text-on-surface-variant">Status</span>
               <select
@@ -321,6 +320,24 @@ const AdminPartnersPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-2 ml-auto">
+                          <button
+                            type="button"
+                            onClick={() => movePartner((currentPage - 1) * itemsPerPage + index, -1)}
+                            disabled={(currentPage - 1) * itemsPerPage + index === 0 || isLoading}
+                            className="p-2 rounded-md bg-surface-high text-on-surface-variant hover:text-on-surface disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={`Naikkan ${partner.name}`}
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => movePartner((currentPage - 1) * itemsPerPage + index, 1)}
+                            disabled={(currentPage - 1) * itemsPerPage + index >= sortedPartners.length - 1 || isLoading}
+                            className="p-2 rounded-md bg-surface-high text-on-surface-variant hover:text-on-surface disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={`Turunkan ${partner.name}`}
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleEdit(partner)}

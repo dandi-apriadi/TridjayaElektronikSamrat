@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { toast } from '../../store/useNotificationStore';
 import TrackingUrlGenerator from '../../components/pixel/TrackingUrlGenerator';
 
 interface Pixel {
@@ -131,14 +132,15 @@ const AdminPixelCampaignFormPage: React.FC = () => {
       });
 
       if (response.ok) {
+        toast.success('Campaign tersimpan');
         navigate('/dashboard/admin/pixel-campaigns');
       } else {
         const error = await response.json();
-        alert(error.message || 'Failed to save campaign');
+        toast.error('Gagal menyimpan campaign', error.message || 'Terjadi kesalahan');
       }
     } catch (error) {
       console.error('Failed to save campaign:', error);
-      alert('Failed to save campaign');
+      toast.error('Gagal menyimpan campaign', 'Terjadi kesalahan jaringan atau server');
     } finally {
       setLoading(false);
     }

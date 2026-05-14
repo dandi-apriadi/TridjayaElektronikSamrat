@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Plus, Search, MessageCircle, Send, Clock, 
-  CheckCircle2, Eye, Pause, Smartphone, Database, Trash2
+  CheckCircle2, Eye, Pause, Smartphone, Database, Trash2, User
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
@@ -19,6 +19,15 @@ const statusConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const iv = { hidden: { y: 12, opacity: 0 }, visible: { y: 0, opacity: 1 } };
+
+const getCampaignOwnerLabel = (campaign: WaCampaign) => {
+  return (
+    campaign.createdByName?.trim() ||
+    campaign.createdByEmail?.trim() ||
+    campaign.createdBy?.trim() ||
+    'Tidak diketahui'
+  );
+};
 
 const AdminWaCampaignsPage: React.FC = () => {
   const { accessToken } = useAuthStore();
@@ -54,7 +63,9 @@ const AdminWaCampaignsPage: React.FC = () => {
   const filtered = campaigns.filter(c => {
     if (!c) return false;
     const campaignName = (c.name || '').toLowerCase();
-    const matchSearch = campaignName.includes((search || '').toLowerCase());
+    const ownerName = getCampaignOwnerLabel(c).toLowerCase();
+    const query = (search || '').toLowerCase();
+    const matchSearch = campaignName.includes(query) || ownerName.includes(query);
     const matchStatus = statusFilter === 'semua' || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -204,7 +215,15 @@ const AdminWaCampaignsPage: React.FC = () => {
                   const config = statusConfig[campaign.status] || statusConfig.draft;
                   return (
                     <tr key={campaign.id} className="border-b border-outline-variant/5 hover:bg-surface-high/20 transition-colors">
-                      <td className="px-4 py-3 text-on-surface font-medium">{campaign.name}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-on-surface font-medium">{campaign.name}</span>
+                          <span className="inline-flex w-fit max-w-[260px] items-center gap-1.5 rounded-full border border-outline-variant/20 bg-surface-high/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+                            <User className="h-3 w-3 shrink-0 text-primary" />
+                            <span className="truncate">Milik: {getCampaignOwnerLabel(campaign)}</span>
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm ${config.cls}`}>
                           {config.icon}

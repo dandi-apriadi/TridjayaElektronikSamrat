@@ -206,6 +206,8 @@ export interface WaCampaign {
   status: 'draft' | 'running' | 'paused' | 'completed';
   config: Record<string, any>;
   createdBy?: string;
+  createdByName?: string;
+  createdByEmail?: string;
   createdAt?: string;
   startedAt?: string;
   recipientTotal: number;
@@ -219,7 +221,7 @@ export interface WaRecipient {
   phone: string;
   name?: string;
   variables: Record<string, any>;
-  status: 'pending' | 'sent' | 'skipped' | 'failed' | 'delivered' | 'read';
+  status: 'pending' | 'paused' | 'sent' | 'skipped' | 'failed' | 'delivered' | 'read';
   lastAttemptAt?: string;
   deliveredAt?: string;
   readAt?: string;

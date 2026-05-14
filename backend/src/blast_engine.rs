@@ -458,11 +458,38 @@ impl BlastEngine {
         // Acquire semaphore permit (Requirement 14.4)
         let _permit = semaphore.acquire().await?;
 
+        if !self
+            .message_can_continue(&campaign_id, &recipient_id, &message.message_id)
+            .await?
+        {
+            return Ok(());
+        }
+
         // Check and enforce rate limits (Requirements 3.3, 3.6, 3.7)
-        self.enforce_rate_limits(&account_id).await?;
+        if !self
+            .enforce_rate_limits(
+                &account_id,
+                &campaign_id,
+                &recipient_id,
+                &message.message_id,
+            )
+            .await?
+        {
+            return Ok(());
+        }
 
         // Apply smart delay from last send (Requirement 3.1)
-        self.apply_smart_delay(&account_id).await;
+        if !self
+            .apply_smart_delay(
+                &account_id,
+                &campaign_id,
+                &recipient_id,
+                &message.message_id,
+            )
+            .await?
+        {
+            return Ok(());
+        }
 
         // Fetch recipient variables from database for spintax processing (Requirement 4.4)
         let recipient_variables = self.fetch_recipient_variables(&recipient_id).await?;
@@ -475,7 +502,8 @@ impl BlastEngine {
             .await?;
 
         // Handle media if present (Requirement 7.5)
-        let media_data = if let Some(media_url) = &message.media_url {
+        let media_url = self.resolve_media_url(&message).await;
+        let media_data = if let Some(media_url) = &media_url {
             match self.download_and_process_media(media_url).await {
                 Ok(data) => Some(data),
                 Err(e) => {
@@ -493,8 +521,33 @@ impl BlastEngine {
             None
         };
 
+        if !self
+            .message_can_continue(&campaign_id, &recipient_id, &message.message_id)
+            .await?
+        {
+            return Ok(());
+        }
+
         // Simulate typing indicator (Requirement 3.2)
-        self.simulate_typing(&account_id, &message.phone).await?;
+        if !self
+            .simulate_typing(
+                &account_id,
+                &message.phone,
+                &campaign_id,
+                &recipient_id,
+                &message.message_id,
+            )
+            .await?
+        {
+            return Ok(());
+        }
+
+        if !self
+            .message_can_continue(&campaign_id, &recipient_id, &message.message_id)
+            .await?
+        {
+            return Ok(());
+        }
 
         // Compose and send message (text + media + caption)
         let send_result = self
@@ -540,6 +593,17 @@ impl BlastEngine {
                     message.message_id, message.phone, error_message
                 );
 
+                if !self
+                    .message_can_continue(&campaign_id, &recipient_id, &message.message_id)
+                    .await?
+                {
+                    info!(
+                        "Not retrying message {} because campaign/recipient was paused during send failure",
+                        message.message_id
+                    );
+                    return Ok(());
+                }
+
                 if let Err(update_err) = self
                     .update_recipient_attempt_error(&recipient_id, &error_message)
                     .await
@@ -548,6 +612,29 @@ impl BlastEngine {
                         "Failed to update recipient {} attempt error: {}",
                         recipient_id, update_err
                     );
+                }
+
+                if media_data.is_some() {
+                    let final_error = format!(
+                        "{}. Retry otomatis media dihentikan agar tidak mengirim gambar berulang. Reset campaign secara manual jika perlu kirim ulang.",
+                        error_message
+                    );
+                    if let Err(e) = self
+                        .mark_recipient_failed(&recipient_id, &final_error)
+                        .await
+                    {
+                        error!("Failed to mark recipient {} as failed: {}", recipient_id, e);
+                    }
+                    if let Err(e) = self.log_dispatch_failure(&message, &final_error).await {
+                        error!("Failed to log dispatch failure: {}", e);
+                    }
+                    if let Err(e) = self
+                        .check_and_update_campaign_completion(&campaign_id)
+                        .await
+                    {
+                        error!("Failed to check campaign completion: {}", e);
+                    }
+                    return Ok(());
                 }
 
                 // Retry logic (Requirement 2.5, 2.6)
@@ -613,13 +700,134 @@ impl BlastEngine {
             })
     }
 
+    async fn resolve_media_url(
+        &self,
+        message: &crate::redis_manager::QueueMessage,
+    ) -> Option<String> {
+        if let Some(media_url) = message
+            .media_url
+            .as_ref()
+            .map(|url| url.trim())
+            .filter(|url| !url.is_empty())
+        {
+            return Some(media_url.to_string());
+        }
+
+        if message.campaign_id == "api_send" {
+            return None;
+        }
+
+        let config: Option<(Option<String>,)> =
+            sqlx::query_as("SELECT config FROM wa_campaigns WHERE id = ?")
+                .bind(&message.campaign_id)
+                .fetch_optional(&self.pool)
+                .await
+                .ok()
+                .flatten();
+
+        config
+            .and_then(|(raw,)| raw)
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+            .and_then(|value| {
+                value
+                    .get("media_config")
+                    .or_else(|| value.get("mediaConfig"))
+                    .and_then(|media_config| {
+                        media_config
+                            .get("media_url")
+                            .or_else(|| media_config.get("mediaUrl"))
+                            .and_then(|url| url.as_str())
+                    })
+                    .or_else(|| {
+                        value
+                            .get("media_url")
+                            .or_else(|| value.get("mediaUrl"))
+                            .and_then(|url| url.as_str())
+                    })
+                    .map(str::to_string)
+            })
+            .filter(|url| !url.trim().is_empty())
+    }
+
+    async fn message_can_continue(
+        &self,
+        campaign_id: &str,
+        recipient_id: &str,
+        message_id: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if campaign_id == "api_send" {
+            return Ok(true);
+        }
+
+        let campaign_status: Option<String> =
+            sqlx::query_scalar("SELECT status FROM wa_campaigns WHERE id = ?")
+                .bind(campaign_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if !matches!(campaign_status.as_deref(), Some("running")) {
+            info!(
+                "Stopping message {} because campaign {} status is {:?}",
+                message_id, campaign_id, campaign_status
+            );
+            return Ok(false);
+        }
+
+        let recipient_status: Option<String> =
+            sqlx::query_scalar("SELECT status FROM wa_recipients WHERE id = ?")
+                .bind(recipient_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if !matches!(recipient_status.as_deref(), Some("pending")) {
+            info!(
+                "Stopping message {} for recipient {} because status is {:?}",
+                message_id, recipient_id, recipient_status
+            );
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+
+    async fn pause_aware_sleep(
+        &self,
+        campaign_id: &str,
+        recipient_id: &str,
+        message_id: &str,
+        duration: Duration,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let deadline = Instant::now() + duration;
+
+        loop {
+            if !self
+                .message_can_continue(campaign_id, recipient_id, message_id)
+                .await?
+            {
+                return Ok(false);
+            }
+
+            let now = Instant::now();
+            if now >= deadline {
+                return Ok(true);
+            }
+
+            let remaining = deadline - now;
+            let sleep_for = remaining.min(Duration::from_millis(500));
+            sleep(sleep_for).await;
+        }
+    }
+
     /// Enforce rate limits for account
     ///
     /// **Validates: Requirements 3.3, 3.6, 3.7**
     async fn enforce_rate_limits(
         &self,
         account_id: &str,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        campaign_id: &str,
+        recipient_id: &str,
+        message_id: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         loop {
             let can_send = {
                 let mut limits = self.rate_limits.write().await;
@@ -657,7 +865,7 @@ impl BlastEngine {
             };
 
             if can_send {
-                break;
+                return Ok(true);
             }
 
             // Wait for rate limit window to reset
@@ -669,16 +877,25 @@ impl BlastEngine {
                     .unwrap_or(Duration::from_secs(60))
             };
 
-            sleep(wait_time).await;
+            if !self
+                .pause_aware_sleep(campaign_id, recipient_id, message_id, wait_time)
+                .await?
+            {
+                return Ok(false);
+            }
         }
-
-        Ok(())
     }
 
     /// Apply smart delay between messages from same account
     ///
     /// **Validates: Requirements 3.1**
-    async fn apply_smart_delay(&self, account_id: &str) {
+    async fn apply_smart_delay(
+        &self,
+        account_id: &str,
+        campaign_id: &str,
+        recipient_id: &str,
+        message_id: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let delay_needed = {
             let limits = self.rate_limits.read().await;
             if let Some(limit) = limits.get(account_id) {
@@ -704,7 +921,12 @@ impl BlastEngine {
                 "Applying smart delay {:?} for account {}",
                 delay, account_id
             );
-            sleep(delay).await;
+            if !self
+                .pause_aware_sleep(campaign_id, recipient_id, message_id, delay)
+                .await?
+            {
+                return Ok(false);
+            }
         }
 
         // Add random jitter (5-15 seconds) using Send-safe RNG
@@ -715,7 +937,13 @@ impl BlastEngine {
             "Applying random jitter {}s for account {}",
             jitter, account_id
         );
-        sleep(Duration::from_secs(jitter)).await;
+        self.pause_aware_sleep(
+            campaign_id,
+            recipient_id,
+            message_id,
+            Duration::from_secs(jitter),
+        )
+        .await
     }
 
     /// Simulate typing indicator before sending
@@ -725,7 +953,10 @@ impl BlastEngine {
         &self,
         account_id: &str,
         _phone: &str,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        campaign_id: &str,
+        recipient_id: &str,
+        message_id: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         use rand::SeedableRng;
         let mut rng = rand::rngs::StdRng::from_entropy();
         let typing_duration =
@@ -735,12 +966,22 @@ impl BlastEngine {
             "Simulating typing for {}s on account {}",
             typing_duration, account_id
         );
-        sleep(Duration::from_secs(typing_duration)).await;
+        if !self
+            .pause_aware_sleep(
+                campaign_id,
+                recipient_id,
+                message_id,
+                Duration::from_secs(typing_duration),
+            )
+            .await?
+        {
+            return Ok(false);
+        }
 
         // TODO: Send actual typing indicator via bridge when Baileys supports it
         // For now, just the delay simulates human behavior
 
-        Ok(())
+        Ok(true)
     }
 
     /// Fetch recipient variables from database for spintax processing
@@ -867,7 +1108,8 @@ impl BlastEngine {
 
     fn infer_media_type_from_path(
         media_path: &std::path::Path,
-    ) -> Result<(crate::media_handler::MediaType, String), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(crate::media_handler::MediaType, String), Box<dyn std::error::Error + Send + Sync>>
+    {
         let extension = media_path
             .extension()
             .and_then(|value| value.to_str())
@@ -875,11 +1117,26 @@ impl BlastEngine {
             .to_lowercase();
 
         let (media_type, mime_type) = match extension.as_str() {
-            "jpg" | "jpeg" => (crate::media_handler::MediaType::Image, "image/jpeg".to_string()),
-            "png" => (crate::media_handler::MediaType::Image, "image/png".to_string()),
-            "webp" => (crate::media_handler::MediaType::Image, "image/webp".to_string()),
-            "pdf" => (crate::media_handler::MediaType::Pdf, "application/pdf".to_string()),
-            "mp4" => (crate::media_handler::MediaType::Video, "video/mp4".to_string()),
+            "jpg" | "jpeg" => (
+                crate::media_handler::MediaType::Image,
+                "image/jpeg".to_string(),
+            ),
+            "png" => (
+                crate::media_handler::MediaType::Image,
+                "image/png".to_string(),
+            ),
+            "webp" => (
+                crate::media_handler::MediaType::Image,
+                "image/webp".to_string(),
+            ),
+            "pdf" => (
+                crate::media_handler::MediaType::Pdf,
+                "application/pdf".to_string(),
+            ),
+            "mp4" => (
+                crate::media_handler::MediaType::Video,
+                "video/mp4".to_string(),
+            ),
             other => {
                 return Err(format!("Unsupported local media file extension: {}", other).into());
             }
@@ -911,11 +1168,8 @@ impl BlastEngine {
                         crate::media_handler::MediaType::Video => "mp4",
                     };
 
-                    let temp_path = temp_dir.join(format!(
-                        "{}_media.{}",
-                        message.message_id,
-                        extension
-                    ));
+                    let temp_path =
+                        temp_dir.join(format!("{}_media.{}", message.message_id, extension));
                     tokio::fs::write(&temp_path, &media.data).await?;
                     temp_media_path = Some(temp_path.clone());
                     temp_path
@@ -932,11 +1186,8 @@ impl BlastEngine {
                     crate::media_handler::MediaType::Video => "mp4",
                 };
 
-                let temp_path = temp_dir.join(format!(
-                    "{}_media.{}",
-                    message.message_id,
-                    extension
-                ));
+                let temp_path =
+                    temp_dir.join(format!("{}_media.{}", message.message_id, extension));
                 tokio::fs::write(&temp_path, &media.data).await?;
                 temp_media_path = Some(temp_path.clone());
                 temp_path
@@ -969,10 +1220,20 @@ impl BlastEngine {
             "send_message"
         };
 
-        let result = self
-            .bridge_client
-            .send_request(&message.account_id, method.to_string(), params)
-            .await?;
+        let send_result = if media_data.is_some() {
+            self.bridge_client
+                .send_request_with_timeout(
+                    &message.account_id,
+                    method.to_string(),
+                    params,
+                    Duration::from_secs(180),
+                )
+                .await
+        } else {
+            self.bridge_client
+                .send_request(&message.account_id, method.to_string(), params)
+                .await
+        };
 
         if let Some(temp_path) = temp_media_path {
             if let Err(e) = tokio::fs::remove_file(&temp_path).await {
@@ -984,6 +1245,7 @@ impl BlastEngine {
             }
         }
 
+        let result = send_result?;
         debug!("Bridge send result: {:?}", result);
         let wa_message_id = result
             .get("message_id")
@@ -1077,6 +1339,20 @@ impl BlastEngine {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Skip for API sends (not part of a campaign)
         if campaign_id == "api_send" {
+            return Ok(());
+        }
+
+        let campaign_status: Option<String> =
+            sqlx::query_scalar("SELECT status FROM wa_campaigns WHERE id = ?")
+                .bind(campaign_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if !matches!(campaign_status.as_deref(), Some("running")) {
+            debug!(
+                "Skipping completion update for campaign {} because status is {:?}",
+                campaign_id, campaign_status
+            );
             return Ok(());
         }
 
@@ -1367,9 +1643,15 @@ mod tests {
 
     #[test]
     fn test_remote_media_url_detection() {
-        assert!(BlastEngine::is_remote_media_url("https://example.com/image.jpg"));
-        assert!(BlastEngine::is_remote_media_url("http://example.com/image.jpg"));
-        assert!(!BlastEngine::is_remote_media_url("/uploads/campaign/example.webp"));
+        assert!(BlastEngine::is_remote_media_url(
+            "https://example.com/image.jpg"
+        ));
+        assert!(BlastEngine::is_remote_media_url(
+            "http://example.com/image.jpg"
+        ));
+        assert!(!BlastEngine::is_remote_media_url(
+            "/uploads/campaign/example.webp"
+        ));
     }
 
     #[test]

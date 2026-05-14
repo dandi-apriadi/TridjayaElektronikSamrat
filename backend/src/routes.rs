@@ -30,6 +30,7 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/api/partners", get(list_partners))
         .route("/api/admin/partners", get(list_admin_partners))
+        .route("/api/admin/partners/order", patch(update_partner_order))
         .route("/api/admin/partners/{id}", delete(delete_partner))
         .route("/api/auth/login", post(login))
         .route("/api/auth/logout", post(logout))
@@ -1424,6 +1425,8 @@ struct WaCampaignSummaryResponse {
     status: String,
     config: Value,
     created_by: Option<String>,
+    created_by_name: Option<String>,
+    created_by_email: Option<String>,
     created_at: Option<String>,
     started_at: Option<String>,
     recipient_total: i64,
@@ -2714,14 +2717,14 @@ async fn list_wa_campaigns(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
-        sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
-            "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id ORDER BY c.created_at DESC",
+        sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
+            "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id, u.name, u.email ORDER BY c.created_at DESC",
         )
         .fetch_all(&state.pool)
         .await
     } else {
-        sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
-            "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.created_by = ? GROUP BY c.id ORDER BY c.created_at DESC",
+        sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
+            "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.created_by = ? GROUP BY c.id, u.name, u.email ORDER BY c.created_at DESC",
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -2741,6 +2744,8 @@ async fn list_wa_campaigns(
                 status,
                 config,
                 created_by,
+                created_by_name,
+                created_by_email,
                 created_at,
                 started_at,
                 recipient_total,
@@ -2753,6 +2758,8 @@ async fn list_wa_campaigns(
                 status: status.unwrap_or_else(|| "draft".to_string()),
                 config: parse_json_value_or_default(config, default_wa_campaign_config()),
                 created_by,
+                created_by_name,
+                created_by_email,
                 created_at,
                 started_at,
                 recipient_total,
@@ -3559,9 +3566,50 @@ async fn start_wa_campaign(
 
     let campaign_status = campaign_status.ok_or(AppError::NotFound)?;
     if campaign_status.0 == "running" {
-        return Err(AppError::Validation {
-            errors: vec!["Campaign is already running".to_string()],
-        });
+        let pending_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM wa_recipients WHERE campaign_id = ? AND status = 'pending'",
+        )
+        .bind(&id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "DB error counting pending recipients for running campaign: {}",
+                e
+            );
+            AppError::Internal
+        })?;
+
+        return Ok(json_ok(
+            "Campaign sedang berjalan",
+            json!({
+                "item": fetch_wa_campaign_summary(&state, &id).await?,
+                "enqueued": 0,
+                "pending": pending_count.0,
+                "already_running": true,
+            }),
+        ));
+    }
+
+    if campaign_status.0 == "paused" {
+        let resumed = sqlx::query(
+            "UPDATE wa_recipients SET status = 'pending' WHERE campaign_id = ? AND status = 'paused'",
+        )
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error resuming paused WA campaign recipients: {}", e);
+            AppError::Internal
+        })?
+        .rows_affected();
+
+        tracing::info!(
+            "Campaign {} resumed by {}. Restored {} paused recipients to pending.",
+            id,
+            user.email,
+            resumed
+        );
     }
 
     // 2. Validate there are pending recipients
@@ -3740,17 +3788,17 @@ async fn pause_wa_campaign(
     // Mark all pending recipients as 'paused' to prevent any in-flight sends
     // This is defensive - blast engine should skip based on campaign status,
     // but marking recipients ensures double protection against race conditions
-    let paused_recipients: i64 = sqlx::query_scalar(
-        "UPDATE wa_recipients SET status = 'paused' WHERE campaign_id = ? AND status = 'pending' RETURNING COUNT(*)"
+    let paused_recipients = sqlx::query(
+        "UPDATE wa_recipients SET status = 'paused' WHERE campaign_id = ? AND status = 'pending'",
     )
     .bind(&id)
-    .fetch_optional(&mut *tx)
+    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("DB error marking recipients as paused: {}", e);
         AppError::Internal
     })?
-    .unwrap_or(0);
+    .rows_affected() as i64;
 
     // Commit transaction atomically
     tx.commit().await.map_err(|e| {
@@ -3766,70 +3814,76 @@ async fn pause_wa_campaign(
     );
 
     // NOW remove from Redis queues (after DB is committed)
-    let (queue_depth_before, removed_from_queue, queue_depth_after) = if let Some(qm) = &state.queue_manager {
-        // Get queue depth before removal (for verification)
-        let before = match qm.get_campaign_queue_depth(&id).await {
-            Ok(count) => {
-                tracing::info!(
-                    "Campaign {} has {} messages in Redis queue before removal",
-                    id, count
-                );
-                count
-            }
-            Err(e) => {
-                tracing::warn!("Failed to get queue depth before removal: {}", e);
-                0
-            }
-        };
+    let (queue_depth_before, removed_from_queue, queue_depth_after) =
+        if let Some(qm) = &state.queue_manager {
+            // Get queue depth before removal (for verification)
+            let before = match qm.get_campaign_queue_depth(&id).await {
+                Ok(count) => {
+                    tracing::info!(
+                        "Campaign {} has {} messages in Redis queue before removal",
+                        id,
+                        count
+                    );
+                    count
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to get queue depth before removal: {}", e);
+                    0
+                }
+            };
 
-        // Remove messages from queue
-        let removed = match qm.remove_campaign_messages(&id).await {
-            Ok(count) => {
-                tracing::info!(
-                    "Successfully removed {} queued messages for campaign {} from Redis",
-                    count,
-                    id
-                );
-                count
-            }
-            Err(e) => {
-                tracing::error!(
-                    "CRITICAL: Failed to remove queued messages for paused campaign {}: {}",
-                    id,
-                    e
-                );
-                0
-            }
-        };
+            // Remove messages from queue
+            let removed = match qm.remove_campaign_messages(&id).await {
+                Ok(count) => {
+                    tracing::info!(
+                        "Successfully removed {} queued messages for campaign {} from Redis",
+                        count,
+                        id
+                    );
+                    count
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "CRITICAL: Failed to remove queued messages for paused campaign {}: {}",
+                        id,
+                        e
+                    );
+                    0
+                }
+            };
 
-        // Get queue depth after removal (for verification)
-        let after = match qm.get_campaign_queue_depth(&id).await {
-            Ok(count) => {
-                if count > 0 {
-                    tracing::warn!(
+            // Get queue depth after removal (for verification)
+            let after = match qm.get_campaign_queue_depth(&id).await {
+                Ok(count) => {
+                    if count > 0 {
+                        tracing::warn!(
                         "WARNING: Campaign {} still has {} messages in Redis queue after removal. \
                          This may indicate a removal failure or race condition.",
                         id, count
                     );
-                } else {
-                    tracing::info!(
-                        "Campaign {} queue successfully cleared. All {} messages removed.",
-                        id, removed
-                    );
+                    } else {
+                        tracing::info!(
+                            "Campaign {} queue successfully cleared. All {} messages removed.",
+                            id,
+                            removed
+                        );
+                    }
+                    count
                 }
-                count
-            }
-            Err(e) => {
-                tracing::warn!("Failed to verify queue depth after removal: {}", e);
-                0
-            }
-        };
+                Err(e) => {
+                    tracing::warn!("Failed to verify queue depth after removal: {}", e);
+                    0
+                }
+            };
 
-        (before, removed, after)
-    } else {
-        tracing::warn!("Queue manager not available, cannot remove queued messages for campaign {}", id);
-        (0, 0, 0)
-    };
+            (before, removed, after)
+        } else {
+            tracing::warn!(
+                "Queue manager not available, cannot remove queued messages for campaign {}",
+                id
+            );
+            (0, 0, 0)
+        };
 
     // Log comprehensive pause operation summary
     tracing::info!(
@@ -3846,7 +3900,11 @@ async fn pause_wa_campaign(
         queue_depth_before,
         removed_from_queue,
         queue_depth_after,
-        if queue_depth_after == 0 { "✅ CLEAN" } else { "⚠️ INCOMPLETE" }
+        if queue_depth_after == 0 {
+            "✅ CLEAN"
+        } else {
+            "⚠️ INCOMPLETE"
+        }
     );
 
     Ok(json_ok(
@@ -3872,27 +3930,42 @@ async fn reset_wa_campaign(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
-    // Verify campaign exists
-    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM wa_campaigns WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    if exists.is_none() {
-        return Err(AppError::NotFound);
+    // Verify campaign exists and do not reset an active blast in-place.
+    let current_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM wa_campaigns WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let current_status = current_status.ok_or(AppError::NotFound)?;
+    if current_status == "running" {
+        return Err(AppError::Validation {
+            errors: vec![
+                "Campaign sedang berjalan. Pause campaign terlebih dahulu sebelum reset."
+                    .to_string(),
+            ],
+        });
     }
 
     // Reset all non-pending recipients back to pending
     let result = sqlx::query(
-        "UPDATE wa_recipients SET status = 'pending', last_attempt_at = NULL, last_error = NULL WHERE campaign_id = ? AND status != 'pending'"
+        "UPDATE wa_recipients
+         SET status = 'pending',
+             sent_at = NULL,
+             delivered_at = NULL,
+             read_at = NULL,
+             replied_at = NULL,
+             last_attempt_at = NULL,
+             last_error = NULL
+         WHERE campaign_id = ? AND status != 'pending'",
     )
-        .bind(&id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error resetting campaign recipients: {}", e);
-            AppError::Internal
-        })?;
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error resetting campaign recipients: {}", e);
+        AppError::Internal
+    })?;
 
     // Reset campaign status to draft
     sqlx::query("UPDATE wa_campaigns SET status = 'draft' WHERE id = ?")
@@ -4092,15 +4165,18 @@ async fn upload_campaign_image(
     })?;
 
     tracing::info!("Campaign image successfully uploaded: {}", url);
-    Ok(json_ok("Campaign image uploaded", json!({ "url": url, "media_url": url })))
+    Ok(json_ok(
+        "Campaign image uploaded",
+        json!({ "url": url, "media_url": url }),
+    ))
 }
 
 async fn fetch_wa_campaign_summary(
     state: &AppState,
     id: &str,
 ) -> Result<WaCampaignSummaryResponse, AppError> {
-    let row = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
-        "SELECT c.id, c.name, c.status, c.config, c.created_by, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.id = ? GROUP BY c.id LIMIT 1",
+    let row = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
+        "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.id = ? GROUP BY c.id, u.name, u.email LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -4117,6 +4193,8 @@ async fn fetch_wa_campaign_summary(
         status,
         config,
         created_by,
+        created_by_name,
+        created_by_email,
         created_at,
         started_at,
         recipient_total,
@@ -4131,6 +4209,8 @@ async fn fetch_wa_campaign_summary(
         status: status.unwrap_or_else(|| "draft".to_string()),
         config: parse_json_value_or_default(config, default_wa_campaign_config()),
         created_by,
+        created_by_name,
+        created_by_email,
         created_at,
         started_at,
         recipient_total,
@@ -5142,6 +5222,13 @@ struct PartnerRecord {
     is_active: bool,
     created_at: String,
     updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PartnerOrderItem {
+    id: String,
+    sort_order: i64,
 }
 
 fn promo_to_json(record: PromoRecord) -> Value {
@@ -6890,7 +6977,7 @@ async fn create_partner(
     let mut name = String::new();
     let mut logo_url = String::new();
     let mut website_url: Option<String> = None;
-    let mut sort_order: i64 = 0;
+    let mut sort_order: Option<i64> = None;
     let mut is_active: bool = true;
     let mut logo_file_path: Option<String> = None;
 
@@ -6914,7 +7001,9 @@ async fn create_partner(
                     }
                 }
             }
-            "sortOrder" => sort_order = field.text().await.unwrap_or_default().parse().unwrap_or(0),
+            "sortOrder" => {
+                sort_order = Some(field.text().await.unwrap_or_default().parse().unwrap_or(0))
+            }
             "isActive" => {
                 is_active = field
                     .text()
@@ -6949,6 +7038,19 @@ async fn create_partner(
         .map(ToString::to_string)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
+    let final_sort_order = match sort_order {
+        Some(value) => value,
+        None => {
+            sqlx::query_scalar::<_, i64>("SELECT COALESCE(MAX(sort_order), 0) + 10 FROM partners")
+                .fetch_one(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("DB error computing next partner sort order: {}", e);
+                    AppError::Internal
+                })?
+        }
+    };
+
     sqlx::query(
         "INSERT INTO partners (id, name, logo_url, website_url, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)"
     )
@@ -6956,7 +7058,7 @@ async fn create_partner(
     .bind(name.trim())
     .bind(final_logo_url.trim())
     .bind(website_url)
-    .bind(sort_order)
+    .bind(final_sort_order)
     .bind(is_active)
     .execute(&state.pool)
     .await
@@ -7062,6 +7164,55 @@ async fn update_partner(
     Ok(json_ok(
         format!("Partner {} updated by {}", id, user.email),
         json!({ "item": partner_to_json(updated) }),
+    ))
+}
+
+async fn update_partner_order(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(items): Json<Vec<PartnerOrderItem>>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+
+    if items.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Daftar urutan partner tidak boleh kosong".to_string()],
+        });
+    }
+
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("DB transaction error updating partner order: {}", e);
+        AppError::Internal
+    })?;
+
+    for item in &items {
+        if item.id.trim().is_empty() {
+            return Err(AppError::Validation {
+                errors: vec!["ID partner tidak boleh kosong".to_string()],
+            });
+        }
+
+        sqlx::query(
+            "UPDATE partners SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        )
+        .bind(item.sort_order)
+        .bind(item.id.trim())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error updating partner order: {}", e);
+            AppError::Internal
+        })?;
+    }
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!("DB commit error updating partner order: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        format!("Partner order updated by {}", user.email),
+        json!({ "updated": items.len() }),
     ))
 }
 

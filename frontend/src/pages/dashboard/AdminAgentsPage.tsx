@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { toast } from '../../store/useNotificationStore';
 import {
   CheckCircle2,
   XCircle,
@@ -98,11 +99,11 @@ const AdminAgentsPage: React.FC = () => {
     if (!newPassword) return;
     const ok = await resetUserPassword(userId, newPassword);
     if (ok) {
-      alert('Password berhasil diupdate');
+      toast.success('Password berhasil diupdate');
       setResettingId(null);
       setNewPassword('');
     } else {
-      alert('Gagal update password');
+      toast.error('Gagal update password', 'Silakan coba lagi');
     }
   };
 
@@ -114,13 +115,13 @@ const AdminAgentsPage: React.FC = () => {
         body: JSON.stringify({ email })
       });
       if (response.ok) {
-        alert('Email berhasil diverifikasi');
+        toast.success('Email berhasil diverifikasi');
         fetchUsers(true);
       } else {
-        alert('Gagal verifikasi email');
+        toast.error('Gagal verifikasi email', 'Server mengembalikan respons error');
       }
     } catch (err) {
-      alert('Terjadi kesalahan');
+      toast.error('Terjadi kesalahan', 'Gagal menghubungi server verifikasi');
     }
   };
 

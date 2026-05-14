@@ -5,7 +5,8 @@ import {
   ArrowLeft, Send, RefreshCw, Pause,
   CheckCircle2, AlertTriangle, Clock, Copy, XCircle,
   Plus, Trash2, Check, Eye, FileSpreadsheet, Loader2,
-  Database, Search, MessageCircle, ExternalLink, Edit3, Save
+  Database, Search, MessageCircle, ExternalLink, Edit3, Save,
+  Image as ImageIcon, Upload
 } from 'lucide-react';
 import AddWaRecipientModal from '../../components/dashboard/AddWaRecipientModal';
 import { useAuthStore } from '../../store/authStore';
@@ -16,6 +17,7 @@ import { readApiError } from '../../utils/apiError';
 
 const statusColorMap: Record<string, string> = {
   pending: 'bg-surface-high text-on-surface-variant border border-outline-variant/30',
+  paused: 'bg-yellow-500/15 text-yellow-500 border border-yellow-500/30',
   sent: 'bg-secondary/20 text-secondary border border-secondary/30',
   delivered: 'bg-secondary/15 text-secondary border border-secondary/20',
   read: 'bg-primary/15 text-primary border border-primary/20',
@@ -27,6 +29,18 @@ type RecipientFilter = 'all' | 'pending' | 'sent' | 'failed' | 'delivered' | 're
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const iv = { hidden: { y: 12, opacity: 0 }, visible: { y: 0, opacity: 1 } };
+
+const getCampaignMediaUrl = (config: Record<string, any> | undefined) => {
+  if (!config) return '';
+  return (
+    config.media_config?.media_url ||
+    config.mediaConfig?.mediaUrl ||
+    config.mediaConfig?.media_url ||
+    config.media_url ||
+    config.mediaUrl ||
+    ''
+  );
+};
 
 const AdminWaCampaignDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -44,6 +58,9 @@ const AdminWaCampaignDetailPage: React.FC = () => {
   const [editCampaignName, setEditCampaignName] = useState('');
   const [editMessageTemplate, setEditMessageTemplate] = useState('');
   const [editDedupeDays, setEditDedupeDays] = useState(30);
+  const [editMediaUrl, setEditMediaUrl] = useState('');
+  const [editMediaPreview, setEditMediaPreview] = useState('');
+  const [editMediaFile, setEditMediaFile] = useState<File | null>(null);
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
   const isEditingCampaignRef = useRef(false);
   const isCampaignEditDirtyRef = useRef(false);
@@ -61,6 +78,11 @@ const AdminWaCampaignDetailPage: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const dbPerPage = 15;
+  const pendingRecipientCount = recipients.filter((recipient) => recipient.status === 'pending').length;
+  const pausedRecipientCount = recipients.filter((recipient) => recipient.status === 'paused').length;
+  const resumableRecipientCount = pendingRecipientCount + (campaign?.status === 'paused' ? pausedRecipientCount : 0);
+  const canStartCampaign = campaign?.status !== 'running' && resumableRecipientCount > 0;
+  const canResetCampaign = Boolean(campaign && campaign.status !== 'running' && recipients.some((recipient) => recipient.status !== 'pending'));
 
   useEffect(() => {
     isEditingCampaignRef.current = isEditingCampaign;
@@ -72,6 +94,10 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     setEditCampaignName(nextCampaign.name || '');
     setEditMessageTemplate(cfg.message_template || cfg.messageTemplate || '');
     setEditDedupeDays(Number(cfg.dedupe_days ?? cfg.dedupeDays ?? 30));
+    const mediaUrl = getCampaignMediaUrl(cfg);
+    setEditMediaUrl(mediaUrl);
+    setEditMediaPreview(mediaUrl);
+    setEditMediaFile(null);
   };
 
   useEffect(() => {
@@ -104,6 +130,15 @@ const AdminWaCampaignDetailPage: React.FC = () => {
 
   const handleStart = async () => {
     if (!id) return;
+    if (campaign?.status === 'running') {
+      toast.info('Campaign sedang berjalan', 'Gunakan Pause Blast jika ingin menghentikan proses sementara.');
+      await fetchCampaignData();
+      return;
+    }
+    if (resumableRecipientCount === 0) {
+      toast.warning('Tidak ada penerima pending', 'Reset campaign terlebih dahulu jika ingin mengirim ulang penerima yang gagal atau sudah diproses.');
+      return;
+    }
     
     // If campaign was already completed/paused/failed, confirm restart
     if (campaign?.status && campaign.status !== 'draft') {
@@ -125,12 +160,23 @@ const AdminWaCampaignDetailPage: React.FC = () => {
       
       if (!res.ok) {
         const errMsg = data?.errors?.join(', ') || data?.message || 'Gagal memulai campaign';
+        if (errMsg.toLowerCase().includes('already running')) {
+          toast.info('Campaign sedang berjalan', 'Status campaign sudah aktif. Data akan disinkronkan ulang.');
+          await fetchCampaignData();
+          return;
+        }
         console.error('[Campaign] Start failed:', errMsg);
         throw new Error(errMsg);
       }
+
+      if (data?.data?.already_running) {
+        toast.info('Campaign sedang berjalan', `${data?.data?.pending ?? pendingRecipientCount} penerima masih pending`);
+        await fetchCampaignData();
+        return;
+      }
       
       const pending = data?.data?.pending || data?.data?.enqueued || 0;
-      toast.success('Campaign dimulai', `${pending} penerima sedang diproses`);
+      toast.success(campaign?.status === 'paused' ? 'Campaign dilanjutkan' : 'Campaign dimulai', `${pending} penerima sedang diproses`);
       console.log('[Campaign] Started successfully, pending:', pending);
       await fetchCampaignData();
     } catch (error) {
@@ -158,6 +204,28 @@ const AdminWaCampaignDetailPage: React.FC = () => {
       await fetchCampaignData();
     } catch (error) {
       toast.error('Gagal pause campaign', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleResetCampaign = async () => {
+    if (!id) return;
+    if (!window.confirm('Reset penerima yang sudah diproses menjadi pending lagi? Setelah itu campaign bisa dimulai ulang.')) return;
+
+    setIsActionLoading(true);
+    try {
+      const res = await fetch(`/api/wa/campaigns/${id}/reset`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.errors?.join(', ') || data?.message || 'Gagal reset campaign');
+      const resetCount = data?.data?.reset_count ?? 0;
+      toast.success('Campaign direset', `${resetCount} penerima dikembalikan ke pending`);
+      await fetchCampaignData();
+    } catch (error) {
+      toast.error('Gagal reset campaign', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsActionLoading(false);
     }
@@ -343,11 +411,27 @@ const AdminWaCampaignDetailPage: React.FC = () => {
 
     setIsSavingCampaign(true);
     try {
+      let nextMediaUrl = editMediaUrl.trim();
+      if (editMediaFile) {
+        nextMediaUrl = await uploadCampaignEditImage(editMediaFile);
+      }
+
       const nextConfig = {
         ...(campaign.config || {}),
         message_template: editMessageTemplate.trim(),
         dedupe_days: Math.max(0, Number(editDedupeDays) || 0),
       };
+      delete (nextConfig as any).mediaConfig;
+      delete (nextConfig as any).media_url;
+      delete (nextConfig as any).mediaUrl;
+      if (nextMediaUrl) {
+        (nextConfig as any).media_config = {
+          media_type: 'image',
+          media_url: nextMediaUrl,
+        };
+      } else {
+        delete (nextConfig as any).media_config;
+      }
 
       const res = await fetch(`/api/wa/campaigns/${id}`, {
         method: 'PATCH',
@@ -363,6 +447,9 @@ const AdminWaCampaignDetailPage: React.FC = () => {
 
       if (!res.ok) throw new Error(await readApiError(res, 'Gagal menyimpan campaign'));
       toast.success('Campaign diperbarui', 'Data campaign berhasil disimpan');
+      setEditMediaFile(null);
+      setEditMediaUrl(nextMediaUrl);
+      setEditMediaPreview(nextMediaUrl);
       isEditingCampaignRef.current = false;
       isCampaignEditDirtyRef.current = false;
       setIsEditingCampaign(false);
@@ -372,6 +459,50 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     } finally {
       setIsSavingCampaign(false);
     }
+  };
+
+  const uploadCampaignEditImage = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/wa/campaigns/upload-image', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error(await readApiError(res, 'Gagal upload gambar campaign'));
+    const data = await res.json().catch(() => null);
+    const uploadedUrl = data?.data?.url || data?.data?.media_url;
+    if (!uploadedUrl) throw new Error('Upload berhasil tetapi URL gambar tidak ditemukan');
+    return uploadedUrl as string;
+  };
+
+  const handleCampaignImageChange = (file: File | null) => {
+    if (!file) {
+      markCampaignEditDirty();
+      setEditMediaFile(null);
+      setEditMediaUrl('');
+      setEditMediaPreview('');
+      return;
+    }
+
+    if (!file.name.match(/\.(jpg|jpeg|png|webp)$/i)) {
+      toast.error('Format tidak didukung', 'Upload gambar .jpg, .png, atau .webp');
+      return;
+    }
+
+    const maxSize = 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error('File terlalu besar', `Ukuran file ${(file.size / 1024 / 1024).toFixed(2)}MB melebihi batas 16MB`);
+      return;
+    }
+
+    markCampaignEditDirty();
+    setEditMediaFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => setEditMediaPreview(String(event.target?.result || ''));
+    reader.readAsDataURL(file);
   };
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -406,6 +537,10 @@ const AdminWaCampaignDetailPage: React.FC = () => {
     setEditCampaignName(campaign.name || '');
     setEditMessageTemplate(cfg.message_template || cfg.messageTemplate || '');
     setEditDedupeDays(Number(cfg.dedupe_days ?? cfg.dedupeDays ?? 30));
+    const mediaUrl = getCampaignMediaUrl(cfg);
+    setEditMediaUrl(mediaUrl);
+    setEditMediaPreview(mediaUrl);
+    setEditMediaFile(null);
     setIsEditingCampaign(true);
   };
 
@@ -504,12 +639,23 @@ const AdminWaCampaignDetailPage: React.FC = () => {
           />
           <button
             onClick={handleStart}
-            disabled={isActionLoading}
+            disabled={isActionLoading || !canStartCampaign}
+            title={campaign.status === 'running' ? 'Campaign sedang berjalan' : resumableRecipientCount === 0 ? 'Tidak ada penerima pending' : campaign.status === 'paused' ? 'Lanjutkan campaign' : 'Mulai campaign'}
             className="flex items-center gap-2 px-6 py-2 gradient-primary text-surface rounded-xl hover:shadow-neon-cyan transition-all font-bold disabled:opacity-50"
           >
             {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            <span>{campaign.status === 'draft' ? 'Mulai Campaign' : campaign.status === 'running' ? 'Restart' : 'Start Ulang'}</span>
+            <span>{campaign.status === 'running' ? 'Sedang Berjalan' : campaign.status === 'paused' ? 'Lanjutkan Blast' : campaign.status === 'draft' ? 'Mulai Campaign' : 'Mulai Pending'}</span>
           </button>
+          {canResetCampaign && (
+            <button
+              onClick={handleResetCampaign}
+              disabled={isActionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-surface-high/30 text-on-surface-variant border border-outline-variant/30 rounded-xl hover:bg-surface-high hover:text-on-surface transition-all font-bold disabled:opacity-50"
+            >
+              {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span>Reset Penerima</span>
+            </button>
+          )}
           {campaign.status === 'running' && (
             <button
               onClick={handlePause}
@@ -626,6 +772,67 @@ const AdminWaCampaignDetailPage: React.FC = () => {
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                    Gambar Campaign
+                  </label>
+                  {editMediaPreview ? (
+                    <div className="space-y-2">
+                      <div className="relative overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-high/40">
+                        <img
+                          src={editMediaPreview}
+                          alt="Preview gambar campaign"
+                          className="h-32 w-full object-cover"
+                          decoding="async"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCampaignImageChange(null)}
+                          className="absolute right-2 top-2 rounded-lg border border-red-500/30 bg-red-500/20 p-1.5 text-red-300 transition-colors hover:bg-red-500/30"
+                          title="Hapus gambar campaign"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {editMediaFile && (
+                        <p className="text-[10px] text-primary">
+                          Gambar baru akan diupload saat tombol Simpan ditekan.
+                        </p>
+                      )}
+                      <label className="block">
+                        <span className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary/20">
+                          <Upload className="h-3.5 w-3.5" />
+                          Ganti Gambar
+                        </span>
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp"
+                          onChange={(event) => {
+                            if (event.target.files?.[0]) handleCampaignImageChange(event.target.files[0]);
+                            event.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-outline-variant/30 bg-surface-high/20 px-3 py-5 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
+                      <ImageIcon className="mb-2 h-7 w-7 text-on-surface-variant/40" />
+                      <span className="text-xs font-bold text-primary">Pilih Gambar</span>
+                      <span className="mt-1 text-[10px] text-on-surface-variant/50">JPG, PNG, WebP maks 16MB</span>
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp"
+                        onChange={(event) => {
+                          if (event.target.files?.[0]) handleCampaignImageChange(event.target.files[0]);
+                          event.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
                     Dedupe Days

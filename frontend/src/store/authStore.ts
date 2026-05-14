@@ -49,6 +49,10 @@ function getApiErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
   return payload?.detail || payload?.message || fallback;
 }
 
+function isSessionExpiredStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
@@ -146,6 +150,9 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
+            if (!isSessionExpiredStatus(response.status)) {
+              return false;
+            }
             set({ user: null, isAuthenticated: false, accessToken: null });
             return false;
           }
@@ -166,7 +173,9 @@ export const useAuthStore = create<AuthState>()(
 
           return true;
         } catch {
-          set({ user: null, isAuthenticated: false, accessToken: null });
+          // Backend may be restarting or temporarily unreachable. Keep the
+          // current in-memory access token so polling requests do not turn into
+          // a cascade of 401s after a transient 502/network error.
           return false;
         }
       },
@@ -184,6 +193,9 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
+            if (!isSessionExpiredStatus(response.status)) {
+              return;
+            }
             set({ user: null, isAuthenticated: false, accessToken: null });
             return;
           }
@@ -202,7 +214,6 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error) {
           console.error('Session restoration failed:', error);
-          set({ user: null, isAuthenticated: false, accessToken: null });
         } finally {
           set({ isInitializing: false });
         }

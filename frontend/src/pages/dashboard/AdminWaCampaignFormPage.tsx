@@ -110,17 +110,17 @@ const AdminWaCampaignFormPage: React.FC = () => {
     }
   };
 
-  const buildConfig = () => {
+  const buildConfig = (nextMediaUrl = mediaUrl) => {
     const cfg: any = {};
     if (messageTemplate.trim()) cfg.message_template = messageTemplate;
     if (selectedAccountId) cfg.accounts = [selectedAccountId];
     cfg.dedupe_days = dedupeDays;
     
     // Add media configuration if image is uploaded
-    if (mediaUrl) {
+    if (nextMediaUrl) {
       cfg.media_config = {
         media_type: 'image',
-        media_url: mediaUrl,
+        media_url: nextMediaUrl,
       };
     }
     
@@ -135,8 +135,16 @@ const AdminWaCampaignFormPage: React.FC = () => {
 
     setIsSaving(true);
     try {
+      let nextMediaUrl = mediaUrl;
+      if (mediaFile) {
+        nextMediaUrl = await uploadMediaFile(mediaFile);
+        setMediaUrl(nextMediaUrl);
+        setMediaPreview(nextMediaUrl);
+        setMediaFile(null);
+      }
+
       const url = isNew ? '/api/wa/campaigns' : `/api/wa/campaigns/${id}`;
-      const method = isNew ? 'POST' : 'PUT';
+      const method = isNew ? 'POST' : 'PATCH';
 
       const res = await fetch(url, {
         method,
@@ -146,7 +154,7 @@ const AdminWaCampaignFormPage: React.FC = () => {
         },
         body: JSON.stringify({
           name: campaignName,
-          config: buildConfig(),
+          config: buildConfig(nextMediaUrl),
         }),
       });
 
@@ -304,27 +312,33 @@ const AdminWaCampaignFormPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  const uploadMediaFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/wa/campaigns/upload-image', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      throw new Error(await readApiError(res, 'Gagal upload gambar'));
+    }
+    const data = await res.json();
+    const uploadedUrl = data.data?.url || data.data?.media_url;
+    if (!uploadedUrl) throw new Error('Upload berhasil tetapi URL gambar tidak ditemukan');
+    return uploadedUrl as string;
+  };
+
   const handleUploadMedia = async () => {
     if (!mediaFile) return;
     
     setIsUploadingMedia(true);
-    const formData = new FormData();
-    formData.append('file', mediaFile);
-
     try {
-      const res = await fetch('/api/wa/campaigns/upload-image', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error(await readApiError(res, 'Gagal upload gambar'));
-      }
-      const data = await res.json();
-      const uploadedUrl = data.data?.url || data.data?.media_url;
-      
+      const uploadedUrl = await uploadMediaFile(mediaFile);
       setMediaUrl(uploadedUrl);
+      setMediaPreview(uploadedUrl);
       setMediaFile(null);
       toast.success('Gambar berhasil diupload');
     } catch (error) {
@@ -510,11 +524,13 @@ const AdminWaCampaignFormPage: React.FC = () => {
                   // Show uploaded image with preview
                   <div className="space-y-3">
                     <div className="relative bg-surface-high/30 border border-outline-variant/20 rounded-xl p-4">
-                      <img 
-                        src={mediaPreview} 
-                        alt="Media preview" 
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
+                      {(mediaPreview || mediaUrl) && (
+                        <img 
+                          src={mediaPreview || mediaUrl} 
+                          alt="Media preview" 
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                      )}
                       <button
                         onClick={handleRemoveMedia}
                         className="absolute top-2 right-2 p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-400 transition-colors"
@@ -531,11 +547,13 @@ const AdminWaCampaignFormPage: React.FC = () => {
                   // Show preview before upload
                   <div className="space-y-3">
                     <div className="relative bg-surface-high/30 border border-outline-variant/20 rounded-xl p-4">
-                      <img 
-                        src={mediaPreview} 
-                        alt="Media preview" 
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
+                      {mediaPreview && (
+                        <img 
+                          src={mediaPreview} 
+                          alt="Media preview" 
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                      )}
                       <button
                         onClick={() => handleMediaChange(null)}
                         className="absolute top-2 right-2 p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-400 transition-colors"

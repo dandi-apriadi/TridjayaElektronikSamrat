@@ -311,7 +311,7 @@ async fn list_admin_landing_slides(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let items = sqlx::query_as::<_, LandingHeroSlideRow>(
         "SELECT id, eyebrow, title, accent, copy, href, cta, bg_image_url, product_image_url,
@@ -409,7 +409,7 @@ async fn create_landing_slide(
     headers: HeaderMap,
     Json(payload): Json<LandingSlidePayload>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let max_order: i64 =
         sqlx::query_scalar("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM landing_hero_slides")
             .fetch_one(&state.pool)
@@ -451,7 +451,7 @@ async fn update_landing_slide(
     Path(id): Path<String>,
     Json(payload): Json<LandingSlidePayload>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let mut slide = fetch_slide(&state, &id).await?;
 
     if let Some(value) = payload.eyebrow {
@@ -518,7 +518,7 @@ async fn update_landing_slide_order(
     headers: HeaderMap,
     Json(items): Json<Vec<SlideOrderItem>>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let mut tx = state.pool.begin().await.map_err(|e| {
         tracing::error!("DB transaction error updating slide order: {}", e);
         AppError::Internal
@@ -554,7 +554,7 @@ async fn delete_landing_slide(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let result = sqlx::query("DELETE FROM landing_hero_slides WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -618,7 +618,7 @@ async fn upload_landing_slide_image(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let mut uploaded_url: Option<String> = None;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {

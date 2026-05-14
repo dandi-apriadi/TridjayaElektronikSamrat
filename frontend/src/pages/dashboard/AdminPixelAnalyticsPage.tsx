@@ -108,7 +108,6 @@ const AdminPixelAnalyticsPage: React.FC = () => {
   const totalRevenue = groupRevenueByCurrency(data?.campaign_analytics || []);
   const hasCampaignAnalytics = (data?.campaign_analytics?.length || 0) > 0;
   const hasTopCampaigns = (data?.top_campaigns?.length || 0) > 0;
-  const hasFunnelData = !!selectedFunnel && (selectedFunnel.page_views > 0 || selectedFunnel.add_to_carts > 0 || selectedFunnel.purchases > 0);
 
   const selectedFunnel = selectedCampaign 
     ? data?.conversion_funnel.find(f => f.campaign_id === selectedCampaign)
@@ -119,6 +118,7 @@ const AdminPixelAnalyticsPage: React.FC = () => {
         add_to_carts: acc.add_to_carts + f.add_to_carts,
         purchases: acc.purchases + f.purchases,
       }), { campaign_id: 'all', campaign_name: 'All Campaigns', page_views: 0, add_to_carts: 0, purchases: 0 });
+  const hasFunnelData = !!selectedFunnel && (selectedFunnel.page_views > 0 || selectedFunnel.add_to_carts > 0 || selectedFunnel.purchases > 0);
 
   return (
     <motion.div

@@ -8,25 +8,36 @@ export interface NotificationItem {
   message: string;
   description?: string;
   duration?: number;
+  createdAt: number;
 }
 
 interface NotificationState {
   notifications: NotificationItem[];
-  addNotification: (notification: Omit<NotificationItem, 'id'>) => void;
+  addNotification: (notification: Omit<NotificationItem, 'id' | 'createdAt'>) => void;
   removeNotification: (id: string) => void;
+  clearAll: () => void;
 }
+
+const MAX_STACK = 5;
+const DEFAULT_DURATION = 5000;
 
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   addNotification: (notification) => {
     const id = Math.random().toString(36).substring(2, 9);
-    set((state) => ({
-      notifications: [...state.notifications, { ...notification, id }],
-    }));
+    const createdAt = Date.now();
+    const duration = notification.duration ?? DEFAULT_DURATION;
 
-    // Auto remove
-    const duration = notification.duration || 5000;
-    if (duration !== Infinity) {
+    set((state) => {
+      const next = [...state.notifications, { ...notification, id, createdAt }];
+      // Enforce max stack: remove oldest if exceeding limit
+      if (next.length > MAX_STACK) {
+        return { notifications: next.slice(next.length - MAX_STACK) };
+      }
+      return { notifications: next };
+    });
+
+    if (duration !== Infinity && duration > 0) {
       setTimeout(() => {
         set((state) => ({
           notifications: state.notifications.filter((n) => n.id !== id),
@@ -38,6 +49,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     })),
+  clearAll: () => set({ notifications: [] }),
 }));
 
 // Helper for easy access

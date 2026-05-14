@@ -11,7 +11,7 @@ import {
 import Pagination from '../../components/ui/Pagination';
 import { formatPrice } from '../../utils/formatters';
 import type { Product } from '../../types';
-import { useNotificationStore } from '../../store/useNotificationStore';
+import { toast } from '../../store/useNotificationStore';
 import { useProductStore } from '../../store/useProductStore';
 import { usePersistedState } from '../../hooks/usePersistedState';
 import { useAuthStore } from '../../store/authStore';
@@ -83,7 +83,6 @@ const AgentKnowledgePage: React.FC = () => {
   const itemsPerPage = 5;
 
   const { products, isLoading, fetchProducts } = useProductStore();
-  const { addNotification } = useNotificationStore();
 
   const dynamicCategories = ['Semua', ...Array.from(new Set(products.map(p => p.category))).filter(Boolean)];
 
@@ -140,12 +139,7 @@ const AgentKnowledgePage: React.FC = () => {
     const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(publicPrice)}\n${dpLine}${cicilLine}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
 
     navigator.clipboard.writeText(text);
-    addNotification({
-      message: 'Materi Penjualan Disalin',
-      description: 'Teks siap ditempel (paste) ke WhatsApp atau Media Sosial.',
-      type: 'success',
-      duration: 3000,
-    });
+    toast.success('Materi Penjualan Disalin', 'Teks siap ditempel (paste) ke WhatsApp atau Media Sosial.');
   };
 
   const handleCopyLink = (slug: string) => {
@@ -158,12 +152,7 @@ const AgentKnowledgePage: React.FC = () => {
       ? `${base}/produk/${encodedSlug}?ref=${encodeURIComponent(ref)}`
       : `${base}/produk/${encodedSlug}`;
     navigator.clipboard.writeText(link);
-    addNotification({
-      message: 'Link Disalin',
-      description: 'Tautan produk berhasil disalin.',
-      type: 'success',
-      duration: 3000,
-    });
+    toast.success('Link Disalin', 'Tautan produk berhasil disalin.');
   }
 
   const setTab = (id: string, tab: 'sales' | 'specs' | 'gallery' | 'installments') => {

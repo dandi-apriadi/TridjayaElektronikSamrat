@@ -9,6 +9,7 @@ interface PartnerState {
   fetchPartners: (force?: boolean, adminView?: boolean) => Promise<void>;
   createPartner: (data: Partial<PartnerItem>) => Promise<boolean>;
   updatePartner: (id: string, data: Partial<PartnerItem>) => Promise<boolean>;
+  updatePartnerOrder: (items: Array<{ id: string; sortOrder: number }>) => Promise<boolean>;
   deletePartner: (id: string) => Promise<boolean>;
 }
 
@@ -103,6 +104,29 @@ export const usePartnerStore = create<PartnerState>((set, get) => ({
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Terjadi kesalahan saat memperbarui partner',
+      });
+      return false;
+    }
+  },
+
+  updatePartnerOrder: async (items) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await apiFetch('/api/admin/partners/order', {
+        method: 'PATCH',
+        body: JSON.stringify(items),
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal memperbarui urutan partner');
+      }
+
+      await get().fetchPartners(true, true);
+      return true;
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Terjadi kesalahan saat mengurutkan partner',
       });
       return false;
     }

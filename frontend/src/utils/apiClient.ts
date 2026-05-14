@@ -157,6 +157,7 @@ export function getImageUrl(path: string | undefined | null): string {
   if (!path) return `${API_BASE_URL}/uploads/default-product.webp`;
   if (path.startsWith('http')) return path;
   if (path.startsWith('data:')) return path;
+  if (path.startsWith('blob:')) return path;
 
   const placeholderAssetMap: Record<string, string> = {
     'default': '/assets/images/logo.webp',
