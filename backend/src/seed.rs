@@ -465,26 +465,47 @@ pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::
         }
     }
 
-    // Only seed the admin user if no users exist
-    let user_count: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM users")
-        .fetch_one(pool)
-        .await?;
+    // Seed test accounts for all roles if they don't exist
+    let test_users = vec![
+        (
+            "adm-001",
+            "admin@gmail.com",
+            "Administrator Tridjaya",
+            "admin",
+        ),
+        (
+            "opr-001",
+            "operator@gmail.com",
+            "Operator Tridjaya",
+            "operator",
+        ),
+        ("sls-001", "sales@gmail.com", "Sales Tridjaya", "sales"),
+        ("age-001", "agent@gmail.com", "Agent Tridjaya", "agent"),
+    ];
 
-    if user_count.0 == 0 {
-        println!("Seeding default admin user...");
-        let password_hash = hash_password("admin123");
-        sqlx::query(
-            "INSERT INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) \
-             VALUES (?, ?, ?, ?, ?, ?, 1, 1)"
-        )
-        .bind("adm-001")
-        .bind("admin@gmail.com")
-        .bind("Administrator Tridjaya")
-        .bind("admin")
-        .bind(password_hash)
-        .bind("/avatars/default.webp")
-        .execute(pool)
-        .await?;
+    let password_hash = hash_password("123");
+
+    for (id, email, name, role) in test_users {
+        let exists: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = ?")
+            .bind(email)
+            .fetch_one(pool)
+            .await?;
+
+        if exists.0 == 0 {
+            println!("Seeding test user: {} ({})", name, role);
+            sqlx::query(
+                "INSERT INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) \
+                 VALUES (?, ?, ?, ?, ?, ?, 1, 1)"
+            )
+            .bind(id)
+            .bind(email)
+            .bind(name)
+            .bind(role)
+            .bind(password_hash.clone())
+            .bind("/avatars/default.webp")
+            .execute(pool)
+            .await?;
+        }
     }
 
     println!("Database seeding completed (Landing content & basic setup).");

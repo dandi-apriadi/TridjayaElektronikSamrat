@@ -14,7 +14,12 @@ pub async fn list_sessions(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, String)> =
         if user.role.eq_ignore_ascii_case("admin") {
             sqlx::query_as(
@@ -89,7 +94,12 @@ pub async fn get_session_status(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_session_access(&state, &user, &id).await?;
 
     let account: Option<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>)> = sqlx::query_as(
@@ -156,7 +166,12 @@ pub async fn get_session_qr(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_session_access(&state, &user, &id).await?;
 
     let qr: Option<(Option<String>,)> = sqlx::query_as(
@@ -184,7 +199,12 @@ pub async fn connect_session(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_session_access(&state, &user, &id).await?;
 
     let account_status: Option<String> =
@@ -310,7 +330,12 @@ pub async fn disconnect_session(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_session_access(&state, &user, &id).await?;
 
     // Try graceful disconnect first (Baileys logout), then kill process

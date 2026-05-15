@@ -3,6 +3,8 @@ import { BarChart3, Activity, Users, ShoppingCart, DollarSign } from 'lucide-rea
 import { format, subDays } from 'date-fns';
 import MetricsCard from '../../components/pixel/MetricsCard';
 import CampaignTable from '../../components/pixel/CampaignTable';
+import { apiFetch } from '../../utils/apiClient';
+import { readApiError } from '../../utils/apiError';
 
 interface AnalyticsData {
   analytics: Array<{
@@ -34,25 +36,21 @@ const SalesPixelAnalyticsPage: React.FC = () => {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/pixel-analytics/sales?period_type=${periodType}&start_date=${startDate}&end_date=${endDate}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
+      const response = await apiFetch(
+        `/api/pixel-analytics/sales?period_type=${periodType}&start_date=${startDate}&end_date=${endDate}`
       );
-      if (response.ok) {
-        const result = await response.json();
-        // Calculate conversion rate for each campaign
-        const analyticsWithRate = result.data.analytics.map((item: any) => ({
-          ...item,
-          conversion_rate: item.total_events > 0 ? item.conversions / item.total_events : 0,
-        }));
-        setData({ ...result.data, analytics: analyticsWithRate });
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Failed to fetch analytics'));
       }
+      const result = await response.json();
+      const analyticsWithRate = (result.data?.analytics || []).map((item: any) => ({
+        ...item,
+        conversion_rate: item.total_events > 0 ? item.conversions / item.total_events : 0,
+      }));
+      setData({ ...result.data, analytics: analyticsWithRate });
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
+      setData(null);
     } finally {
       setLoading(false);
     }

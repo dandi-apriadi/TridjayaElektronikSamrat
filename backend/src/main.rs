@@ -4,13 +4,16 @@ use axum::http::{HeaderValue, Method, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
 use dotenvy::dotenv;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     services::ServeDir,
+    timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 use tracing_subscriber::EnvFilter;
@@ -162,9 +165,33 @@ async fn main() {
         std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
     tracing::info!("Connecting to database...");
 
+    let sqlite_pool_max_connections = std::env::var("SQLITE_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(20);
+    let sqlite_busy_timeout_secs = std::env::var("SQLITE_BUSY_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(30);
+
+    let sqlite_options = SqliteConnectOptions::from_str(&database_url)
+        .map_err(|e| {
+            tracing::error!("Invalid SQLite DATABASE_URL {}: {}", database_url, e);
+            e
+        })
+        .expect("Invalid SQLite DATABASE_URL")
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(Duration::from_secs(sqlite_busy_timeout_secs))
+        .create_if_missing(true);
+
     let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+        .max_connections(sqlite_pool_max_connections)
+        .min_connections(1)
+        .acquire_timeout(Duration::from_secs(sqlite_busy_timeout_secs))
+        .connect_with(sqlite_options)
         .await
         .map_err(|e| {
             tracing::error!("Failed to connect to SQLite at {}: {}", database_url, e);
@@ -180,7 +207,8 @@ async fn main() {
         Err(e) => tracing::warn!("Failed to enable SQLite WAL journal mode: {}", e),
     }
 
-    if let Err(e) = sqlx::query("PRAGMA busy_timeout = 5000")
+    let busy_timeout_ms = sqlite_busy_timeout_secs.saturating_mul(1000);
+    if let Err(e) = sqlx::query(&format!("PRAGMA busy_timeout = {}", busy_timeout_ms))
         .execute(&pool)
         .await
     {
@@ -464,6 +492,16 @@ async fn main() {
         .layer(axum::middleware::from_fn(block_private_uploads))
         // Default body limit: 1MB for most endpoints
         .layer(DefaultBodyLimit::max(1 * 1024 * 1024))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(
+                std::env::var("REQUEST_TIMEOUT_SECS")
+                    .ok()
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .filter(|value| *value > 0)
+                    .unwrap_or(60),
+            ),
+        ))
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 

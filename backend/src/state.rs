@@ -6,6 +6,8 @@ use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
+const MAX_AUDIT_LOG_ENTRIES: usize = 1_000;
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
@@ -173,12 +175,17 @@ impl AppState {
     }
 
     pub async fn audit(&self, action: impl Into<String>, actor: Option<&str>) {
-        self.audit_log.write().await.push(AuditEntry {
+        let mut audit_log = self.audit_log.write().await;
+        audit_log.push(AuditEntry {
             id: uuid::Uuid::new_v4().to_string(),
             action: action.into(),
             actor: actor.map(ToString::to_string),
             created_at: Utc::now(),
         });
+        let overflow = audit_log.len().saturating_sub(MAX_AUDIT_LOG_ENTRIES);
+        if overflow > 0 {
+            audit_log.drain(0..overflow);
+        }
     }
 
     pub async fn invalidate_user_sessions(&self, user_id: &str) {
@@ -230,6 +237,35 @@ impl AppState {
             let mut pub_sub = self.public_submission_attempts.write().await;
             pub_sub.retain(|_, attempts| {
                 attempts.retain(|ts| now.signed_duration_since(*ts).num_hours() < 1);
+                !attempts.is_empty()
+            });
+        }
+        {
+            let mut login_email = self.login_email_attempts.write().await;
+            login_email.retain(|_, attempts| {
+                attempts.retain(|ts| now.signed_duration_since(*ts).num_minutes() < 10);
+                !attempts.is_empty()
+            });
+        }
+        {
+            let mut login_ip = self.login_ip_attempts.write().await;
+            login_ip.retain(|_, attempts| {
+                attempts.retain(|ts| now.signed_duration_since(*ts).num_minutes() < 10);
+                !attempts.is_empty()
+            });
+        }
+        {
+            let mut blocked = self.blocked_login_subjects.write().await;
+            blocked.retain(|_, until| *until > now);
+        }
+        {
+            let mut forgot_password = self.forgot_password_attempts.write().await;
+            forgot_password.retain(|_, ts| now.signed_duration_since(*ts).num_minutes() < 30);
+        }
+        {
+            let mut api_rate = self.api_rate_limiter.write().await;
+            api_rate.retain(|_, attempts| {
+                attempts.retain(|ts| now.signed_duration_since(*ts).num_seconds() < 60);
                 !attempts.is_empty()
             });
         }

@@ -55,7 +55,7 @@ const SelectCampaignModal: React.FC<Props> = ({ isOpen, onClose, selectedLeadIds
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          leadIds: selectedLeadIds
+          lead_ids: selectedLeadIds
         }),
       });
 

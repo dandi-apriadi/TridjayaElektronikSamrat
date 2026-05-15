@@ -196,8 +196,16 @@ const DashboardLayout: React.FC = () => {
       title: 'Operasional',
       items: [
         { label: 'Jadwal Pengiriman', icon: Send, path: '/dashboard/sales/delivery' },
-        { label: 'Referral & Link', icon: Share2, path: '/dashboard/sales/referral' },
+        { label: 'Pengiriman Prospek', icon: TrendingUp, path: '/dashboard/sales/push-prospek' },
         { label: 'Pixel Analytics', icon: BarChart3, path: '/dashboard/sales/pixel-analytics' },
+      ]
+    },
+    {
+      title: 'WhatsApp Blast',
+      items: [
+        { label: 'Campaigns', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns' },
+        { label: 'Akun WA', icon: Shield, path: '/dashboard/admin/wa/accounts' },
+        { label: 'Kontak Blast', icon: Users, path: '/dashboard/admin/wa/blast-contacts' },
       ]
     },
     {
@@ -258,7 +266,8 @@ const DashboardLayout: React.FC = () => {
       ]
     : [
         { label: 'Knowledge', icon: BookOpen, path: user?.role === 'sales' ? '/dashboard/sales/knowledge' : '/dashboard/agent/knowledge', color: 'text-primary' },
-        { label: 'Referral', icon: Share2, path: user?.role === 'sales' ? '/dashboard/sales/referral' : '/dashboard/agent/push-prospek', color: 'text-secondary' },
+        { label: 'Prospek', icon: TrendingUp, path: user?.role === 'sales' ? '/dashboard/sales/push-prospek' : '/dashboard/agent/push-prospek', color: 'text-secondary' },
+        ...(user?.role === 'sales' ? [{ label: 'WA Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns', color: 'text-tertiary' }] : []),
       ];
 
   const allNavItems = navSections.flatMap(s => s.items);

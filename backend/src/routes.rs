@@ -2394,7 +2394,7 @@ async fn list_reward_tiers(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Sales]).await?;
 
     let tiers = sqlx::query_as::<_, (String, String, i64, i64, bool)>(
         "SELECT id, name, threshold_points, reward_value, is_active FROM reward_tiers ORDER BY threshold_points ASC"
@@ -2519,7 +2519,12 @@ async fn list_wa_accounts(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
         sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
@@ -2617,7 +2622,12 @@ async fn create_wa_account(
     headers: HeaderMap,
     Json(payload): Json<WaAccountCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
 
     let name = payload.name.trim();
     if name.is_empty() {
@@ -2660,7 +2670,12 @@ async fn update_wa_account(
     Path(id): Path<String>,
     Json(payload): Json<WaAccountUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_account_access(&state, &user, &id).await?;
 
     if let Some(name) = &payload.name {
@@ -2698,7 +2713,12 @@ async fn delete_wa_account(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_account_access(&state, &user, &id).await?;
 
     sqlx::query("DELETE FROM wa_accounts WHERE id = ?")
@@ -2714,7 +2734,12 @@ async fn list_wa_campaigns(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
         sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
@@ -2862,7 +2887,12 @@ async fn create_wa_campaign(
     headers: HeaderMap,
     Json(payload): Json<WaCampaignCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
 
     let name = payload.name.trim();
     if name.is_empty() {
@@ -2902,7 +2932,12 @@ async fn get_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
     let item = fetch_wa_campaign_summary(&state, &id).await?;
     Ok(json_ok("WA campaign fetched", json!({ "item": item })))
@@ -2914,7 +2949,12 @@ async fn update_wa_campaign(
     Path(id): Path<String>,
     Json(payload): Json<WaCampaignUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     if let Some(name) = &payload.name {
@@ -2952,7 +2992,12 @@ async fn delete_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     sqlx::query("DELETE FROM wa_recipients WHERE campaign_id = ?")
@@ -2976,7 +3021,12 @@ async fn add_wa_recipients(
     Path(id): Path<String>,
     Json(payload): Json<WaRecipientsPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     let campaign_config: Option<String> =
@@ -3074,7 +3124,12 @@ async fn download_recipients_template(
     State(state): State<AppState>,
 ) -> Result<axum::response::Response, AppError> {
     use axum::response::IntoResponse;
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
 
     // Generate CSV template with BOM for Excel compatibility
     let bom = "\u{FEFF}";
@@ -3104,7 +3159,12 @@ async fn upload_wa_recipients_excel(
     Path(id): Path<String>,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // Verify campaign exists
@@ -3550,7 +3610,12 @@ async fn start_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // 1. Validate campaign exists and is not already running
@@ -3745,7 +3810,12 @@ async fn pause_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     let current_status: Option<String> =
@@ -3927,7 +3997,12 @@ async fn reset_wa_campaign(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // Verify campaign exists and do not reset an active blast in-place.
@@ -3996,7 +4071,12 @@ async fn get_wa_campaign_status(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
     let campaign = fetch_wa_campaign_summary(&state, &id).await?;
 
@@ -4062,7 +4142,12 @@ async fn get_wa_campaign_metrics(
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
     // Authorize user with appropriate roles
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     // Get complete campaign metrics response
@@ -4114,7 +4199,12 @@ async fn upload_campaign_image(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
 
     let mut uploaded_url: Option<String> = None;
 
@@ -4237,7 +4327,12 @@ async fn add_wa_recipients_from_leads(
     Path(id): Path<String>,
     Json(payload): Json<AddRecipientsFromLeadsRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
 
     let mut inserted = 0;
@@ -4290,7 +4385,12 @@ async fn delete_wa_recipient(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_recipient_access(&state, &user, &id).await?;
 
     sqlx::query("DELETE FROM wa_recipients WHERE id = ?")
@@ -5508,10 +5608,35 @@ async fn delete_product_category(
     Ok(json_ok("Category deleted", json!({ "deleted": true })))
 }
 
-async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+#[derive(Deserialize)]
+struct CatalogListQuery {
+    page: Option<u32>,
+    limit: Option<u32>,
+}
+
+async fn list_catalogs(
+    State(state): State<AppState>,
+    Query(params): Query<CatalogListQuery>,
+) -> Result<ResponseBody, AppError> {
+    let default_limit = std::env::var("PUBLIC_CATALOG_LIMIT")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(500);
+    let max_limit = std::env::var("PUBLIC_CATALOG_MAX_LIMIT")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(500);
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(default_limit).clamp(1, max_limit);
+    let offset = (page - 1) * limit;
+
     let products = sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products"
+        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products LIMIT ? OFFSET ?"
     )
+        .bind(limit as i64)
+        .bind(offset as i64)
         .fetch_all(&state.pool)
         .await
         .map_err(|e| {
@@ -5519,23 +5644,46 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
             AppError::Internal
         })?;
 
-    let analytics_rows = sqlx::query(
-        "SELECT
-            COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
-            COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views,
-            COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
-            COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
-         FROM telemetry_events
-         WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
-           AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''
-         GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))"
-    )
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error: {}", e);
-        AppError::Internal
-    })?;
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM products")
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error counting catalogs: {}", e);
+            AppError::Internal
+        })?;
+
+    let product_slugs = products
+        .iter()
+        .map(|product| product.slug.clone())
+        .collect::<Vec<_>>();
+    let analytics_rows = if product_slugs.is_empty() {
+        Vec::new()
+    } else {
+        let placeholders = product_slugs
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
+        let query = format!(
+            "SELECT
+                COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
+                COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views,
+                COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
+                COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
+             FROM telemetry_events
+             WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IN ({})
+             GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))",
+            placeholders
+        );
+        let mut query = sqlx::query(&query);
+        for slug in &product_slugs {
+            query = query.bind(slug);
+        }
+        query.fetch_all(&state.pool).await.map_err(|e| {
+            tracing::error!("DB error fetching catalog analytics: {}", e);
+            AppError::Internal
+        })?
+    };
 
     let analytics_map: HashMap<String, ProductAnalyticsSummary> = analytics_rows
         .into_iter()
@@ -5566,7 +5714,16 @@ async fn list_catalogs(State(state): State<AppState>) -> Result<ResponseBody, Ap
         })
         .collect();
 
-    Ok(json_ok("Catalogs fetched", json!({ "items": items })))
+    Ok(json_ok(
+        "Catalogs fetched",
+        json!({
+            "items": items,
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "hasMore": (offset as i64 + items.len() as i64) < total,
+        }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -8389,7 +8546,12 @@ async fn list_notifications(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+    )
+    .await?;
 
     let rows = sqlx::query_as::<_, NotificationRecord>(
         "SELECT id, recipient_user_id, type, title, message, action_path, entity_id, is_read, created_at, read_at
@@ -8421,7 +8583,12 @@ async fn get_notifications_unread_count(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+    )
+    .await?;
 
     let unread_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM notifications WHERE recipient_user_id = ? AND is_read = 0",
@@ -8445,7 +8612,12 @@ async fn mark_notification_as_read(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+    )
+    .await?;
 
     let result = sqlx::query(
         "UPDATE notifications
@@ -8475,7 +8647,12 @@ async fn mark_all_notifications_as_read(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+    )
+    .await?;
 
     let result = sqlx::query(
         "UPDATE notifications
@@ -8500,10 +8677,16 @@ async fn list_leads(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
-    let is_admin = user.role.eq_ignore_ascii_case("admin");
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+    )
+    .await?;
+    let can_view_all =
+        user.role.eq_ignore_ascii_case("admin") || user.role.eq_ignore_ascii_case("operator");
 
-    let leads = if is_admin {
+    let leads = if can_view_all {
         sqlx::query_as::<_, LeadRecord>(
             "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at FROM leads ORDER BY created_at DESC",
         )
@@ -8531,7 +8714,7 @@ async fn create_lead(
     headers: HeaderMap,
     Json(payload): Json<LeadCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Sales]).await?;
     validate_lead_create(&payload)?;
 
     let is_admin = user.role.eq_ignore_ascii_case("admin");
@@ -8596,7 +8779,7 @@ async fn update_lead_status(
     Path(id): Path<String>,
     Json(payload): Json<LeadStatusUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Sales]).await?;
     validate_lead_status_update(&payload)?;
 
     let lead = find_lead_by_id(&state, &id).await?;
@@ -9218,7 +9401,7 @@ async fn get_agent_stats(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Agent]).await?;
+    let user = authorize(&state, &headers, &[Role::Agent, Role::Sales]).await?;
 
     let row = sqlx::query_as::<_, AgentStatsRow>(
         "SELECT s.points, s.sales_count, t.name AS current_tier FROM agent_stats s LEFT JOIN reward_tiers t ON t.id = s.current_tier_id WHERE s.user_id = ? LIMIT 1"
@@ -10733,7 +10916,12 @@ async fn import_blast_contacts_to_campaign(
     Path(campaign_id): Path<String>,
     Json(payload): Json<ImportBlastContactsPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Operator, Role::Sales],
+    )
+    .await?;
     ensure_wa_campaign_access(&state, &user, &campaign_id).await?;
 
     // Verify campaign exists
