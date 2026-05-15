@@ -67,6 +67,49 @@ const getCategoryIcon = (cat: string) => {
   return <Package className="w-4 h-4" />;
 };
 
+const formatStockQuantity = (product: Product) => {
+  if (typeof product.stockQuantity === 'number' && Number.isFinite(product.stockQuantity)) {
+    return `${Math.max(product.stockQuantity, 0).toLocaleString('id-ID')} unit`;
+  }
+
+  if (product.stock === 'indent') return 'Indent';
+  if (product.stock === 'limited') return 'Terbatas';
+  if (product.stock === 'out_of_stock' || product.stock === 'hidden' || product.stock === 'discontinued') return '0 unit';
+
+  return 'Belum dicatat';
+};
+
+const getStockStatusText = (product: Product) => {
+  if (product.stock === 'indent') return 'Pre-order';
+  if (product.stock === 'limited') return 'Stok tipis';
+  if (product.stock === 'out_of_stock') return 'Kosong';
+  if (product.stock === 'hidden') return 'Disembunyikan';
+  if (product.stock === 'discontinued') return 'Stop jual';
+  if (typeof product.stockQuantity === 'number' && product.stockQuantity <= 5) return 'Perlu cek';
+  return 'Tersedia';
+};
+
+const getStockToneClass = (product: Product) => {
+  if (
+    product.stock === 'out_of_stock' ||
+    product.stock === 'hidden' ||
+    product.stock === 'discontinued' ||
+    (typeof product.stockQuantity === 'number' && product.stockQuantity <= 0)
+  ) {
+    return 'border-error/20 bg-error/10 text-error';
+  }
+
+  if (
+    product.stock === 'indent' ||
+    product.stock === 'limited' ||
+    (typeof product.stockQuantity === 'number' && product.stockQuantity <= 5)
+  ) {
+    return 'border-warning/20 bg-warning/10 text-warning';
+  }
+
+  return 'border-success/20 bg-success/10 text-success';
+};
+
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
@@ -163,9 +206,14 @@ const AgentKnowledgePage: React.FC = () => {
 
   // Stats calculation
   const totalProducts = products.length;
-  const totalViews = products.reduce((acc, p) => acc + (p.views || 0), 0).toLocaleString('id-ID');
+  const totalStockUnits = products
+    .reduce((acc, p) => acc + (typeof p.stockQuantity === 'number' ? Math.max(p.stockQuantity, 0) : 0), 0)
+    .toLocaleString('id-ID');
   const totalLeads = products.reduce((acc, p) => acc + (p.leads || 0), 0).toLocaleString('id-ID');
-  const criticalStock = products.filter((product) => product.stock !== 'available').length;
+  const criticalStock = products.filter((product) => (
+    product.stock !== 'available' ||
+    (typeof product.stockQuantity === 'number' && product.stockQuantity <= 5)
+  )).length;
 
   return (
     <motion.div variants={cv} initial="hidden" animate="visible" className="space-y-6">
@@ -195,7 +243,7 @@ const AgentKnowledgePage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Produk', value: totalProducts, color: 'text-primary', bg: 'bg-primary/10', icon: Package },
-          { label: 'Total Views', value: totalViews, color: 'text-secondary', bg: 'bg-secondary/10', icon: Eye },
+          { label: 'Unit Stok', value: totalStockUnits, color: 'text-secondary', bg: 'bg-secondary/10', icon: Archive },
           { label: 'Total Leads', value: totalLeads, color: 'text-tertiary', bg: 'bg-tertiary/10', icon: Share2 },
           { label: 'Warning Stok', value: criticalStock, color: 'text-error', bg: 'bg-error/10', icon: ShoppingCart },
         ].map((k) => (
@@ -298,11 +346,24 @@ const AgentKnowledgePage: React.FC = () => {
                     {item.badge && <span className="px-2 py-0.5 rounded-md bg-secondary/10 text-secondary text-[10px] font-bold uppercase">{item.badgeText || item.badge}</span>}
                   </div>
                   <div className="font-display text-title-sm font-bold text-on-surface truncate">{item.name}</div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 lg:hidden">
+                    <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-label-xs font-bold ${getStockToneClass(item)}`}>
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      Stok {formatStockQuantity(item)}
+                    </span>
+                    <span className="inline-flex items-center rounded-lg border border-outline-variant/15 bg-surface-high px-2.5 py-1 text-label-xs font-bold text-primary">
+                      {formatPrice(getPublicPrice(item))}
+                    </span>
+                  </div>
                 </div>
                 
-                <div className="hidden lg:flex items-center gap-8 flex-shrink-0 mr-4">
+                <div className="hidden lg:flex items-center gap-4 flex-shrink-0 mr-4">
+                  <div className={`min-w-[128px] rounded-lg border px-3 py-2 text-right ${getStockToneClass(item)}`}>
+                    <div className="font-bold text-body-sm">{formatStockQuantity(item)}</div>
+                    <div className="text-[10px] uppercase font-bold tracking-wider opacity-80">{getStockStatusText(item)}</div>
+                  </div>
                   <div className="text-right w-32">
-                    <div className="font-bold text-on-surface text-body-sm gradient-text-primary">{formatPrice(getPublicPrice(item))}</div>
+                    <div className="font-bold text-primary text-body-sm">{formatPrice(getPublicPrice(item))}</div>
                     <div className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Harga Cash</div>
                   </div>
                 </div>

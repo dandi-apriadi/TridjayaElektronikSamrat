@@ -1538,9 +1538,12 @@ fn parse_json_value_or_default(text: Option<String>, default: Value) -> Value {
 }
 
 fn normalize_role(value: &str) -> Option<String> {
-    let role = value.trim().to_lowercase();
-    if matches!(role.as_str(), "admin" | "agent" | "sales" | "operator") {
-        Some(role.replace(" ", "_"))
+    let role = value.trim().to_lowercase().replace(" ", "_").replace("-", "_");
+    if matches!(
+        role.as_str(),
+        "admin" | "agent" | "sales" | "operator" | "editor" | "wa_admin" | "wa_operator" | "super_admin"
+    ) {
+        Some(role)
     } else {
         None
     }
@@ -1660,7 +1663,7 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("name wajib diisi".to_string());
     }
     if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin, operator, sales, agent".to_string());
+        errors.push("role harus salah satu dari: admin, agent, sales, operator, editor, wa_admin, wa_operator, super_admin".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
@@ -1709,7 +1712,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         .as_ref()
         .is_some_and(|value| normalize_role(value).is_none())
     {
-        errors.push("role harus salah satu dari: admin, operator, sales, agent".to_string());
+        errors.push("role harus salah satu dari: admin, agent, sales, operator, editor, wa_admin, wa_operator, super_admin".to_string());
     }
     if payload
         .password
