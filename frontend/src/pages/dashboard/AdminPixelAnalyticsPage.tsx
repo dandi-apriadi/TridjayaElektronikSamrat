@@ -4,6 +4,8 @@ import { Activity, Users, ShoppingCart, DollarSign, TrendingUp, BarChart3 } from
 import { format, subDays } from 'date-fns';
 import ConversionFunnel from '../../components/pixel/ConversionFunnel';
 import CampaignTable from '../../components/pixel/CampaignTable';
+import { apiFetch } from '../../utils/apiClient';
+import { readApiError } from '../../utils/apiError';
 
 /* ─── Variants ─────────────────────────────────────── */
 const containerVariants = {
@@ -71,20 +73,17 @@ const AdminPixelAnalyticsPage: React.FC = () => {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/pixel-analytics/admin?period_type=${periodType}&start_date=${startDate}&end_date=${endDate}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
+      const response = await apiFetch(
+        `/api/pixel-analytics/admin?period_type=${periodType}&start_date=${startDate}&end_date=${endDate}`
       );
-      if (response.ok) {
-        const result = await response.json();
-        setData(result.data);
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal memuat analytics admin'));
       }
+      const result = await response.json();
+      setData(result.data);
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
+      setData(null);
     } finally {
       setLoading(false);
     }

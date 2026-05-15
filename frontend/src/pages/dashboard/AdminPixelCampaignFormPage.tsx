@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { toast } from '../../store/useNotificationStore';
 import TrackingUrlGenerator from '../../components/pixel/TrackingUrlGenerator';
+import { apiFetch } from '../../utils/apiClient';
+import { readApiError } from '../../utils/apiError';
 
 interface Pixel {
   id: string;
@@ -68,15 +70,12 @@ const AdminPixelCampaignFormPage: React.FC = () => {
 
   const fetchPixels = async () => {
     try {
-      const response = await fetch('/api/pixels', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setPixels(result.data.pixels || []);
+      const response = await apiFetch('/api/pixels');
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal memuat pixel'));
       }
+      const result = await response.json();
+      setPixels(result.data.pixels || []);
     } catch (error) {
       console.error('Failed to fetch pixels:', error);
     }
@@ -84,15 +83,12 @@ const AdminPixelCampaignFormPage: React.FC = () => {
 
   const fetchCampaign = async (campaignId: string) => {
     try {
-      const response = await fetch(`/api/campaigns/${campaignId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setFormData(result.data.campaign);
+      const response = await apiFetch(`/api/campaigns/${campaignId}`);
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal memuat campaign'));
       }
+      const result = await response.json();
+      setFormData(result.data.campaign);
     } catch (error) {
       console.error('Failed to fetch campaign:', error);
     }
@@ -100,15 +96,12 @@ const AdminPixelCampaignFormPage: React.FC = () => {
 
   const fetchCustomConversions = async (campaignId: string) => {
     try {
-      const response = await fetch(`/api/campaigns/${campaignId}/conversions`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setCustomConversions(result.data.conversions || []);
+      const response = await apiFetch(`/api/campaigns/${campaignId}/conversions`);
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal memuat custom conversion'));
       }
+      const result = await response.json();
+      setCustomConversions(result.data.conversions || []);
     } catch (error) {
       console.error('Failed to fetch custom conversions:', error);
     }
@@ -122,22 +115,18 @@ const AdminPixelCampaignFormPage: React.FC = () => {
       const url = isEdit ? `/api/campaigns/${id}` : '/api/campaigns';
       const method = isEdit ? 'PATCH' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(formData),
       });
 
-      if (response.ok) {
-        toast.success('Campaign tersimpan');
-        navigate('/dashboard/admin/pixel-campaigns');
-      } else {
-        const error = await response.json();
-        toast.error('Gagal menyimpan campaign', error.message || 'Terjadi kesalahan');
+      if (!response.ok) {
+        const errorMessage = await readApiError(response, 'Terjadi kesalahan');
+        toast.error('Gagal menyimpan campaign', errorMessage);
+        return;
       }
+      toast.success('Campaign tersimpan');
+      navigate('/dashboard/admin/pixel-campaigns');
     } catch (error) {
       console.error('Failed to save campaign:', error);
       toast.error('Gagal menyimpan campaign', 'Terjadi kesalahan jaringan atau server');
@@ -150,26 +139,23 @@ const AdminPixelCampaignFormPage: React.FC = () => {
     if (!id) return;
 
     try {
-      const response = await fetch(`/api/campaigns/${id}/conversions`, {
+      const response = await apiFetch(`/api/campaigns/${id}/conversions`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(newConversion),
       });
 
-      if (response.ok) {
-        fetchCustomConversions(id);
-        setNewConversion({
-          name: '',
-          event_type: 'Purchase',
-          rules: '{}',
-          conversion_value: 0,
-          currency: 'USD',
-        });
-        setShowConversionForm(false);
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal menambah conversion'));
       }
+      fetchCustomConversions(id);
+      setNewConversion({
+        name: '',
+        event_type: 'Purchase',
+        rules: '{}',
+        conversion_value: 0,
+        currency: 'USD',
+      });
+      setShowConversionForm(false);
     } catch (error) {
       console.error('Failed to add conversion:', error);
     }
@@ -179,16 +165,14 @@ const AdminPixelCampaignFormPage: React.FC = () => {
     if (!id) return;
 
     try {
-      const response = await fetch(`/api/campaigns/${id}/conversions/${conversionId}`, {
+      const response = await apiFetch(`/api/campaigns/${id}/conversions/${conversionId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
       });
 
-      if (response.ok) {
-        fetchCustomConversions(id);
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal menghapus conversion'));
       }
+      fetchCustomConversions(id);
     } catch (error) {
       console.error('Failed to delete conversion:', error);
     }

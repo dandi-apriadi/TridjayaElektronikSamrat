@@ -23,6 +23,8 @@ const TELEMETRY_ENDPOINTS: Record<TelemetryEventType, string> = {
   pixel_event: '/api/telemetry/pixel-event',
 };
 
+const TELEMETRY_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+
 export function getTelemetrySessionId(): string {
   if (typeof window === 'undefined') {
     return 'anonymous';
@@ -107,7 +109,7 @@ export function buildTelemetryPagePayload(pathname: string): TelemetryPayload {
 }
 
 export function recordTelemetry(eventType: TelemetryEventType, payload: TelemetryPayload): void {
-  const url = `${API_BASE_URL}${TELEMETRY_ENDPOINTS[eventType]}`;
+  const url = `${TELEMETRY_BASE_URL}${TELEMETRY_ENDPOINTS[eventType]}`;
   const body = JSON.stringify(payload);
 
   if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {

@@ -5,9 +5,10 @@ import {
   Settings, Smartphone, AlertTriangle, Wifi, WifiOff,
   QrCode, Loader2, Phone, MessageCircle, RefreshCw
 } from 'lucide-react';
-import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import type { WaAccount } from '../../types';
+import { apiFetch } from '../../utils/apiClient';
+import { readApiError } from '../../utils/apiError';
 
 const statusConfig: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   connected:    { label: 'Connected',    cls: 'bg-green-500/20 text-green-400 border border-green-500/30',  icon: <Wifi className="w-3.5 h-3.5" /> },
@@ -19,7 +20,6 @@ const statusConfig: Record<string, { label: string; cls: string; icon: React.Rea
 };
 
 const AdminWaAccountsPage: React.FC = () => {
-  const { accessToken } = useAuthStore();
   const [accounts, setAccounts] = useState<WaAccount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,10 +39,8 @@ const AdminWaAccountsPage: React.FC = () => {
   const fetchAccounts = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/wa/accounts', {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to fetch accounts');
+      const res = await apiFetch('/api/wa/accounts');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memuat akun WA'));
       const data = await res.json();
       setAccounts(data.data?.items || []);
     } catch (error) {
@@ -50,7 +48,7 @@ const AdminWaAccountsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken]);
+  }, []);
 
   useEffect(() => {
     fetchAccounts();
@@ -66,9 +64,7 @@ const AdminWaAccountsPage: React.FC = () => {
     if (qrAccountId) {
       const pollQR = async () => {
         try {
-          const res = await fetch(`/api/v1/wa/sessions/${qrAccountId}/qr`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` },
-          });
+          const res = await apiFetch(`/api/v1/wa/sessions/${qrAccountId}/qr`);
           if (res.ok) {
             const data = await res.json();
             setQrCode(data.data?.qr || null);
@@ -83,7 +79,7 @@ const AdminWaAccountsPage: React.FC = () => {
       setQrCode(null);
     }
     return () => { if (qrPollRef.current) clearInterval(qrPollRef.current); };
-  }, [qrAccountId, accessToken]);
+  }, [qrAccountId]);
 
   // Stop QR polling when account becomes connected
   useEffect(() => {
@@ -99,13 +95,11 @@ const AdminWaAccountsPage: React.FC = () => {
   const handleConnect = async (id: string) => {
     setActionLoading(prev => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(`/api/v1/wa/sessions/${id}/connect`, {
+      const res = await apiFetch(`/api/v1/wa/sessions/${id}/connect`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message || 'Failed to connect');
+        throw new Error(await readApiError(res, 'Gagal menghubungkan WhatsApp'));
       }
       toast.success('Menghubungkan...', 'Scan QR code untuk menghubungkan WhatsApp');
       setQrAccountId(id);
@@ -121,11 +115,10 @@ const AdminWaAccountsPage: React.FC = () => {
     if (!window.confirm('Disconnect WhatsApp session ini?')) return;
     setActionLoading(prev => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(`/api/v1/wa/sessions/${id}/disconnect`, {
+      const res = await apiFetch(`/api/v1/wa/sessions/${id}/disconnect`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Failed to disconnect');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memutuskan sesi WhatsApp'));
       toast.success('Berhasil', 'Session disconnected');
       if (qrAccountId === id) setQrAccountId(null);
       fetchAccounts();
@@ -159,12 +152,11 @@ const AdminWaAccountsPage: React.FC = () => {
     try {
       const url = editingAccount ? `/api/wa/accounts/${editingAccount.id}` : '/api/wa/accounts';
       const method = editingAccount ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, enabled })
       });
-      if (!res.ok) throw new Error('Failed to save account');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menyimpan akun WA'));
       toast.success('Berhasil', editingAccount ? 'Akun diperbarui' : 'Akun ditambahkan');
       setIsModalOpen(false);
       fetchAccounts();
@@ -178,11 +170,10 @@ const AdminWaAccountsPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Hapus akun ini? Session akan diputus.')) return;
     try {
-      const res = await fetch(`/api/wa/accounts/${id}`, {
+      const res = await apiFetch(`/api/wa/accounts/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` }
       });
-      if (!res.ok) throw new Error('Failed to delete account');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal menghapus akun WA'));
       toast.success('Berhasil', 'Akun dihapus');
       if (qrAccountId === id) setQrAccountId(null);
       fetchAccounts();
@@ -193,12 +184,11 @@ const AdminWaAccountsPage: React.FC = () => {
 
   const toggleEnabled = async (account: WaAccount) => {
     try {
-      const res = await fetch(`/api/wa/accounts/${account.id}`, {
+      const res = await apiFetch(`/api/wa/accounts/${account.id}`, {
         method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !account.enabled })
       });
-      if (!res.ok) throw new Error('Failed to update');
+      if (!res.ok) throw new Error(await readApiError(res, 'Gagal memperbarui status akun WA'));
       fetchAccounts();
     } catch (error) {
       toast.error('Gagal update', error instanceof Error ? error.message : 'Unknown error');

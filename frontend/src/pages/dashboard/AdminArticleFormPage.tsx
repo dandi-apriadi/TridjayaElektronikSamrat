@@ -70,7 +70,7 @@ const AdminArticleFormPage: React.FC = () => {
 
     setIsUploadingImage(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/uploads/image`, {
+      const response = await fetch(`${API_BASE_URL}/admin/uploads/image`, {
         method: 'POST',
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: formDataPayload,

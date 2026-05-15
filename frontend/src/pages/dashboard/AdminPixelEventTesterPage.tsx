@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FlaskConical, AlertCircle, CheckCircle } from 'lucide-react';
+import { apiFetch } from '../../utils/apiClient';
 
 interface Campaign {
   id: string;
@@ -38,11 +39,7 @@ const AdminPixelEventTesterPage: React.FC = () => {
 
   const fetchCampaigns = async () => {
     try {
-      const response = await fetch('/api/campaigns', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      const response = await apiFetch('/api/campaigns');
       if (response.ok) {
         const result = await response.json();
         setCampaigns(result.data.campaigns || []);
@@ -90,12 +87,8 @@ const AdminPixelEventTesterPage: React.FC = () => {
         test_event_code: testEventCode,
       };
 
-      const res = await fetch('/api/pixel-events/test', {
+      const res = await apiFetch('/api/pixel-events/test', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(payload),
       });
 

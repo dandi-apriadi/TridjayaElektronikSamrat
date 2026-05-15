@@ -7,6 +7,10 @@ import { useAuthStore } from '../store/authStore';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
 
+function getBackendAssetBaseUrl(): string {
+  return API_BASE_URL.replace(/\/api$/, '');
+}
+
 export interface FetchOptions extends RequestInit {
   skipAuth?: boolean;
 }
@@ -201,6 +205,12 @@ export function getImageUrl(path: string | undefined | null): string {
   
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+  // Uploaded files are served from the backend root (/uploads/*), not /api/uploads/*.
+  if (normalizedPath.startsWith('/uploads/')) {
+    return `${getBackendAssetBaseUrl()}${normalizedPath}`;
+  }
+
   return `${API_BASE_URL}${normalizedPath}`;
 }
 

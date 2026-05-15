@@ -3,7 +3,7 @@ import type { PromoItem } from '../types';
 import { useAuthStore } from './authStore';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
-const API_URL = `${API_BASE_URL}/api`;
+const API_URL = API_BASE_URL;
 
 interface PromoState {
   promos: PromoItem[];

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import { API_BASE_URL, apiFetch } from '../utils/apiClient';
 
-const API_ENDPOINT = `${API_BASE_URL}/api`;
+const API_ENDPOINT = API_BASE_URL;
 
 export interface AdminUser {
   id: string;

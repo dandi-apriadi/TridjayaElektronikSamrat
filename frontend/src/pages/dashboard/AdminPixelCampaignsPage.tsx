@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, BarChart3, Edit, Pause, Play, TrendingUp } from 'lucide-react';
+import { apiFetch } from '../../utils/apiClient';
+import { readApiError } from '../../utils/apiError';
 
 interface Campaign {
   id: string;
@@ -32,18 +34,12 @@ const AdminPixelCampaignsPage: React.FC = () => {
         params.append('status', statusFilter);
       }
 
-      const response = await fetch(
-        `/api/campaigns?${params.toString()}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
-      if (response.ok) {
-        const result = await response.json();
-        setCampaigns(result.data.campaigns || []);
+      const response = await apiFetch(`/api/campaigns?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal memuat campaign'));
       }
+      const result = await response.json();
+      setCampaigns(result.data.campaigns || []);
     } catch (error) {
       console.error('Failed to fetch campaigns:', error);
     } finally {
@@ -54,18 +50,15 @@ const AdminPixelCampaignsPage: React.FC = () => {
   const handleToggleStatus = async (campaignId: string, currentStatus: string) => {
     try {
       const newStatus = currentStatus === 'active' ? 'paused' : 'active';
-      const response = await fetch(`/api/campaigns/${campaignId}`, {
+      const response = await apiFetch(`/api/campaigns/${campaignId}`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ status: newStatus }),
       });
 
-      if (response.ok) {
-        fetchCampaigns();
+      if (!response.ok) {
+        throw new Error(await readApiError(response, 'Gagal mengubah status campaign'));
       }
+      fetchCampaigns();
     } catch (error) {
       console.error('Failed to update campaign status:', error);
     }

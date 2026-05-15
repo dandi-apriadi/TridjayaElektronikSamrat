@@ -85,7 +85,7 @@ interface AgentState {
   createClaim: (tierId: string, rewardName: string) => Promise<boolean>;
 }
 
-const API_ENDPOINT = `${API_BASE_URL}/api`;
+const API_ENDPOINT = API_BASE_URL;
 
 export const useAgentStore = create<AgentState>((set) => ({
   leads: [],

@@ -34,7 +34,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_CONCURRENT_PROCESSES: usize = 50;
 
 /// Path to the Baileys bridge Node.js script
-const BAILEYS_BRIDGE_PATH: &str = "baileys-bridge/src/index.js";
+const BAILEYS_BRIDGE_PATH: &str = "backend/baileys-bridge/src/index.js";
 
 /// JSON-RPC error codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

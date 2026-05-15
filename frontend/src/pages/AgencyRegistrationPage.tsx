@@ -129,7 +129,7 @@ const AgencyRegistrationPage: React.FC = () => {
       if (files.profilePhoto) data.append('profilePhoto', files.profilePhoto);
       if (files.ktpPhoto) data.append('ktpPhoto', files.ktpPhoto);
 
-      const response = await fetch(`${API_BASE_URL}/api/agent-registrations`, {
+      const response = await fetch(`${API_BASE_URL}/agent-registrations`, {
         method: 'POST',
         body: data,
       });
