@@ -1,30 +1,29 @@
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::mysql::MySqlPoolOptions;
 use std::env;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
-    let database_url =
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
-    let pool = SqlitePoolOptions::new()
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "mysql://tridjaya:password@localhost:3306/tridjaya".to_string());
+    let pool = MySqlPoolOptions::new()
         .max_connections(1)
         .connect(&database_url)
         .await?;
 
-    let tables: Vec<(String,)> = sqlx::query_as(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-    )
-    .fetch_all(&pool)
-    .await?;
+    let tables: Vec<(String,)> = sqlx::query_as("SHOW TABLES").fetch_all(&pool).await?;
 
     for (table,) in tables {
         println!("Table: {}", table);
-        let columns: Vec<(i64, String, String, i64, Option<String>, i64)> =
-            sqlx::query_as(&format!("PRAGMA table_info({})", table))
+        let columns: Vec<(String, String, String, String, Option<String>, String)> =
+            sqlx::query_as(&format!("SHOW COLUMNS FROM `{}`", table.replace('`', "``")))
                 .fetch_all(&pool)
                 .await?;
-        for col in columns {
-            println!("  - {} ({})", col.1, col.2);
+        for (field, col_type, nullable, key, default_value, extra) in columns {
+            println!(
+                "  - {} ({}, null={}, key={}, default={:?}, extra={})",
+                field, col_type, nullable, key, default_value, extra
+            );
         }
     }
 

@@ -15,7 +15,7 @@ use redis::AsyncCommands;
  */
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -109,7 +109,7 @@ impl Default for ChatbotEngineConfig {
 /// Chatbot engine for auto-reply functionality
 pub struct ChatbotEngine {
     config: ChatbotEngineConfig,
-    pool: SqlitePool,
+    pool: MySqlPool,
     bridge: Arc<BridgeClient>,
     redis_client: redis::Client,
 }
@@ -118,7 +118,7 @@ impl ChatbotEngine {
     /// Create a new chatbot engine
     pub fn new(
         config: ChatbotEngineConfig,
-        pool: SqlitePool,
+        pool: MySqlPool,
         bridge: Arc<BridgeClient>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let redis_client = redis::Client::open(config.redis_url.as_str())?;
@@ -751,17 +751,15 @@ mod tests {
         }
     }
 
-    fn create_test_pool() -> SqlitePool {
-        use sqlx::sqlite::SqlitePoolOptions;
+    fn create_test_pool() -> MySqlPool {
+        use sqlx::mysql::MySqlPoolOptions;
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            SqlitePoolOptions::new()
-                .max_connections(1)
-                .connect("sqlite::memory:")
-                .await
-                .unwrap()
-        })
+        let _guard = rt.enter();
+        MySqlPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("mysql://root@localhost:3306/tridjaya_test")
+            .unwrap()
     }
 
     fn create_test_rule(

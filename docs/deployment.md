@@ -1,136 +1,120 @@
 # Deployment and Operations
 
-## 1. Tujuan
+Deployment project ini memakai runtime native: backend Rust sebagai service systemd, frontend Vite preview/static server sebagai service systemd, MySQL sebagai database, Redis sebagai queue/cache, dan Nginx sebagai reverse proxy.
 
-Deployment harus menghasilkan sistem yang cepat, stabil, dan mudah dipelihara tanpa membuka risiko keamanan tambahan.
+## Layout Produksi
 
-## 2. Layout Produksi
+- Backend Rust berjalan di `127.0.0.1:8081`.
+- Frontend berjalan di `127.0.0.1:5173`.
+- MySQL berjalan lokal atau di managed database.
+- Redis berjalan lokal atau di managed Redis.
+- Nginx menerima traffic publik dan meneruskan `/api/` serta `/uploads/` ke backend.
 
-Rekomendasi layout:
+## Environment
 
-- Frontend publik ditempatkan di CDN atau platform static hosting.
-- Backend Rust berjalan di VPS Indonesia.
-- PostgreSQL berjalan di server yang sama atau server terpisah dengan akses terbatas.
-- Nginx menjadi reverse proxy di depan backend.
+Backend membaca konfigurasi dari `backend/.env`.
 
-## 3. Environment Variables
+Minimal production:
 
-- Semua secret disimpan sebagai environment variable atau secret manager.
-- Tidak ada secret yang ditulis langsung ke source code.
-- File `.env` tidak boleh masuk repository.
-- Nilai konfigurasi sensitif harus dipisah antara staging dan production.
+```bash
+DATABASE_URL=mysql://tridjaya:password@127.0.0.1:3306/tridjaya
+ALLOWED_ORIGINS=https://tridjaya.com,https://www.tridjaya.com
+FRONTEND_URL=https://tridjaya.com
+COOKIE_SECURE=true
+TRUST_PROXY_HEADERS=true
+PIXEL_ENCRYPTION_KEY=replace_with_64_hex_chars
+REDIS_URL=redis://127.0.0.1:6379
+```
 
-## 4. Build Strategy
+Frontend membaca konfigurasi dari `frontend/.env`.
 
-- Gunakan release build untuk backend Rust.
-- Gunakan static binary bila memungkinkan.
-- Aktifkan optimisasi yang sesuai untuk production.
-- Cache asset frontend secara efisien.
-- Minify dan compress file statis.
+```bash
+VITE_API_BASE_URL=https://tridjaya.com
+VITE_FRONTEND_URL=https://tridjaya.com
+```
 
-## 5. Reverse Proxy
+## Build
 
-Nginx harus menangani:
+```bash
+cd backend
+cargo build --release --bin tridjaya-backend
 
-- TLS termination,
-- redirect HTTP ke HTTPS,
-- rate limiting dasar,
-- pengaturan header keamanan,
-- routing ke backend internal,
-- pemisahan asset statis dan API.
+cd ../frontend
+npm ci
+npm run build
+```
 
-Template konfigurasi Nginx tersedia di `deploy/nginx/tridjaya.conf`.
+## Native Services
 
-## 6. TLS dan Domain
+Gunakan `deploy.sh` untuk membuat service systemd:
 
-- Seluruh traffic wajib HTTPS.
-- Gunakan sertifikat yang diperbarui otomatis.
-- Nonaktifkan protokol lama yang lemah.
-- Redirect semua akses non-HTTPS ke HTTPS.
+```bash
+sudo APP_DIR=/var/www/tridjaya DOMAIN=tridjaya.com ./deploy.sh
+```
 
-## 7. Monitoring
+Service yang dibuat:
 
-Minimal monitor:
+- `tridjaya-backend`
+- `tridjaya-frontend`
 
-- uptime service,
-- latency API,
-- error rate,
-- CPU dan memory,
-- ukuran log,
-- disk usage,
-- jumlah login gagal,
-- anomali traffic.
+Perintah operasional:
 
-## 8. Backup dan Restore
+```bash
+systemctl status tridjaya-backend tridjaya-frontend
+journalctl -u tridjaya-backend -n 120 --no-pager
+journalctl -u tridjaya-frontend -n 120 --no-pager
+systemctl restart tridjaya-backend tridjaya-frontend
+```
 
-- Backup database harian.
-- Backup file media secara terpisah.
-- Enkripsi backup sebelum disimpan.
-- Uji restore secara berkala.
-- Simpan salinan backup di lokasi berbeda.
+## Nginx
 
-## 9. Release Process
+`deploy.sh` membuat reverse proxy ke:
 
-1. Build di environment terisolasi.
-2. Jalankan test dan validasi schema.
-	- Frontend build: `cd frontend && npm run build`
-	- Smoke API release gate: `cd frontend && npm run smoke:api`
-	- Baseline monitor (bundle + health latency): `cd frontend && npm run baseline:monitor`
-	- Full release gate: `cd frontend && npm run release:gate`
-3. Deploy ke staging.
-4. Verifikasi manual fitur kritis.
-5. Promote ke production bila lolos.
-6. Simpan rollback plan yang jelas.
+- `/api/` -> `http://127.0.0.1:8081`
+- `/uploads/` -> `http://127.0.0.1:8081`
+- `/` -> `http://127.0.0.1:5173`
 
-### 9.1 Baseline Gate dan Threshold
+Setelah DNS aktif, pasang TLS:
 
-- File report baseline tersimpan otomatis di `frontend/reports/baseline-latest.json`.
-- Default threshold:
-	- Largest JS chunk <= 900 KB
-	- Total JS bundle <= 2400 KB
-	- Health latency <= 300 ms
-- Untuk menjadikan baseline sebagai hard gate CI, jalankan dengan strict mode:
-	- `npm run baseline:monitor -- --strict`
+```bash
+apt-get install -y certbot python3-certbot-nginx
+certbot --nginx -d tridjaya.com -d www.tridjaya.com
+certbot renew --dry-run
+```
 
-### 9.2 Auth Cookie Hardening
+## Release Gate
 
-- Endpoint auth (`/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`) sekarang mengelola `refresh_token` via cookie `HttpOnly`.
-- Frontend auth request harus mengaktifkan `credentials: 'include'` agar cookie ikut terkirim.
-- Untuk environment HTTPS production, aktifkan `COOKIE_SECURE=true` supaya cookie dikirim dengan atribut `Secure` dan `SameSite=None`.
-- Set `APP_ENV=production`, `ALLOWED_ORIGINS`, `PIXEL_ENCRYPTION_KEY`, `REDIS_PASSWORD`, dan `TRUST_PROXY_HEADERS=true` di `.env` server sebelum menjalankan Docker Compose.
-- Database SQLite production disimpan di volume `backend_data` pada `/app/data/tridjaya.db`; uploads dan session WhatsApp memakai volume terpisah agar tidak hilang saat container restart.
-- Jadwalkan backup harian database dengan `scripts/backup_sqlite.sh`, contoh crontab: `0 3 * * * PROJECT_NAME=tridjaya-manado BACKUP_DIR=/backups/tridjaya /path/to/repo/scripts/backup_sqlite.sh`.
-- Arus lama berbasis bearer token tetap dipertahankan untuk kompatibilitas bertahap.
+```bash
+cd frontend
+npm run build
+npm run smoke:api
+npm run baseline:monitor -- --strict
+npm run test:api:backend
+```
 
-### 9.3 Operational QA Cadence
+## Backup
 
-- Jalankan validasi cepat operasional sebelum deploy minor:
-	- `cd frontend && npm run qa:ops`
-- Jalankan gate penuh sebelum release production:
-	- `cd frontend && npm run release:gate`
+Backup MySQL:
 
-## 10. Operasional Aman
+```bash
+BACKUP_DIR=/backups/tridjaya ENV_FILE=/var/www/tridjaya/backend/.env /var/www/tridjaya/scripts/backup_mysql.sh
+```
 
-- Akses server hanya untuk user yang berwenang.
-- Gunakan SSH key, bukan password.
-- Nonaktifkan login root langsung jika memungkinkan.
-- Audit perubahan konfigurasi.
-- Hentikan service yang tidak dipakai.
-- Review log akses secara rutin.
+Contoh crontab:
 
-## 11. Quick Start (Container)
+```cron
+0 3 * * * BACKUP_DIR=/backups/tridjaya ENV_FILE=/var/www/tridjaya/backend/.env /var/www/tridjaya/scripts/backup_mysql.sh
+```
 
-Untuk local/staging cepat, gunakan setup container yang sudah disiapkan:
+Backup folder runtime:
 
-1. Salin file env:
-	- `backend/.env.example` menjadi `backend/.env`
-	- `frontend/.env.example` menjadi `frontend/.env`
-2. Jalankan:
-	- `docker compose up --build`
-3. Endpoint default:
-	- Frontend: `http://localhost:5173`
-	- Backend API: `http://localhost:8081`
+- `backend/uploads`
+- `backend/sessions`
 
-Catatan:
-- Konfigurasi service ada di `docker-compose.yml`.
-- Pada mode container default, backend masih memakai SQLite volume (`backend_data`).
+## Operasional Aman
+
+- Gunakan SSH key dan user deploy non-root.
+- Jangan commit `.env`.
+- Batasi akses publik ke port internal `8081`, `5173`, `3306`, dan `6379`.
+- Review log backend dan Nginx secara berkala.
+- Uji restore backup secara rutin.

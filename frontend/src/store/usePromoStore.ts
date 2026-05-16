@@ -1,9 +1,6 @@
 import { create } from 'zustand';
 import type { PromoItem } from '../types';
-import { useAuthStore } from './authStore';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
-const API_URL = API_BASE_URL;
+import { apiFetch } from '../utils/apiClient';
 
 interface PromoState {
   promos: PromoItem[];
@@ -26,7 +23,7 @@ export const usePromoStore = create<PromoState>((set, get) => ({
  
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/promotions`);
+      const response = await apiFetch('/api/promotions', { skipAuth: true });
       
       if (!response.ok) {
         throw new Error('Gagal mengambil data promo');
@@ -50,17 +47,16 @@ export const usePromoStore = create<PromoState>((set, get) => ({
   createPromo: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/promotions`, {
+      const response = await apiFetch('/api/promotions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Failed to create promo');
-      await get().fetchPromos();
+      set({ isLoading: false });
+      await get().fetchPromos(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error', isLoading: false });
@@ -70,17 +66,16 @@ export const usePromoStore = create<PromoState>((set, get) => ({
   updatePromo: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/promotions/${id}`, {
+      const response = await apiFetch(`/api/promotions/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Failed to update promo');
-      await get().fetchPromos();
+      set({ isLoading: false });
+      await get().fetchPromos(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error', isLoading: false });
@@ -89,12 +84,8 @@ export const usePromoStore = create<PromoState>((set, get) => ({
   },
   deletePromo: async (id) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/promotions/${id}`, {
+      const response = await apiFetch(`/api/promotions/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (!response.ok) throw new Error('Failed to delete promo');
       set((state) => ({ promos: state.promos.filter(p => p.id !== id) }));

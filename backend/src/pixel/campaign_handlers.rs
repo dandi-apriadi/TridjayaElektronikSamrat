@@ -16,6 +16,10 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
+const CAMPAIGN_RECORD_SELECT: &str = "SELECT id, campaign_id, pixel_id, admin_id, name, status, utm_source, utm_medium, utm_campaign, utm_admin, utm_content, utm_term, config, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM campaigns";
+const CAMPAIGN_RECORD_SELECT_ALIASED: &str = "SELECT c.id, c.campaign_id, c.pixel_id, c.admin_id, c.name, c.status, c.utm_source, c.utm_medium, c.utm_campaign, c.utm_admin, c.utm_content, c.utm_term, c.config, DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM campaigns c";
+const CUSTOM_CONVERSION_SELECT: &str = "SELECT id, campaign_id, name, event_type, rules, conversion_value, currency, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM custom_conversions";
+
 // ─── Query params ─────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -26,7 +30,7 @@ pub struct CampaignListQuery {
 // ─── Audit log helper ─────────────────────────────────────────────────────────
 
 async fn write_audit_log(
-    pool: &sqlx::SqlitePool,
+    pool: &sqlx::MySqlPool,
     user_id: Option<&str>,
     action_type: &str,
     resource_type: &str,
@@ -38,8 +42,8 @@ async fn write_audit_log(
     sqlx::query(
         r#"INSERT INTO pixel_audit_logs
            (id, user_id, action_type, resource_type, resource_id,
-            old_value, new_value)
-           VALUES (?, ?, ?, ?, ?, ?, ?)"#,
+            old_value, new_value, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#,
     )
     .bind(&log_id)
     .bind(user_id)
@@ -48,6 +52,7 @@ async fn write_audit_log(
     .bind(resource_id)
     .bind(old_value)
     .bind(new_value)
+    .bind("{}")
     .execute(pool)
     .await
     .map_err(|e| {
@@ -138,7 +143,8 @@ pub async fn create_campaign(
     .await?;
 
     // Fetch and return the created record
-    let record: CampaignRecord = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let record: CampaignRecord = sqlx::query_as(&query)
         .bind(&id)
         .fetch_one(&state.pool)
         .await
@@ -159,12 +165,13 @@ pub async fn list_campaigns(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let campaigns: Vec<CampaignRecord> = if let Some(ref status) = params.status {
-        sqlx::query_as(
-            r#"SELECT c.* FROM campaigns c
+        let query = format!(
+            r#"{CAMPAIGN_RECORD_SELECT_ALIASED}
                JOIN pixel_admins pa ON pa.pixel_id = c.pixel_id
                WHERE pa.user_id = ? AND c.status = ?
-               ORDER BY c.created_at DESC"#,
-        )
+               ORDER BY c.created_at DESC"#
+        );
+        sqlx::query_as(&query)
         .bind(&user.id)
         .bind(status)
         .fetch_all(&state.pool)
@@ -174,12 +181,13 @@ pub async fn list_campaigns(
             AppError::Internal
         })?
     } else {
-        sqlx::query_as(
-            r#"SELECT c.* FROM campaigns c
+        let query = format!(
+            r#"{CAMPAIGN_RECORD_SELECT_ALIASED}
                JOIN pixel_admins pa ON pa.pixel_id = c.pixel_id
                WHERE pa.user_id = ?
-               ORDER BY c.created_at DESC"#,
-        )
+               ORDER BY c.created_at DESC"#
+        );
+        sqlx::query_as(&query)
         .bind(&user.id)
         .fetch_all(&state.pool)
         .await
@@ -200,7 +208,8 @@ pub async fn get_campaign(
 ) -> Result<axum::response::Response, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
-    let record: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let record: Option<CampaignRecord> = sqlx::query_as(&query)
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
@@ -240,7 +249,8 @@ pub async fn update_campaign(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch existing campaign
-    let existing: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let existing: Option<CampaignRecord> = sqlx::query_as(&query)
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
@@ -363,7 +373,8 @@ pub async fn update_campaign(
     .await?;
 
     // Return updated record
-    let updated: CampaignRecord = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let updated: CampaignRecord = sqlx::query_as(&query)
         .bind(&id)
         .fetch_one(&state.pool)
         .await
@@ -384,7 +395,8 @@ pub async fn delete_campaign(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch existing campaign
-    let existing: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let existing: Option<CampaignRecord> = sqlx::query_as(&query)
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
@@ -487,7 +499,8 @@ pub async fn create_custom_conversion(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign by id
-    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let campaign: Option<CampaignRecord> = sqlx::query_as(&query)
         .bind(&campaign_id)
         .fetch_optional(&state.pool)
         .await
@@ -550,15 +563,15 @@ pub async fn create_custom_conversion(
     .await?;
 
     // Fetch and return the created record
-    let record: CustomConversionRecord =
-        sqlx::query_as("SELECT * FROM custom_conversions WHERE id = ?")
-            .bind(&id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to fetch created custom conversion: {}", e);
-                AppError::Internal
-            })?;
+    let query = format!("{CUSTOM_CONVERSION_SELECT} WHERE id = ?");
+    let record: CustomConversionRecord = sqlx::query_as(&query)
+        .bind(&id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch created custom conversion: {}", e);
+            AppError::Internal
+        })?;
 
     Ok(json_ok("Custom conversion created", record))
 }
@@ -572,7 +585,8 @@ pub async fn list_custom_conversions(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign
-    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let campaign: Option<CampaignRecord> = sqlx::query_as(&query)
         .bind(&campaign_id)
         .fetch_optional(&state.pool)
         .await
@@ -588,9 +602,8 @@ pub async fn list_custom_conversions(
         return Err(AppError::Forbidden);
     }
 
-    let records: Vec<CustomConversionRecord> = sqlx::query_as(
-        "SELECT * FROM custom_conversions WHERE campaign_id = ? ORDER BY created_at ASC",
-    )
+    let query = format!("{CUSTOM_CONVERSION_SELECT} WHERE campaign_id = ? ORDER BY created_at ASC");
+    let records: Vec<CustomConversionRecord> = sqlx::query_as(&query)
     .bind(&campaign_id)
     .fetch_all(&state.pool)
     .await
@@ -612,7 +625,8 @@ pub async fn update_custom_conversion(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign
-    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let campaign: Option<CampaignRecord> = sqlx::query_as(&query)
         .bind(&campaign_id)
         .fetch_optional(&state.pool)
         .await
@@ -629,16 +643,16 @@ pub async fn update_custom_conversion(
     }
 
     // Fetch the conversion
-    let existing: Option<CustomConversionRecord> =
-        sqlx::query_as("SELECT * FROM custom_conversions WHERE id = ? AND campaign_id = ?")
-            .bind(&conversion_id)
-            .bind(&campaign_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching custom conversion: {}", e);
-                AppError::Internal
-            })?;
+    let query = format!("{CUSTOM_CONVERSION_SELECT} WHERE id = ? AND campaign_id = ?");
+    let existing: Option<CustomConversionRecord> = sqlx::query_as(&query)
+        .bind(&conversion_id)
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching custom conversion: {}", e);
+            AppError::Internal
+        })?;
 
     let existing = existing.ok_or(AppError::NotFound)?;
 
@@ -710,15 +724,15 @@ pub async fn update_custom_conversion(
     .await?;
 
     // Return updated record
-    let updated: CustomConversionRecord =
-        sqlx::query_as("SELECT * FROM custom_conversions WHERE id = ?")
-            .bind(&conversion_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to fetch updated custom conversion: {}", e);
-                AppError::Internal
-            })?;
+    let query = format!("{CUSTOM_CONVERSION_SELECT} WHERE id = ?");
+    let updated: CustomConversionRecord = sqlx::query_as(&query)
+        .bind(&conversion_id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch updated custom conversion: {}", e);
+            AppError::Internal
+        })?;
 
     Ok(json_ok("Custom conversion updated", updated))
 }
@@ -732,7 +746,8 @@ pub async fn delete_custom_conversion(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     // Fetch campaign
-    let campaign: Option<CampaignRecord> = sqlx::query_as("SELECT * FROM campaigns WHERE id = ?")
+    let query = format!("{CAMPAIGN_RECORD_SELECT} WHERE id = ?");
+    let campaign: Option<CampaignRecord> = sqlx::query_as(&query)
         .bind(&campaign_id)
         .fetch_optional(&state.pool)
         .await
@@ -749,16 +764,16 @@ pub async fn delete_custom_conversion(
     }
 
     // Fetch the conversion
-    let existing: Option<CustomConversionRecord> =
-        sqlx::query_as("SELECT * FROM custom_conversions WHERE id = ? AND campaign_id = ?")
-            .bind(&conversion_id)
-            .bind(&campaign_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching custom conversion: {}", e);
-                AppError::Internal
-            })?;
+    let query = format!("{CUSTOM_CONVERSION_SELECT} WHERE id = ? AND campaign_id = ?");
+    let existing: Option<CustomConversionRecord> = sqlx::query_as(&query)
+        .bind(&conversion_id)
+        .bind(&campaign_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching custom conversion: {}", e);
+            AppError::Internal
+        })?;
 
     let _existing = existing.ok_or(AppError::NotFound)?;
 

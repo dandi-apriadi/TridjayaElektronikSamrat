@@ -8,9 +8,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "smoke:api": "node ./scripts/smoke-release.mjs",
+    "test:api:backend": "node ./scripts/api-backend-e2e.mjs",
     "baseline:monitor": "node ./scripts/baseline-monitor.mjs",
     "qa:ops": "npm run smoke:api && npm run baseline:monitor -- --strict",
     "release:gate": "npm run build && npm run smoke:api && npm run baseline:monitor",
+    "check:api-prefixes": "node ./scripts/check-api-prefixes.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"

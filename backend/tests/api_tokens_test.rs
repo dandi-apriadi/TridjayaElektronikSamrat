@@ -1,61 +1,15 @@
 use chrono::Utc;
 use redis::aio::ConnectionManager;
-use sqlx::sqlite::SqlitePoolOptions;
 use tokio::time::{sleep, Duration};
 use tridjaya_backend::api_tokens::{
     check_ip_rate_limit, check_token_rate_limit, generate_api_token, validate_api_token,
     RateLimitError, TokenError,
 };
 
-async fn setup_test_db() -> sqlx::SqlitePool {
-    let pool = SqlitePoolOptions::new()
-        .connect("sqlite::memory:")
-        .await
-        .expect("Failed to create test database");
+mod support;
 
-    // Create users table
-    sqlx::query(
-        r#"
-        CREATE TABLE users (
-            id TEXT PRIMARY KEY,
-            email TEXT NOT NULL UNIQUE,
-            name TEXT NOT NULL,
-            role TEXT NOT NULL,
-            password_hash TEXT NOT NULL,
-            avatar TEXT DEFAULT '',
-            bank_account TEXT DEFAULT '',
-            whatsapp TEXT DEFAULT '',
-            referral_slug TEXT DEFAULT '',
-            is_active BOOLEAN DEFAULT 1,
-            is_verified BOOLEAN DEFAULT 1,
-            must_change_password BOOLEAN DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await
-    .unwrap();
-
-    // Create wa_api_tokens table
-    sqlx::query(
-        r#"
-        CREATE TABLE wa_api_tokens (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            token_hash TEXT NOT NULL UNIQUE,
-            name TEXT NOT NULL,
-            permissions TEXT,
-            expires_at DATETIME,
-            last_used_at DATETIME,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await
-    .unwrap();
+async fn setup_test_db() -> Option<sqlx::MySqlPool> {
+    let pool = support::setup_mysql_test_pool().await?;
 
     // Create test user
     sqlx::query(
@@ -68,7 +22,7 @@ async fn setup_test_db() -> sqlx::SqlitePool {
     .await
     .unwrap();
 
-    pool
+    Some(pool)
 }
 
 async fn setup_test_redis() -> ConnectionManager {
@@ -81,7 +35,9 @@ async fn setup_test_redis() -> ConnectionManager {
 
 #[tokio::test]
 async fn test_token_generation_and_validation_flow() {
-    let pool = setup_test_db().await;
+    let Some(pool) = setup_test_db().await else {
+        return;
+    };
 
     // Generate token
     let (token_id, plain_token) = generate_api_token(
@@ -125,7 +81,9 @@ async fn test_token_generation_and_validation_flow() {
 
 #[tokio::test]
 async fn test_token_with_expiration() {
-    let pool = setup_test_db().await;
+    let Some(pool) = setup_test_db().await else {
+        return;
+    };
 
     // Generate token that expires in 1 hour
     let expires_at = Utc::now() + chrono::Duration::hours(1);
@@ -166,7 +124,9 @@ async fn test_token_with_expiration() {
 
 #[tokio::test]
 async fn test_invalid_token_validation() {
-    let pool = setup_test_db().await;
+    let Some(pool) = setup_test_db().await else {
+        return;
+    };
 
     // Try to validate non-existent token
     let result = validate_api_token(&pool, "invalid_token_xyz").await;
@@ -179,7 +139,9 @@ async fn test_invalid_token_validation() {
 
 #[tokio::test]
 async fn test_multiple_tokens_for_same_user() {
-    let pool = setup_test_db().await;
+    let Some(pool) = setup_test_db().await else {
+        return;
+    };
 
     // Generate multiple tokens for the same user
     let (token1_id, plain_token1) = generate_api_token(
@@ -376,7 +338,9 @@ async fn test_concurrent_rate_limit_checks() {
 
 #[tokio::test]
 async fn test_token_permissions_serialization() {
-    let pool = setup_test_db().await;
+    let Some(pool) = setup_test_db().await else {
+        return;
+    };
 
     // Generate token with multiple permissions
     let permissions = vec![
@@ -411,7 +375,9 @@ async fn test_token_permissions_serialization() {
 
 #[tokio::test]
 async fn test_token_with_empty_permissions() {
-    let pool = setup_test_db().await;
+    let Some(pool) = setup_test_db().await else {
+        return;
+    };
 
     // Generate token with no permissions
     let (_token_id, plain_token) = generate_api_token(

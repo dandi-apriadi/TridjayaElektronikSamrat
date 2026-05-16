@@ -1,10 +1,10 @@
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::mysql::MySqlPoolOptions;
 use sqlx::Row;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let database_url = "sqlite:tridjaya.db";
-    let pool = SqlitePoolOptions::new()
+    let database_url = "mysql://tridjaya:password@localhost:3306/tridjaya";
+    let pool = MySqlPoolOptions::new()
         .max_connections(1)
         .connect(database_url)
         .await?;

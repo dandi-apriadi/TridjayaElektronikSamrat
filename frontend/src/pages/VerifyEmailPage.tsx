@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, ShieldAlert } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+import { apiFetch } from '../utils/apiClient';
 
 type Status = 'pending' | 'success' | 'error';
 
@@ -23,8 +22,9 @@ const VerifyEmailPage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+        const response = await apiFetch('/api/auth/verify-email', {
           method: 'POST',
+          skipAuth: true,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
         });

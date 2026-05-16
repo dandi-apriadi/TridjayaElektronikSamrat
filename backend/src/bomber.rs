@@ -16,7 +16,7 @@ use crate::response::AppError;
 use chrono::{Duration, Utc};
 use redis::{aio::ConnectionManager, AsyncCommands};
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::sync::Arc;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
@@ -55,7 +55,7 @@ pub struct CooldownErrorResponse {
 
 /// Bomber engine for executing repeated message sends
 pub struct BomberEngine {
-    pool: SqlitePool,
+    pool: MySqlPool,
     bridge_client: Arc<BridgeClient>,
     redis_conn: ConnectionManager,
 }
@@ -63,7 +63,7 @@ pub struct BomberEngine {
 impl BomberEngine {
     /// Create a new BomberEngine
     pub fn new(
-        pool: SqlitePool,
+        pool: MySqlPool,
         bridge_client: Arc<BridgeClient>,
         redis_conn: ConnectionManager,
     ) -> Self {
@@ -288,7 +288,7 @@ impl BomberEngine {
     /// Execute bomber task (async background task)
     /// **Validates: Requirements 8.1, 8.2, 8.3**
     async fn execute_bomber_task(
-        _pool: SqlitePool,
+        _pool: MySqlPool,
         bridge_client: Arc<BridgeClient>,
         _redis_conn: &mut ConnectionManager,
         config: BomberRequest,

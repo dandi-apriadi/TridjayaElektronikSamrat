@@ -16,7 +16,7 @@ use crate::bridge::BridgeEvent;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -104,7 +104,7 @@ impl Default for WebhookForwarderConfig {
 /// Webhook forwarder
 pub struct WebhookForwarder {
     config: WebhookForwarderConfig,
-    pool: SqlitePool,
+    pool: MySqlPool,
     http_client: Client,
     /// Message batch buffer per account
     batch_buffer: Arc<Mutex<HashMap<String, Vec<IncomingMessage>>>>,
@@ -114,7 +114,7 @@ pub struct WebhookForwarder {
 
 impl WebhookForwarder {
     /// Create a new webhook forwarder
-    pub fn new(config: WebhookForwarderConfig, pool: SqlitePool) -> Self {
+    pub fn new(config: WebhookForwarderConfig, pool: MySqlPool) -> Self {
         let http_client = Client::builder()
             .timeout(Duration::from_secs(config.http_timeout_seconds))
             .build()

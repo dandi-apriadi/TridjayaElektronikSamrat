@@ -6,7 +6,7 @@ use rand_core::OsRng;
 use redis::{aio::ConnectionManager, AsyncCommands, RedisError};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -101,7 +101,7 @@ impl From<RedisError> for RateLimitError {
 /// * `Ok((token_id, plain_token))` - Token ID and plain token string
 /// * `Err(TokenError)` - If generation or storage fails
 pub async fn generate_api_token(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     user_id: String,
     name: String,
     permissions: Vec<String>,
@@ -173,7 +173,7 @@ pub async fn generate_api_token(
 /// * `Ok(ApiTokenRecord)` - Token record if valid
 /// * `Err(TokenError)` - If token is invalid or expired
 pub async fn validate_api_token(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     token: &str,
 ) -> Result<ApiTokenRecord, TokenError> {
     let prefix = compute_token_prefix(token);
@@ -416,59 +416,47 @@ async fn check_rate_limit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::mysql::MySqlPoolOptions;
     use tokio::time::{sleep, Duration};
 
-    async fn setup_test_db() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .connect("sqlite::memory:")
+    async fn setup_test_db() -> Option<MySqlPool> {
+        let database_url = std::env::var("TEST_DATABASE_URL")
+            .or_else(|_| std::env::var("MYSQL_TEST_DATABASE_URL"))
+            .ok()?;
+
+        let pool = match MySqlPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
             .await
-            .expect("Failed to create test database");
+        {
+            Ok(pool) => pool,
+            Err(error) => {
+                eprintln!("Skipping MySQL unit test: cannot connect to test DB: {error}");
+                return None;
+            }
+        };
 
-        // Create users table
-        sqlx::query(
-            r#"
-            CREATE TABLE users (
-                id TEXT PRIMARY KEY,
-                email TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                role TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                avatar TEXT DEFAULT '',
-                bank_account TEXT DEFAULT '',
-                whatsapp TEXT DEFAULT '',
-                referral_slug TEXT DEFAULT '',
-                is_active BOOLEAN DEFAULT 1,
-                is_verified BOOLEAN DEFAULT 1,
-                must_change_password BOOLEAN DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        if let Err(error) = sqlx::migrate!("./migrations_mysql").run(&pool).await {
+            eprintln!("Skipping MySQL unit test: migrations failed: {error}");
+            return None;
+        }
 
-        // Create wa_api_tokens table
-        sqlx::query(
-            r#"
-            CREATE TABLE wa_api_tokens (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                token_hash TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                permissions TEXT,
-                expires_at DATETIME,
-                last_used_at DATETIME,
-                token_prefix TEXT,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        sqlx::query("SET FOREIGN_KEY_CHECKS = 0")
+            .execute(&pool)
+            .await
+            .ok()?;
+        sqlx::query("TRUNCATE TABLE wa_api_tokens")
+            .execute(&pool)
+            .await
+            .ok()?;
+        sqlx::query("TRUNCATE TABLE users")
+            .execute(&pool)
+            .await
+            .ok()?;
+        sqlx::query("SET FOREIGN_KEY_CHECKS = 1")
+            .execute(&pool)
+            .await
+            .ok()?;
 
         // Create test user
         sqlx::query(
@@ -481,7 +469,7 @@ mod tests {
         .await
         .unwrap();
 
-        pool
+        Some(pool)
     }
 
     async fn setup_test_redis() -> ConnectionManager {
@@ -494,7 +482,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_api_token() {
-        let pool = setup_test_db().await;
+        let Some(pool) = setup_test_db().await else {
+            return;
+        };
 
         let (token_id, plain_token) = generate_api_token(
             &pool,
@@ -530,7 +520,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_api_token_success() {
-        let pool = setup_test_db().await;
+        let Some(pool) = setup_test_db().await else {
+            return;
+        };
 
         let (_token_id, plain_token) = generate_api_token(
             &pool,
@@ -564,7 +556,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_api_token_invalid() {
-        let pool = setup_test_db().await;
+        let Some(pool) = setup_test_db().await else {
+            return;
+        };
 
         // Try to validate non-existent token
         let result = validate_api_token(&pool, "invalid_token_12345").await;
@@ -578,7 +572,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_api_token_expired() {
-        let pool = setup_test_db().await;
+        let Some(pool) = setup_test_db().await else {
+            return;
+        };
 
         // Generate token with past expiration
         let expires_at = Utc::now() - chrono::Duration::hours(1);

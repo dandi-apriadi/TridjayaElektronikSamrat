@@ -1,137 +1,139 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="${APP_DIR:-/var/www/tridjaya}"
+DOMAIN="${DOMAIN:-tridjaya.com}"
+FRONTEND_URL="${FRONTEND_URL:-https://${DOMAIN}}"
+API_BASE_URL="${API_BASE_URL:-https://${DOMAIN}}"
 
 echo "=========================================="
-echo "  TRIDJAYA DEPLOY SCRIPT"
-echo "  VPS: 159.223.36.80"
+echo "  TRIDJAYA NATIVE DEPLOY"
+echo "  App dir: ${APP_DIR}"
 echo "=========================================="
-echo ""
 
-# ---- Langkah 1: Pull update dari GitHub ----
-echo "[1/5] Pulling latest code from GitHub..."
-cd /var/www/tridjaya
+cd "${APP_DIR}"
+
+echo "[1/7] Updating source..."
 git fetch origin main
 git reset --hard origin/main
-echo "✓ Code updated"
-echo ""
 
-# ---- Langkah 2: Pastikan .env ada ----
-echo "[2/5] Checking .env file..."
+echo "[2/7] Checking backend environment..."
+if [ ! -f backend/.env ]; then
+  cp backend/.env.example backend/.env
+  echo "Created backend/.env from backend/.env.example. Edit DATABASE_URL before continuing."
+  exit 1
+fi
+
+if ! grep -q '^DATABASE_URL=mysql://' backend/.env; then
+  echo "backend/.env must use a MySQL DATABASE_URL, for example:"
+  echo "DATABASE_URL=mysql://tridjaya:password@127.0.0.1:3306/tridjaya"
+  exit 1
+fi
+
+echo "[3/7] Installing backend bridge dependencies..."
+cd "${APP_DIR}/backend/baileys-bridge"
+npm ci --omit=dev
+
+echo "[4/7] Building backend release binary..."
+cd "${APP_DIR}/backend"
+cargo build --release --bin tridjaya-backend
+
+echo "[5/7] Building frontend..."
+cd "${APP_DIR}/frontend"
 if [ ! -f .env ]; then
-    echo "⚠ .env not found! Creating production .env..."
-    REDIS_PASSWORD="$(openssl rand -hex 24)"
-    PIXEL_KEY="$(openssl rand -hex 32)"
+  cat > .env <<EOF
+VITE_API_BASE_URL=${API_BASE_URL}
+VITE_FRONTEND_URL=${FRONTEND_URL}
+EOF
+fi
+npm ci
+npm run build
 
-    cat > .env <<EOF
-REDIS_PASSWORD=$REDIS_PASSWORD
-APP_ENV=production
-ALLOWED_ORIGINS=https://tridjaya.com,https://www.tridjaya.com,http://tridjaya.com,http://www.tridjaya.com,http://159.223.36.80
-COOKIE_SECURE=true
-PIXEL_ENCRYPTION_KEY=$PIXEL_KEY
-TRUST_PROXY_HEADERS=true
-VITE_API_BASE_URL=https://tridjaya.com
-VITE_FRONTEND_URL=https://tridjaya.com
+echo "[6/7] Installing native systemd services..."
+cat > /etc/systemd/system/tridjaya-backend.service <<EOF
+[Unit]
+Description=Tridjaya Backend
+After=network.target mysql.service redis-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=${APP_DIR}/backend
+EnvironmentFile=${APP_DIR}/backend/.env
+ExecStart=${APP_DIR}/backend/target/release/tridjaya-backend
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-    chmod 600 .env
-    echo "✓ .env created"
-else
-    echo "✓ .env exists"
-fi
-echo ""
+cat > /etc/systemd/system/tridjaya-frontend.service <<EOF
+[Unit]
+Description=Tridjaya Frontend Preview Server
+After=network.target
 
-# ---- Langkah 3: Build dan jalankan Docker Compose ----
-echo "[3/5] Building and starting Docker containers..."
-docker compose down || true
-docker compose up -d --build
-echo ""
-echo "Waiting 30s for services to start..."
-sleep 30
-echo ""
+[Service]
+Type=simple
+WorkingDirectory=${APP_DIR}/frontend
+ExecStart=/usr/bin/npm run preview -- --host 127.0.0.1 --port 5173
+Restart=always
+RestartSec=5
 
-# Cek status
-echo "Container status:"
-docker compose ps
-echo ""
+[Install]
+WantedBy=multi-user.target
+EOF
 
-# ---- Langkah 4: Konfigurasi Nginx ----
-echo "[4/5] Configuring Nginx..."
-cat > /etc/nginx/sites-available/tridjaya.com <<'NGINX'
+systemctl daemon-reload
+systemctl enable tridjaya-backend tridjaya-frontend
+systemctl restart tridjaya-backend tridjaya-frontend
+
+echo "[7/7] Installing nginx reverse proxy..."
+cat > /etc/nginx/sites-available/${DOMAIN} <<EOF
 server {
     listen 80;
     listen [::]:80;
-    server_name tridjaya.com www.tridjaya.com;
+    server_name ${DOMAIN} www.${DOMAIN};
 
     client_max_body_size 25m;
 
     location /api/ {
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     location /uploads/ {
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     location / {
         proxy_pass http://127.0.0.1:5173;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
-NGINX
+EOF
 
-ln -sf /etc/nginx/sites-available/tridjaya.com /etc/nginx/sites-enabled/tridjaya.com
+ln -sf /etc/nginx/sites-available/${DOMAIN} /etc/nginx/sites-enabled/${DOMAIN}
 rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
-echo "✓ Nginx configured and reloaded"
-echo ""
+nginx -t
+systemctl reload nginx
 
-# ---- Langkah 5: SSL dengan Let's Encrypt ----
-echo "[5/5] Setting up SSL..."
-apt-get install -y certbot python3-certbot-nginx -qq
-
-# Cek apakah www resolve
-WWW_IP=$(dig +short www.tridjaya.com 2>/dev/null || echo "")
-if [ -n "$WWW_IP" ]; then
-    echo "www.tridjaya.com resolves to $WWW_IP - including in cert"
-    certbot --nginx -d tridjaya.com -d www.tridjaya.com --non-interactive --agree-tos --email admin@tridjaya.com --redirect
-else
-    echo "www.tridjaya.com not resolving - issuing cert for root domain only"
-    certbot --nginx -d tridjaya.com --non-interactive --agree-tos --email admin@tridjaya.com --redirect
-fi
-
-echo "✓ SSL configured"
-echo ""
-
-# ---- Verifikasi ----
-echo "=========================================="
-echo "  VERIFICATION"
-echo "=========================================="
-echo ""
 echo "Backend health:"
-curl -s http://127.0.0.1:8081/health || echo "⚠ Backend not responding"
-echo ""
-echo ""
+curl -fsS http://127.0.0.1:8081/health || true
+echo
 echo "Frontend:"
-curl -sI http://127.0.0.1:5173 | head -3 || echo "⚠ Frontend not responding"
-echo ""
-echo "HTTPS:"
-curl -sI https://tridjaya.com | head -3 || echo "⚠ HTTPS not ready yet"
-echo ""
-echo "=========================================="
-echo "  DEPLOY COMPLETE!"
-echo "  Site: https://tridjaya.com"
-echo "=========================================="
+curl -fsSI http://127.0.0.1:5173 | head -3 || true
+
+echo "Native deploy finished."

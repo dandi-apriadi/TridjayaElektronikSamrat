@@ -1,16 +1,19 @@
 use crate::auth::{AccessSession, RefreshSession};
 use chrono::{DateTime, Utc};
 use redis::aio::ConnectionManager;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
 const MAX_AUDIT_LOG_ENTRIES: usize = 1_000;
+pub const MYSQL_DATETIME_FORMAT: &str = "%Y-%m-%d %H:%i:%s";
+pub const USER_RECORD_SELECT: &str = "SELECT id, email, name, role, password_hash, jabatan, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
+pub const USER_PUBLIC_SELECT: &str = "SELECT id, email, name, role, jabatan, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
 
 #[derive(Clone)]
 pub struct AppState {
-    pub pool: SqlitePool,
+    pub pool: MySqlPool,
     pub access_sessions: Arc<RwLock<HashMap<String, AccessSession>>>,
     pub refresh_sessions: Arc<RwLock<HashMap<String, RefreshSession>>>,
     pub audit_log: Arc<RwLock<Vec<AuditEntry>>>,
@@ -44,7 +47,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(
-        pool: SqlitePool,
+        pool: MySqlPool,
         cache: Arc<crate::cache::CacheManager>,
     ) -> (
         Self,

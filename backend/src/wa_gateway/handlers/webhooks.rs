@@ -22,7 +22,12 @@ pub async fn list_webhooks(
     authorize(&state, &headers, &[Role::Admin]).await?;
 
     let webhooks: Vec<(String, String, String, Option<String>, Option<bool>, Option<String>, Option<i64>, Option<i64>, String)> = sqlx::query_as(
-        "SELECT id, name, url, events, is_active, last_triggered_at, success_count, fail_count, created_at FROM wa_webhooks WHERE is_active = 1 ORDER BY created_at DESC"
+        "SELECT id, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(retry_config, '$.name')), account_id) AS name, webhook_url AS url, retry_config AS events, enabled AS is_active,
+                CAST(NULL AS CHAR) AS last_triggered_at,
+                CAST(0 AS SIGNED) AS success_count,
+                CAST(0 AS SIGNED) AS fail_count,
+                DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+         FROM wa_webhooks WHERE enabled = 1 ORDER BY created_at DESC"
     )
     .fetch_all(&state.pool)
     .await
@@ -52,7 +57,20 @@ pub async fn get_webhook(
     authorize(&state, &headers, &[Role::Admin]).await?;
 
     let webhook: Option<(String, String, String, Option<String>, Option<String>, Option<String>, Option<i32>, Option<i32>, Option<bool>, Option<String>, Option<String>, Option<i64>, Option<i64>)> = sqlx::query_as(
-        "SELECT id, name, url, events, headers, secret, retry_count, timeout_seconds, is_active, last_triggered_at, last_error, success_count, fail_count FROM wa_webhooks WHERE id = ?"
+        "SELECT id,
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(retry_config, '$.name')), account_id) AS name,
+                webhook_url AS url,
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(retry_config, '$.events')) AS CHAR) AS events,
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(retry_config, '$.headers')) AS CHAR) AS headers,
+                secret_key AS secret,
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(retry_config, '$.retry_count')) AS SIGNED) AS retry_count,
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(retry_config, '$.timeout_seconds')) AS SIGNED) AS timeout_seconds,
+                enabled AS is_active,
+                CAST(NULL AS CHAR) AS last_triggered_at,
+                CAST(NULL AS CHAR) AS last_error,
+                CAST(0 AS SIGNED) AS success_count,
+                CAST(0 AS SIGNED) AS fail_count
+         FROM wa_webhooks WHERE id = ?"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -83,18 +101,34 @@ pub async fn create_webhook(
 
     let id = generate_id();
     let now = chrono::Utc::now().naive_utc();
+    let account_id: Option<String> =
+        sqlx::query_scalar("SELECT id FROM wa_accounts ORDER BY created_at DESC LIMIT 1")
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to find WA account for webhook: {}", e);
+                AppError::Internal
+            })?;
+    let account_id = account_id.ok_or_else(|| AppError::Validation {
+        errors: vec!["No WhatsApp account available for webhook".to_string()],
+    })?;
+    let retry_config = serde_json::json!({
+        "name": req.name,
+        "events": req.events,
+        "headers": req.headers,
+        "retry_count": req.retry_count.unwrap_or(3),
+        "timeout_seconds": req.timeout_seconds.unwrap_or(30),
+    })
+    .to_string();
 
     sqlx::query(
-        "INSERT INTO wa_webhooks (id, name, url, secret, events, headers, retry_count, timeout_seconds, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO wa_webhooks (id, account_id, webhook_url, secret_key, enabled, retry_config, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)"
     )
     .bind(&id)
-    .bind(&req.name)
+    .bind(&account_id)
     .bind(&req.url)
-    .bind(&req.secret)
-    .bind(serde_json::to_value(&req.events).ok())
-    .bind(req.headers.as_ref().and_then(|h| serde_json::to_value(h).ok()))
-    .bind(req.retry_count.unwrap_or(3))
-    .bind(req.timeout_seconds.unwrap_or(30))
+    .bind(req.secret.unwrap_or_default())
+    .bind(retry_config)
     .bind(now)
     .bind(now)
     .execute(&state.pool)
@@ -118,16 +152,21 @@ pub async fn update_webhook(
 ) -> Result<ResponseBody, AppError> {
     authorize(&state, &headers, &[Role::Admin]).await?;
 
+    let retry_config = serde_json::json!({
+        "name": req.name,
+        "events": req.events,
+        "headers": req.headers,
+        "retry_count": req.retry_count.unwrap_or(3),
+        "timeout_seconds": req.timeout_seconds.unwrap_or(30),
+    })
+    .to_string();
+
     sqlx::query(
-        "UPDATE wa_webhooks SET name = ?, url = ?, secret = ?, events = ?, headers = ?, retry_count = ?, timeout_seconds = ?, updated_at = ? WHERE id = ?"
+        "UPDATE wa_webhooks SET webhook_url = ?, secret_key = ?, retry_config = ?, updated_at = ? WHERE id = ?"
     )
-    .bind(&req.name)
     .bind(&req.url)
-    .bind(&req.secret)
-    .bind(serde_json::to_value(&req.events).ok())
-    .bind(req.headers.as_ref().and_then(|h| serde_json::to_value(h).ok()))
-    .bind(req.retry_count.unwrap_or(3))
-    .bind(req.timeout_seconds.unwrap_or(30))
+    .bind(req.secret.unwrap_or_default())
+    .bind(retry_config)
     .bind(chrono::Utc::now().naive_utc())
     .bind(&id)
     .execute(&state.pool)

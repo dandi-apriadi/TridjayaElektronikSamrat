@@ -10,7 +10,7 @@ use crate::{
         verify_password, LoginRequest, RefreshRequest, Role,
     },
     response::{json_ok, AppError},
-    state::{AppState, UserPublic, UserRecord},
+    state::{AppState, UserPublic, UserRecord, USER_PUBLIC_SELECT, USER_RECORD_SELECT},
 };
 use axum::{
     extract::{Multipart, Path, Query, State},
@@ -667,12 +667,16 @@ async fn refresh(
             response
         }
         Err(_) => {
-            let mut response = json_ok(
+            // Do not clear the refresh cookie here. During page reloads the
+            // browser can issue parallel refresh requests with the same old
+            // cookie; one request may rotate the cookie successfully while a
+            // slower sibling fails with the now-stale token. Sending a clearing
+            // Set-Cookie from the failed sibling would erase the fresh session.
+            // Explicit logout still clears the cookie via /api/auth/logout.
+            json_ok(
                 "Session invalid or expired",
                 json!({ "authenticated": false }),
-            );
-            append_set_cookie(&mut response, &build_clear_refresh_cookie());
-            response
+            )
         }
     }
 }
@@ -1133,7 +1137,7 @@ async fn list_users(
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    let users: Vec<UserPublic> = sqlx::query_as("SELECT id, email, name, role, jabatan, avatar, bank_account, whatsapp, referral_slug, created_at, last_login, is_active, is_verified, must_change_password FROM users")
+    let users: Vec<UserPublic> = sqlx::query_as(USER_PUBLIC_SELECT)
         .fetch_all(&state.pool)
         .await
         .map_err(|e| {
@@ -1538,10 +1542,21 @@ fn parse_json_value_or_default(text: Option<String>, default: Value) -> Value {
 }
 
 fn normalize_role(value: &str) -> Option<String> {
-    let role = value.trim().to_lowercase().replace(" ", "_").replace("-", "_");
+    let role = value
+        .trim()
+        .to_lowercase()
+        .replace(" ", "_")
+        .replace("-", "_");
     if matches!(
         role.as_str(),
-        "admin" | "agent" | "sales" | "operator" | "editor" | "wa_admin" | "wa_operator" | "super_admin"
+        "admin"
+            | "agent"
+            | "sales"
+            | "operator"
+            | "editor"
+            | "wa_admin"
+            | "wa_operator"
+            | "super_admin"
     ) {
         Some(role)
     } else {
@@ -1952,9 +1967,8 @@ async fn notify_all_admins(
 }
 
 async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
-    sqlx::query_as::<_, UserPublic>(
-        "SELECT id, email, name, role, jabatan, avatar, bank_account, whatsapp, referral_slug, created_at, last_login, is_active, is_verified, must_change_password FROM users WHERE id = ? LIMIT 1",
-    )
+    let query = format!("{USER_PUBLIC_SELECT} WHERE id = ? LIMIT 1");
+    sqlx::query_as::<_, UserPublic>(&query)
     .bind(id)
     .fetch_optional(&state.pool)
     .await
@@ -1967,7 +1981,7 @@ async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic
 
 async fn find_lead_by_id(state: &AppState, id: &str) -> Result<LeadRecord, AppError> {
     sqlx::query_as::<_, LeadRecord>(
-        "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at FROM leads WHERE id = ? LIMIT 1",
+        "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM leads WHERE id = ? LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -2324,8 +2338,9 @@ async fn reset_user_password(
         });
     }
 
+    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
     let target_user =
-        sqlx::query_as::<_, crate::state::UserRecord>("SELECT * FROM users WHERE id = ?")
+        sqlx::query_as::<_, crate::state::UserRecord>(&query)
             .bind(&id)
             .fetch_optional(&state.pool)
             .await
@@ -2531,13 +2546,13 @@ async fn list_wa_accounts(
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
         sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
-            "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at FROM wa_accounts ORDER BY created_at DESC",
+            "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_accounts ORDER BY created_at DESC",
         )
         .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, (String, String, Option<String>, bool, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>)>(
-            "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, created_at FROM wa_accounts WHERE created_by = ? ORDER BY created_at DESC",
+            "SELECT id, name, gateway_config, enabled, status, phone_number, last_error, message_count_today, created_by, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_accounts WHERE created_by = ? ORDER BY created_at DESC",
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -2746,13 +2761,13 @@ async fn list_wa_campaigns(
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
         sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
-            "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id, u.name, u.email ORDER BY c.created_at DESC",
+            "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(c.started_at, '%Y-%m-%d %H:%i:%s') AS started_at, CAST(COALESCE(COUNT(r.id), 0) AS SIGNED) AS recipient_total, CAST(COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_sent, CAST(COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_skipped, CAST(COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id GROUP BY c.id, u.name, u.email ORDER BY c.created_at DESC",
         )
         .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
-            "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.created_by = ? GROUP BY c.id, u.name, u.email ORDER BY c.created_at DESC",
+            "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(c.started_at, '%Y-%m-%d %H:%i:%s') AS started_at, CAST(COALESCE(COUNT(r.id), 0) AS SIGNED) AS recipient_total, CAST(COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_sent, CAST(COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_skipped, CAST(COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.created_by = ? GROUP BY c.id, u.name, u.email ORDER BY c.created_at DESC",
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -3070,13 +3085,11 @@ async fn add_wa_recipients(
         };
         let variables = recipient.variables.unwrap_or_else(|| json!({})).to_string();
         let recipient_id = uuid::Uuid::new_v4().to_string();
-        let dedupe_window = format!("-{} day", dedupe_days.max(1));
-
         let duplicate_exists: Option<i64> = sqlx::query_scalar(
-            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= datetime('now', ?) LIMIT 1",
+            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= DATE_SUB(NOW(), INTERVAL ? DAY) LIMIT 1",
         )
         .bind(&phone)
-        .bind(&dedupe_window)
+        .bind(dedupe_days.max(1))
         .fetch_optional(&state.pool)
         .await
         .map_err(|e| {
@@ -3452,12 +3465,11 @@ async fn upload_wa_recipients_excel(
         let variables = serde_json::Value::Object(vars).to_string();
 
         // Dedupe check
-        let dedupe_window = format!("-{} day", dedupe_days.max(1));
         let duplicate_exists: Option<i64> = sqlx::query_scalar(
-            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= datetime('now', ?) LIMIT 1",
+            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= DATE_SUB(NOW(), INTERVAL ? DAY) LIMIT 1",
         )
         .bind(&phone)
-        .bind(&dedupe_window)
+        .bind(dedupe_days.max(1))
         .fetch_optional(&state.pool)
         .await
         .map_err(|e| { tracing::error!("DB error: {}", e); AppError::Internal })?;
@@ -4084,7 +4096,14 @@ async fn get_wa_campaign_status(
     let campaign = fetch_wa_campaign_summary(&state, &id).await?;
 
     let recipient_rows = sqlx::query_as::<_, (String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>(
-        "SELECT id, phone, variables_json, status, last_attempt_at, delivered_at, read_at, replied_at, last_error, created_at FROM wa_recipients WHERE campaign_id = ? ORDER BY created_at DESC",
+        "SELECT id, phone, variables_json, status,
+                DATE_FORMAT(last_attempt_at, '%Y-%m-%d %H:%i:%s') AS last_attempt_at,
+                DATE_FORMAT(delivered_at, '%Y-%m-%d %H:%i:%s') AS delivered_at,
+                DATE_FORMAT(read_at, '%Y-%m-%d %H:%i:%s') AS read_at,
+                DATE_FORMAT(replied_at, '%Y-%m-%d %H:%i:%s') AS replied_at,
+                last_error,
+                DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+         FROM wa_recipients WHERE campaign_id = ? ORDER BY created_at DESC",
     )
     .bind(&id)
     .fetch_all(&state.pool)
@@ -4269,7 +4288,7 @@ async fn fetch_wa_campaign_summary(
     id: &str,
 ) -> Result<WaCampaignSummaryResponse, AppError> {
     let row = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64, i64)>(
-        "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, c.created_at, c.started_at, COALESCE(COUNT(r.id), 0) AS recipient_total, COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS recipient_sent, COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS recipient_skipped, COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.id = ? GROUP BY c.id, u.name, u.email LIMIT 1",
+        "SELECT c.id, c.name, c.status, c.config, c.created_by, u.name AS created_by_name, u.email AS created_by_email, DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(c.started_at, '%Y-%m-%d %H:%i:%s') AS started_at, CAST(COALESCE(COUNT(r.id), 0) AS SIGNED) AS recipient_total, CAST(COALESCE(SUM(CASE WHEN r.status = 'sent' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_sent, CAST(COALESCE(SUM(CASE WHEN r.status = 'skipped' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_skipped, CAST(COALESCE(SUM(CASE WHEN r.status = 'failed' THEN 1 ELSE 0 END), 0) AS SIGNED) AS recipient_failed FROM wa_campaigns c LEFT JOIN users u ON u.id = c.created_by LEFT JOIN wa_recipients r ON r.campaign_id = c.id WHERE c.id = ? GROUP BY c.id, u.name, u.email LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -4359,7 +4378,7 @@ async fn add_wa_recipients_from_leads(
             let recipient_id = uuid::Uuid::new_v4().to_string();
             let vars = json!({ "name": name }).to_string();
 
-            let res = sqlx::query("INSERT OR IGNORE INTO wa_recipients (id, campaign_id, phone, variables_json, lead_id) VALUES (?, ?, ?, ?, ?)")
+            let res = sqlx::query("INSERT IGNORE INTO wa_recipients (id, campaign_id, phone, variables_json, lead_id) VALUES (?, ?, ?, ?, ?)")
                 .bind(&recipient_id)
                 .bind(&id)
                 .bind(&phone_norm)
@@ -4451,7 +4470,8 @@ async fn resend_verification(
 ) -> Result<ResponseBody, AppError> {
     let _admin = authorize(&state, &headers, &[Role::Admin]).await?;
 
-    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
+    let user: UserRecord = sqlx::query_as(&query)
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
@@ -4979,7 +4999,9 @@ async fn fetch_active_price_markups(
     state: &AppState,
 ) -> Result<Vec<ProductPriceMarkupRecord>, AppError> {
     sqlx::query_as::<_, ProductPriceMarkupRecord>(
-        "SELECT id, scope, target_value, markup_type, markup_value, is_active, created_at, updated_at \
+        "SELECT id, scope, target_value, markup_type, markup_value, is_active, \
+                DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+                DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
          FROM product_price_markups WHERE is_active = 1 \
          ORDER BY CASE scope WHEN 'product' THEN 1 WHEN 'category' THEN 2 ELSE 3 END, updated_at DESC, created_at DESC, id DESC",
     )
@@ -5240,7 +5262,7 @@ async fn find_catalog_by_id_or_slug(
     id_or_slug: &str,
 ) -> Result<ProductRecord, AppError> {
     sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
+        "SELECT id, slug, name, category, subcategory, CAST(price AS DOUBLE) AS price, CAST(price_installment AS DOUBLE) AS price_installment, CAST(dp_min AS DOUBLE) AS dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products WHERE id = ? OR slug = ? LIMIT 1"
     )
     .bind(id_or_slug)
     .bind(id_or_slug)
@@ -5450,7 +5472,7 @@ async fn find_promotion_by_id(state: &AppState, id: &str) -> Result<PromoRecord,
 
 async fn find_partner_by_id(state: &AppState, id: &str) -> Result<PartnerRecord, AppError> {
     sqlx::query_as::<_, PartnerRecord>(
-        "SELECT id, name, logo_url, website_url, sort_order, is_active, created_at, updated_at FROM partners WHERE id = ? LIMIT 1"
+        "SELECT id, name, logo_url, website_url, sort_order, is_active, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM partners WHERE id = ? LIMIT 1"
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -5488,7 +5510,7 @@ struct UpdateProductCategoryRequest {
 
 async fn list_product_categories(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let categories = sqlx::query_as::<_, ProductCategoryRecord>(
-        "SELECT id, name, slug, description, created_at FROM product_categories ORDER BY name ASC",
+        "SELECT id, name, slug, description, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM product_categories ORDER BY name ASC",
     )
     .fetch_all(&state.pool)
     .await
@@ -5520,7 +5542,7 @@ async fn create_product_category(
     let slug = payload.name.to_lowercase().replace(' ', "-");
 
     sqlx::query(
-        "INSERT OR IGNORE INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)"
+        "INSERT IGNORE INTO product_categories (id, name, slug, description) VALUES (?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(payload.name.trim())
@@ -5636,7 +5658,7 @@ async fn list_catalogs(
     let offset = (page - 1) * limit;
 
     let products = sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, price, price_installment, dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products LIMIT ? OFFSET ?"
+        "SELECT id, slug, name, category, subcategory, CAST(price AS DOUBLE) AS price, CAST(price_installment AS DOUBLE) AS price_installment, CAST(dp_min AS DOUBLE) AS dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products LIMIT ? OFFSET ?"
     )
         .bind(limit as i64)
         .bind(offset as i64)
@@ -5669,13 +5691,13 @@ async fn list_catalogs(
             .join(",");
         let query = format!(
             "SELECT
-                COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) AS product_slug,
                 COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views,
                 COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
                 COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
              FROM telemetry_events
-             WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IN ({})
-             GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))",
+             WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IN ({})
+             GROUP BY COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug')))",
             placeholders
         );
         let mut query = sqlx::query(&query);
@@ -5820,27 +5842,31 @@ async fn list_catalogs_paginated(
     let main_query = format!(
         r#"
         SELECT
-            p.id, p.slug, p.name, p.category, p.subcategory, p.price,
-            p.price_installment, p.dp_min, p.image, p.badge, p.badge_text,
-            p.stock, p.stock_quantity, p.ratings, p.rating, p.review,
-            COALESCE(a.views, 0) AS views,
-            COALESCE(a.leads, 0) AS leads,
-            COALESCE(a.conversions, 0) AS conversions,
+            p.id, p.slug, p.name, p.category, p.subcategory,
+            CAST(p.price AS DOUBLE) AS price,
+            CAST(p.price_installment AS DOUBLE) AS price_installment,
+            CAST(p.dp_min AS DOUBLE) AS dp_min,
+            p.image, p.badge, p.badge_text,
+            p.stock, CAST(p.stock_quantity AS DOUBLE) AS stock_quantity, p.ratings,
+            CAST(p.rating AS DOUBLE) AS rating, p.review,
+            CAST(COALESCE(a.views, 0) AS SIGNED) AS views,
+            CAST(COALESCE(a.leads, 0) AS SIGNED) AS leads,
+            CAST(COALESCE(a.conversions, 0) AS SIGNED) AS conversions,
             CASE WHEN COALESCE(a.views, 0) > 0
-                 THEN (CAST(COALESCE(a.leads, 0) AS REAL) / CAST(a.views AS REAL)) * 100.0
+                 THEN (CAST(COALESCE(a.leads, 0) AS DOUBLE) / CAST(a.views AS DOUBLE)) * 100.0
                  ELSE 0.0
             END AS conversion_rate
         FROM products p
         LEFT JOIN (
             SELECT
-                COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
-                SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END) AS views,
-                SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads,
-                SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS conversions
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) AS product_slug,
+                CAST(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END) AS SIGNED) AS views,
+                CAST(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS SIGNED) AS leads,
+                CAST(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS SIGNED) AS conversions
             FROM telemetry_events
-            WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
-              AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''
-            GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))
+            WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IS NOT NULL
+              AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) <> ''
+            GROUP BY COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug')))
         ) a ON a.product_slug = p.slug
         {where_clause}
         ORDER BY {sort_field} DESC
@@ -5857,14 +5883,14 @@ async fn list_catalogs_paginated(
         FROM products p
         LEFT JOIN (
             SELECT
-                COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) AS product_slug,
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) AS product_slug,
                 SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END) AS views,
                 SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) AS leads,
                 SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END) AS conversions
             FROM telemetry_events
-            WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
-              AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''
-            GROUP BY COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug'))
+            WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IS NOT NULL
+              AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) <> ''
+            GROUP BY COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug')))
         ) a ON a.product_slug = p.slug
         {where_clause}
         "#
@@ -5911,12 +5937,12 @@ async fn list_catalogs_paginated(
     // Also compute total views/leads/conversions from the aggregates query
     let totals_query = sqlx::query(
         "SELECT
-            COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS total_views,
-            COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS total_leads,
-            COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS total_conversions
+            CAST(COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS SIGNED) AS total_views,
+            CAST(COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS SIGNED) AS total_leads,
+            CAST(COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS SIGNED) AS total_conversions
          FROM telemetry_events
-         WHERE COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) IS NOT NULL
-           AND COALESCE(json_extract(metadata, '$.productSlug'), json_extract(metadata, '$.slug')) <> ''"
+         WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IS NOT NULL
+           AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) <> ''"
     )
     .fetch_one(&state.pool)
     .await
@@ -6107,7 +6133,7 @@ async fn match_catalogs(
     }
 
     let records = sqlx::query_as::<_, CatalogMatchRecord>(
-        "SELECT id, slug, name, category, subcategory, price, stock, stock_quantity FROM products",
+        "SELECT id, slug, name, category, subcategory, CAST(price AS DOUBLE) AS price, stock, stock_quantity FROM products",
     )
     .fetch_all(&state.pool)
     .await
@@ -6206,7 +6232,9 @@ async fn list_price_markups(
     authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let items = sqlx::query_as::<_, ProductPriceMarkupRecord>(
-        "SELECT id, scope, target_value, markup_type, markup_value, is_active, created_at, updated_at \
+        "SELECT id, scope, target_value, markup_type, markup_value, is_active, \
+                DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+                DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
          FROM product_price_markups \
          ORDER BY is_active DESC, CASE scope WHEN 'product' THEN 1 WHEN 'category' THEN 2 ELSE 3 END, updated_at DESC, created_at DESC, id DESC",
     )
@@ -6264,7 +6292,9 @@ async fn create_price_markup(
     })?;
 
     let item = sqlx::query_as::<_, ProductPriceMarkupRecord>(
-        "SELECT id, scope, target_value, markup_type, markup_value, is_active, created_at, updated_at \
+        "SELECT id, scope, target_value, markup_type, markup_value, is_active, \
+                DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+                DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
          FROM product_price_markups WHERE id = ? LIMIT 1",
     )
     .bind(&id)
@@ -7093,7 +7123,7 @@ async fn delete_promotion(
 
 async fn list_partners(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
     let partners = sqlx::query_as::<_, PartnerRecord>(
-        "SELECT id, name, logo_url, website_url, sort_order, is_active, created_at, updated_at FROM partners WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC"
+        "SELECT id, name, logo_url, website_url, sort_order, is_active, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM partners WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     )
     .fetch_all(&state.pool)
     .await
@@ -7113,7 +7143,7 @@ async fn list_admin_partners(
     authorize(&state, &headers, &[Role::Admin]).await?;
 
     let partners = sqlx::query_as::<_, PartnerRecord>(
-        "SELECT id, name, logo_url, website_url, sort_order, is_active, created_at, updated_at FROM partners ORDER BY sort_order ASC, created_at ASC"
+        "SELECT id, name, logo_url, website_url, sort_order, is_active, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM partners ORDER BY sort_order ASC, created_at ASC"
     )
     .fetch_all(&state.pool)
     .await
@@ -7957,7 +7987,8 @@ async fn create_delivery_schedule(
     validate_delivery_schedule(&payload)?;
 
     let sales_user = if user.role.eq_ignore_ascii_case("admin") {
-        sqlx::query_as::<_, UserRecord>("SELECT * FROM users WHERE LOWER(name) = LOWER(?) LIMIT 1")
+        let query = format!("{USER_RECORD_SELECT} WHERE LOWER(name) = LOWER(?) LIMIT 1");
+        sqlx::query_as::<_, UserRecord>(&query)
             .bind(payload.sales_name.trim())
             .fetch_optional(&state.pool)
             .await
@@ -7969,7 +8000,8 @@ async fn create_delivery_schedule(
                 errors: vec!["nama sales tidak ditemukan di database".to_string()],
             })?
     } else {
-        sqlx::query_as::<_, UserRecord>("SELECT * FROM users WHERE id = ? LIMIT 1")
+        let query = format!("{USER_RECORD_SELECT} WHERE id = ? LIMIT 1");
+        sqlx::query_as::<_, UserRecord>(&query)
             .bind(&user.id)
             .fetch_optional(&state.pool)
             .await
@@ -8017,13 +8049,13 @@ async fn list_delivery_schedules(
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
         sqlx::query_as::<_, DeliveryScheduleRecord>(
-            "SELECT id, customer_name, item_name, payment_status, address, sales_user_id, sales_name, sender_branch, referral_slug, created_at FROM sales_delivery_schedules ORDER BY created_at DESC"
+            "SELECT id, customer_name, item_name, payment_status, address, sales_user_id, sales_name, sender_branch, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM sales_delivery_schedules ORDER BY created_at DESC"
         )
         .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, DeliveryScheduleRecord>(
-            "SELECT id, customer_name, item_name, payment_status, address, sales_user_id, sales_name, sender_branch, referral_slug, created_at FROM sales_delivery_schedules WHERE sales_user_id = ? ORDER BY created_at DESC"
+            "SELECT id, customer_name, item_name, payment_status, address, sales_user_id, sales_name, sender_branch, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM sales_delivery_schedules WHERE sales_user_id = ? ORDER BY created_at DESC"
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -8557,7 +8589,9 @@ async fn list_notifications(
     .await?;
 
     let rows = sqlx::query_as::<_, NotificationRecord>(
-        "SELECT id, recipient_user_id, type, title, message, action_path, entity_id, is_read, created_at, read_at
+        "SELECT id, recipient_user_id, type, title, message, action_path, entity_id, is_read,
+                DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                DATE_FORMAT(read_at, '%Y-%m-%d %H:%i:%s') AS read_at
          FROM notifications
          WHERE recipient_user_id = ?
          ORDER BY is_read ASC, created_at DESC
@@ -8691,13 +8725,13 @@ async fn list_leads(
 
     let leads = if can_view_all {
         sqlx::query_as::<_, LeadRecord>(
-            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at FROM leads ORDER BY created_at DESC",
+            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM leads ORDER BY created_at DESC",
         )
         .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, LeadRecord>(
-            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at FROM leads WHERE agent_id = ? ORDER BY created_at DESC",
+            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM leads WHERE agent_id = ? ORDER BY created_at DESC",
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -8838,7 +8872,7 @@ async fn list_support_tickets(
     let user = authorize(&state, &headers, &[Role::Agent]).await?;
 
     let rows = sqlx::query_as::<_, SupportTicketRecord>(
-        "SELECT id, agent_id, subject, message, priority, status, created_at FROM support_tickets WHERE agent_id = ? ORDER BY created_at DESC",
+        "SELECT id, agent_id, subject, message, priority, status, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM support_tickets WHERE agent_id = ? ORDER BY created_at DESC",
     )
     .bind(&user.id)
     .fetch_all(&state.pool)
@@ -8890,7 +8924,7 @@ async fn create_support_ticket(
     })?;
 
     let created = sqlx::query_as::<_, SupportTicketRecord>(
-        "SELECT id, agent_id, subject, message, priority, status, created_at FROM support_tickets WHERE id = ? LIMIT 1",
+        "SELECT id, agent_id, subject, message, priority, status, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM support_tickets WHERE id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -8935,8 +8969,8 @@ async fn list_admin_support_tickets(
             t.message,
             t.priority,
             t.status,
-            t.created_at,
-            t.updated_at,
+            DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+            DATE_FORMAT(t.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at,
             u.name AS agent_name,
             u.email AS agent_email
         FROM support_tickets t
@@ -8993,7 +9027,7 @@ async fn update_admin_support_ticket_status(
     }
 
     let updated_ticket = sqlx::query_as::<_, SupportTicketRecord>(
-        "SELECT id, agent_id, subject, message, priority, status, created_at FROM support_tickets WHERE id = ? LIMIT 1",
+        "SELECT id, agent_id, subject, message, priority, status, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM support_tickets WHERE id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -9098,7 +9132,7 @@ async fn list_agents(
             COALESCE(s.points, 0) as points,
             t.name as tier_name,
             u.is_active,
-            u.created_at as joined_at
+            DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') as joined_at
         FROM users u
         LEFT JOIN agent_stats s ON s.user_id = u.id
         LEFT JOIN reward_tiers t ON t.id = s.current_tier_id
@@ -9178,7 +9212,7 @@ async fn list_leaderboard(
             COALESCE(s.points, 0) as points,
             t.name as tier_name,
             u.is_active,
-            u.created_at as joined_at
+            DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') as joined_at
         FROM users u
         LEFT JOIN agent_stats s ON s.user_id = u.id
         LEFT JOIN reward_tiers t ON t.id = s.current_tier_id
@@ -9319,14 +9353,14 @@ async fn get_agent_performance(
         let placeholders = slugs
             .iter()
             .enumerate()
-            .map(|(i, _)| format!("?{}", i + 1))
+            .map(|_| "?".to_string())
             .collect::<Vec<_>>()
             .join(",");
         let query = format!(
-            "SELECT strftime('%Y-%m-%d', created_at) AS day, COUNT(*) AS count 
+            "SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS day, COUNT(*) AS count
              FROM telemetry_events 
              WHERE source IN ({}) 
-               AND created_at >= datetime('now', '-6 days') 
+               AND created_at >= DATE_SUB(NOW(), INTERVAL 6 DAY)
              GROUP BY day",
             placeholders
         );
@@ -9344,10 +9378,10 @@ async fn get_agent_performance(
 
     // 3. Get daily leads
     let lead_rows = sqlx::query(
-        "SELECT strftime('%Y-%m-%d', created_at) AS day, COUNT(*) AS count 
+        "SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS day, COUNT(*) AS count
          FROM leads 
          WHERE agent_id = ? 
-           AND created_at >= datetime('now', '-6 days') 
+           AND created_at >= DATE_SUB(NOW(), INTERVAL 6 DAY)
          GROUP BY day",
     )
     .bind(&target_id)
@@ -9443,13 +9477,13 @@ async fn list_claims(
 
     let rows = if is_admin {
         sqlx::query_as::<_, ClaimRow>(
-            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id ORDER BY c.submitted_at DESC"
+            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, DATE_FORMAT(c.submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at, DATE_FORMAT(c.processed_at, '%Y-%m-%d %H:%i:%s') AS processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id ORDER BY c.submitted_at DESC"
         )
         .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, ClaimRow>(
-            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.agent_id = ? ORDER BY c.submitted_at DESC"
+            "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, DATE_FORMAT(c.submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at, DATE_FORMAT(c.processed_at, '%Y-%m-%d %H:%i:%s') AS processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.agent_id = ? ORDER BY c.submitted_at DESC"
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -9517,7 +9551,7 @@ async fn create_claim(
     })?;
 
     let created = sqlx::query_as::<_, ClaimRow>(
-        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.id = ? LIMIT 1"
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, DATE_FORMAT(c.submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at, DATE_FORMAT(c.processed_at, '%Y-%m-%d %H:%i:%s') AS processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.id = ? LIMIT 1"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -9738,7 +9772,7 @@ async fn list_agent_registrations(
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     let rows = sqlx::query_as::<_, AgentRegistrationRow>(
-        "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, submitted_at FROM agent_registrations ORDER BY submitted_at DESC"
+        "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, DATE_FORMAT(submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at FROM agent_registrations ORDER BY submitted_at DESC"
     )
     .fetch_all(&state.pool)
     .await
@@ -9771,7 +9805,7 @@ async fn update_agent_registration_status(
 
     if status == "approved" {
         let registration = sqlx::query_as::<_, AgentRegistrationRow>(
-            "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, submitted_at FROM agent_registrations WHERE id = ? LIMIT 1"
+            "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, DATE_FORMAT(submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at FROM agent_registrations WHERE id = ? LIMIT 1"
         )
         .bind(&id)
         .fetch_optional(&state.pool)
@@ -9994,7 +10028,7 @@ async fn list_all_claims(
 ) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
     let rows = sqlx::query_as::<_, ClaimRow>(
-        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id ORDER BY c.submitted_at DESC"
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, DATE_FORMAT(c.submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at, DATE_FORMAT(c.processed_at, '%Y-%m-%d %H:%i:%s') AS processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id ORDER BY c.submitted_at DESC"
     )
     .fetch_all(&state.pool)
     .await
@@ -10048,7 +10082,7 @@ async fn update_claim_status(
     }
 
     let updated_claim = sqlx::query_as::<_, ClaimRow>(
-        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, c.submitted_at, c.processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.id = ? LIMIT 1"
+        "SELECT c.id, c.agent_id, c.tier_id, c.reward_name, t.reward_value, c.status, DATE_FORMAT(c.submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at, DATE_FORMAT(c.processed_at, '%Y-%m-%d %H:%i:%s') AS processed_at, u.name AS agent_name FROM reward_claims c LEFT JOIN users u ON u.id = c.agent_id LEFT JOIN reward_tiers t ON t.id = c.tier_id WHERE c.id = ? LIMIT 1"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -10090,16 +10124,16 @@ async fn get_telemetry_stats(
 
     let traffic_rows = sqlx::query(
         "WITH RECURSIVE days(day) AS (
-            SELECT date('now', '-6 days')
+            SELECT DATE(DATE_SUB(NOW(), INTERVAL 6 DAY))
             UNION ALL
-            SELECT date(day, '+1 day') FROM days WHERE day < date('now')
+            SELECT DATE_ADD(day, INTERVAL 1 DAY) FROM days WHERE day < CURDATE()
          )
-         SELECT d.day,
-                COALESCE(SUM(CASE WHEN e.event_type = 'click' THEN 1 ELSE 0 END), 0) AS clicks,
-                COALESCE(SUM(CASE WHEN e.event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads,
-                COALESCE(SUM(CASE WHEN e.event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
+         SELECT DATE_FORMAT(d.day, '%Y-%m-%d') AS day,
+                CAST(COALESCE(SUM(CASE WHEN e.event_type = 'click' THEN 1 ELSE 0 END), 0) AS SIGNED) AS clicks,
+                CAST(COALESCE(SUM(CASE WHEN e.event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS SIGNED) AS leads,
+                CAST(COALESCE(SUM(CASE WHEN e.event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS SIGNED) AS conversions
          FROM days d
-         LEFT JOIN telemetry_events e ON strftime('%Y-%m-%d', e.created_at) = d.day
+         LEFT JOIN telemetry_events e ON DATE(e.created_at) = d.day
          GROUP BY d.day
          ORDER BY d.day ASC"
     )
@@ -10112,14 +10146,14 @@ async fn get_telemetry_stats(
 
     let monthly_rows = sqlx::query(
         "WITH RECURSIVE months(month) AS (
-            SELECT strftime('%Y-%m', date('now', '-150 days'))
+            SELECT DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 150 DAY), '%Y-%m')
             UNION ALL
-            SELECT strftime('%Y-%m', date(month || '-01', '+1 month')) FROM months WHERE month < strftime('%Y-%m', 'now')
+            SELECT DATE_FORMAT(DATE_ADD(STR_TO_DATE(CONCAT(month, '-01'), '%Y-%m-%d'), INTERVAL 1 MONTH), '%Y-%m') FROM months WHERE month < DATE_FORMAT(NOW(), '%Y-%m')
          )
          SELECT m.month,
-                COALESCE(COUNT(DISTINCT e.session_id || e.path), 0) AS views
+                CAST(COALESCE(COUNT(DISTINCT CONCAT(e.session_id, e.path)), 0) AS SIGNED) AS views
          FROM months m
-         LEFT JOIN telemetry_events e ON strftime('%Y-%m', e.created_at) = m.month AND e.event_type = 'page_view'
+         LEFT JOIN telemetry_events e ON DATE_FORMAT(e.created_at, '%Y-%m') = m.month AND e.event_type = 'page_view'
          GROUP BY m.month
          ORDER BY m.month ASC"
     )
@@ -10132,8 +10166,8 @@ async fn get_telemetry_stats(
 
     let source_rows = sqlx::query(
         "SELECT COALESCE(source, 'unknown') AS source,
-                COUNT(DISTINCT session_id || path) AS clicks,
-                COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads
+                CAST(COUNT(DISTINCT CONCAT(session_id, path)) AS SIGNED) AS clicks,
+                CAST(COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS SIGNED) AS leads
          FROM telemetry_events
          GROUP BY COALESCE(source, 'unknown')
          ORDER BY clicks DESC
@@ -10148,15 +10182,15 @@ async fn get_telemetry_stats(
 
     let top_content_rows = sqlx::query(
         "SELECT
-            COALESCE(json_extract(metadata, '$.contentType'), json_extract(metadata, '$.pageType'), 'page') AS content_type,
-            COALESCE(json_extract(metadata, '$.contentKey'), json_extract(metadata, '$.pageKey'), path) AS content_key,
-            COALESCE(json_extract(metadata, '$.contentTitle'), json_extract(metadata, '$.pageLabel'), json_extract(metadata, '$.contentSlug'), path) AS content_title,
-            COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS views,
-            COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) AS clicks,
-            COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS leads
+            CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.contentType')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.pageType')), 'page') AS CHAR) AS content_type,
+            CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.contentKey')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.pageKey')), path) AS CHAR) AS content_key,
+            CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.contentTitle')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.pageLabel')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.contentSlug')), path) AS CHAR) AS content_title,
+            CAST(COALESCE(SUM(CASE WHEN event_type = 'page_view' THEN 1 ELSE 0 END), 0) AS SIGNED) AS views,
+            CAST(COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) AS SIGNED) AS clicks,
+            CAST(COALESCE(SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END), 0) AS SIGNED) AS leads
          FROM telemetry_events
-         WHERE COALESCE(json_extract(metadata, '$.contentKey'), json_extract(metadata, '$.pageKey'), path) IS NOT NULL
-           AND COALESCE(json_extract(metadata, '$.contentKey'), json_extract(metadata, '$.pageKey'), path) <> ''
+         WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.contentKey')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.pageKey')), path) IS NOT NULL
+           AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.contentKey')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.pageKey')), path) <> ''
          GROUP BY content_type, content_key, content_title
          ORDER BY views DESC, clicks DESC
          LIMIT 10"
@@ -10170,10 +10204,10 @@ async fn get_telemetry_stats(
 
     let totals_row = sqlx::query(
         "SELECT
-            COUNT(*) AS total_events,
-            COALESCE(SUM(CASE WHEN created_at >= datetime('now', '-24 hours') THEN 1 ELSE 0 END), 0) AS events_24h,
-            COUNT(DISTINCT path) AS total_paths,
-            COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS total_conversions
+            CAST(COUNT(*) AS SIGNED) AS total_events,
+            CAST(COALESCE(SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END), 0) AS SIGNED) AS events_24h,
+            CAST(COUNT(DISTINCT path) AS SIGNED) AS total_paths,
+            CAST(COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS SIGNED) AS total_conversions
          FROM telemetry_events"
     )
     .fetch_one(&state.pool)
@@ -10455,17 +10489,18 @@ async fn create_job_application(
     .await
     .map_err(map_conflict_if_needed)?;
 
-    // Send a notification to admins about a new application
-    if let Err(e) = sqlx::query("INSERT INTO notifications (id, type, title, message, url, recipient_role) VALUES (?, ?, ?, ?, ?, ?)")
-        .bind(uuid::Uuid::new_v4().to_string())
-        .bind("new_lead")
-        .bind("Lamaran Baru")
-        .bind(format!("Ada lamaran baru dari {} untuk posisi {}.", payload.full_name, payload.job_title))
-        .bind("/dashboard/admin/careers")
-        .bind("admin")
-        .execute(&state.pool).await {
-        tracing::error!("Failed to create notification for new job application: {}", e);
-    }
+    notify_all_admins(
+        &state,
+        "new_job_application",
+        "Lamaran Baru",
+        Some(&format!(
+            "Ada lamaran baru dari {} untuk posisi {}.",
+            payload.full_name, payload.job_title
+        )),
+        Some("/dashboard/admin/careers"),
+        Some(&id),
+    )
+    .await;
 
     Ok(json_ok(
         "Application submitted successfully",
@@ -10553,7 +10588,7 @@ async fn list_blast_contacts(
             .fetch_one(&state.pool).await.map_err(|_| AppError::Internal)?;
 
         let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
-            "SELECT id, phone, name, labels, notes, created_at, updated_at FROM wa_blast_contacts WHERE user_id = ? AND (phone LIKE ? OR name LIKE ?) ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+            "SELECT id, phone, name, labels, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM wa_blast_contacts WHERE user_id = ? AND (phone LIKE ? OR name LIKE ?) ORDER BY updated_at DESC LIMIT ? OFFSET ?"
         )
             .bind(&user.id).bind(&search_pattern).bind(&search_pattern)
             .bind(per_page).bind(offset)
@@ -10568,7 +10603,7 @@ async fn list_blast_contacts(
                 .map_err(|_| AppError::Internal)?;
 
         let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
-            "SELECT id, phone, name, labels, notes, created_at, updated_at FROM wa_blast_contacts WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+            "SELECT id, phone, name, labels, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM wa_blast_contacts WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"
         )
             .bind(&user.id).bind(per_page).bind(offset)
             .fetch_all(&state.pool).await.map_err(|_| AppError::Internal)?;
@@ -10628,7 +10663,7 @@ async fn create_blast_contact(
     let notes = payload.notes.unwrap_or_default();
 
     sqlx::query(
-        "INSERT INTO wa_blast_contacts (id, user_id, phone, name, labels, notes) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, phone) DO UPDATE SET name = excluded.name, labels = excluded.labels, notes = excluded.notes, updated_at = CURRENT_TIMESTAMP"
+        "INSERT INTO wa_blast_contacts (id, user_id, phone, name, labels, notes) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), labels = VALUES(labels), notes = VALUES(notes), updated_at = CURRENT_TIMESTAMP"
     )
         .bind(&id).bind(&user.id).bind(&phone).bind(&name).bind(&labels).bind(&notes)
         .execute(&state.pool).await.map_err(|e| {
@@ -10883,7 +10918,7 @@ async fn upload_blast_contacts_excel(
         let id = uuid::Uuid::new_v4().to_string();
 
         let result = sqlx::query(
-            "INSERT INTO wa_blast_contacts (id, user_id, phone, name) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, phone) DO UPDATE SET name = CASE WHEN excluded.name != '' THEN excluded.name ELSE wa_blast_contacts.name END, updated_at = CURRENT_TIMESTAMP"
+            "INSERT INTO wa_blast_contacts (id, user_id, phone, name) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = CASE WHEN VALUES(name) != '' THEN VALUES(name) ELSE wa_blast_contacts.name END, updated_at = CURRENT_TIMESTAMP"
         )
             .bind(&id).bind(&user.id).bind(&phone).bind(&name)
             .execute(&state.pool).await;
@@ -10982,12 +11017,10 @@ async fn import_blast_contacts_to_campaign(
     for (_contact_id, phone, name) in &contacts {
         let recipient_id = uuid::Uuid::new_v4().to_string();
         let vars = json!({ "name": name }).to_string();
-        let dedupe_window = format!("-{} day", dedupe_days.max(1));
-
         let duplicate_exists: Option<i64> = sqlx::query_scalar(
-            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= datetime('now', ?) LIMIT 1"
+            "SELECT 1 FROM wa_dispatch_logs WHERE phone = ? AND sent_at >= DATE_SUB(NOW(), INTERVAL ? DAY) LIMIT 1"
         )
-            .bind(phone).bind(&dedupe_window)
+            .bind(phone).bind(dedupe_days.max(1))
             .fetch_optional(&state.pool).await.map_err(|_| AppError::Internal)?;
 
         let status = if duplicate_exists.is_some() {
@@ -10997,7 +11030,7 @@ async fn import_blast_contacts_to_campaign(
         };
 
         let result = sqlx::query(
-            "INSERT OR IGNORE INTO wa_recipients (id, campaign_id, phone, variables_json, status) VALUES (?, ?, ?, ?, ?)"
+            "INSERT IGNORE INTO wa_recipients (id, campaign_id, phone, variables_json, status) VALUES (?, ?, ?, ?, ?)"
         )
             .bind(&recipient_id).bind(&campaign_id).bind(phone).bind(&vars).bind(status)
             .execute(&state.pool).await.map_err(|_| AppError::Internal)?;

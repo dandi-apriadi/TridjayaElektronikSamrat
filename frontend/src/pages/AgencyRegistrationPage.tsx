@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from '../store/useNotificationStore';
 import { Badge, SectionHeader } from '../components/ui';
+import { apiFetch } from '../utils/apiClient';
 
 const steps = [
   { id: 1, title: 'Data Diri', subtitle: 'Informasi personal' },
@@ -15,8 +16,6 @@ const steps = [
   { id: 3, title: 'Preferensi', subtitle: 'Kategori produk' },
   { id: 4, title: 'Dokumen', subtitle: 'Upload Foto & KTP' },
 ];
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
 
 const AgencyRegistrationPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -129,8 +128,9 @@ const AgencyRegistrationPage: React.FC = () => {
       if (files.profilePhoto) data.append('profilePhoto', files.profilePhoto);
       if (files.ktpPhoto) data.append('ktpPhoto', files.ktpPhoto);
 
-      const response = await fetch(`${API_BASE_URL}/agent-registrations`, {
+      const response = await apiFetch('/api/agent-registrations', {
         method: 'POST',
+        skipAuth: true,
         body: data,
       });
 

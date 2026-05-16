@@ -3,13 +3,15 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use serde_json::json;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 use tridjaya_backend::{
     api_routes, cache::CacheManager, queue_manager::QueueManager, redis_manager::RedisManager,
     response::AppError, state::AppState,
 };
+
+mod support;
 
 /// **Validates: Requirements 9.2, 9.3, 9.7, 9.8**
 ///
@@ -25,84 +27,12 @@ mod api_routes_tests {
     use super::*;
 
     /// Helper function to create test database with schema
-    async fn setup_test_db() -> SqlitePool {
-        let pool = SqlitePool::connect(":memory:")
-            .await
-            .expect("Failed to create in-memory database");
-
-        // Create users table (required for API tokens)
-        sqlx::query(
-            r#"
-            CREATE TABLE users (
-                id TEXT PRIMARY KEY,
-                email TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'user',
-                password_hash TEXT NOT NULL,
-                avatar TEXT DEFAULT '',
-                bank_account TEXT DEFAULT '',
-                whatsapp TEXT DEFAULT '',
-                referral_slug TEXT DEFAULT '',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP,
-                is_active BOOLEAN DEFAULT 1,
-                is_verified BOOLEAN DEFAULT 0,
-                must_change_password BOOLEAN DEFAULT 0
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .expect("Failed to create users table");
-
-        // Create wa_api_tokens table
-        sqlx::query(
-            r#"
-            CREATE TABLE wa_api_tokens (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                token_hash TEXT NOT NULL,
-                name TEXT NOT NULL,
-                permissions TEXT,
-                expires_at TIMESTAMP,
-                last_used_at TIMESTAMP,
-                token_prefix TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .expect("Failed to create wa_api_tokens table");
-
-        // Create wa_accounts table
-        sqlx::query(
-            r#"
-            CREATE TABLE wa_accounts (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                phone_number TEXT NOT NULL,
-                name TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'disconnected',
-                session_data TEXT,
-                hourly_send_count INTEGER DEFAULT 0,
-                daily_send_count INTEGER DEFAULT 0,
-                last_reset_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .expect("Failed to create wa_accounts table");
-
-        pool
+    async fn setup_test_db() -> Option<MySqlPool> {
+        support::setup_mysql_test_pool().await
     }
 
     /// Helper function to create test user
-    async fn create_test_user(pool: &SqlitePool) -> String {
+    async fn create_test_user(pool: &MySqlPool) -> String {
         let user_id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO users (id, email, name, role, password_hash, is_active, is_verified) 
@@ -122,7 +52,7 @@ mod api_routes_tests {
 
     /// Helper function to create test API token
     /// Returns (token_id, plain_token)
-    async fn create_test_api_token(pool: &SqlitePool, user_id: &str) -> (String, String) {
+    async fn create_test_api_token(pool: &MySqlPool, user_id: &str) -> (String, String) {
         let token_id = uuid::Uuid::new_v4().to_string();
         let plain_token = uuid::Uuid::new_v4().to_string();
 
@@ -146,7 +76,7 @@ mod api_routes_tests {
     }
 
     /// Helper function to create test WhatsApp account
-    async fn create_test_wa_account(pool: &SqlitePool, user_id: &str, status: &str) -> String {
+    async fn create_test_wa_account(pool: &MySqlPool, user_id: &str, status: &str) -> String {
         let account_id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO wa_accounts (id, user_id, phone_number, name, status) 
@@ -170,7 +100,9 @@ mod api_routes_tests {
 
     /// Helper function to create test app state with mock Redis
     async fn create_test_state() -> Result<AppState, Box<dyn std::error::Error>> {
-        let pool = setup_test_db().await;
+        let pool = setup_test_db()
+            .await
+            .ok_or("MySQL test database is not configured")?;
 
         // Use an isolated Redis DB so integration tests never feed the dev/prod queue.
         let redis_url = test_redis_url();
@@ -186,7 +118,9 @@ mod api_routes_tests {
 
     /// Helper function to create test app state with Redis queue manager
     async fn create_test_state_with_queue() -> Result<AppState, Box<dyn std::error::Error>> {
-        let pool = setup_test_db().await;
+        let pool = setup_test_db()
+            .await
+            .ok_or("MySQL test database is not configured")?;
 
         // Use an isolated Redis DB so integration tests never feed the dev/prod queue.
         let redis_url = test_redis_url();

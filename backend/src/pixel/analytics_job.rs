@@ -1,9 +1,8 @@
 use crate::state::AppState;
 use chrono::{Datelike, Duration, NaiveDate, Timelike, Utc};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::sync::atomic::Ordering;
 use thiserror::Error;
-use uuid::Uuid;
 
 // ─── Error type ───────────────────────────────────────────────────────────────
 
@@ -89,9 +88,9 @@ fn current_period(period_type: &str) -> (String, String) {
 ///
 /// Uses an `AtomicBool` guard to prevent concurrent runs.  Aggregates
 /// `pixel_analytics` and `campaign_analytics` for all four period types
-/// (hourly, daily, weekly, monthly) using `INSERT OR REPLACE` upserts.
+/// (hourly, daily, weekly, monthly) using MySQL upserts.
 pub async fn run_analytics_aggregation(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     state: &AppState,
 ) -> Result<(), AnalyticsError> {
     // ── 1. Prevent concurrent runs ────────────────────────────────────────────
@@ -115,9 +114,8 @@ pub async fn run_analytics_aggregation(
         let (period_start, period_end) = current_period(period_type);
 
         // ── 4a. pixel_analytics ───────────────────────────────────────────────
-        let new_pixel_uuid = Uuid::new_v4().to_string();
         sqlx::query(
-            r#"INSERT OR REPLACE INTO pixel_analytics
+            r#"INSERT INTO pixel_analytics
                  (id, pixel_id, period_type, period_start, period_end,
                   total_events, unique_users, page_views, add_to_carts,
                   purchases, leads, total_revenue, currency, metrics,
@@ -125,7 +123,7 @@ pub async fn run_analytics_aggregation(
                SELECT
                  COALESCE(
                    (SELECT id FROM pixel_analytics WHERE pixel_id = p.id AND period_type = ? AND period_start = ?),
-                   ?
+                   UUID()
                  ) AS id,
                  p.id AS pixel_id,
                  ? AS period_type,
@@ -140,34 +138,39 @@ pub async fn run_analytics_aggregation(
                  COALESCE(SUM(c.conversion_value), 0) AS total_revenue,
                  'USD' AS currency,
                  '{}' AS metrics,
-                 COALESCE(
-                   (SELECT created_at FROM pixel_analytics WHERE pixel_id = p.id AND period_type = ? AND period_start = ?),
-                   CURRENT_TIMESTAMP
-                 ) AS created_at,
+                 CURRENT_TIMESTAMP AS created_at,
                  CURRENT_TIMESTAMP AS updated_at
                FROM pixels p
                LEFT JOIN pixel_events pe ON pe.pixel_id = p.id
                  AND pe.event_time >= ? AND pe.event_time < ?
                LEFT JOIN conversions c ON c.event_id = pe.id
-               GROUP BY p.id"#,
+               GROUP BY p.id
+               ON DUPLICATE KEY UPDATE
+                 period_end = VALUES(period_end),
+                 total_events = VALUES(total_events),
+                 unique_users = VALUES(unique_users),
+                 page_views = VALUES(page_views),
+                 add_to_carts = VALUES(add_to_carts),
+                 purchases = VALUES(purchases),
+                 leads = VALUES(leads),
+                 total_revenue = VALUES(total_revenue),
+                 currency = VALUES(currency),
+                 metrics = VALUES(metrics),
+                 updated_at = CURRENT_TIMESTAMP"#,
         )
         .bind(period_type)       // 1 — COALESCE subquery period_type
         .bind(&period_start)     // 2 — COALESCE subquery period_start
-        .bind(&new_pixel_uuid)   // 3 — fallback new UUID
-        .bind(period_type)       // 4 — period_type column
-        .bind(&period_start)     // 5 — period_start column
-        .bind(&period_end)       // 6 — period_end column
-        .bind(period_type)       // 7 — created_at COALESCE subquery period_type
-        .bind(&period_start)     // 8 — created_at COALESCE subquery period_start
-        .bind(&period_start)     // 9 — event_time >= period_start
-        .bind(&period_end)       // 10 — event_time < period_end
+        .bind(period_type)       // 3 — period_type column
+        .bind(&period_start)     // 4 — period_start column
+        .bind(&period_end)       // 5 — period_end column
+        .bind(&period_start)     // 6 — event_time >= period_start
+        .bind(&period_end)       // 7 — event_time < period_end
         .execute(pool)
         .await?;
 
         // ── 4b. campaign_analytics ────────────────────────────────────────────
-        let new_campaign_uuid = Uuid::new_v4().to_string();
         sqlx::query(
-            r#"INSERT OR REPLACE INTO campaign_analytics
+            r#"INSERT INTO campaign_analytics
                  (id, campaign_id, period_type, period_start, period_end,
                   total_events, unique_users, conversions, conversion_rate,
                   total_revenue, currency, cost_per_conversion, roas, metrics,
@@ -175,7 +178,7 @@ pub async fn run_analytics_aggregation(
                SELECT
                  COALESCE(
                    (SELECT id FROM campaign_analytics WHERE campaign_id = c.id AND period_type = ? AND period_start = ?),
-                   ?
+                   UUID()
                  ) AS id,
                  c.id AS campaign_id,
                  ? AS period_type,
@@ -184,36 +187,42 @@ pub async fn run_analytics_aggregation(
                  COUNT(pe.id) AS total_events,
                  COUNT(DISTINCT COALESCE(pe.fbp, pe.user_id)) AS unique_users,
                  COUNT(conv.id) AS conversions,
-                 CASE WHEN COUNT(pe.id) > 0 THEN CAST(COUNT(conv.id) AS REAL) / COUNT(pe.id) ELSE 0 END AS conversion_rate,
+                 CASE WHEN COUNT(pe.id) > 0 THEN CAST(COUNT(conv.id) AS DOUBLE) / COUNT(pe.id) ELSE 0 END AS conversion_rate,
                  COALESCE(SUM(conv.conversion_value), 0) AS total_revenue,
                  'USD' AS currency,
                  NULL AS cost_per_conversion,
                  NULL AS roas,
                  '{}' AS metrics,
-                 COALESCE(
-                   (SELECT created_at FROM campaign_analytics WHERE campaign_id = c.id AND period_type = ? AND period_start = ?),
-                   CURRENT_TIMESTAMP
-                 ) AS created_at,
+                 CURRENT_TIMESTAMP AS created_at,
                  CURRENT_TIMESTAMP AS updated_at
                FROM campaigns c
                LEFT JOIN pixel_events pe ON pe.campaign_id = c.id
                  AND pe.event_time >= ? AND pe.event_time < ?
                LEFT JOIN conversions conv ON conv.campaign_id = c.id
                  AND conv.conversion_time >= ? AND conv.conversion_time < ?
-               GROUP BY c.id"#,
+               GROUP BY c.id
+               ON DUPLICATE KEY UPDATE
+                 period_end = VALUES(period_end),
+                 total_events = VALUES(total_events),
+                 unique_users = VALUES(unique_users),
+                 conversions = VALUES(conversions),
+                 conversion_rate = VALUES(conversion_rate),
+                 total_revenue = VALUES(total_revenue),
+                 currency = VALUES(currency),
+                 cost_per_conversion = VALUES(cost_per_conversion),
+                 roas = VALUES(roas),
+                 metrics = VALUES(metrics),
+                 updated_at = CURRENT_TIMESTAMP"#,
         )
         .bind(period_type)           // 1 — COALESCE subquery period_type
         .bind(&period_start)         // 2 — COALESCE subquery period_start
-        .bind(&new_campaign_uuid)    // 3 — fallback new UUID
-        .bind(period_type)           // 4 — period_type column
-        .bind(&period_start)         // 5 — period_start column
-        .bind(&period_end)           // 6 — period_end column
-        .bind(period_type)           // 7 — created_at COALESCE subquery period_type
-        .bind(&period_start)         // 8 — created_at COALESCE subquery period_start
-        .bind(&period_start)         // 9 — pe.event_time >= period_start
-        .bind(&period_end)           // 10 — pe.event_time < period_end
-        .bind(&period_start)         // 11 — conv.conversion_time >= period_start
-        .bind(&period_end)           // 12 — conv.conversion_time < period_end
+        .bind(period_type)           // 3 — period_type column
+        .bind(&period_start)         // 4 — period_start column
+        .bind(&period_end)           // 5 — period_end column
+        .bind(&period_start)         // 6 — pe.event_time >= period_start
+        .bind(&period_end)           // 7 — pe.event_time < period_end
+        .bind(&period_start)         // 8 — conv.conversion_time >= period_start
+        .bind(&period_end)           // 9 — conv.conversion_time < period_end
         .execute(pool)
         .await?;
     }

@@ -23,13 +23,13 @@ pub async fn list_sessions(
     let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, String)> =
         if user.role.eq_ignore_ascii_case("admin") {
             sqlx::query_as(
-                "SELECT id, name, phone_number, status, last_connected_at, message_count_today, last_error, created_at FROM wa_accounts ORDER BY created_at DESC"
+                "SELECT id, name, phone_number, status, DATE_FORMAT(last_connected_at, '%Y-%m-%d %H:%i:%s') AS last_connected_at, message_count_today, last_error, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_accounts ORDER BY created_at DESC"
             )
             .fetch_all(&state.pool)
             .await
         } else {
             sqlx::query_as(
-                "SELECT id, name, phone_number, status, last_connected_at, message_count_today, last_error, created_at FROM wa_accounts WHERE created_by = ? ORDER BY created_at DESC"
+                "SELECT id, name, phone_number, status, DATE_FORMAT(last_connected_at, '%Y-%m-%d %H:%i:%s') AS last_connected_at, message_count_today, last_error, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_accounts WHERE created_by = ? ORDER BY created_at DESC"
             )
             .bind(&user.id)
             .fetch_all(&state.pool)
@@ -175,7 +175,7 @@ pub async fn get_session_qr(
     ensure_session_access(&state, &user, &id).await?;
 
     let qr: Option<(Option<String>,)> = sqlx::query_as(
-        "SELECT qr_code FROM wa_session_health WHERE session_id = ? AND qr_expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1"
+        "SELECT qr_code FROM wa_session_health WHERE session_id = ? AND qr_expires_at > NOW() ORDER BY created_at DESC LIMIT 1"
     )
     .bind(&id)
     .fetch_optional(&state.pool)

@@ -1,6 +1,6 @@
 use crate::{
     response::AppError,
-    state::{AppState, UserPublic, UserRecord},
+    state::{AppState, UserPublic, UserRecord, USER_RECORD_SELECT},
 };
 use axum::http::HeaderMap;
 use chrono::{Duration, Utc};
@@ -144,7 +144,8 @@ pub async fn login_with_request(
     let email_log = mask_email_for_log(&email);
 
     tracing::info!("Login attempt for email: {}", email);
-    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE LOWER(email) = ?")
+    let query = format!("{USER_RECORD_SELECT} WHERE LOWER(email) = ?");
+    let user: UserRecord = sqlx::query_as(&query)
         .bind(&email)
         .fetch_optional(&state.pool)
         .await
@@ -308,7 +309,8 @@ pub async fn refresh_with_request(
         return Err(AppError::Unauthorized);
     }
 
-    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
+    let user: UserRecord = sqlx::query_as(&query)
         .bind(&session.user_id)
         .fetch_optional(&state.pool)
         .await
@@ -436,7 +438,8 @@ pub async fn authorize(
         return Err(AppError::Unauthorized);
     }
 
-    let user: UserRecord = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
+    let user: UserRecord = sqlx::query_as(&query)
         .bind(&session.user_id)
         .fetch_optional(&state.pool)
         .await

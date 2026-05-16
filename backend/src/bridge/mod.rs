@@ -33,8 +33,23 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Maximum concurrent Node.js processes
 const MAX_CONCURRENT_PROCESSES: usize = 50;
 
-/// Path to the Baileys bridge Node.js script
+/// Path to the Baileys bridge Node.js script when running from the repository root.
 const BAILEYS_BRIDGE_PATH: &str = "backend/baileys-bridge/src/index.js";
+const BAILEYS_BRIDGE_BACKEND_PATH: &str = "baileys-bridge/src/index.js";
+
+fn resolve_bridge_script_path() -> PathBuf {
+    let root_relative = PathBuf::from(BAILEYS_BRIDGE_PATH);
+    if root_relative.exists() {
+        return root_relative;
+    }
+
+    let backend_relative = PathBuf::from(BAILEYS_BRIDGE_BACKEND_PATH);
+    if backend_relative.exists() {
+        return backend_relative;
+    }
+
+    root_relative
+}
 
 /// JSON-RPC error codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -389,7 +404,7 @@ impl BridgeClient {
             event_tx,
             process_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_PROCESSES)),
             node_path: PathBuf::from("node"),
-            bridge_script_path: PathBuf::from(BAILEYS_BRIDGE_PATH),
+            bridge_script_path: resolve_bridge_script_path(),
         };
 
         (client, event_rx)

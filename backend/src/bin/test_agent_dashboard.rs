@@ -1,11 +1,10 @@
-use serde_json::json;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::mysql::MySqlPoolOptions;
 use sqlx::Row;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let database_url = "sqlite:tridjaya.db";
-    let pool = SqlitePoolOptions::new()
+    let database_url = "mysql://tridjaya:password@localhost:3306/tridjaya";
+    let pool = MySqlPoolOptions::new()
         .max_connections(1)
         .connect(database_url)
         .await?;
@@ -23,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             COUNT(pe.id) as total_events,
             COUNT(DISTINCT pe.fbp) as unique_users,
             SUM(CASE WHEN pe.event_type = 'Purchase' THEN 1 ELSE 0 END) as conversions,
-            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS REAL) as total_revenue,
+            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS DOUBLE) as total_revenue,
             COALESCE(MAX(conv.currency), 'IDR') as currency
          FROM pixel_events pe
          JOIN campaigns c ON pe.campaign_id = c.id

@@ -392,7 +392,12 @@ pub async fn list_messages(
 
     let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String)> = if is_admin(&user) {
         sqlx::query_as(
-            "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, sent_at, delivered_at, read_at, created_at FROM wa_messages ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, \
+                    DATE_FORMAT(sent_at, '%Y-%m-%d %H:%i:%s') AS sent_at, \
+                    DATE_FORMAT(delivered_at, '%Y-%m-%d %H:%i:%s') AS delivered_at, \
+                    DATE_FORMAT(read_at, '%Y-%m-%d %H:%i:%s') AS read_at, \
+                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at \
+             FROM wa_messages ORDER BY created_at DESC LIMIT ? OFFSET ?"
         )
         .bind(per_page)
         .bind(offset)
@@ -400,7 +405,11 @@ pub async fn list_messages(
         .await
     } else {
         sqlx::query_as(
-            "SELECT m.id, m.session_id, m.contact_id, m.direction, m.message_type, m.content, m.media_url, m.status, m.sent_at, m.delivered_at, m.read_at, m.created_at
+            "SELECT m.id, m.session_id, m.contact_id, m.direction, m.message_type, m.content, m.media_url, m.status, \
+                    DATE_FORMAT(m.sent_at, '%Y-%m-%d %H:%i:%s') AS sent_at, \
+                    DATE_FORMAT(m.delivered_at, '%Y-%m-%d %H:%i:%s') AS delivered_at, \
+                    DATE_FORMAT(m.read_at, '%Y-%m-%d %H:%i:%s') AS read_at, \
+                    DATE_FORMAT(m.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
              FROM wa_messages m
              JOIN wa_accounts a ON a.id = m.session_id
              WHERE a.created_by = ?
@@ -452,14 +461,23 @@ pub async fn get_message(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let row: Option<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String)> = if is_admin(&user) {
         sqlx::query_as(
-            "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, sent_at, delivered_at, read_at, created_at FROM wa_messages WHERE id = ?"
+            "SELECT id, session_id, contact_id, direction, message_type, content, media_url, status, \
+                    DATE_FORMAT(sent_at, '%Y-%m-%d %H:%i:%s') AS sent_at, \
+                    DATE_FORMAT(delivered_at, '%Y-%m-%d %H:%i:%s') AS delivered_at, \
+                    DATE_FORMAT(read_at, '%Y-%m-%d %H:%i:%s') AS read_at, \
+                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at \
+             FROM wa_messages WHERE id = ?"
         )
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
     } else {
         sqlx::query_as(
-            "SELECT m.id, m.session_id, m.contact_id, m.direction, m.message_type, m.content, m.media_url, m.status, m.sent_at, m.delivered_at, m.read_at, m.created_at
+            "SELECT m.id, m.session_id, m.contact_id, m.direction, m.message_type, m.content, m.media_url, m.status, \
+                    DATE_FORMAT(m.sent_at, '%Y-%m-%d %H:%i:%s') AS sent_at, \
+                    DATE_FORMAT(m.delivered_at, '%Y-%m-%d %H:%i:%s') AS delivered_at, \
+                    DATE_FORMAT(m.read_at, '%Y-%m-%d %H:%i:%s') AS read_at, \
+                    DATE_FORMAT(m.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
              FROM wa_messages m
              JOIN wa_accounts a ON a.id = m.session_id
              WHERE m.id = ? AND a.created_by = ?"

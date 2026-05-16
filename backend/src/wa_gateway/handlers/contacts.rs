@@ -76,7 +76,7 @@ pub async fn list_contacts(
 
     let rows: Vec<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<bool>, Option<bool>, Option<String>, String)> = if is_admin(&user) {
         sqlx::query_as(
-            "SELECT id, phone, name, profile_pic_url, about, labels, is_blocked, is_group, last_chat_at, created_at FROM wa_contacts ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+            "SELECT id, phone, name, profile_pic_url, about, labels, is_blocked, is_group, DATE_FORMAT(last_chat_at, '%Y-%m-%d %H:%i:%s') AS last_chat_at, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_contacts ORDER BY updated_at DESC LIMIT ? OFFSET ?"
         )
         .bind(per_page)
         .bind(offset)
@@ -84,7 +84,7 @@ pub async fn list_contacts(
         .await
     } else {
         sqlx::query_as(
-            "SELECT DISTINCT c.id, c.phone, c.name, c.profile_pic_url, c.about, c.labels, c.is_blocked, c.is_group, c.last_chat_at, c.created_at
+            "SELECT DISTINCT c.id, c.phone, c.name, c.profile_pic_url, c.about, c.labels, c.is_blocked, c.is_group, DATE_FORMAT(c.last_chat_at, '%Y-%m-%d %H:%i:%s') AS last_chat_at, DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
              FROM wa_contacts c
              JOIN wa_messages m ON m.contact_id = c.id
              JOIN wa_accounts a ON a.id = m.session_id
@@ -144,7 +144,7 @@ pub async fn get_contact(
     }
 
     let row: Option<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<bool>, Option<bool>, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, phone, name, profile_pic_url, about, labels, is_blocked, is_group, last_chat_at, created_at FROM wa_contacts WHERE id = ?"
+        "SELECT id, phone, name, profile_pic_url, about, labels, is_blocked, is_group, DATE_FORMAT(last_chat_at, '%Y-%m-%d %H:%i:%s') AS last_chat_at, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_contacts WHERE id = ?"
     )
     .bind(&id)
     .fetch_optional(&state.pool)

@@ -3,18 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Save, FileText, Upload, AlertCircle } from 'lucide-react';
 import { useBlogStore } from '../../store/useBlogStore';
-import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import { adminArticleSchema, getFirstZodIssue } from '../../validators/adminSchemas';
 import type { BlogPost } from '../../types';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+import { apiFetch } from '../../utils/apiClient';
 
 const AdminArticleFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { createPost, updatePost } = useBlogStore();
-  const accessToken = useAuthStore((state) => state.accessToken);
   const isEditMode = !!id;
 
   const [formData, setFormData] = useState<Partial<BlogPost>>({
@@ -70,9 +67,8 @@ const AdminArticleFormPage: React.FC = () => {
 
     setIsUploadingImage(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/uploads/image`, {
+      const response = await apiFetch('/api/admin/uploads/image', {
         method: 'POST',
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: formDataPayload,
       });
 

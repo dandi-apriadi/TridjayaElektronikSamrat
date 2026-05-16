@@ -3,8 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+import { apiFetch } from '../utils/apiClient';
 
 const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -42,8 +41,9 @@ const ResetPasswordPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      const response = await apiFetch('/api/auth/reset-password', {
         method: 'POST',
+        skipAuth: true,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword: password }),
       });

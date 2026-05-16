@@ -18,6 +18,9 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
+const PIXEL_RECORD_SELECT: &str = "SELECT id, pixel_id, name, business_manager_id, status, access_token, created_by, config, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM pixels";
+const PIXEL_WITH_STATS_SELECT: &str = "SELECT p.id, p.pixel_id, p.name, p.business_manager_id, p.status, p.created_by, p.config, DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at";
+
 // ─── Extended row types ───────────────────────────────────────────────────────
 
 /// `PixelRecord` plus aggregate counts returned by `list_pixels`.
@@ -52,7 +55,7 @@ struct PixelAdminWithUser {
 // ─── Audit log helper ─────────────────────────────────────────────────────────
 
 async fn write_audit_log(
-    pool: &sqlx::SqlitePool,
+    pool: &sqlx::MySqlPool,
     user_id: Option<&str>,
     action_type: &str,
     resource_type: &str,
@@ -66,8 +69,8 @@ async fn write_audit_log(
     sqlx::query(
         r#"INSERT INTO pixel_audit_logs
            (id, user_id, action_type, resource_type, resource_id,
-            old_value, new_value, ip_address, user_agent)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            old_value, new_value, ip_address, user_agent, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
     )
     .bind(&log_id)
     .bind(user_id)
@@ -78,6 +81,7 @@ async fn write_audit_log(
     .bind(new_value)
     .bind(ip_address)
     .bind(user_agent)
+    .bind("{}")
     .execute(pool)
     .await
     .map_err(|e| {
@@ -159,7 +163,8 @@ pub async fn create_pixel(
     .await?;
 
     // Fetch and return the created record
-    let record: PixelRecord = sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
+    let query = format!("{PIXEL_RECORD_SELECT} WHERE id = ?");
+    let record: PixelRecord = sqlx::query_as(&query)
         .bind(&id)
         .fetch_one(&state.pool)
         .await
@@ -179,27 +184,23 @@ pub async fn list_pixels(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let pixels: Vec<PixelWithStats> = if user.role.eq_ignore_ascii_case("admin") {
-        sqlx::query_as(
-            r#"SELECT
-                   p.*,
+        let query = format!(r#"{PIXEL_WITH_STATS_SELECT},
                    (SELECT COUNT(*) FROM pixel_admins pa WHERE pa.pixel_id = p.id) AS assigned_admins_count,
                    (SELECT COUNT(*) FROM pixel_events pe WHERE pe.pixel_id = p.id) AS total_events
                FROM pixels p
-               ORDER BY p.created_at DESC"#,
-        )
+               ORDER BY p.created_at DESC"#);
+        sqlx::query_as(&query)
         .fetch_all(&state.pool)
         .await
     } else {
-        sqlx::query_as(
-            r#"SELECT
-                   p.*,
+        let query = format!(r#"{PIXEL_WITH_STATS_SELECT},
                    (SELECT COUNT(*) FROM pixel_admins pa2 WHERE pa2.pixel_id = p.id) AS assigned_admins_count,
                    (SELECT COUNT(*) FROM pixel_events pe WHERE pe.pixel_id = p.id) AS total_events
                FROM pixels p
                JOIN pixel_admins pa ON pa.pixel_id = p.id
                WHERE pa.user_id = ?
-               ORDER BY p.created_at DESC"#,
-        )
+               ORDER BY p.created_at DESC"#);
+        sqlx::query_as(&query)
         .bind(&user.id)
         .fetch_all(&state.pool)
         .await
@@ -221,14 +222,14 @@ pub async fn get_pixel(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
 
     let record: Option<PixelRecord> = if user.role.eq_ignore_ascii_case("admin") {
-        sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
+        let query = format!("{PIXEL_RECORD_SELECT} WHERE id = ?");
+        sqlx::query_as(&query)
             .bind(&id)
             .fetch_optional(&state.pool)
             .await
     } else {
-        sqlx::query_as(
-            "SELECT p.* FROM pixels p JOIN pixel_admins pa ON pa.pixel_id = p.id WHERE p.id = ? AND pa.user_id = ?",
-        )
+        let query = format!("{PIXEL_RECORD_SELECT} p JOIN pixel_admins pa ON pa.pixel_id = p.id WHERE p.id = ? AND pa.user_id = ?");
+        sqlx::query_as(&query)
         .bind(&id)
         .bind(&user.id)
         .fetch_optional(&state.pool)
@@ -255,7 +256,8 @@ pub async fn update_pixel(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch existing pixel
-    let existing: Option<PixelRecord> = sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
+    let query = format!("{PIXEL_RECORD_SELECT} WHERE id = ?");
+    let existing: Option<PixelRecord> = sqlx::query_as(&query)
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
@@ -353,7 +355,8 @@ pub async fn update_pixel(
     .await?;
 
     // Return updated record
-    let updated: PixelRecord = sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
+    let query = format!("{PIXEL_RECORD_SELECT} WHERE id = ?");
+    let updated: PixelRecord = sqlx::query_as(&query)
         .bind(&id)
         .fetch_one(&state.pool)
         .await
@@ -374,7 +377,8 @@ pub async fn delete_pixel(
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
 
     // Fetch existing pixel
-    let existing: Option<PixelRecord> = sqlx::query_as("SELECT * FROM pixels WHERE id = ?")
+    let query = format!("{PIXEL_RECORD_SELECT} WHERE id = ?");
+    let existing: Option<PixelRecord> = sqlx::query_as(&query)
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
@@ -404,6 +408,35 @@ pub async fn delete_pixel(
         None,
     )
     .await?;
+
+    sqlx::query(
+        "DELETE FROM conversions WHERE event_id IN (SELECT id FROM pixel_events WHERE pixel_id = ?)",
+    )
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to delete pixel conversions: {}", e);
+        AppError::Internal
+    })?;
+
+    sqlx::query("DELETE FROM pixel_events WHERE pixel_id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete pixel events: {}", e);
+            AppError::Internal
+        })?;
+
+    sqlx::query("DELETE FROM pixel_analytics WHERE pixel_id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete pixel analytics: {}", e);
+            AppError::Internal
+        })?;
 
     sqlx::query("DELETE FROM pixels WHERE id = ?")
         .bind(&id)
@@ -459,7 +492,7 @@ pub async fn assign_admin(
                 errors: vec!["Target user not found".to_string()],
             });
         }
-        Some((_, role)) if role != "admin" && role != "operator" => {
+        Some((_, role)) if !role.eq_ignore_ascii_case("admin") && !role.eq_ignore_ascii_case("operator") => {
             return Err(AppError::Validation {
                 errors: vec![format!(
                     "User must have role 'admin' or 'operator', but has role '{}'",
@@ -525,7 +558,9 @@ pub async fn assign_admin(
     .await?;
 
     // Return the created record
-    let record: PixelAdminRecord = sqlx::query_as("SELECT * FROM pixel_admins WHERE id = ?")
+    let record: PixelAdminRecord = sqlx::query_as(
+        "SELECT id, pixel_id, user_id, permissions, DATE_FORMAT(assigned_at, '%Y-%m-%d %H:%i:%s') AS assigned_at, assigned_by FROM pixel_admins WHERE id = ?",
+    )
         .bind(&assignment_id)
         .fetch_one(&state.pool)
         .await
@@ -590,7 +625,9 @@ pub async fn list_pixel_admins(
 
     let admins: Vec<PixelAdminWithUser> = sqlx::query_as(
         r#"SELECT
-               pa.id, pa.pixel_id, pa.user_id, pa.permissions, pa.assigned_at, pa.assigned_by,
+               pa.id, pa.pixel_id, pa.user_id, pa.permissions,
+               DATE_FORMAT(pa.assigned_at, '%Y-%m-%d %H:%i:%s') AS assigned_at,
+               pa.assigned_by,
                u.name AS user_name, u.email AS user_email
            FROM pixel_admins pa
            JOIN users u ON u.id = pa.user_id

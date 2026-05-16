@@ -1,9 +1,6 @@
 import { create } from 'zustand';
 import type { BlogPost } from '../types';
-import { useAuthStore } from './authStore';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
-const API_URL = API_BASE_URL;
+import { apiFetch } from '../utils/apiClient';
 
 interface BlogState {
   posts: BlogPost[];
@@ -26,7 +23,7 @@ export const useBlogStore = create<BlogState>((set, get) => ({
  
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/articles`);
+      const response = await apiFetch('/api/articles', { skipAuth: true });
       
       if (!response.ok) {
         throw new Error('Gagal mengambil data artikel');
@@ -50,17 +47,16 @@ export const useBlogStore = create<BlogState>((set, get) => ({
   createPost: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/articles`, {
+      const response = await apiFetch('/api/articles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Failed to create article');
-      await get().fetchPosts();
+      set({ isLoading: false });
+      await get().fetchPosts(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error', isLoading: false });
@@ -70,17 +66,16 @@ export const useBlogStore = create<BlogState>((set, get) => ({
   updatePost: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/articles/${id}`, {
+      const response = await apiFetch(`/api/articles/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Failed to update article');
-      await get().fetchPosts();
+      set({ isLoading: false });
+      await get().fetchPosts(true);
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error', isLoading: false });
@@ -89,12 +84,8 @@ export const useBlogStore = create<BlogState>((set, get) => ({
   },
   deletePost: async (id) => {
     try {
-      const token = useAuthStore.getState().accessToken;
-      const response = await fetch(`${API_URL}/articles/${id}`, {
+      const response = await apiFetch(`/api/articles/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       if (!response.ok) throw new Error('Failed to delete article');
       set((state) => ({ posts: state.posts.filter(p => p.id !== id) }));

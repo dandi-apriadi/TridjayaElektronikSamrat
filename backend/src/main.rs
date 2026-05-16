@@ -4,7 +4,7 @@ use axum::http::{HeaderValue, Method, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
 use dotenvy::dotenv;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -165,59 +165,34 @@ async fn main() {
         std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
     tracing::info!("Connecting to database...");
 
-    let sqlite_pool_max_connections = std::env::var("SQLITE_MAX_CONNECTIONS")
+    let mysql_pool_max_connections = std::env::var("MYSQL_MAX_CONNECTIONS")
         .ok()
         .and_then(|value| value.parse::<u32>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(20);
-    let sqlite_busy_timeout_secs = std::env::var("SQLITE_BUSY_TIMEOUT_SECS")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(30);
+        .unwrap_or(50);
 
-    let sqlite_options = SqliteConnectOptions::from_str(&database_url)
+    let mysql_options = MySqlConnectOptions::from_str(&database_url)
         .map_err(|e| {
-            tracing::error!("Invalid SQLite DATABASE_URL {}: {}", database_url, e);
+            tracing::error!("Invalid MySQL DATABASE_URL {}: {}", database_url, e);
             e
         })
-        .expect("Invalid SQLite DATABASE_URL")
-        .journal_mode(SqliteJournalMode::Wal)
-        .synchronous(SqliteSynchronous::Normal)
-        .busy_timeout(Duration::from_secs(sqlite_busy_timeout_secs))
-        .create_if_missing(true);
+        .expect("Invalid MySQL DATABASE_URL");
 
-    let pool = SqlitePoolOptions::new()
-        .max_connections(sqlite_pool_max_connections)
+    let pool = MySqlPoolOptions::new()
+        .max_connections(mysql_pool_max_connections)
         .min_connections(1)
-        .acquire_timeout(Duration::from_secs(sqlite_busy_timeout_secs))
-        .connect_with(sqlite_options)
+        .acquire_timeout(Duration::from_secs(30))
+        .connect_with(mysql_options)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to connect to SQLite at {}: {}", database_url, e);
+            tracing::error!("Failed to connect to MySQL at {}: {}", database_url, e);
             e
         })
-        .expect("Failed to connect to SQLite. Check if DATABASE_URL is correct and file permissions are okay.");
-
-    match sqlx::query_scalar::<_, String>("PRAGMA journal_mode = WAL")
-        .fetch_one(&pool)
-        .await
-    {
-        Ok(mode) => tracing::info!("SQLite journal mode set to {}", mode),
-        Err(e) => tracing::warn!("Failed to enable SQLite WAL journal mode: {}", e),
-    }
-
-    let busy_timeout_ms = sqlite_busy_timeout_secs.saturating_mul(1000);
-    if let Err(e) = sqlx::query(&format!("PRAGMA busy_timeout = {}", busy_timeout_ms))
-        .execute(&pool)
-        .await
-    {
-        tracing::warn!("Failed to set SQLite busy_timeout: {}", e);
-    }
+        .expect("Failed to connect to MySQL. Check DATABASE_URL and database availability.");
 
     // Run Migrations
     tracing::info!("Running database migrations...");
-    sqlx::migrate!("./migrations")
+    sqlx::migrate!("./migrations_mysql")
         .run(&pool)
         .await
         .map_err(|e| {
@@ -232,18 +207,12 @@ async fn main() {
     }
 
     // Diagnostic: Check if columns exist
-    match sqlx::query("PRAGMA table_info(agent_registrations)")
+    match sqlx::query_as::<_, (String,)>("SHOW COLUMNS FROM agent_registrations")
         .fetch_all(&pool)
         .await
     {
         Ok(rows) => {
-            let columns: Vec<String> = rows
-                .iter()
-                .map(|r: &sqlx::sqlite::SqliteRow| {
-                    use sqlx::Row;
-                    r.get::<String, _>("name")
-                })
-                .collect();
+            let columns: Vec<String> = rows.into_iter().map(|row| row.0).collect();
             tracing::info!("Agent registration columns: {:?}", columns);
 
             // Check count
@@ -256,18 +225,12 @@ async fn main() {
         Err(e) => tracing::error!("Failed to check agent_registrations table: {}", e),
     }
 
-    match sqlx::query("PRAGMA table_info(products)")
+    match sqlx::query_as::<_, (String,)>("SHOW COLUMNS FROM products")
         .fetch_all(&pool)
         .await
     {
         Ok(rows) => {
-            let columns: Vec<String> = rows
-                .iter()
-                .map(|r: &sqlx::sqlite::SqliteRow| {
-                    use sqlx::Row;
-                    r.get::<String, _>("name")
-                })
-                .collect();
+            let columns: Vec<String> = rows.into_iter().map(|row| row.0).collect();
             tracing::info!("Products table columns: {:?}", columns);
         }
         Err(e) => tracing::error!("Failed to check products table: {}", e),

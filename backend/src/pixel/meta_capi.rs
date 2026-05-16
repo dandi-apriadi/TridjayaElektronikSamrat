@@ -2,7 +2,7 @@
 
 use crate::pixel::crypto::{decrypt_token, get_encryption_key};
 use serde_json::{json, Value};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -49,7 +49,7 @@ struct RetryEventRow {
 /// On success, updates `sent_to_meta = 1` and stores the Meta event ID.
 /// On failure, increments `retry_count` and stores the error message.
 pub async fn send_event(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     event_id: &str,
     pixel_id: &str,
     access_token_encrypted: &str,
@@ -60,7 +60,7 @@ pub async fn send_event(
 
     // 2. Fetch the event from the database.
     let event: Option<EventRow> = sqlx::query_as(
-        "SELECT event_id, event_type, event_time, event_source_url, user_data, custom_data \
+        "SELECT event_id, event_type, DATE_FORMAT(event_time, '%Y-%m-%dT%H:%i:%sZ') AS event_time, event_source_url, user_data, custom_data \
          FROM pixel_events WHERE event_id = ?",
     )
     .bind(event_id)
@@ -167,7 +167,7 @@ pub async fn send_event(
 /// Fetches the pixel's `pixel_id` and encrypted `access_token` by joining
 /// `pixel_events` with `pixels`, then calls `send_event`. Errors are logged
 /// but not propagated — this function always returns `Ok(())`.
-pub async fn send_event_async(pool: &SqlitePool, event_id: &str) -> Result<(), ()> {
+pub async fn send_event_async(pool: &MySqlPool, event_id: &str) -> Result<(), ()> {
     // Fetch pixel_id and access_token via JOIN.
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT p.pixel_id, p.access_token \
@@ -244,7 +244,7 @@ pub async fn send_test_event(
 ///
 /// Applies exponential backoff: waits `2^retry_count` seconds before each attempt.
 /// After 3 failures, the event is left at `retry_count = 3` as a terminal state.
-pub async fn retry_failed_events(pool: &SqlitePool) -> Result<(), MetaCapiError> {
+pub async fn retry_failed_events(pool: &MySqlPool) -> Result<(), MetaCapiError> {
     // Query failed events with their pixel credentials.
     let events: Vec<RetryEventRow> = sqlx::query_as(
         "SELECT pe.event_id, pe.retry_count, p.pixel_id AS pixel_id_str, p.access_token \
@@ -411,7 +411,7 @@ mod tests {
 
         // The function does not take a `pool` parameter for writes — confirmed by
         // the function signature: send_test_event(pixel_id, access_token_encrypted, event_type, test_event_code)
-        // No SqlitePool write operations are performed.
+        // No MySqlPool write operations are performed.
         let no_db_write = true;
         assert!(
             no_db_write,

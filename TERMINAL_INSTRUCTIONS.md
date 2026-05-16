@@ -1,104 +1,114 @@
 # Terminal Installation Instructions
 
-Dokumen ini berisi kumpulan perintah yang dapat disalin dan ditempel langsung ke terminal untuk melakukan instalasi project Tridjaya Manado, baik untuk pengembangan lokal maupun deployment ke VPS.
+Panduan ini memakai runtime native. Jalankan semua perintah dari root project kecuali disebutkan lain.
 
-## 1. Persiapan Awal (Local Development - Windows/Linux/macOS)
+## 1. Prasyarat Lokal
 
-Pastikan Anda sudah menginstal:
-- **Node.js** (v18+) & **npm**
-- **Rust** & **Cargo**
-- **Redis** (opsional, jika tidak menggunakan Docker)
-- **SQLite3**
+Instal:
 
-### Jalankan perintah berikut di folder root project:
+- Node.js 20+ dan npm
+- Rust stable dan Cargo
+- MySQL 8.0+ atau MariaDB kompatibel
+- Redis
+
+## 2. Setup Database
+
+Buat database dan user MySQL:
 
 ```bash
-# 1. Instalasi dependensi Frontend
+mysql -u root -p
+```
+
+```sql
+CREATE DATABASE tridjaya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'tridjaya'@'localhost' IDENTIFIED BY 'password_aman';
+GRANT ALL PRIVILEGES ON tridjaya.* TO 'tridjaya'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+Salin env backend:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Isi minimal:
+
+```bash
+DATABASE_URL=mysql://tridjaya:password_aman@127.0.0.1:3306/tridjaya
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+COOKIE_SECURE=false
+TRUST_PROXY_HEADERS=false
+```
+
+## 3. Instalasi Dependency
+
+```bash
 cd frontend
 npm install
-cp .env.example .env
 
-# 2. Instalasi dependensi WhatsApp Bridge (Backend)
 cd ../backend/baileys-bridge
 npm install
 
-# 3. Persiapan Backend Rust
 cd ..
-cp .env.example .env
 cargo build
-
-# Kembali ke root
-cd ..
 ```
 
----
+## 4. Jalankan Project Lokal
 
-## 2. Cara Menjalankan Project (Lokal)
+Terminal 1:
 
-Gunakan dua terminal terpisah:
+```bash
+redis-server
+```
 
-**Terminal 1 (Backend):**
+Terminal 2:
+
 ```bash
 cd backend
 cargo run --bin tridjaya-backend
 ```
 
-**Terminal 2 (Frontend):**
+Terminal 3:
+
 ```bash
 cd frontend
 npm run dev
 ```
 
----
+Endpoint default:
 
-## 3. Instalasi Cepat di VPS (Ubuntu/Debian)
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8081`
+- Health check: `http://localhost:8081/health`
 
-Jika Anda sedang menyiapkan server baru, Anda bisa menyalin blok perintah ini sekaligus setelah melakukan `git clone`.
+## 5. Test API Backend
+
+Setelah backend hidup:
 
 ```bash
-# Masuk ke folder project
-cd /var/www/tridjaya
-
-# Update sistem dan instalasi Docker (jika belum ada)
-sudo apt-get update
-sudo apt-get install -y docker.io docker-compose-v2 git
-
-# Buat file .env production secara otomatis
-cat > .env <<EOF
-REDIS_PASSWORD=$(openssl rand -hex 24)
-APP_ENV=production
-ALLOWED_ORIGINS=https://tridjaya.com,https://www.tridjaya.com
-COOKIE_SECURE=true
-PIXEL_ENCRYPTION_KEY=$(openssl rand -hex 32)
-TRUST_PROXY_HEADERS=true
-VITE_API_BASE_URL=https://tridjaya.com
-VITE_FRONTEND_URL=https://tridjaya.com
-EOF
-
-# Jalankan dengan Docker Compose (Build Semuanya)
-docker compose up -d --build
-
-# Cek status kontainer
-docker compose ps
+cd frontend
+npm run test:api:backend
 ```
 
----
+Untuk read-only test:
 
-## 4. Perintah Tambahan (Maintenance)
-
-### Update Code & Restart (VPS)
 ```bash
-git pull origin main
-docker compose up -d --build
+API_TEST_MUTATE=false npm run test:api:backend
 ```
 
-### Cek Log Backend
+## 6. Build Production Native
+
 ```bash
-docker compose logs -f backend
+cd backend
+cargo build --release --bin tridjaya-backend
+
+cd ../frontend
+npm run build
 ```
 
-### Backup Database (SQLite)
+## 7. Backup MySQL
+
 ```bash
-docker compose exec backend sh -c 'sqlite3 /app/data/tridjaya.db ".backup /app/data/backup.db"'
-docker cp $(docker compose ps -q backend):/app/data/backup.db ./backups/$(date +%Y%m%d).db
+BACKUP_DIR=./backups/mysql ./scripts/backup_mysql.sh
 ```

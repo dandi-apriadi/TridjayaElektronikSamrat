@@ -5,7 +5,12 @@
 
 import { useAuthStore } from '../store/authStore';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+function normalizeApiBaseUrl(value: string | undefined): string {
+  const baseUrl = (value?.trim() || 'http://localhost:8081').replace(/\/+$/, '');
+  return baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+}
+
+export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
 
 function getBackendAssetBaseUrl(): string {
   return API_BASE_URL.replace(/\/api$/, '');
@@ -158,7 +163,7 @@ export async function apiJson<T = any>(
  * Helper for image URLs from backend
  */
 export function getImageUrl(path: string | undefined | null): string {
-  if (!path) return `${API_BASE_URL}/uploads/default-product.webp`;
+  if (!path) return `${getBackendAssetBaseUrl()}/uploads/default-product.webp`;
   if (path.startsWith('http')) return path;
   if (path.startsWith('data:')) return path;
   if (path.startsWith('blob:')) return path;

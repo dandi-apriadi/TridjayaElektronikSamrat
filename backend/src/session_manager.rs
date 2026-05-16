@@ -18,7 +18,7 @@ use aes_gcm::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -108,14 +108,14 @@ pub struct SessionManager {
     /// Bridge client for communication with Node.js Baileys
     bridge: Arc<BridgeClient>,
     /// Database connection pool
-    pool: SqlitePool,
+    pool: MySqlPool,
     /// Encryption key derived from GATEWAY_SECRET
     encryption_key: Arc<Aes256Gcm>,
 }
 
 impl SessionManager {
     /// Create a new session manager
-    pub fn new(bridge: Arc<BridgeClient>, pool: SqlitePool) -> SessionResult<Self> {
+    pub fn new(bridge: Arc<BridgeClient>, pool: MySqlPool) -> SessionResult<Self> {
         // Derive encryption key from GATEWAY_SECRET environment variable
         let gateway_secret = std::env::var("GATEWAY_SECRET").unwrap_or_else(|_| {
             warn!("GATEWAY_SECRET not set, using default (INSECURE for production!)");

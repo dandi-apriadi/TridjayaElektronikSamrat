@@ -10,7 +10,7 @@
  * - Tracks replied_at timestamp when recipient replies
  */
 use crate::bridge::BridgeEvent;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -55,12 +55,12 @@ pub struct StatusUpdate {
 
 /// WhatsApp Status Tracker
 pub struct WaStatusTracker {
-    pool: SqlitePool,
+    pool: MySqlPool,
 }
 
 impl WaStatusTracker {
     /// Create a new status tracker
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: MySqlPool) -> Self {
         Self { pool }
     }
 

@@ -17,11 +17,11 @@ use crate::bridge::BridgeEvent;
  * - creds_updated      → store encrypted credentials in wa_accounts
  * - process_crashed    → update wa_accounts status + error
  */
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
-pub async fn run(pool: SqlitePool, mut event_rx: mpsc::UnboundedReceiver<BridgeEvent>) {
+pub async fn run(pool: MySqlPool, mut event_rx: mpsc::UnboundedReceiver<BridgeEvent>) {
     info!("Bridge event processor started");
 
     while let Some(event) = event_rx.recv().await {
@@ -44,7 +44,7 @@ pub async fn run(pool: SqlitePool, mut event_rx: mpsc::UnboundedReceiver<BridgeE
     warn!("Bridge event processor stopped (event channel closed)");
 }
 
-async fn handle_event(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_event(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     match event.event_type.as_str() {
         "qr_generated" => handle_qr_generated(pool, event).await,
         "connected" => handle_connected(pool, event).await,
@@ -91,7 +91,7 @@ fn normalize_wa_phone(value: &str) -> Option<String> {
 }
 
 /// Store QR code in wa_session_health for the frontend to poll
-async fn handle_qr_generated(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_qr_generated(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let qr = event.data.get("qr").and_then(|v| v.as_str()).unwrap_or("");
     let session_id = &event.session_id;
 
@@ -106,7 +106,7 @@ async fn handle_qr_generated(pool: &SqlitePool, event: &BridgeEvent) -> Result<(
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO wa_session_health (id, session_id, status, qr_code, qr_expires_at, updated_at)
-         VALUES (?, ?, 'qr_ready', ?, datetime('now', '+2 minutes'), CURRENT_TIMESTAMP)",
+         VALUES (?, ?, 'qr_ready', ?, DATE_ADD(NOW(), INTERVAL 2 MINUTE), CURRENT_TIMESTAMP)",
     )
     .bind(&id)
     .bind(session_id)
@@ -123,7 +123,7 @@ async fn handle_qr_generated(pool: &SqlitePool, event: &BridgeEvent) -> Result<(
 }
 
 /// Session connected — update status and phone number
-async fn handle_connected(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_connected(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let session_id = &event.session_id;
     let phone = event.data.get("phone").and_then(|v| v.as_str());
 
@@ -156,7 +156,7 @@ async fn handle_connected(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), 
 }
 
 /// Session disconnected
-async fn handle_disconnected(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_disconnected(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let session_id = &event.session_id;
     let reason = event
         .data
@@ -191,7 +191,7 @@ async fn handle_disconnected(pool: &SqlitePool, event: &BridgeEvent) -> Result<(
 }
 
 /// Session reconnecting
-async fn handle_reconnecting(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_reconnecting(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let session_id = &event.session_id;
     let attempt = event
         .data
@@ -210,10 +210,7 @@ async fn handle_reconnecting(pool: &SqlitePool, event: &BridgeEvent) -> Result<(
 }
 
 /// Reconnect failed
-async fn handle_reconnect_failed(
-    pool: &SqlitePool,
-    event: &BridgeEvent,
-) -> Result<(), sqlx::Error> {
+async fn handle_reconnect_failed(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let session_id = &event.session_id;
     let error_msg = event
         .data
@@ -258,10 +255,7 @@ async fn handle_reconnect_failed(
 }
 
 /// Incoming WhatsApp message — store in wa_messages
-async fn handle_message_received(
-    pool: &SqlitePool,
-    event: &BridgeEvent,
-) -> Result<(), sqlx::Error> {
+async fn handle_message_received(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let session_id = &event.session_id;
     let data = &event.data;
 
@@ -288,7 +282,7 @@ async fn handle_message_received(
     sqlx::query(
         "INSERT INTO wa_contacts (id, phone, is_group, last_chat_at)
          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(phone) DO UPDATE SET last_chat_at = CURRENT_TIMESTAMP",
+         ON DUPLICATE KEY UPDATE last_chat_at = CURRENT_TIMESTAMP",
     )
     .bind(&contact_id)
     .bind(&contact_phone)
@@ -308,8 +302,8 @@ async fn handle_message_received(
     // Store message
     let msg_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT OR IGNORE INTO wa_messages (id, session_id, contact_id, direction, message_type, content, status, wa_message_id, sent_at, created_at)
-         VALUES (?, ?, ?, 'inbound', 'text', ?, 'received', ?, datetime(?, 'unixepoch'), CURRENT_TIMESTAMP)"
+        "INSERT IGNORE INTO wa_messages (id, session_id, contact_id, direction, message_type, content, status, wa_message_id, sent_at, created_at)
+         VALUES (?, ?, ?, 'inbound', 'text', ?, 'received', ?, FROM_UNIXTIME(?), CURRENT_TIMESTAMP)"
     )
     .bind(&msg_id)
     .bind(session_id)
@@ -348,7 +342,7 @@ async fn handle_message_received(
 }
 
 /// Message delivery status update (sent/delivered/read)
-async fn handle_message_status(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_message_status(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let data = &event.data;
     let message_id = data
         .get("message_id")
@@ -439,7 +433,7 @@ async fn handle_message_status(pool: &SqlitePool, event: &BridgeEvent) -> Result
 }
 
 /// Credentials updated — store encrypted in wa_accounts
-async fn handle_creds_updated(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_creds_updated(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let session_id = &event.session_id;
     let credentials = event
         .data
@@ -461,7 +455,7 @@ async fn handle_creds_updated(pool: &SqlitePool, event: &BridgeEvent) -> Result<
 }
 
 /// Bridge process crashed
-async fn handle_process_crashed(pool: &SqlitePool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
+async fn handle_process_crashed(pool: &MySqlPool, event: &BridgeEvent) -> Result<(), sqlx::Error> {
     let session_id = &event.session_id;
     let error_msg = event
         .data

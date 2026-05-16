@@ -4,8 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Mail, Sparkles, ShieldCheck, RefreshCcw, CheckCircle2, Loader2 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import logoPng from '../assets/images/logo.webp';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8081';
+import { apiFetch } from '../utils/apiClient';
 
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -22,8 +21,9 @@ const ForgotPasswordPage: React.FC = () => {
     const submittedEmail = String(formData.get('forgot-password-email') ?? '').trim();
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      const response = await apiFetch('/api/auth/forgot-password', {
         method: 'POST',
+        skipAuth: true,
         headers: {
           'Content-Type': 'application/json',
         },

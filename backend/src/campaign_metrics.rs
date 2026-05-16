@@ -10,7 +10,7 @@
  */
 use chrono::{DateTime, Timelike, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
@@ -83,7 +83,7 @@ pub struct HourlyCampaignMetrics {
 /// - read_rate: (total_read / total_sent) * 100
 /// - reply_rate: (total_replied / total_sent) * 100
 pub async fn calculate_campaign_metrics(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     campaign_id: &str,
 ) -> Result<CampaignMetrics, Box<dyn std::error::Error + Send + Sync>> {
     debug!(campaign_id = %campaign_id, "Calculating campaign metrics");
@@ -162,7 +162,7 @@ pub async fn calculate_campaign_metrics(
 ///
 /// The hour_timestamp is truncated to the start of the hour (e.g., 2024-05-05 14:00:00)
 pub async fn aggregate_hourly_metrics(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     campaign_id: &str,
     hour_timestamp: DateTime<Utc>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -312,7 +312,7 @@ pub async fn aggregate_hourly_metrics(
 ///
 /// Returns all hourly metrics records for a campaign, ordered by hour_timestamp
 pub async fn get_hourly_metrics(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     campaign_id: &str,
 ) -> Result<Vec<HourlyCampaignMetrics>, Box<dyn std::error::Error + Send + Sync>> {
     let metrics: Vec<HourlyCampaignMetrics> = sqlx::query_as(
@@ -338,7 +338,7 @@ pub async fn get_hourly_metrics(
 /// - Real-time metrics calculated from wa_recipients
 /// - Hourly metrics from wa_campaign_metrics table
 pub async fn get_campaign_metrics_response(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     campaign_id: &str,
 ) -> Result<CampaignMetricsResponse, Box<dyn std::error::Error + Send + Sync>> {
     // Get campaign details
@@ -383,7 +383,7 @@ pub async fn get_campaign_metrics_response(
 /// This function should be called periodically (e.g., every hour) to aggregate
 /// metrics for all campaigns that have activity in the current hour.
 pub async fn aggregate_all_campaigns(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("Starting hourly metrics aggregation for all campaigns");
 

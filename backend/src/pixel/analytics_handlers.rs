@@ -126,7 +126,7 @@ pub async fn get_platform_monitoring_dashboard(
 
     // Real-time event count from last hour
     let realtime_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM pixel_events WHERE event_time > datetime('now', '-1 hour')",
+        "SELECT COUNT(*) FROM pixel_events WHERE event_time > DATE_SUB(NOW(), INTERVAL 1 HOUR)",
     )
     .fetch_one(&state.pool)
     .await
@@ -216,7 +216,7 @@ pub async fn get_audit_logs(
 ) -> Result<Response, AppError> {
     authorize(&state, &headers, &[Role::Admin]).await?;
 
-    let mut sql = "SELECT * FROM pixel_audit_logs WHERE 1=1".to_string();
+    let mut sql = "SELECT id, user_id, action_type, resource_type, resource_id, old_value, new_value, ip_address, user_agent, metadata, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM pixel_audit_logs WHERE 1=1".to_string();
     let mut params: Vec<String> = Vec::new();
 
     if let Some(action_type) = &query.action_type {
@@ -522,7 +522,7 @@ pub async fn get_agent_pixel_analytics(
             COUNT(pe.id) as total_events,
             COUNT(DISTINCT pe.fbp) as unique_users,
             SUM(CASE WHEN pe.event_type = 'Purchase' THEN 1 ELSE 0 END) as conversions,
-            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS REAL) as total_revenue,
+            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS DOUBLE) as total_revenue,
             COALESCE(MAX(conv.currency), 'USD') as currency
          FROM pixel_events pe
          JOIN campaigns c ON pe.campaign_id = c.id
@@ -596,7 +596,7 @@ pub async fn get_sales_pixel_analytics(
             COUNT(pe.id) as total_events,
             COUNT(DISTINCT pe.fbp) as unique_users,
             SUM(CASE WHEN pe.event_type = 'Purchase' THEN 1 ELSE 0 END) as conversions,
-            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS REAL) as total_revenue,
+            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS DOUBLE) as total_revenue,
             COALESCE(MAX(conv.currency), 'USD') as currency
          FROM campaigns c
          LEFT JOIN pixel_events pe ON c.id = pe.campaign_id AND DATE(pe.event_time) >= ? AND DATE(pe.event_time) <= ?
@@ -668,7 +668,7 @@ pub async fn get_operator_pixel_analytics(
             COUNT(pe.id) as total_events,
             COUNT(DISTINCT pe.fbp) as unique_users,
             SUM(CASE WHEN pe.event_type = 'Purchase' THEN 1 ELSE 0 END) as conversions,
-            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS REAL) as total_revenue,
+            CAST(COALESCE(SUM(conv.conversion_value), 0.0) AS DOUBLE) as total_revenue,
             COALESCE(MAX(conv.currency), 'USD') as currency
          FROM campaigns c
          JOIN pixel_admins pa ON c.pixel_id = pa.pixel_id

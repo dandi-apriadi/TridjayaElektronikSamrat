@@ -53,6 +53,9 @@ function isSessionExpiredStatus(status: number): boolean {
   return status === 401 || status === 403;
 }
 
+let refreshSessionPromise: Promise<boolean> | null = null;
+let restoreSessionPromise: Promise<void> | null = null;
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
@@ -139,7 +142,9 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, isAuthenticated: false, accessToken: null });
       },
       refreshSession: async () => {
-        try {
+        if (refreshSessionPromise) return refreshSessionPromise;
+
+        refreshSessionPromise = (async () => {
           const response = await fetch(`${API_URL}/auth/refresh`, {
             method: 'POST',
             credentials: 'include',
@@ -172,17 +177,26 @@ export const useAuthStore = create<AuthState>()(
           });
 
           return true;
-        } catch {
+        })()
+          .catch(() => {
           // Backend may be restarting or temporarily unreachable. Keep the
           // current in-memory access token so polling requests do not turn into
           // a cascade of 401s after a transient 502/network error.
           return false;
-        }
+          })
+          .finally(() => {
+            refreshSessionPromise = null;
+          });
+
+        return refreshSessionPromise;
       },
       restoreSession: async () => {
-        set({ isInitializing: true });
+        if (restoreSessionPromise) return restoreSessionPromise;
+
+        restoreSessionPromise = (async () => {
+          set({ isInitializing: true });
         
-        try {
+          try {
           const response = await fetch(`${API_URL}/auth/refresh`, {
             method: 'POST',
             credentials: 'include',
@@ -217,6 +231,11 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           set({ isInitializing: false });
         }
+        })().finally(() => {
+          restoreSessionPromise = null;
+        });
+
+        return restoreSessionPromise;
       },
       updateProfile: async (data) => {
         try {

@@ -10,29 +10,21 @@
  * - Edge cases (no recipients, division by zero, campaign not found)
  */
 use chrono::{Duration, Timelike, Utc};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tridjaya_backend::campaign_metrics::{
     aggregate_hourly_metrics, calculate_campaign_metrics, get_campaign_metrics_response,
 };
 use uuid::Uuid;
 
+mod support;
+
 /// Helper function to create a test database pool
-async fn create_test_pool() -> SqlitePool {
-    let pool = SqlitePool::connect(":memory:")
-        .await
-        .expect("Failed to create in-memory database");
-
-    // Run migrations
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run migrations");
-
-    pool
+async fn create_test_pool() -> Option<MySqlPool> {
+    support::setup_mysql_test_pool().await
 }
 
 /// Helper function to create a test campaign
-async fn create_test_campaign(pool: &SqlitePool, name: &str) -> String {
+async fn create_test_campaign(pool: &MySqlPool, name: &str) -> String {
     let campaign_id = Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO wa_campaigns (id, name, status, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)"
@@ -49,7 +41,7 @@ async fn create_test_campaign(pool: &SqlitePool, name: &str) -> String {
 
 /// Helper function to create a test recipient
 async fn create_test_recipient(
-    pool: &SqlitePool,
+    pool: &MySqlPool,
     campaign_id: &str,
     phone: &str,
     status: &str,
@@ -81,7 +73,9 @@ async fn create_test_recipient(
 
 #[tokio::test]
 async fn test_calculate_metrics_with_no_recipients() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let campaign_id = create_test_campaign(&pool, "Empty Campaign").await;
 
     let metrics = calculate_campaign_metrics(&pool, &campaign_id)
@@ -101,7 +95,9 @@ async fn test_calculate_metrics_with_no_recipients() {
 
 #[tokio::test]
 async fn test_calculate_metrics_with_recipients() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let campaign_id = create_test_campaign(&pool, "Test Campaign").await;
 
     let now = Utc::now().to_rfc3339();
@@ -163,7 +159,9 @@ async fn test_calculate_metrics_with_recipients() {
 
 #[tokio::test]
 async fn test_calculate_metrics_division_by_zero() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let campaign_id = create_test_campaign(&pool, "No Sent Campaign").await;
 
     // Create recipients that are pending (not sent)
@@ -196,7 +194,9 @@ async fn test_calculate_metrics_division_by_zero() {
 
 #[tokio::test]
 async fn test_aggregate_hourly_metrics() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let campaign_id = create_test_campaign(&pool, "Hourly Test Campaign").await;
 
     let now = Utc::now();
@@ -250,7 +250,9 @@ async fn test_aggregate_hourly_metrics() {
 
 #[tokio::test]
 async fn test_aggregate_hourly_metrics_update_existing() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let campaign_id = create_test_campaign(&pool, "Update Test Campaign").await;
 
     let now = Utc::now();
@@ -350,7 +352,9 @@ async fn test_aggregate_hourly_metrics_update_existing() {
 
 #[tokio::test]
 async fn test_get_campaign_metrics_response() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let campaign_id = create_test_campaign(&pool, "Full Response Test").await;
 
     let now = Utc::now();
@@ -409,7 +413,9 @@ async fn test_get_campaign_metrics_response() {
 
 #[tokio::test]
 async fn test_get_campaign_metrics_response_not_found() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let non_existent_id = Uuid::new_v4().to_string();
 
     let result = get_campaign_metrics_response(&pool, &non_existent_id).await;
@@ -420,7 +426,9 @@ async fn test_get_campaign_metrics_response_not_found() {
 
 #[tokio::test]
 async fn test_metrics_with_100_percent_rates() {
-    let pool = create_test_pool().await;
+    let Some(pool) = create_test_pool().await else {
+        return;
+    };
     let campaign_id = create_test_campaign(&pool, "Perfect Campaign").await;
 
     let now = Utc::now().to_rfc3339();

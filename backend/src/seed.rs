@@ -1,6 +1,6 @@
 use crate::auth::hash_password;
 use serde_json::json;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::fs;
 use std::path::Path;
 
@@ -44,7 +44,7 @@ fn landing_asset_url(
     Ok(format!("/uploads/landing/{}", dest_file))
 }
 
-async fn seed_landing_content(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
+async fn seed_landing_content(pool: &MySqlPool) -> Result<(), Box<dyn std::error::Error>> {
     let mut conn = pool.acquire().await?;
 
     let hero_assets = [
@@ -176,23 +176,23 @@ async fn seed_landing_content(pool: &SqlitePool) -> Result<(), Box<dyn std::erro
             "INSERT INTO landing_hero_slides
              (id, eyebrow, title, accent, copy, href, cta, bg_image_url, product_image_url, product_alt, icon_key, price, old_price, detail_line, metrics, specs, sort_order, is_active)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-             ON CONFLICT(id) DO UPDATE SET
-               eyebrow = excluded.eyebrow,
-               title = excluded.title,
-               accent = excluded.accent,
-               copy = excluded.copy,
-               href = excluded.href,
-               cta = excluded.cta,
-               bg_image_url = excluded.bg_image_url,
-               product_image_url = excluded.product_image_url,
-               product_alt = excluded.product_alt,
-               icon_key = excluded.icon_key,
-               price = excluded.price,
-               old_price = excluded.old_price,
-               detail_line = excluded.detail_line,
-               metrics = excluded.metrics,
-               specs = excluded.specs,
-               sort_order = excluded.sort_order,
+             ON DUPLICATE KEY UPDATE
+               eyebrow = VALUES(eyebrow),
+               title = VALUES(title),
+               accent = VALUES(accent),
+               copy = VALUES(copy),
+               href = VALUES(href),
+               cta = VALUES(cta),
+               bg_image_url = VALUES(bg_image_url),
+               product_image_url = VALUES(product_image_url),
+               product_alt = VALUES(product_alt),
+               icon_key = VALUES(icon_key),
+               price = VALUES(price),
+               old_price = VALUES(old_price),
+               detail_line = VALUES(detail_line),
+               metrics = VALUES(metrics),
+               specs = VALUES(specs),
+               sort_order = VALUES(sort_order),
                updated_at = CURRENT_TIMESTAMP",
         )
         .bind(id)
@@ -266,15 +266,15 @@ async fn seed_landing_content(pool: &SqlitePool) -> Result<(), Box<dyn std::erro
             "INSERT INTO landing_category_panels
              (id, label, copy, href, image_url, tags, tone, icon_key, sort_order, is_active)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-             ON CONFLICT(id) DO UPDATE SET
-               label = excluded.label,
-               copy = excluded.copy,
-               href = excluded.href,
-               image_url = excluded.image_url,
-               tags = excluded.tags,
-               tone = excluded.tone,
-               icon_key = excluded.icon_key,
-               sort_order = excluded.sort_order,
+             ON DUPLICATE KEY UPDATE
+               label = VALUES(label),
+               copy = VALUES(copy),
+               href = VALUES(href),
+               image_url = VALUES(image_url),
+               tags = VALUES(tags),
+               tone = VALUES(tone),
+               icon_key = VALUES(icon_key),
+               sort_order = VALUES(sort_order),
                updated_at = CURRENT_TIMESTAMP",
         )
         .bind(id)
@@ -299,15 +299,15 @@ async fn seed_landing_content(pool: &SqlitePool) -> Result<(), Box<dyn std::erro
         "INSERT INTO landing_smart_ride
          (id, eyebrow, title, copy, main_image_url, main_image_alt, overlay_title, overlay_copy, stats, is_active)
          VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, 1)
-         ON CONFLICT(id) DO UPDATE SET
-           eyebrow = excluded.eyebrow,
-           title = excluded.title,
-           copy = excluded.copy,
-           main_image_url = excluded.main_image_url,
-           main_image_alt = excluded.main_image_alt,
-           overlay_title = excluded.overlay_title,
-           overlay_copy = excluded.overlay_copy,
-           stats = excluded.stats,
+         ON DUPLICATE KEY UPDATE
+           eyebrow = VALUES(eyebrow),
+           title = VALUES(title),
+           copy = VALUES(copy),
+           main_image_url = VALUES(main_image_url),
+           main_image_alt = VALUES(main_image_alt),
+           overlay_title = VALUES(overlay_title),
+           overlay_copy = VALUES(overlay_copy),
+           stats = VALUES(stats),
            updated_at = CURRENT_TIMESTAMP",
     )
     .bind("Smart Ride System")
@@ -362,11 +362,11 @@ async fn seed_landing_content(pool: &SqlitePool) -> Result<(), Box<dyn std::erro
             "INSERT INTO landing_smart_ride_features
              (id, title, description, image_url, sort_order, is_active)
              VALUES (?, ?, ?, ?, ?, 1)
-             ON CONFLICT(id) DO UPDATE SET
-               title = excluded.title,
-               description = excluded.description,
-               image_url = excluded.image_url,
-               sort_order = excluded.sort_order,
+             ON DUPLICATE KEY UPDATE
+               title = VALUES(title),
+               description = VALUES(description),
+               image_url = VALUES(image_url),
+               sort_order = VALUES(sort_order),
                updated_at = CURRENT_TIMESTAMP",
         )
         .bind(id)
@@ -381,7 +381,7 @@ async fn seed_landing_content(pool: &SqlitePool) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-pub async fn seed_database(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn seed_database(pool: &MySqlPool) -> Result<(), Box<dyn std::error::Error>> {
     seed_landing_content(pool).await?;
 
     // Seed standard reward tiers (Master Data)

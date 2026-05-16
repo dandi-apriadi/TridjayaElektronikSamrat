@@ -55,8 +55,8 @@ pub fn validate_phone_number(phone: &str) -> Result<String, ValidationError> {
 
     // E.164 format: +[country code][number]
     // Country code: 1-3 digits starting with 1-9
-    // Total length: 1-15 digits after the +
-    let re = regex::Regex::new(r"^\+[1-9]\d{1,14}$").unwrap();
+    // Total length: 3-15 digits after the +.
+    let re = regex::Regex::new(r"^\+[1-9]\d{2,14}$").unwrap();
 
     if !re.is_match(phone) {
         return Err(ValidationError::InvalidPhoneNumber);
@@ -248,7 +248,7 @@ fn detect_file_type(data: &[u8]) -> Option<FileType> {
 /// use tridjaya_backend::validation::validate_file_upload;
 ///
 /// // JPEG magic bytes
-/// let jpeg_data = vec![0xFF, 0xD8, 0xFF, 0xE0];
+/// let jpeg_data = vec![0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0];
 /// assert!(validate_file_upload(&jpeg_data, "jpg", "image/jpeg").is_ok());
 ///
 /// // Mismatch: PNG data with JPEG extension
@@ -333,6 +333,7 @@ pub fn detect_sql_injection(input: &str) -> Result<(), ValidationError> {
     let patterns = [
         // Classic injection
         "' or '1'='1",
+        "' or 'a'='a",
         "' or 1=1",
         "\" or \"1\"=\"1",
         "\" or 1=1",

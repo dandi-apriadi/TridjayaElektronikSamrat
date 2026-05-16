@@ -28,7 +28,7 @@ import { useSearchParams } from 'react-router-dom';
 
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import type { AgentRegistration } from '../../store/useAdminNetworkStore';
-import { API_BASE_URL } from '../../utils/apiClient';
+import { apiFetch, getImageUrl } from '../../utils/apiClient';
 import { usePersistedState } from '../../hooks/usePersistedState';
 
 /* ─── Variants ───────────────────────────────────────── */
@@ -109,7 +109,7 @@ const AdminAgentsPage: React.FC = () => {
 
   const handleVerifyEmailManual = async (email: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+      const response = await apiFetch('/api/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -248,7 +248,7 @@ const AdminAgentsPage: React.FC = () => {
                           <div className="flex items-center gap-3">
                             {item.profilePhoto ? (
                               <img 
-                                src={`${API_BASE_URL}${item.profilePhoto}`} 
+                                src={getImageUrl(item.profilePhoto)} 
                                 alt={item.fullName} 
                                 className="w-9 h-9 rounded-xl object-cover flex-shrink-0" 
                               />
@@ -410,16 +410,16 @@ const AdminAgentsPage: React.FC = () => {
                                   {item.profilePhoto && (
                                     <div className="space-y-2">
                                       <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest">Foto Profil</div>
-                                      <a href={`${API_BASE_URL}${item.profilePhoto}`} target="_blank" rel="noreferrer" className="block relative aspect-[3/4] rounded-lg overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors">
-                                        <img src={`${API_BASE_URL}${item.profilePhoto}`} alt="Profile" className="w-full h-full object-cover" />
+                                      <a href={getImageUrl(item.profilePhoto)} target="_blank" rel="noreferrer" className="block relative aspect-[3/4] rounded-lg overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors">
+                                        <img src={getImageUrl(item.profilePhoto)} alt="Profile" className="w-full h-full object-cover" />
                                       </a>
                                     </div>
                                   )}
                                   {item.ktpPhoto && (
                                     <div className="space-y-2 col-span-1 sm:col-span-2">
                                       <div className="text-label-xs text-on-surface-variant font-semibold uppercase tracking-widest">Foto KTP</div>
-                                      <a href={`${API_BASE_URL}${item.ktpPhoto}`} target="_blank" rel="noreferrer" className="block relative aspect-[3/2] rounded-lg overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors">
-                                        <img src={`${API_BASE_URL}${item.ktpPhoto}`} alt="KTP" className="w-full h-full object-cover" />
+                                      <a href={getImageUrl(item.ktpPhoto)} target="_blank" rel="noreferrer" className="block relative aspect-[3/2] rounded-lg overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors">
+                                        <img src={getImageUrl(item.ktpPhoto)} alt="KTP" className="w-full h-full object-cover" />
                                       </a>
                                     </div>
                                   )}
@@ -499,7 +499,7 @@ const AdminAgentsPage: React.FC = () => {
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary to-tertiary rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000" />
                     {selectedAgent.profilePhoto ? (
                       <img 
-                        src={`${API_BASE_URL}${selectedAgent.profilePhoto}`} 
+                        src={getImageUrl(selectedAgent.profilePhoto)} 
                         className="relative w-20 h-20 rounded-2xl object-cover border border-outline-variant/10 shadow-2xl" 
                         alt="" 
                       />
@@ -639,7 +639,7 @@ const AdminAgentsPage: React.FC = () => {
                         <div className="flex items-center justify-between px-1">
                           <span className="text-label-xs font-black text-on-surface-variant uppercase tracking-widest">Foto Profil</span>
                           <a 
-                            href={`${API_BASE_URL}${selectedAgent.profilePhoto}`} 
+                            href={getImageUrl(selectedAgent.profilePhoto)} 
                             target="_blank" 
                             rel="noreferrer" 
                             className="text-primary text-[10px] font-black uppercase tracking-widest hover:text-primary-light flex items-center gap-1.5 transition-colors"
@@ -649,7 +649,7 @@ const AdminAgentsPage: React.FC = () => {
                         </div>
                         <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden border border-outline-variant/10 bg-black/20 group-hover:border-primary/50 transition-all shadow-xl">
                           <img 
-                            src={`${API_BASE_URL}${selectedAgent.profilePhoto}`} 
+                            src={getImageUrl(selectedAgent.profilePhoto)} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                             alt="Profile" 
                           />
@@ -664,7 +664,7 @@ const AdminAgentsPage: React.FC = () => {
                         <div className="flex items-center justify-between px-1">
                           <span className="text-label-xs font-black text-on-surface-variant uppercase tracking-widest">Identitas (KTP)</span>
                           <a 
-                            href={`${API_BASE_URL}${selectedAgent.ktpPhoto}`} 
+                            href={getImageUrl(selectedAgent.ktpPhoto)} 
                             target="_blank" 
                             rel="noreferrer" 
                             className="text-primary text-[10px] font-black uppercase tracking-widest hover:text-primary-light flex items-center gap-1.5 transition-colors"
@@ -674,7 +674,7 @@ const AdminAgentsPage: React.FC = () => {
                         </div>
                         <div className="relative aspect-[1.58/1] rounded-[2rem] overflow-hidden border border-outline-variant/10 bg-black/20 group-hover:border-primary/50 transition-all shadow-xl">
                           <img 
-                            src={`${API_BASE_URL}${selectedAgent.ktpPhoto}`} 
+                            src={getImageUrl(selectedAgent.ktpPhoto)} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                             alt="KTP" 
                           />

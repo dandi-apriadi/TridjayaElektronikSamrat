@@ -1,13 +1,14 @@
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::mysql::MySqlPoolOptions;
 use sqlx::Row;
 use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let database_url = "sqlite:tridjaya.db";
-    let pool = SqlitePoolOptions::new()
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "mysql://tridjaya:password@localhost:3306/tridjaya".to_string());
+    let pool = MySqlPoolOptions::new()
         .max_connections(5)
-        .connect(database_url)
+        .connect(&database_url)
         .await?;
 
     println!("Connected to database. Running test setup...");
@@ -15,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Create a test admin
     let admin_id = "admin-test-001";
     sqlx::query(
-        "INSERT OR IGNORE INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) 
+        "INSERT IGNORE INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) 
          VALUES (?, 'admin.test@tridjaya.com', 'Admin Test', 'admin', '$argon2id$v=19$m=19456,t=2,p=1$test$test', 'default.png', 1, 1)"
     )
     .bind(admin_id)
@@ -25,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Create a test agent
     let agent_id = "agent-test-001";
     sqlx::query(
-        "INSERT OR IGNORE INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) 
+        "INSERT IGNORE INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) 
          VALUES (?, 'agent.test@tridjaya.com', 'Agent Test', 'agent', '$argon2id$v=19$m=19456,t=2,p=1$test$test', 'default.png', 1, 1)"
     )
     .bind(agent_id)
@@ -35,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Create a test pixel
     let pixel_id = "pixel-001";
     sqlx::query(
-        "INSERT OR IGNORE INTO pixels (id, pixel_id, name, status, access_token, created_by) 
+        "INSERT IGNORE INTO pixels (id, pixel_id, name, status, access_token, created_by) 
          VALUES (?, 'test-pixel-123', 'Test Pixel', 'active', 'encrypted-token', ?)",
     )
     .bind(pixel_id)
@@ -46,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. Create a test campaign
     let campaign_id = "campaign-001";
     sqlx::query(
-        "INSERT OR IGNORE INTO campaigns (id, campaign_id, pixel_id, admin_id, name, status, utm_admin) 
+        "INSERT IGNORE INTO campaigns (id, campaign_id, pixel_id, admin_id, name, status, utm_admin) 
          VALUES (?, 'test-campaign-123', ?, ?, 'Test Campaign', 'active', 'admin_test')"
     )
     .bind(campaign_id)

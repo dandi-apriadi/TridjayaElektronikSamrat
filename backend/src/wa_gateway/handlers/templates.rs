@@ -44,7 +44,7 @@ pub async fn list_templates(
 
     let rows: Vec<(String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<bool>, Option<i64>, String)> = if is_admin(&user) {
         sqlx::query_as(
-            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, created_at FROM wa_templates WHERE is_active = 1 ORDER BY name LIMIT ? OFFSET ?"
+            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_templates WHERE is_active = 1 ORDER BY name LIMIT ? OFFSET ?"
         )
         .bind(per_page)
         .bind(offset)
@@ -52,7 +52,7 @@ pub async fn list_templates(
         .await
     } else {
         sqlx::query_as(
-            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, created_at FROM wa_templates WHERE is_active = 1 AND created_by = ? ORDER BY name LIMIT ? OFFSET ?"
+            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_templates WHERE is_active = 1 AND created_by = ? ORDER BY name LIMIT ? OFFSET ?"
         )
         .bind(&user.id)
         .bind(per_page)
@@ -103,14 +103,14 @@ pub async fn get_template(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     let row: Option<(String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<bool>, Option<i64>, String)> = if is_admin(&user) {
         sqlx::query_as(
-            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, created_at FROM wa_templates WHERE id = ? AND is_active = 1"
+            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_templates WHERE id = ? AND is_active = 1"
         )
         .bind(&id)
         .fetch_optional(&state.pool)
         .await
     } else {
         sqlx::query_as(
-            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, created_at FROM wa_templates WHERE id = ? AND is_active = 1 AND created_by = ?"
+            "SELECT id, name, category, content, variables, media_url, media_type, is_active, usage_count, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM wa_templates WHERE id = ? AND is_active = 1 AND created_by = ?"
         )
         .bind(&id)
         .bind(&user.id)

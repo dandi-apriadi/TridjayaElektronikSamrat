@@ -1,4 +1,4 @@
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::mysql::MySqlPoolOptions;
 use std::env;
 
 fn ensure_destructive_allowed() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,9 +17,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let protected_admin_email =
         env::var("PROTECTED_ADMIN_EMAIL").unwrap_or_else(|_| "admin@gmail.com".to_string());
-    let database_url =
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:tridjaya.db".to_string());
-    let pool = SqlitePoolOptions::new()
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "mysql://tridjaya:password@localhost:3306/tridjaya".to_string());
+    let pool = MySqlPoolOptions::new()
         .max_connections(1)
         .connect(&database_url)
         .await?;

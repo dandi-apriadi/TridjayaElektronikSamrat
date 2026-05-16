@@ -19,7 +19,7 @@ use crate::queue_manager::QueueManager;
 use crate::redis_manager::Priority;
 use crate::spintax::SpintaxProcessor;
 use rand::Rng;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -151,7 +151,7 @@ pub struct BlastEngine {
     config: BlastEngineConfig,
     queue_manager: Arc<QueueManager>,
     bridge_client: Arc<BridgeClient>,
-    pool: SqlitePool,
+    pool: MySqlPool,
     /// Rate limiting state per account
     rate_limits: Arc<RwLock<HashMap<String, AccountRateLimit>>>,
     /// Semaphores for concurrent send limiting per account
@@ -172,7 +172,7 @@ impl BlastEngine {
         config: BlastEngineConfig,
         queue_manager: Arc<QueueManager>,
         bridge_client: Arc<BridgeClient>,
-        pool: SqlitePool,
+        pool: MySqlPool,
         media_handler: MediaHandler,
     ) -> Self {
         Self {
@@ -1421,9 +1421,9 @@ impl BlastEngine {
             "UPDATE wa_accounts 
              SET hourly_send_count = hourly_send_count + 1,
                  daily_send_count = daily_send_count + 1,
-                 last_reset_at = CASE 
-                     WHEN last_reset_at IS NULL OR date(last_reset_at) < date('now') 
-                     THEN datetime('now') 
+                 last_reset_at = CASE
+                     WHEN last_reset_at IS NULL OR DATE(last_reset_at) < CURDATE()
+                     THEN NOW()
                      ELSE last_reset_at 
                  END
              WHERE id = ?",
@@ -1737,78 +1737,36 @@ mod integration_tests {
     }
 
     /// Setup test database with required tables
-    async fn setup_test_db() -> SqlitePool {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
+    async fn setup_test_db() -> MySqlPool {
+        let database_url = std::env::var("TEST_DATABASE_URL")
+            .or_else(|_| std::env::var("MYSQL_TEST_DATABASE_URL"))
+            .expect("Set TEST_DATABASE_URL to run ignored blast integration tests");
 
-        // Create wa_campaigns table
-        sqlx::query(
-            "CREATE TABLE wa_campaigns (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                config TEXT,
-                status TEXT NOT NULL DEFAULT 'draft',
-                created_by TEXT,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        let pool = MySqlPool::connect(&database_url).await.unwrap();
+        sqlx::migrate!("./migrations_mysql")
+            .run(&pool)
+            .await
+            .unwrap();
 
-        // Create wa_recipients table
-        sqlx::query(
-            "CREATE TABLE wa_recipients (
-                id TEXT PRIMARY KEY,
-                campaign_id TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                variables_json TEXT,
-                status TEXT NOT NULL DEFAULT 'pending',
-                last_attempt_at DATETIME,
-                sent_at DATETIME,
-                delivered_at DATETIME,
-                read_at DATETIME,
-                replied_at DATETIME,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-
-        // Create wa_dispatch_logs table
-        sqlx::query(
-            "CREATE TABLE wa_dispatch_logs (
-                id TEXT PRIMARY KEY,
-                campaign_id TEXT NOT NULL,
-                recipient_id TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                wa_account_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                message_id TEXT,
-                meta TEXT,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-
-        // Create wa_accounts table
-        sqlx::query(
-            "CREATE TABLE wa_accounts (
-                id TEXT PRIMARY KEY,
-                phone TEXT NOT NULL,
-                name TEXT,
-                status TEXT NOT NULL DEFAULT 'disconnected',
-                hourly_send_count INTEGER NOT NULL DEFAULT 0,
-                daily_send_count INTEGER NOT NULL DEFAULT 0,
-                last_reset_at DATETIME,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        sqlx::query("SET FOREIGN_KEY_CHECKS = 0")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for table in [
+            "wa_dispatch_logs",
+            "wa_recipients",
+            "wa_campaigns",
+            "wa_accounts",
+        ] {
+            sqlx::query(&format!("TRUNCATE TABLE `{}`", table))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("SET FOREIGN_KEY_CHECKS = 1")
+            .execute(&pool)
+            .await
+            .unwrap();
 
         pool
     }
@@ -1816,7 +1774,7 @@ mod integration_tests {
     /// Create a test BlastEngine with mock bridge client
     /// Note: This creates a real BridgeClient but we won't actually spawn processes
     async fn create_test_blast_engine(
-        pool: SqlitePool,
+        pool: MySqlPool,
         config: BlastEngineConfig,
     ) -> (
         TestBlastEngine,
@@ -1854,7 +1812,7 @@ mod integration_tests {
         config: BlastEngineConfig,
         queue_manager: Arc<QueueManager>,
         mock_bridge: Arc<MockBridgeClient>,
-        pool: SqlitePool,
+        pool: MySqlPool,
         rate_limits: Arc<RwLock<HashMap<String, AccountRateLimit>>>,
         account_semaphores: Arc<RwLock<HashMap<String, Arc<Semaphore>>>>,
         spintax_processor: Arc<Mutex<crate::spintax::SpintaxProcessor>>,

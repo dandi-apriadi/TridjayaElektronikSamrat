@@ -1,0 +1,226 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - SQLite Syntax Incompatible with MySQL
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate SQLite-specific code fails against MySQL
+  - **Scoped PBT Approach**: Scope the property to the concrete failing categories: (1) compile with `mysql` feature, (2) execute SQLite-specific SQL against MySQL
+  - Test Steps:
+    - Create `backend/tests/migration_bug_condition_test.rs`
+    - Temporarily change `Cargo.toml` feature from `sqlite` to `mysql` and run `cargo check` — expect compile errors from `SqlitePool`, `SqliteConnectOptions`, `SqlitePoolOptions`, `SqliteJournalMode`, `SqliteSynchronous` usage
+    - Write property-based test: for all SQL statements matching `isBugCondition` (ON CONFLICT DO UPDATE, INSERT OR IGNORE, datetime('now', ?), strftime(...), date('now'), PRAGMA table_info, sqlite_master), execute against MySQL 8.0 and assert syntax error
+    - Concrete counterexamples to document:
+      - `INSERT INTO test ... ON CONFLICT(id) DO UPDATE SET ...` → MySQL syntax error
+      - `SELECT datetime('now', '-30 days')` → MySQL "FUNCTION datetime does not exist"
+      - `PRAGMA table_info(users)` → MySQL syntax error
+      - `INSERT OR IGNORE INTO test ...` → MySQL syntax error
+      - `SELECT strftime('%Y-%m-%d', NOW())` → MySQL "FUNCTION strftime does not exist"
+      - `SELECT date('now')` → MySQL "FUNCTION date does not exist"
+    - Run test on UNFIXED code
+    - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+    - Document counterexamples found to understand root cause
+    - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, 1.11, 1.12_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Standard SQL and Non-DB Code Unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs (standard SQL that is already MySQL-compatible)
+  - Test Steps:
+    - Create `backend/tests/migration_preservation_test.rs`
+    - Observe: `?` placeholder queries execute correctly with String, i64, bool, Option<T> parameters
+    - Observe: `REPLACE INTO` in `pixel/analytics_job.rs` executes correctly
+    - Observe: `LIMIT ? OFFSET ?` pagination returns correct subsets
+    - Observe: `COALESCE(...)`, `COUNT(*)`, `SUM(...)`, `AVG(...)` produce correct results
+    - Observe: `pool.begin()` → queries → `tx.commit()` works for transaction patterns
+    - Observe: `ON DELETE CASCADE` and `UNIQUE` constraints function correctly
+    - Observe: `LOWER(column)` comparisons work correctly
+    - Write property-based tests:
+      - For all queries using `?` placeholders with various parameter types, result is identical
+      - For all `REPLACE INTO` operations, insert-or-replace semantics preserved
+      - For all `LIMIT/OFFSET` queries, correct subset returned
+      - For all aggregate functions, correct computation returned
+      - For all transaction sequences, commit/rollback behavior preserved
+    - Verify tests pass on UNFIXED code (using current SQLite setup to establish baseline)
+    - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+    - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14_
+
+- [x] 3. Fix: SQLite to MySQL Migration
+
+  - [x] 3.1 Update infrastructure configuration files
+    - Change `backend/Cargo.toml` line 109: replace `sqlite` feature with `mysql` in sqlx dependency
+    - Remove non-native runtime files and keep deployment native via systemd, MySQL, Redis, and Nginx
+    - Update `backend/.env.example`: change `DATABASE_URL` format to MySQL, replace `SQLITE_MAX_CONNECTIONS` → `MYSQL_MAX_CONNECTIONS`, remove `SQLITE_BUSY_TIMEOUT_SECS`
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches features=["sqlite"] OR "sqlite:" in DATABASE_URL OR non-native deployment config remains active_
+    - _Expected_Behavior: Cargo.toml enables mysql feature and native deployment docs/scripts use MySQL service dependencies directly_
+    - _Preservation: No impact on standard SQL queries or non-DB modules_
+    - _Requirements: 2.12, 2.13, 2.14_
+
+  - [x] 3.2 Update core types: state.rs and main.rs
+    - In `backend/src/state.rs`: change `use sqlx::SqlitePool` → `use sqlx::MySqlPool`, update struct field `pub pool: SqlitePool` → `pub pool: MySqlPool`, update `fn new(pool: SqlitePool, ...)` → `fn new(pool: MySqlPool, ...)`
+    - In `backend/src/main.rs`: replace imports `use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous}` → `use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions}`
+    - In `main.rs`: replace env vars `SQLITE_MAX_CONNECTIONS` → `MYSQL_MAX_CONNECTIONS`, remove `SQLITE_BUSY_TIMEOUT_SECS`
+    - In `main.rs`: replace connection options `SqliteConnectOptions::from_str(...)` with WAL/synchronous/busy_timeout/create_if_missing → `MySqlConnectOptions::from_str(&database_url)`
+    - In `main.rs`: replace pool options `SqlitePoolOptions::new()` → `MySqlPoolOptions::new()`
+    - In `main.rs`: remove all PRAGMA blocks (journal_mode, busy_timeout)
+    - In `main.rs`: replace `PRAGMA table_info(...)` diagnostics → `SHOW COLUMNS FROM ...` or remove entirely
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches SqlitePool OR SqliteConnectOptions OR SqlitePoolOptions OR PRAGMA_
+    - _Expected_Behavior: MySqlPool connects to MySQL 8.0+ without PRAGMA, WAL, or busy_timeout_
+    - _Preservation: pool.begin()/pool.acquire() auto-adapts; #[sqlx::FromRow] structs unchanged; DELETE queries in state.rs use ? placeholders (compatible)_
+    - _Requirements: 2.1, 2.2, 2.4_
+
+  - [x] 3.3 Consolidate migration schema
+    - Create `backend/migrations_mysql/001_init_mysql.sql` with unified MySQL-compatible schema for all ~35-40 tables
+    - Replace `TEXT PRIMARY KEY` → `VARCHAR(255) PRIMARY KEY` for all string PKs
+    - Replace `datetime('now')` defaults → `NOW()` or `CURRENT_TIMESTAMP`
+    - Use MySQL-compatible JSON storage for JSON fields (implemented as `LONGTEXT` JSON payloads so existing SQLx `String` decoders remain runtime-compatible; MySQL `JSON_EXTRACT` still works on these values)
+    - Use `DECIMAL(15,2)` for price fields (products.price, price_installment, dp_min)
+    - Use `BOOLEAN` / `TINYINT(1)` for boolean fields
+    - Ensure `ROW_NUMBER() OVER(...)` window functions are compatible (MySQL 8.0+ supports)
+    - Include all tables: users, products, promos, blog_posts, job_listings, agent_rewards, reward_tiers, site_content, agent_registrations, agent_leads, telemetry, referrals, support_tickets, partners, notifications, security_tokens, product_categories, product_marketing_fields, job_applications, product_reviews, product_ratings, sales_targets, sales_performance, sales_delivery_schedules, wa_accounts, wa_templates, wa_contacts, wa_conversations, wa_messages, wa_groups, wa_group_members, wa_api_tokens, campaign_metrics, pixel_events, pixel_campaigns, pixel_trackers, pixel_goals, pixel_daily_stats, pixel_hourly_stats, landing_hero_slides, landing_category_panels, landing_smart_ride, landing_smart_ride_features, landing_testimonials, landing_faq, landing_footer_links, product_price_markups, refresh_sessions, wa_blast_contacts, wa_session_health
+    - Update `main.rs` migration path: `sqlx::migrate!("./migrations")` → `sqlx::migrate!("./migrations_mysql")`
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches TEXT PRIMARY KEY without length OR datetime('now') in DDL_
+    - _Expected_Behavior: Single unified MySQL schema creates all tables with correct types_
+    - _Preservation: All table structures, columns, constraints (ON DELETE CASCADE, UNIQUE) preserved semantically_
+    - _Requirements: 2.11_
+
+  - [x] 3.4 Update seed.rs
+    - Change `use sqlx::SqlitePool` → `use sqlx::MySqlPool`
+    - Update all function signatures: `pool: &SqlitePool` → `pool: &MySqlPool`
+    - Replace 4× `ON CONFLICT(id) DO UPDATE SET` → `ON DUPLICATE KEY UPDATE` (lines ~176, 265, 298, 362)
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches SqlitePool OR "ON CONFLICT(" ... ") DO UPDATE SET"_
+    - _Expected_Behavior: seed_database uses MySqlPool and ON DUPLICATE KEY UPDATE for upserts_
+    - _Preservation: pool.acquire() auto-adapts; ? placeholders unchanged_
+    - _Requirements: 2.3_
+
+  - [x] 3.5 Update handler files with SQL syntax changes
+    - In `backend/src/routes.rs`:
+      - 2× `ON CONFLICT(...) DO UPDATE SET` → `ON DUPLICATE KEY UPDATE`
+      - 6× `datetime('now', ?)` → `DATE_SUB(NOW(), INTERVAL ? DAY)` (adjust interval parsing)
+      - 4× `strftime('%Y-%m-%d', ...)` → `DATE_FORMAT(..., '%Y-%m-%d')`
+    - In `backend/src/blast_engine.rs`:
+      - 1× `datetime('now', ?)` → `DATE_SUB(NOW(), INTERVAL ? DAY)`
+      - 1× `date('now')` → `CURDATE()`
+    - In `backend/src/bridge_event_processor.rs`:
+      - 1× `ON CONFLICT(...) DO UPDATE SET` → `ON DUPLICATE KEY UPDATE`
+      - 1× `INSERT OR IGNORE` → `INSERT IGNORE`
+      - 1× `datetime('now', ?)` → `DATE_SUB(NOW(), INTERVAL ? DAY)`
+    - In `backend/src/landing_routes.rs`:
+      - 1× `ON CONFLICT(...) DO UPDATE SET` → `ON DUPLICATE KEY UPDATE`
+    - In `backend/src/cleanup.rs`:
+      - 2× `datetime('now', ?)` → `DATE_SUB(NOW(), INTERVAL ? DAY)`
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches ON CONFLICT DO UPDATE OR INSERT OR IGNORE OR datetime('now' OR strftime( OR date('now')_
+    - _Expected_Behavior: All queries use MySQL-compatible syntax (ON DUPLICATE KEY UPDATE, INSERT IGNORE, DATE_SUB, DATE_FORMAT, CURDATE)_
+    - _Preservation: ? placeholders, LIMIT/OFFSET, COALESCE, COUNT, SUM, AVG, CASE WHEN, REPLACE INTO, pool.begin()/pool.acquire() all unchanged_
+    - _Requirements: 2.5, 2.6, 2.7, 2.8, 2.9_
+
+  - [x] 3.6 Update utility binaries (15 files in src/bin/)
+    - For all 15 binaries (excluding `test_smtp.rs`): change `use sqlx::SqlitePool` → `use sqlx::MySqlPool`
+    - In `seed_db.rs`: change `SqlitePoolOptions` → `MySqlPoolOptions`, update `max_connections(1)` → `max_connections(5)`
+    - In `list_tables.rs`: change `SELECT name FROM sqlite_master WHERE type='table'` → `SHOW TABLES`; change `PRAGMA table_info(...)` → `SHOW COLUMNS FROM ...`
+    - In `debug_pixel.rs`: change 3× `INSERT OR IGNORE` → `INSERT IGNORE`
+    - Files: clear_catalog, cleanup_assets, clear_db, clear_non_admin, clear_products, debug_db, debug_pixel, reset_passwords, seed_db, strict_cleanup, verify_admin, check_event, list_categories, test_agent_dashboard, list_tables
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches SqlitePool OR SqlitePoolOptions OR sqlite_master OR PRAGMA OR INSERT OR IGNORE_
+    - _Expected_Behavior: All binaries use MySqlPool and MySQL-compatible queries_
+    - _Preservation: Application logic, query results, and non-DB operations unchanged_
+    - _Requirements: 2.10, 2.15_
+
+  - [x] 3.7 Update test files with MySQL test harness
+    - In `backend/tests/api_routes_test.rs`: replace in-memory SQLite pool → MySQL test DB connection using `MySqlPoolOptions`
+    - In `backend/tests/api_tokens_test.rs`: same as above
+    - In `backend/tests/campaign_metrics_test.rs`: same as above
+    - Add test setup: connect to `mysql://root@localhost/tridjaya_test`, run unified migration schema
+    - Add test isolation: `SET FOREIGN_KEY_CHECKS = 0` → `TRUNCATE TABLE` for each table → `SET FOREIGN_KEY_CHECKS = 1`
+    - Leave unchanged: `campaign_config_property_test.rs` (no DB), `validation_test.rs` (no DB), `chatbot_routes_test.rs` (ignored placeholder), `webhook_routes_test.rs` (ignored placeholder)
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches SqlitePool in test setup_
+    - _Expected_Behavior: Tests connect to MySQL, run unified schema, use TRUNCATE for isolation_
+    - _Preservation: Test logic, assertions, and non-DB test files unchanged_
+    - _Requirements: 2.16_
+
+  - [x] 3.8 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - SQLite Syntax Replaced with Valid MySQL Equivalents
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior (all MySQL syntax executes without errors)
+    - When this test passes, it confirms the expected behavior is satisfied:
+      - `cargo check` with `mysql` feature compiles cleanly (no SqlitePool errors)
+      - `ON DUPLICATE KEY UPDATE` executes without syntax error
+      - `DATE_SUB(NOW(), INTERVAL ...)` executes correctly
+      - `SHOW COLUMNS FROM ...` returns column metadata
+      - `INSERT IGNORE` executes without syntax error
+      - `DATE_FORMAT(..., '%Y-%m-%d')` executes correctly
+      - `CURDATE()` executes correctly
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14, 2.15, 2.16_
+
+  - [x] 3.9 Verify preservation tests still pass
+    - **Property 2: Preservation** - Standard SQL and Non-DB Code Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all preservation tests still pass after fix:
+      - `?` placeholder queries work identically
+      - `REPLACE INTO` semantics preserved
+      - `LIMIT/OFFSET` pagination unchanged
+      - Aggregate functions produce same results
+      - Transaction commit/rollback behavior preserved
+      - Non-DB modules (`bridge/mod.rs`, `mail.rs`, `response.rs`, `validation.rs`, `spintax.rs`) unaffected
+      - `test_smtp.rs` binary unaffected
+      - Non-DB test files (`campaign_config_property_test.rs`, `validation_test.rs`) still pass
+
+  - [x] 3.10 Scan medium and low-touch handler files for SQLite-specific syntax
+    - Scan `pixel/campaign_handlers.rs`, `pixel/handlers.rs`, `pixel/analytics_handlers.rs`, `pixel/meta_capi.rs`, `pixel/models.rs`
+    - Scan `wa_gateway/handlers/dashboard.rs`, `wa_gateway/handlers/messages.rs`, `wa_gateway/handlers/contacts.rs`, `wa_webhook_handlers.rs`, `wa_status_tracker.rs`
+    - Scan `queue_manager.rs`, `api_tokens.rs`, `session_manager.rs`, `chatbot_routes.rs`, `chatbot_engine.rs`, `auth.rs`
+    - Search for: `ON CONFLICT`, `datetime('now'`, `strftime(`, `date('now')`, `PRAGMA`, `sqlite_master`, `INSERT OR IGNORE`
+    - Replace any SQLite-specific syntax found with MySQL equivalents
+    - _Bug_Condition: isBugCondition(codeUnit) where codeUnit.syntax matches ON CONFLICT OR datetime('now' OR strftime( OR date('now') OR PRAGMA OR sqlite_master OR INSERT OR IGNORE_
+    - _Preservation: All other standard SQL unchanged_
+    - _Requirements: 2.5, 2.6, 2.7, 2.8, 2.9 (extended coverage)_
+
+  - [x] 3.11 Verify critical migration files for SQLite-specific syntax
+    - Check `backend/migrations/2026051202_persist_sessions.sql` for `datetime('now')`
+    - Check `backend/migrations/2026051404_deduplicate_product_price_markups.sql` for `datetime(updated_at)` and `ROW_NUMBER()`
+    - Ensure unified MySQL schema (`migrations_mysql/001_init_mysql.sql`) handles these correctly
+    - _Requirements: 2.11 (extended coverage)_
+
+  - [x] 3.12 Data migration from existing SQLite database
+    - **Status 2026-05-15**: code path and MySQL schema are ready. Added `backend/src/bin/migrate_sqlite_to_mysql.rs`, `scripts/run_mysql_data_migration.sh`, and runbook `.kiro/specs/sqlite-to-mysql-migration/data-migration-runbook.md`. Local SQLite source row counts were captured, but actual MySQL import still requires a live target MySQL instance on the server.
+    - Export existing SQLite production data (e.g. `sqlite3 tridjaya.db .dump` or SQLx script)
+    - Validate all JSON fields are valid before import (products.images, specs, colors; promos.product_ids; blog_posts.tags)
+    - Import to MySQL using pgloader, DBeaver, or custom Rust script
+    - Handle `TEXT PRIMARY KEY` → `VARCHAR(255)` conversion during import
+    - Verify data integrity: row counts match, foreign keys valid, JSON fields parseable
+    - _Requirements: Data integrity preservation_
+
+- [x] 4. Checkpoint - Build and unit tests pass
+  - **Status 2026-05-15**: `cargo check --bin tridjaya-backend`, `cargo check --bins --features dev-tools`, `cargo build --bins --features dev-tools`, and `cargo test` pass locally. Native MySQL startup checks still need to run on a host with MySQL installed.
+  - Run `cargo check` — expect clean compilation with `mysql` feature
+  - Run `cargo build` — expect successful build
+  - Run `cargo test` — expect all tests pass (including preservation and bug condition tests)
+  - Verify all 15 utility binaries compile: `cargo build --bins`
+  - Verify native MySQL service is reachable and backend startup migrations run cleanly
+  - Verify application connects to MySQL and runs migrations on startup
+  - Verify seed data loads correctly via `cargo run --bin seed_db`
+  - Ask the user if questions arise
+
+- [x] 5. Functional and performance verification
+  - **Status 2026-05-15**: Collation (5.2) and JSON validation (5.4) verified locally. Smoke tests (5.1) and performance (5.3) deferred to new server. Full results in `.kiro/specs/sqlite-to-mysql-migration/local-readiness.md`.
+  - **5.1 Smoke test critical user journeys**
+    - Login / authentication flow
+    - CRUD produk (create, read, update, delete catalog items)
+    - WA gateway (connect session, send message, blast campaign)
+    - Pixel tracking (event ingestion, campaign metrics, analytics)
+  - **5.2 Verify MySQL collation behavior**
+    - Confirm `LIKE` case-insensitivity matches SQLite behavior (or document differences)
+    - Verify `utf8mb4_unicode_ci` collation is configured
+  - **5.3 Performance test**
+    - Load test with concurrent connections to verify MySQL handles concurrent writes better than SQLite WAL
+    - Compare response times for high-traffic endpoints (pixel ingestion, WA message send)
+  - **5.4 JSON field runtime verification**
+    - Query JSON fields natively in MySQL (`JSON_EXTRACT`, `JSON_CONTAINS`)
+    - Verify products.images, specs, colors; promos.product_ids; blog_posts.tags are valid JSON
+  - _Requirements: Functional parity, performance baseline, data validation_

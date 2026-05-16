@@ -1,7 +1,7 @@
 use crate::{bridge::BridgeClient, queue_manager::QueueManager};
 use chrono::{DateTime, Utc};
 use redis::{aio::ConnectionManager, AsyncCommands};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -43,7 +43,7 @@ pub struct CleanupReport {
 }
 
 pub struct CleanupManager {
-    pool: SqlitePool,
+    pool: MySqlPool,
     redis: Option<Arc<RwLock<ConnectionManager>>>,
     queue_manager: Option<Arc<QueueManager>>,
     bridge: Option<Arc<BridgeClient>>,
@@ -54,7 +54,7 @@ pub struct CleanupManager {
 
 impl CleanupManager {
     pub fn new(
-        pool: SqlitePool,
+        pool: MySqlPool,
         redis: Option<Arc<RwLock<ConnectionManager>>>,
         queue_manager: Option<Arc<QueueManager>>,
         bridge: Option<Arc<BridgeClient>>,
@@ -150,12 +150,13 @@ impl CleanupManager {
     }
 
     async fn cleanup_webhook_logs(&self) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
-        let deleted =
-            sqlx::query("DELETE FROM wa_webhook_logs WHERE created_at < datetime('now', ?)")
-                .bind(format!("-{} days", self.config.webhook_log_retention_days))
-                .execute(&self.pool)
-                .await?
-                .rows_affected();
+        let deleted = sqlx::query(
+            "DELETE FROM wa_webhook_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)",
+        )
+        .bind(self.config.webhook_log_retention_days as i64)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
 
         debug!(deleted, "Deleted expired webhook logs");
         Ok(deleted)
@@ -165,11 +166,11 @@ impl CleanupManager {
         let deleted = sqlx::query(
             r#"
             DELETE FROM wa_dispatch_logs
-            WHERE created_at < datetime('now', ?)
+            WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
               AND campaign_id IN (SELECT id FROM wa_campaigns WHERE status = 'completed')
             "#,
         )
-        .bind(format!("-{} days", self.config.dispatch_log_retention_days))
+        .bind(self.config.dispatch_log_retention_days as i64)
         .execute(&self.pool)
         .await?
         .rows_affected();
