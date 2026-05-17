@@ -13,9 +13,9 @@ const Footer: React.FC = () => {
       return;
     }
 
-    const subject = encodeURIComponent('Berlangganan Info Promo Tridjaya Manado');
+    const subject = encodeURIComponent('Berlangganan Info Promo Tridjaya Group');
     const body = encodeURIComponent(
-      `Halo tim Tridjaya Manado,\n\nSaya ingin berlangganan update promo terbaru.\nEmail: ${newsletterEmail}\n\nTerima kasih.`
+      `Halo tim Tridjaya Group,\n\nSaya ingin berlangganan update promo terbaru.\nEmail: ${newsletterEmail}\n\nTerima kasih.`
     );
 
     window.location.href = `mailto:dandimamonto.tridjaya03@gmail.com?subject=${subject}&body=${body}`;
@@ -209,7 +209,7 @@ const Footer: React.FC = () => {
         {/* Bottom */}
         <div className="py-6 border-t border-outline-variant/20 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="font-body text-body-sm text-on-surface-variant">
-            © 2025 Tridjaya Manado. Semua hak dilindungi undang-undang.
+            © 2025 Tridjaya Group. Semua hak dilindungi undang-undang.
           </p>
           <div className="flex items-center gap-4">
             <Link to="/kebijakan-privasi" className="font-body text-body-sm text-on-surface-variant hover:text-primary transition-colors">

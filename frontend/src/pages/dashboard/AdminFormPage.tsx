@@ -966,7 +966,7 @@ const AdminFormPage: React.FC = () => {
           <div className="p-4 rounded-xl bg-surface-high/50 border border-outline-variant/10 flex items-start gap-3 mt-4">
             <AlertCircle className="w-5 h-5 text-tertiary flex-shrink-0" />
             <div className="text-body-sm text-on-surface-variant">
-              <strong className="text-on-surface">Penting:</strong> Pastikan seluruh data yang diinput telah divalidasi. Perubahan ini akan segera terlihat oleh seluruh jaringan agen Tridjaya Manado.
+              <strong className="text-on-surface">Penting:</strong> Pastikan seluruh data yang diinput telah divalidasi. Perubahan ini akan segera terlihat oleh seluruh jaringan agen Tridjaya Group.
             </div>
           </div>
         </form>

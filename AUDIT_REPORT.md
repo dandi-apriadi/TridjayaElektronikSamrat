@@ -1,4 +1,4 @@
-# Laporan Audit Keamanan & Bug — Tridjaya Manado
+# Laporan Audit Keamanan & Bug — Tridjaya Group
 
 **Tanggal Audit:** 2026-05-11
 **Auditor:** Cascade (AI Pair Programmer)

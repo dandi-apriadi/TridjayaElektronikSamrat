@@ -243,7 +243,7 @@ const Navbar: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
             <div className="relative">
-              <img src={logoHorizontal} alt="Tridjaya Manado Logo" className="h-10 lg:h-14 w-auto object-contain" />
+              <img src={logoHorizontal} alt="Tridjaya Group Logo" className="h-10 lg:h-14 w-auto object-contain" />
             </div>
           </Link>
 

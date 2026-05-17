@@ -59,6 +59,9 @@ const PicRaportDashboardPage: React.FC = () => {
   const evidence = usePicRaportStore((state) => state.evidence);
   const divisions = usePicRaportStore((state) => state.divisions);
   const reviewEvidence = usePicRaportStore((state) => state.reviewEvidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const fetchDivisions = usePicRaportStore((state) => state.fetchDivisions);
+  const raportError = usePicRaportStore((state) => state.error);
   const [search, setSearch] = useState('');
   const [branch, setBranch] = useState('all');
   const [division, setDivision] = useState('all');
@@ -67,12 +70,19 @@ const PicRaportDashboardPage: React.FC = () => {
   const [score, setScore] = useState('85');
   const [comment, setComment] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
   const debouncedSearch = useDebounce(search, 250);
 
   const todayEvidence = useMemo(
     () => evidence.filter((item) => item.tanggal === todayKey).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
     [evidence]
   );
+
+  useEffect(() => {
+    fetchEvidence({ tanggal: todayKey, limit: 500 });
+    fetchDivisions();
+  }, [fetchDivisions, fetchEvidence]);
   const employees = useMemo(() => buildPicEmployeeSummaries(evidence), [evidence]);
   const daySummary = useMemo(() => buildPicDaySummaries(evidence).find((item) => item.tanggal === todayKey), [evidence]);
   const branches = useMemo(() => [...new Set(todayEvidence.map((item) => item.cabang))].sort((a, b) => a.localeCompare(b, 'id')), [todayEvidence]);
@@ -154,16 +164,26 @@ const PicRaportDashboardPage: React.FC = () => {
     return [...statsByBranch.values()].sort((a, b) => b.pending - a.pending || b.rejected - a.rejected || a.name.localeCompare(b.name, 'id'));
   }, [todayEvidence]);
 
-  const submitReview = (nextStatus: PicRaportReviewStatus) => {
-    if (!selectedEvidence) return;
+  const submitReview = async (nextStatus: PicRaportReviewStatus) => {
+    if (!selectedEvidence || reviewBusy) return;
     const numericScore = Math.max(0, Math.min(100, Number(score) || 0));
-    reviewEvidence(selectedEvidence.id, {
-      status: nextStatus,
-      score: nextStatus === 'rejected' ? 0 : numericScore,
-      comment: comment.trim(),
-    });
-    const nextPending = filteredEvidence.find((item) => item.id !== selectedEvidence.id && item.reviewStatus === 'pending');
-    setSelectedId(nextPending?.id || selectedEvidence.id);
+    setReviewBusy(true);
+    setReviewMessage('');
+    try {
+      await reviewEvidence(selectedEvidence.id, {
+        status: nextStatus,
+        score: nextStatus === 'rejected' ? 0 : numericScore,
+        comment: comment.trim(),
+      });
+      const nextPending = filteredEvidence.find((item) => item.id !== selectedEvidence.id && item.reviewStatus === 'pending');
+      setSelectedId(nextPending?.id || selectedEvidence.id);
+      setReviewMessage(nextStatus === 'rejected' ? 'Raport berhasil ditolak.' : 'Raport berhasil disimpan.');
+      window.setTimeout(() => setReviewMessage(''), 2400);
+    } catch (error) {
+      setReviewMessage(error instanceof Error ? error.message : 'Review gagal disimpan.');
+    } finally {
+      setReviewBusy(false);
+    }
   };
 
   const selectedStatus = selectedEvidence ? statusMeta[selectedEvidence.reviewStatus] : null;
@@ -245,6 +265,13 @@ const PicRaportDashboardPage: React.FC = () => {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+        {(raportError || reviewMessage) && (
+          <div className={`xl:col-span-2 rounded-2xl border px-4 py-3 text-body-sm font-semibold ${
+            raportError ? 'border-error/20 bg-error/10 text-error' : 'border-primary/20 bg-primary/10 text-primary'
+          }`}>
+            {raportError || reviewMessage}
+          </div>
+        )}
         <motion.div variants={itemVariants} className="min-w-0 rounded-xl border border-outline-variant/20 bg-surface shadow-sm">
           <div className="border-b border-outline-variant/10 p-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -431,13 +458,13 @@ const PicRaportDashboardPage: React.FC = () => {
                   </label>
 
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button type="button" onClick={() => submitReview('rejected')} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-error/25 bg-error/10 px-4 text-label-sm font-bold text-error transition hover:bg-error hover:text-on-error">
+                    <button type="button" onClick={() => submitReview('rejected')} disabled={reviewBusy} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-error/25 bg-error/10 px-4 text-label-sm font-bold text-error transition hover:bg-error hover:text-on-error disabled:cursor-not-allowed disabled:opacity-50">
                       <Ban className="h-4 w-4" />
-                      Tolak
+                      {reviewBusy ? 'Menyimpan...' : 'Tolak'}
                     </button>
-                    <button type="button" onClick={() => submitReview('approved')} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-label-sm font-bold text-on-primary transition hover:bg-primary/90">
+                    <button type="button" onClick={() => submitReview('approved')} disabled={reviewBusy} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-label-sm font-bold text-on-primary transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50">
                       <Send className="h-4 w-4" />
-                      Simpan
+                      {reviewBusy ? 'Menyimpan...' : 'Simpan'}
                     </button>
                   </div>
 

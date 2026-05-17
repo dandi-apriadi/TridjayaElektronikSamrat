@@ -1,4 +1,5 @@
 import type { EmployeeRaport } from '../data/ownerRaportData';
+import type { PicRaportEvidence } from '../data/picRaportData';
 
 export interface EmployeeDailyReport {
   tanggal: string;
@@ -72,6 +73,68 @@ export function buildEmployeeMonthlyReport(employee: EmployeeRaport): EmployeeMo
 
   const fallback = history[0] ?? {
     tanggal: today.toISOString(),
+    nilai: 0,
+    selesai: 0,
+    totalJobdesk: employee.totalJobdesk,
+    bukti: 0,
+    terlambat: false,
+    catatan: 'Belum ada history pelaporan.',
+  };
+  const rataNilai = history.length > 0
+    ? Math.round(history.reduce((sum, item) => sum + item.nilai, 0) / history.length)
+    : 0;
+  const terbaik = history.reduce((best, item) => (item.nilai > best.nilai ? item : best), fallback);
+  const terendah = history.reduce((lowest, item) => (item.nilai < lowest.nilai ? item : lowest), fallback);
+
+  return {
+    rataNilai,
+    hariLapor: history.length,
+    totalBukti: history.reduce((sum, item) => sum + item.bukti, 0),
+    hariTerlambat: history.filter((item) => item.terlambat).length,
+    terbaik,
+    terendah,
+    history,
+  };
+}
+
+export function buildEmployeeMonthlyReportFromEvidence(
+  employee: EmployeeRaport,
+  evidence: PicRaportEvidence[]
+): EmployeeMonthlyReport {
+  if (evidence.length === 0) return buildEmployeeMonthlyReport(employee);
+
+  const byDate = new Map<string, PicRaportEvidence[]>();
+  evidence.forEach((item) => {
+    byDate.set(item.tanggal, [...(byDate.get(item.tanggal) || []), item]);
+  });
+
+  const history = [...byDate.entries()]
+    .map(([tanggal, items]) => {
+      const scoredItems = items.filter((item) => typeof item.score === 'number');
+      const reviewedItems = items.filter((item) => item.reviewStatus !== 'pending');
+      const nilai = scoredItems.length
+        ? Math.round(scoredItems.reduce((sum, item) => sum + (item.score || 0), 0) / scoredItems.length)
+        : reviewedItems.length
+          ? Math.round((reviewedItems.length / items.length) * 100)
+          : 0;
+      const comments = items
+        .map((item) => item.reviewerComment?.trim())
+        .filter(Boolean);
+
+      return {
+        tanggal: `${tanggal}T00:00:00`,
+        nilai,
+        selesai: reviewedItems.length,
+        totalJobdesk: Math.max(items.length, employee.totalJobdesk || 1),
+        bukti: items.filter((item) => item.mode !== 'none' && item.evidenceUrl).length,
+        terlambat: false,
+        catatan: comments[0] || (reviewedItems.length ? 'Raport sudah direview PIC.' : 'Raport menunggu review PIC.'),
+      };
+    })
+    .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+
+  const fallback = history[0] ?? {
+    tanggal: new Date().toISOString(),
     nilai: 0,
     selesai: 0,
     totalJobdesk: employee.totalJobdesk,

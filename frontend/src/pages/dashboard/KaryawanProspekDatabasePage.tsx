@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
+  Trash2,
   UserRound,
 } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
@@ -20,7 +21,6 @@ import {
   buildWhatsappUrl,
   formatProspekDateKey,
   statusColor,
-  statusLabel,
   useKaryawanProspekStore,
 } from '../../store/karyawanProspekStore';
 import type { KaryawanProspekEntry, ProspekStatus } from '../../store/karyawanProspekStore';
@@ -57,12 +57,16 @@ const formatDate = (dateKey: string) => new Intl.DateTimeFormat('id-ID', {
 const KaryawanProspekDatabasePage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const allProspek = useKaryawanProspekStore((s) => s.prospek);
-  const ensureSeedForUser = useKaryawanProspekStore((s) => s.ensureSeedForUser);
+  const fetchProspek = useKaryawanProspekStore((s) => s.fetchProspek);
+  const updateProspek = useKaryawanProspekStore((s) => s.updateProspek);
+  const deleteProspek = useKaryawanProspekStore((s) => s.deleteProspek);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | ProspekStatus>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [pageSize, setPageSize] = useState(8);
   const [currentPage, setCurrentPage] = useState(1);
+  const [actionMessage, setActionMessage] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
   const employeeId = user?.id || 'emp-local';
 
   const todayKey = useMemo(() => formatProspekDateKey(new Date()), []);
@@ -74,8 +78,8 @@ const KaryawanProspekDatabasePage: React.FC = () => {
   );
 
   useEffect(() => {
-    ensureSeedForUser(user);
-  }, [ensureSeedForUser, user]);
+    fetchProspek({ limit: 500 });
+  }, [fetchProspek]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -127,6 +131,35 @@ const KaryawanProspekDatabasePage: React.FC = () => {
     setPageSize(8);
   };
 
+  const handleStatusChange = async (item: KaryawanProspekEntry, nextStatus: ProspekStatus) => {
+    if (item.statusProspek === nextStatus) return;
+    setBusyId(item.id);
+    try {
+      await updateProspek(item.id, { statusProspek: nextStatus });
+      setActionMessage('Status prospek berhasil diperbarui.');
+      window.setTimeout(() => setActionMessage(''), 2500);
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : 'Status prospek gagal diperbarui.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (item: KaryawanProspekEntry) => {
+    const confirmed = window.confirm(`Hapus prospek ${item.namaProspek}? Data ini juga akan dilepas dari daftar prospek WA campaign.`);
+    if (!confirmed) return;
+    setBusyId(item.id);
+    try {
+      await deleteProspek(item.id);
+      setActionMessage('Prospek berhasil dihapus.');
+      window.setTimeout(() => setActionMessage(''), 2500);
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : 'Prospek gagal dihapus.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       <motion.section variants={itemVariants} className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-5 shadow-sm lg:p-6">
@@ -165,6 +198,11 @@ const KaryawanProspekDatabasePage: React.FC = () => {
       </motion.section>
 
       <motion.section variants={itemVariants} className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-4 shadow-sm lg:p-5">
+        {actionMessage && (
+          <div className="mb-4 rounded-xl border border-primary/15 bg-primary/10 px-4 py-3 text-body-sm font-semibold text-primary">
+            {actionMessage}
+          </div>
+        )}
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-title-lg font-black text-on-surface">Filter Data</h2>
@@ -267,9 +305,16 @@ const KaryawanProspekDatabasePage: React.FC = () => {
                     <div className="mt-1 text-label-sm text-on-surface-variant">{item.cabang} • {item.divisi}</div>
                   </td>
                   <td className="px-4 py-4 align-top">
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-label-sm font-black ${statusColor[item.statusProspek]}`}>
-                      {statusLabel[item.statusProspek]}
-                    </span>
+                    <select
+                      value={item.statusProspek}
+                      disabled={busyId === item.id}
+                      onChange={(event) => handleStatusChange(item, event.target.value as ProspekStatus)}
+                      className={`rounded-xl border px-3 py-2 text-label-sm font-black outline-none transition focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${statusColor[item.statusProspek]}`}
+                    >
+                      {statusOptions.filter((option) => option.value !== 'all').map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-4 py-4 align-top text-body-sm font-semibold text-on-surface">{item.keteranganFincoy || '-'}</td>
                   <td className="px-4 py-4 align-top">
@@ -280,15 +325,26 @@ const KaryawanProspekDatabasePage: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-5 py-4 align-top text-right">
-                    <a
-                      href={buildWhatsappUrl(item.noWhatsapp, item.namaProspek)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-label-sm font-black text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      WhatsApp
-                    </a>
+                    <div className="inline-flex items-center justify-end gap-2">
+                      <a
+                        href={buildWhatsappUrl(item.noWhatsapp, item.namaProspek)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-label-sm font-black text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#25D366]/30"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        WhatsApp
+                      </a>
+                      <button
+                        type="button"
+                        disabled={busyId === item.id}
+                        onClick={() => handleDelete(item)}
+                        className="inline-flex items-center justify-center rounded-xl border border-error/20 bg-error/10 p-2.5 text-error transition hover:bg-error/15 disabled:opacity-60"
+                        aria-label={`Hapus prospek ${item.namaProspek}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -304,9 +360,16 @@ const KaryawanProspekDatabasePage: React.FC = () => {
                   <div className="font-black text-on-surface">{item.namaProspek}</div>
                   <div className="mt-1 text-label-sm font-semibold text-on-surface-variant">{item.noWhatsapp}</div>
                 </div>
-                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-label-xs font-black ${statusColor[item.statusProspek]}`}>
-                  {statusLabel[item.statusProspek]}
-                </span>
+                <select
+                  value={item.statusProspek}
+                  disabled={busyId === item.id}
+                  onChange={(event) => handleStatusChange(item, event.target.value as ProspekStatus)}
+                  className={`shrink-0 rounded-xl border px-2.5 py-1 text-label-xs font-black outline-none disabled:opacity-60 ${statusColor[item.statusProspek]}`}
+                >
+                  {statusOptions.filter((option) => option.value !== 'all').map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="mt-3 text-body-sm font-bold text-on-surface">{item.minatBarang}</div>
               <p className="mt-1 text-label-sm text-on-surface-variant">{item.keteranganProspek}</p>
@@ -314,15 +377,26 @@ const KaryawanProspekDatabasePage: React.FC = () => {
                 <span className="rounded-full bg-surface px-3 py-1">{formatDate(item.tanggal)}, {item.createdAt}</span>
                 <span className="rounded-full bg-surface px-3 py-1">Fincoy: {item.keteranganFincoy || '-'}</span>
               </div>
-              <a
-                href={buildWhatsappUrl(item.noWhatsapp, item.namaProspek)}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-label-sm font-black text-white transition hover:opacity-90"
-              >
-                <MessageCircle className="h-4 w-4" />
-                Buka WhatsApp
-              </a>
+              <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+                <a
+                  href={buildWhatsappUrl(item.noWhatsapp, item.namaProspek)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-label-sm font-black text-white transition hover:opacity-90"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Buka WhatsApp
+                </a>
+                <button
+                  type="button"
+                  disabled={busyId === item.id}
+                  onClick={() => handleDelete(item)}
+                  className="inline-flex items-center justify-center rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-error transition hover:bg-error/15 disabled:opacity-60"
+                  aria-label={`Hapus prospek ${item.namaProspek}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </article>
           ))}
         </div>

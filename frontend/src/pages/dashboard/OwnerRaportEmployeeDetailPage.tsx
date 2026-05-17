@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -22,10 +22,12 @@ import {
 import { employeeRaports } from '../../data/ownerRaportData';
 import {
   buildEmployeeMonthlyReport,
+  buildEmployeeMonthlyReportFromEvidence,
   monthYearFormatter,
   reportDateFormatter,
   shortDateFormatter,
 } from '../../utils/ownerRaportMonthly';
+import { usePicRaportStore } from '../../store/picRaportStore';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -69,13 +71,58 @@ function getStatus(persentase: number) {
 
 const OwnerRaportEmployeeDetailPage: React.FC = () => {
   const { employeeId } = useParams();
-  const employee = employeeRaports.find((item) => item.id === employeeId);
+  const evidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const isLoading = usePicRaportStore((state) => state.isLoading);
+  const raportError = usePicRaportStore((state) => state.error);
+  const employeeEvidence = useMemo(
+    () => evidence.filter((item) => item.employeeId === employeeId),
+    [employeeId, evidence]
+  );
+  const seedEmployee = employeeRaports.find((item) => item.id === employeeId);
+  const employee = seedEmployee || (employeeEvidence[0]
+    ? {
+        id: employeeEvidence[0].employeeId,
+        nama: employeeEvidence[0].employeeName,
+        posisi: employeeEvidence[0].divisiName,
+        cabang: employeeEvidence[0].cabang,
+        selesai: employeeEvidence.filter((item) => item.reviewStatus !== 'pending').length,
+        totalJobdesk: Math.max(employeeEvidence.length, 1),
+        persentase: employeeEvidence.length
+          ? Math.round((employeeEvidence.filter((item) => item.reviewStatus !== 'pending').length / employeeEvidence.length) * 100)
+          : 0,
+      }
+    : null);
+
+  useEffect(() => {
+    if (!employeeId) return;
+    fetchEvidence({ karyawanId: employeeId, limit: 500 });
+  }, [employeeId, fetchEvidence]);
 
   if (!employee) {
-    return <Navigate to="/dashboard/owner/raport" replace />;
+    return (
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-5">
+        <Link
+          to="/dashboard/owner/raport"
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-label-sm font-bold text-on-surface-variant transition hover:border-primary/30 hover:text-primary"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Kembali ke raport
+        </Link>
+        <div className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-8 text-center shadow-sm">
+          <FileText className="mx-auto h-8 w-8 text-on-surface-variant" />
+          <p className="mt-3 text-body-sm font-bold text-on-surface">
+            {isLoading ? 'Memuat detail raport karyawan...' : 'Data raport karyawan belum ditemukan.'}
+          </p>
+          {(raportError && !isLoading) && <p className="mt-2 text-label-sm font-semibold text-error">{raportError}</p>}
+        </div>
+      </motion.div>
+    );
   }
 
-  const report = buildEmployeeMonthlyReport(employee);
+  const report = employeeEvidence.length
+    ? buildEmployeeMonthlyReportFromEvidence(employee, employeeEvidence)
+    : buildEmployeeMonthlyReport(employee);
   const scoreStatus = getStatus(report.rataNilai);
   const todayStatus = getStatus(employee.persentase);
   const reportDateLabel = reportDateFormatter.format(new Date());

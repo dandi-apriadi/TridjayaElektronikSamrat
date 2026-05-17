@@ -18,7 +18,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use chrono::{Duration, Utc};
+use chrono::{Duration, Local, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -240,6 +240,13 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/admin/leads", get(list_leads))
         .route("/api/admin/leads/{id}/status", patch(update_lead_status))
+        .route("/api/prospek-harian", get(list_prospek_harian).post(create_prospek_harian))
+        .route("/api/prospek-harian/summary", get(get_prospek_harian_summary))
+        .route("/api/prospek-harian/{id}", patch(update_prospek_harian).delete(delete_prospek_harian))
+        .route("/api/raport-harian", get(list_raport_harian).post(upsert_raport_harian))
+        .route("/api/raport-harian/{id}/review", patch(review_raport_harian))
+        .route("/api/jobdesk-report-settings", get(get_jobdesk_report_settings).patch(update_jobdesk_report_settings))
+        .route("/api/jobdesk-divisions", get(get_jobdesk_divisions).patch(update_jobdesk_divisions))
         .route(
             "/api/pixels",
             post(pixel::handlers::create_pixel).get(pixel::handlers::list_pixels),
@@ -330,7 +337,8 @@ pub fn router(state: AppState) -> Router {
             "/api/wa/campaigns/upload-image",
             post(upload_campaign_image),
         )
-        .layer(axum::extract::DefaultBodyLimit::max(20 * 1024 * 1024));
+        .route("/api/raport-harian/upload", post(upload_raport_evidence))
+        .layer(axum::extract::DefaultBodyLimit::max(30 * 1024 * 1024));
 
     let main_router = main_router.merge(upload_routes);
 
@@ -1789,6 +1797,29 @@ fn validate_lead_status(status: &str) -> bool {
     )
 }
 
+fn normalize_local_whatsapp(value: &str) -> String {
+    let digits = value
+        .chars()
+        .filter(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    if digits.is_empty() {
+        return String::new();
+    }
+    if let Some(rest) = digits.strip_prefix("620") {
+        return format!("0{}", rest);
+    }
+    if let Some(rest) = digits.strip_prefix("62") {
+        return format!("0{}", rest);
+    }
+    if digits.starts_with('8') {
+        return format!("0{}", digits);
+    }
+    if digits.starts_with('0') {
+        return digits;
+    }
+    format!("0{}", digits)
+}
+
 fn validate_lead_create(payload: &LeadCreateRequest) -> Result<(), AppError> {
     let mut errors = Vec::new();
     if payload.customer_name.trim().is_empty() {
@@ -2535,6 +2566,112 @@ async fn upload_admin_image(
     })?;
 
     Ok(json_ok("Image uploaded", json!({ "url": url })))
+}
+
+async fn upload_raport_evidence(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Karyawan]).await?;
+    let mut uploaded_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Multipart error: {}", e);
+        AppError::Internal
+    })? {
+        if field.name().unwrap_or_default() != "file" {
+            continue;
+        }
+
+        let original_name = field.file_name().unwrap_or("evidence").to_string();
+        let extension = original_name
+            .rsplit('.')
+            .next()
+            .map(|value| value.to_lowercase())
+            .filter(|value| matches!(value.as_str(), "jpg" | "jpeg" | "png" | "webp" | "mp4" | "webm" | "mov"))
+            .unwrap_or_else(|| "bin".to_string());
+        if extension == "bin" {
+            return Err(AppError::Validation {
+                errors: vec!["Format bukti harus gambar atau video".to_string()],
+            });
+        }
+        let content_type = field
+            .content_type()
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+
+        let data = field.bytes().await.map_err(|e| {
+            tracing::error!("Failed to read raport evidence: {}", e);
+            AppError::Internal
+        })?;
+        if data.is_empty() {
+            return Err(AppError::Validation {
+                errors: vec!["File bukti kosong".to_string()],
+            });
+        }
+        if data.len() > 30 * 1024 * 1024 {
+            return Err(AppError::Validation {
+                errors: vec!["Ukuran bukti maksimal 30 MB".to_string()],
+            });
+        }
+        if !is_valid_raport_evidence_content(&extension, &content_type, &data) {
+            return Err(AppError::Validation {
+                errors: vec!["Isi file bukti tidak sesuai dengan format yang diunggah".to_string()],
+            });
+        }
+
+        tokio::fs::create_dir_all("uploads/raport").await.map_err(|e| {
+            tracing::error!("Failed creating raport upload dir: {}", e);
+            AppError::Internal
+        })?;
+        let file_name = format!("{}_raport.{}", uuid::Uuid::new_v4(), extension);
+        let file_path = format!("uploads/raport/{}", file_name);
+        tokio::fs::write(&file_path, &data).await.map_err(|e| {
+            tracing::error!("Failed writing raport evidence: {}", e);
+            AppError::Internal
+        })?;
+        uploaded_url = Some(format!("/uploads/raport/{}", file_name));
+        break;
+    }
+
+    let url = uploaded_url.ok_or(AppError::Validation {
+        errors: vec!["File bukti wajib diunggah".to_string()],
+    })?;
+    Ok(json_ok("Raport evidence uploaded", json!({ "url": url })))
+}
+
+fn is_valid_raport_evidence_content(extension: &str, content_type: &str, data: &[u8]) -> bool {
+    let lowered_mime = content_type.to_ascii_lowercase();
+    match extension {
+        "jpg" | "jpeg" => {
+            lowered_mime.starts_with("image/jpeg")
+                && data.len() >= 3
+                && data[0] == 0xff
+                && data[1] == 0xd8
+                && data[2] == 0xff
+        }
+        "png" => {
+            lowered_mime.starts_with("image/png")
+                && data.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a])
+        }
+        "webp" => {
+            lowered_mime.starts_with("image/webp")
+                && data.len() >= 12
+                && &data[0..4] == b"RIFF"
+                && &data[8..12] == b"WEBP"
+        }
+        "mp4" | "mov" => {
+            (lowered_mime.starts_with("video/mp4") || lowered_mime.starts_with("video/quicktime"))
+                && data.len() >= 12
+                && &data[4..8] == b"ftyp"
+        }
+        "webm" => {
+            lowered_mime.starts_with("video/webm")
+                && data.starts_with(&[0x1a, 0x45, 0xdf, 0xa3])
+        }
+        _ => false,
+    }
 }
 
 /// Serve files from uploads/private/ — requires admin auth
@@ -8823,6 +8960,12 @@ async fn create_lead(
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Sales]).await?;
     validate_lead_create(&payload)?;
+    let phone_number = normalize_local_whatsapp(&payload.phone_number);
+    if !phone_number.starts_with("08") || phone_number.len() < 10 {
+        return Err(AppError::Validation {
+            errors: vec!["phoneNumber wajib valid dan diawali 08".to_string()],
+        });
+    }
 
     let is_admin = user.role.eq_ignore_ascii_case("admin");
     let agent_id = if is_admin {
@@ -8848,7 +8991,7 @@ async fn create_lead(
     .bind(&id)
     .bind(&agent_id)
     .bind(payload.customer_name.trim())
-    .bind(payload.phone_number.trim())
+    .bind(phone_number)
     .bind(payload.interested_product.trim())
     .bind(status)
     .bind(payload.notes)
@@ -11124,6 +11267,1011 @@ async fn import_blast_contacts_to_campaign(
             "total": contacts.len(),
         }),
     ))
+}
+
+#[derive(Debug, Deserialize)]
+struct ListProspekQuery {
+    tanggal: Option<String>,
+    karyawan_id: Option<String>,
+    page: Option<u32>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+struct ProspekHarianPublic {
+    id: String,
+    karyawan_id: String,
+    karyawan_name: String,
+    cabang: String,
+    divisi: String,
+    nama_prospek: String,
+    no_whatsapp: String,
+    minat_barang: String,
+    keterangan_prospek: String,
+    status_prospek: String,
+    keterangan_fincoy: String,
+    tanggal: String,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateProspekHarianPayload {
+    cabang: Option<String>,
+    divisi: Option<String>,
+    nama_prospek: String,
+    no_whatsapp: String,
+    minat_barang: String,
+    keterangan_prospek: Option<String>,
+    status_prospek: Option<String>,
+    keterangan_fincoy: Option<String>,
+    tanggal: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProspekHarianPayload {
+    cabang: Option<String>,
+    divisi: Option<String>,
+    nama_prospek: Option<String>,
+    no_whatsapp: Option<String>,
+    minat_barang: Option<String>,
+    keterangan_prospek: Option<String>,
+    status_prospek: Option<String>,
+    keterangan_fincoy: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProspekEmployeeSummary {
+    rank: usize,
+    employee_id: String,
+    nama: String,
+    cabang: String,
+    kategori: String,
+    posisi: String,
+    prospek_hari_ini: i64,
+    target: i64,
+    persentase: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProspekSummaryQuery {
+    tanggal: Option<String>,
+}
+
+fn current_date_key() -> String {
+    Local::now().format("%Y-%m-%d").to_string()
+}
+
+fn clamp_page_limit(limit: Option<u32>, default_limit: u32, max_limit: u32) -> u32 {
+    limit.unwrap_or(default_limit).clamp(1, max_limit)
+}
+
+fn normalize_date_key(value: Option<String>) -> Result<String, AppError> {
+    let date = value.unwrap_or_else(current_date_key);
+    let trimmed = date.trim();
+    if NaiveDate::parse_from_str(trimmed, "%Y-%m-%d").is_err() {
+        return Err(AppError::Validation {
+            errors: vec!["tanggal harus memakai format YYYY-MM-DD".to_string()],
+        });
+    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_time_hhmm(value: &str, field: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    let parts: Vec<&str> = trimmed.split(':').collect();
+    if parts.len() != 2 {
+        return Err(AppError::Validation {
+            errors: vec![format!("{} harus memakai format HH:mm", field)],
+        });
+    }
+    let hour = parts[0].parse::<u32>().ok();
+    let minute = parts[1].parse::<u32>().ok();
+    if !matches!((hour, minute), (Some(h), Some(m)) if h <= 23 && m <= 59) {
+        return Err(AppError::Validation {
+            errors: vec![format!("{} harus berupa jam valid", field)],
+        });
+    }
+    Ok(format!("{:02}:{:02}", hour.unwrap_or(0), minute.unwrap_or(0)))
+}
+
+fn normalize_raport_mode(value: Option<String>) -> Result<String, AppError> {
+    let mode = value.unwrap_or_else(|| "none".to_string()).trim().to_lowercase();
+    if !matches!(mode.as_str(), "none" | "image" | "video") {
+        return Err(AppError::Validation {
+            errors: vec!["mode bukti harus none, image, atau video".to_string()],
+        });
+    }
+    Ok(mode)
+}
+
+fn is_sales_division(value: &str) -> bool {
+    let normalized = value.to_lowercase();
+    normalized.contains("sales") || normalized.contains("koordinator")
+}
+
+fn validate_prospek_status(status: &str) -> bool {
+    matches!(
+        status,
+        "deal" | "not_deal" | "fu_ulang" | "tanya_tanya" | "polling"
+    )
+}
+
+fn prospek_status_to_lead_status(status: &str) -> &'static str {
+    match status {
+        "deal" => "Closed Won",
+        "not_deal" => "Closed Lost",
+        "polling" => "Negosiasi",
+        _ => "Follow Up",
+    }
+}
+
+fn build_prospek_lead_notes(keterangan: &str, fincoy: &str, cabang: &str, divisi: &str) -> String {
+    let mut parts = vec![
+        "Sumber: Prospek Harian Karyawan".to_string(),
+        format!("Cabang: {}", cabang),
+        format!("Divisi: {}", divisi),
+    ];
+    if !keterangan.trim().is_empty() {
+        parts.push(format!("Keterangan: {}", keterangan.trim()));
+    }
+    if !fincoy.trim().is_empty() {
+        parts.push(format!("Fincoy: {}", fincoy.trim()));
+    }
+    parts.join(" | ")
+}
+
+async fn sync_prospek_to_lead(
+    state: &AppState,
+    id: &str,
+    agent_id: &str,
+    nama_prospek: &str,
+    no_whatsapp: &str,
+    minat_barang: &str,
+    status_prospek: &str,
+    keterangan_prospek: &str,
+    keterangan_fincoy: &str,
+    cabang: &str,
+    divisi: &str,
+) -> Result<(), AppError> {
+    let lead_status = prospek_status_to_lead_status(status_prospek);
+    let notes = build_prospek_lead_notes(keterangan_prospek, keterangan_fincoy, cabang, divisi);
+
+    sqlx::query(
+        "INSERT INTO leads (id, agent_id, customer_name, phone_number, interested_product, status, notes) \
+         VALUES (?, ?, ?, ?, ?, ?, ?) \
+         ON DUPLICATE KEY UPDATE \
+         agent_id = VALUES(agent_id), customer_name = VALUES(customer_name), phone_number = VALUES(phone_number), \
+         interested_product = VALUES(interested_product), status = VALUES(status), notes = VALUES(notes), updated_at = CURRENT_TIMESTAMP",
+    )
+    .bind(id)
+    .bind(agent_id)
+    .bind(nama_prospek)
+    .bind(no_whatsapp)
+    .bind(minat_barang)
+    .bind(lead_status)
+    .bind(notes)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error syncing prospek_harian to leads: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(())
+}
+
+async fn list_prospek_harian(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ListProspekQuery>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+    )
+    .await?;
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = clamp_page_limit(query.limit, 100, 500);
+    let offset = (page - 1) * limit;
+
+    let mut builder = sqlx::QueryBuilder::<sqlx::MySql>::new(
+        "SELECT p.id, p.karyawan_id, COALESCE(NULLIF(p.karyawan_nama, ''), u.name, '') AS karyawan_name, \
+         p.cabang, p.divisi, p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
+         p.status_prospek, p.keterangan_fincoy, DATE_FORMAT(p.tanggal, '%Y-%m-%d') AS tanggal, \
+         DATE_FORMAT(p.created_at, '%H:%i') AS created_at \
+         FROM prospek_harian p LEFT JOIN users u ON u.id = p.karyawan_id WHERE 1=1",
+    );
+
+    if user.role == "karyawan" {
+        builder.push(" AND p.karyawan_id = ");
+        builder.push_bind(user.id.clone());
+    } else if let Some(karyawan_id) = query.karyawan_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        builder.push(" AND p.karyawan_id = ");
+        builder.push_bind(karyawan_id.to_string());
+    }
+
+    if let Some(tanggal) = query.tanggal.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        builder.push(" AND p.tanggal = ");
+        builder.push_bind(tanggal.to_string());
+    }
+
+    builder.push(" ORDER BY p.tanggal DESC, p.created_at DESC LIMIT ");
+    builder.push_bind(limit as i64);
+    builder.push(" OFFSET ");
+    builder.push_bind(offset as i64);
+
+    let items = builder
+        .build_query_as::<ProspekHarianPublic>()
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error listing prospek_harian: {}", e);
+            AppError::Internal
+        })?;
+
+    Ok(json_ok(
+        "Prospek harian fetched",
+        json!({ "items": items, "page": page, "limit": limit }),
+    ))
+}
+
+async fn create_prospek_harian(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateProspekHarianPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Karyawan]).await?;
+    let nama_prospek = payload.nama_prospek.trim().to_uppercase();
+    let no_whatsapp = normalize_local_whatsapp(&payload.no_whatsapp);
+    let minat_barang = payload.minat_barang.trim().to_uppercase();
+    let status_prospek = payload
+        .status_prospek
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("tanya_tanya")
+        .to_string();
+
+    if nama_prospek.is_empty() || no_whatsapp.is_empty() || minat_barang.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Nama prospek, WhatsApp, dan minat barang wajib diisi".to_string()],
+        });
+    }
+    if !no_whatsapp.starts_with("08") || no_whatsapp.len() < 10 {
+        return Err(AppError::Validation {
+            errors: vec!["Nomor WhatsApp wajib valid dan diawali 08".to_string()],
+        });
+    }
+    if !validate_prospek_status(&status_prospek) {
+        return Err(AppError::Validation {
+            errors: vec!["Status prospek tidak valid".to_string()],
+        });
+    }
+
+    let tanggal = payload
+        .tanggal
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(current_date_key);
+    let cabang = payload
+        .cabang
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Manado")
+        .to_string();
+    let divisi = payload
+        .divisi
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&user.divisi)
+        .to_string();
+    let id = uuid::Uuid::new_v4().to_string();
+    let keterangan_prospek = payload.keterangan_prospek.unwrap_or_default();
+    let keterangan_fincoy = payload.keterangan_fincoy.unwrap_or_default();
+
+    sqlx::query(
+        "INSERT INTO prospek_harian \
+         (id, karyawan_id, karyawan_nama, tanggal, cabang, divisi, nama_prospek, no_whatsapp, minat_barang, keterangan_prospek, status_prospek, keterangan_fincoy) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&user.id)
+    .bind(&user.name)
+    .bind(&tanggal)
+    .bind(&cabang)
+    .bind(&divisi)
+    .bind(&nama_prospek)
+    .bind(&no_whatsapp)
+    .bind(&minat_barang)
+    .bind(&keterangan_prospek)
+    .bind(&status_prospek)
+    .bind(&keterangan_fincoy)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error creating prospek_harian: {}", e);
+        AppError::Internal
+    })?;
+
+    sync_prospek_to_lead(
+        &state,
+        &id,
+        &user.id,
+        &nama_prospek,
+        &no_whatsapp,
+        &minat_barang,
+        &status_prospek,
+        &keterangan_prospek,
+        &keterangan_fincoy,
+        &cabang,
+        &divisi,
+    )
+    .await?;
+
+    Ok(json_ok("Prospek harian created", json!({ "id": id })))
+}
+
+async fn update_prospek_harian(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateProspekHarianPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan]).await?;
+    let current = sqlx::query_as::<_, ProspekHarianPublic>(
+        "SELECT p.id, p.karyawan_id, COALESCE(NULLIF(p.karyawan_nama, ''), u.name, '') AS karyawan_name, \
+         p.cabang, p.divisi, p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
+         p.status_prospek, p.keterangan_fincoy, DATE_FORMAT(p.tanggal, '%Y-%m-%d') AS tanggal, \
+         DATE_FORMAT(p.created_at, '%H:%i') AS created_at \
+         FROM prospek_harian p LEFT JOIN users u ON u.id = p.karyawan_id WHERE p.id = ? LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching prospek_harian for update: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    if user.role == "karyawan" && current.karyawan_id != user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    let cabang = payload.cabang.unwrap_or(current.cabang).trim().to_string();
+    let divisi = payload.divisi.unwrap_or(current.divisi).trim().to_string();
+    let nama_prospek = payload
+        .nama_prospek
+        .unwrap_or(current.nama_prospek)
+        .trim()
+        .to_uppercase();
+    let no_whatsapp = payload
+        .no_whatsapp
+        .map(|value| normalize_local_whatsapp(&value))
+        .unwrap_or_else(|| normalize_local_whatsapp(&current.no_whatsapp));
+    let minat_barang = payload
+        .minat_barang
+        .unwrap_or(current.minat_barang)
+        .trim()
+        .to_uppercase();
+    let keterangan_prospek = payload
+        .keterangan_prospek
+        .unwrap_or(current.keterangan_prospek);
+    let status_prospek = payload
+        .status_prospek
+        .unwrap_or(current.status_prospek)
+        .trim()
+        .to_string();
+    let keterangan_fincoy = payload
+        .keterangan_fincoy
+        .unwrap_or(current.keterangan_fincoy);
+
+    let mut errors = Vec::new();
+    if nama_prospek.is_empty() {
+        errors.push("Nama prospek wajib diisi".to_string());
+    }
+    if minat_barang.is_empty() {
+        errors.push("Minat barang wajib diisi".to_string());
+    }
+    if !no_whatsapp.starts_with("08") || no_whatsapp.len() < 10 {
+        errors.push("Nomor WhatsApp wajib valid dan diawali 08".to_string());
+    }
+    if !validate_prospek_status(&status_prospek) {
+        errors.push("Status prospek tidak valid".to_string());
+    }
+    if !errors.is_empty() {
+        return Err(AppError::Validation { errors });
+    }
+
+    sqlx::query(
+        "UPDATE prospek_harian SET cabang = ?, divisi = ?, nama_prospek = ?, no_whatsapp = ?, minat_barang = ?, \
+         keterangan_prospek = ?, status_prospek = ?, keterangan_fincoy = ? WHERE id = ?",
+    )
+    .bind(&cabang)
+    .bind(&divisi)
+    .bind(&nama_prospek)
+    .bind(&no_whatsapp)
+    .bind(&minat_barang)
+    .bind(&keterangan_prospek)
+    .bind(&status_prospek)
+    .bind(&keterangan_fincoy)
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error updating prospek_harian: {}", e);
+        AppError::Internal
+    })?;
+
+    sync_prospek_to_lead(
+        &state,
+        &id,
+        &current.karyawan_id,
+        &nama_prospek,
+        &no_whatsapp,
+        &minat_barang,
+        &status_prospek,
+        &keterangan_prospek,
+        &keterangan_fincoy,
+        &cabang,
+        &divisi,
+    )
+    .await?;
+
+    Ok(json_ok("Prospek harian updated", json!({ "id": id })))
+}
+
+async fn delete_prospek_harian(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan]).await?;
+    let owner_id = sqlx::query_scalar::<_, String>("SELECT karyawan_id FROM prospek_harian WHERE id = ? LIMIT 1")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching prospek_harian owner for delete: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::NotFound)?;
+
+    if user.role == "karyawan" && owner_id != user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    sqlx::query("DELETE FROM leads WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error deleting synced lead for prospek_harian: {}", e);
+            AppError::Internal
+        })?;
+
+    sqlx::query("DELETE FROM prospek_harian WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error deleting prospek_harian: {}", e);
+            AppError::Internal
+        })?;
+
+    Ok(json_ok("Prospek harian deleted", json!({ "id": id })))
+}
+
+async fn get_prospek_harian_summary(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ProspekSummaryQuery>,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport]).await?;
+    let tanggal = query.tanggal.unwrap_or_else(current_date_key);
+
+    let rows: Vec<(String, String, String, Option<String>, i64)> = sqlx::query_as(
+        "SELECT u.id, u.name, COALESCE(NULLIF(u.divisi, ''), 'Karyawan') AS divisi, MAX(p.cabang) AS cabang, COUNT(p.id) AS total \
+         FROM users u \
+         LEFT JOIN prospek_harian p ON p.karyawan_id = u.id AND p.tanggal = ? \
+         WHERE LOWER(u.role) = 'karyawan' \
+         GROUP BY u.id, u.name, u.divisi",
+    )
+    .bind(&tanggal)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching prospek summary: {}", e);
+        AppError::Internal
+    })?;
+
+    let mut items = rows
+        .into_iter()
+        .map(|(employee_id, nama, posisi, cabang, prospek_hari_ini)| {
+            let target = if is_sales_division(&posisi) { 20 } else { 5 };
+            let kategori = if target == 20 { "Sales" } else { "Non-Sales" };
+            ProspekEmployeeSummary {
+                rank: 0,
+                employee_id,
+                nama,
+                cabang: cabang.filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "Manado".to_string()),
+                kategori: kategori.to_string(),
+                posisi,
+                prospek_hari_ini,
+                target,
+                persentase: if target > 0 { ((prospek_hari_ini * 100) / target).max(0) } else { 0 },
+            }
+        })
+        .collect::<Vec<_>>();
+
+    items.sort_by(|a, b| b.prospek_hari_ini.cmp(&a.prospek_hari_ini).then(b.persentase.cmp(&a.persentase)).then(a.nama.cmp(&b.nama)));
+    for (index, item) in items.iter_mut().enumerate() {
+        item.rank = index + 1;
+    }
+
+    Ok(json_ok("Prospek summary fetched", json!({ "items": items, "tanggal": tanggal })))
+}
+
+#[derive(Debug, Deserialize)]
+struct ListRaportQuery {
+    tanggal: Option<String>,
+    karyawan_id: Option<String>,
+    status: Option<String>,
+    page: Option<u32>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JobdeskReportSettingsPayload {
+    start_time: String,
+    end_time: String,
+    updated_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateJobdeskReportSettingsPayload {
+    start_time: String,
+    end_time: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JobdeskDivisionsPayload {
+    divisions: Value,
+    updated_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+struct RaportHarianPublic {
+    id: String,
+    employee_id: String,
+    employee_name: String,
+    cabang: String,
+    divisi_id: String,
+    divisi_name: String,
+    tanggal: String,
+    submitted_at: String,
+    jobdesk_index: i32,
+    jobdesk_text: String,
+    mode: String,
+    evidence_url: Option<String>,
+    employee_note: Option<String>,
+    review_status: String,
+    score: Option<i32>,
+    reviewer_comment: Option<String>,
+    reviewed_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RaportItemPayload {
+    jobdesk_index: i32,
+    jobdesk_text: String,
+    mode: Option<String>,
+    evidence_url: Option<String>,
+    employee_note: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpsertRaportPayload {
+    tanggal: Option<String>,
+    cabang: Option<String>,
+    divisi: Option<String>,
+    items: Vec<RaportItemPayload>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReviewRaportPayload {
+    status: String,
+    score: Option<i32>,
+    comment: Option<String>,
+}
+
+const JOBDESK_REPORT_SETTINGS_KEY: &str = "jobdesk_report_settings";
+const JOBDESK_DIVISIONS_KEY: &str = "jobdesk_divisions";
+
+fn default_jobdesk_report_settings() -> JobdeskReportSettingsPayload {
+    JobdeskReportSettingsPayload {
+        start_time: "08:00".to_string(),
+        end_time: "18:00".to_string(),
+        updated_at: None,
+    }
+}
+
+async fn load_jobdesk_report_settings(state: &AppState) -> Result<JobdeskReportSettingsPayload, AppError> {
+    let raw: Option<String> = sqlx::query_scalar("SELECT CAST(setting_value AS CHAR) FROM app_settings WHERE setting_key = ? LIMIT 1")
+        .bind(JOBDESK_REPORT_SETTINGS_KEY)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error loading jobdesk report settings: {}", e);
+            AppError::Internal
+        })?;
+
+    let Some(raw) = raw else {
+        return Ok(default_jobdesk_report_settings());
+    };
+
+    Ok(serde_json::from_str::<JobdeskReportSettingsPayload>(&raw)
+        .unwrap_or_else(|_| default_jobdesk_report_settings()))
+}
+
+async fn get_jobdesk_report_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+    )
+    .await?;
+    let settings = load_jobdesk_report_settings(&state).await?;
+    Ok(json_ok("Jobdesk report settings fetched", json!(settings)))
+}
+
+async fn update_jobdesk_report_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateJobdeskReportSettingsPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner]).await?;
+    let settings = JobdeskReportSettingsPayload {
+        start_time: validate_time_hhmm(&payload.start_time, "startTime")?,
+        end_time: validate_time_hhmm(&payload.end_time, "endTime")?,
+        updated_at: Some(Utc::now().to_rfc3339()),
+    };
+    let serialized = serde_json::to_string(&settings).map_err(|e| {
+        tracing::error!("Failed serializing jobdesk report settings: {}", e);
+        AppError::Internal
+    })?;
+
+    sqlx::query(
+        "INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (?, ?, ?) \
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = CURRENT_TIMESTAMP",
+    )
+    .bind(JOBDESK_REPORT_SETTINGS_KEY)
+    .bind(serialized)
+    .bind(&user.id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error saving jobdesk report settings: {}", e);
+        AppError::Internal
+    })?;
+
+    state.audit("raport.settings_updated", Some(&user.id)).await;
+    Ok(json_ok("Jobdesk report settings saved", json!(settings)))
+}
+
+fn validate_jobdesk_divisions(value: &Value) -> Result<(), AppError> {
+    let divisions = value.as_array().ok_or(AppError::Validation {
+        errors: vec!["divisions harus berupa array".to_string()],
+    })?;
+    if divisions.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Minimal satu divisi wajib tersedia".to_string()],
+        });
+    }
+    for division in divisions {
+        let id = division.get("id").and_then(Value::as_str).unwrap_or("").trim();
+        let posisi = division.get("posisi").and_then(Value::as_str).unwrap_or("").trim();
+        let jobdesks = division.get("jobdesks").and_then(Value::as_array);
+        if id.is_empty() || posisi.is_empty() || jobdesks.is_none() {
+            return Err(AppError::Validation {
+                errors: vec!["Setiap divisi wajib memiliki id, posisi, dan jobdesks".to_string()],
+            });
+        }
+    }
+    Ok(())
+}
+
+async fn load_jobdesk_divisions(state: &AppState) -> Result<JobdeskDivisionsPayload, AppError> {
+    let raw: Option<String> = sqlx::query_scalar("SELECT CAST(setting_value AS CHAR) FROM app_settings WHERE setting_key = ? LIMIT 1")
+        .bind(JOBDESK_DIVISIONS_KEY)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error loading jobdesk divisions: {}", e);
+            AppError::Internal
+        })?;
+
+    let Some(raw) = raw else {
+        return Ok(JobdeskDivisionsPayload {
+            divisions: Value::Null,
+            updated_at: None,
+        });
+    };
+
+    Ok(serde_json::from_str::<JobdeskDivisionsPayload>(&raw).unwrap_or(JobdeskDivisionsPayload {
+        divisions: Value::Null,
+        updated_at: None,
+    }))
+}
+
+async fn get_jobdesk_divisions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+    )
+    .await?;
+    let payload = load_jobdesk_divisions(&state).await?;
+    Ok(json_ok("Jobdesk divisions fetched", json!(payload)))
+}
+
+async fn update_jobdesk_divisions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<JobdeskDivisionsPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport]).await?;
+    validate_jobdesk_divisions(&payload.divisions)?;
+    let saved_payload = JobdeskDivisionsPayload {
+        divisions: payload.divisions,
+        updated_at: Some(Utc::now().to_rfc3339()),
+    };
+    let serialized = serde_json::to_string(&saved_payload).map_err(|e| {
+        tracing::error!("Failed serializing jobdesk divisions: {}", e);
+        AppError::Internal
+    })?;
+
+    sqlx::query(
+        "INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (?, ?, ?) \
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = CURRENT_TIMESTAMP",
+    )
+    .bind(JOBDESK_DIVISIONS_KEY)
+    .bind(serialized)
+    .bind(&user.id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error saving jobdesk divisions: {}", e);
+        AppError::Internal
+    })?;
+
+    state.audit("raport.jobdesk_divisions_updated", Some(&user.id)).await;
+    Ok(json_ok("Jobdesk divisions saved", json!(saved_payload)))
+}
+
+async fn list_raport_harian(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ListRaportQuery>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+    )
+    .await?;
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = clamp_page_limit(query.limit, 100, 500);
+    let offset = (page - 1) * limit;
+
+    let mut builder = sqlx::QueryBuilder::<sqlx::MySql>::new(
+        "SELECT r.id, r.karyawan_id AS employee_id, COALESCE(NULLIF(r.karyawan_nama, ''), u.name, '') AS employee_name, \
+         r.cabang, r.divisi AS divisi_id, r.divisi AS divisi_name, DATE_FORMAT(r.tanggal, '%Y-%m-%d') AS tanggal, \
+         DATE_FORMAT(r.updated_at, '%Y-%m-%dT%H:%i:%s') AS submitted_at, r.jobdesk_index, COALESCE(r.jobdesk_text, r.jobdesk_label, '') AS jobdesk_text, \
+         COALESCE(NULLIF(r.evidence_mode, ''), CASE WHEN COALESCE(r.bukti_url, '') = '' THEN 'none' ELSE 'image' END) AS mode, \
+         r.bukti_url AS evidence_url, r.catatan AS employee_note, r.review_status, r.score, r.reviewer_comment, \
+         DATE_FORMAT(r.reviewed_at, '%Y-%m-%dT%H:%i:%s') AS reviewed_at \
+         FROM raport_harian r LEFT JOIN users u ON u.id = r.karyawan_id WHERE 1=1",
+    );
+
+    if user.role == "karyawan" {
+        builder.push(" AND r.karyawan_id = ");
+        builder.push_bind(user.id.clone());
+    } else if let Some(karyawan_id) = query.karyawan_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        builder.push(" AND r.karyawan_id = ");
+        builder.push_bind(karyawan_id.to_string());
+    }
+
+    if let Some(tanggal) = query.tanggal.clone().map(|value| value.trim().to_string()).filter(|v| !v.is_empty()) {
+        let tanggal = normalize_date_key(Some(tanggal))?;
+        builder.push(" AND r.tanggal = ");
+        builder.push_bind(tanggal);
+    }
+    if let Some(status) = query.status.as_deref().map(str::trim).filter(|v| !v.is_empty() && *v != "all") {
+        if !matches!(status, "pending" | "approved" | "rejected") {
+            return Err(AppError::Validation {
+                errors: vec!["status harus pending, approved, rejected, atau all".to_string()],
+            });
+        }
+        builder.push(" AND r.review_status = ");
+        builder.push_bind(status.to_string());
+    }
+
+    builder.push(" ORDER BY r.tanggal DESC, r.updated_at DESC, r.jobdesk_index ASC LIMIT ");
+    builder.push_bind(limit as i64);
+    builder.push(" OFFSET ");
+    builder.push_bind(offset as i64);
+
+    let items = builder
+        .build_query_as::<RaportHarianPublic>()
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error listing raport_harian: {}", e);
+            AppError::Internal
+        })?;
+
+    Ok(json_ok("Raport harian fetched", json!({ "items": items, "page": page, "limit": limit })))
+}
+
+async fn upsert_raport_harian(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpsertRaportPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Karyawan]).await?;
+    if payload.items.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Minimal satu jobdesk wajib dikirim".to_string()],
+        });
+    }
+
+    let tanggal = normalize_date_key(payload.tanggal)?;
+    let cabang = payload
+        .cabang
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "Manado".to_string());
+    let divisi = payload
+        .divisi
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| user.divisi.clone());
+    let mut saved = 0u64;
+
+    for item in payload.items {
+        let jobdesk_text = item.jobdesk_text.trim().to_string();
+        if jobdesk_text.is_empty() {
+            continue;
+        }
+        if item.jobdesk_index < 0 {
+            return Err(AppError::Validation {
+                errors: vec!["jobdeskIndex tidak boleh negatif".to_string()],
+            });
+        }
+        let id = uuid::Uuid::new_v4().to_string();
+        let mode = normalize_raport_mode(item.mode)?;
+        let employee_note = item.employee_note.unwrap_or_default().trim().to_string();
+        let evidence_url = item.evidence_url.unwrap_or_default().trim().to_string();
+        if matches!(mode.as_str(), "image" | "video") && evidence_url.is_empty() {
+            return Err(AppError::Validation {
+                errors: vec!["Bukti gambar/video wajib diunggah sebelum raport dikirim".to_string()],
+            });
+        }
+        if mode == "none" && !evidence_url.is_empty() {
+            return Err(AppError::Validation {
+                errors: vec!["mode none tidak boleh membawa evidenceUrl".to_string()],
+            });
+        }
+
+        let result = sqlx::query(
+            "INSERT INTO raport_harian \
+             (id, karyawan_id, karyawan_nama, tanggal, cabang, divisi, jobdesk_index, jobdesk_label, jobdesk_text, completed, is_done, evidence_mode, bukti_url, notes, catatan, review_status, score, reviewer_comment, reviewed_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, ?, ?, ?, ?, 'pending', NULL, NULL, NULL) \
+             ON DUPLICATE KEY UPDATE karyawan_nama = VALUES(karyawan_nama), cabang = VALUES(cabang), divisi = VALUES(divisi), \
+             jobdesk_label = VALUES(jobdesk_label), jobdesk_text = VALUES(jobdesk_text), completed = TRUE, is_done = TRUE, evidence_mode = VALUES(evidence_mode), \
+             bukti_url = VALUES(bukti_url), notes = VALUES(notes), catatan = VALUES(catatan), review_status = 'pending', score = NULL, reviewer_comment = NULL, reviewed_at = NULL, updated_at = CURRENT_TIMESTAMP",
+        )
+        .bind(id)
+        .bind(&user.id)
+        .bind(&user.name)
+        .bind(&tanggal)
+        .bind(&cabang)
+        .bind(&divisi)
+        .bind(item.jobdesk_index)
+        .bind(&jobdesk_text)
+        .bind(&jobdesk_text)
+        .bind(&mode)
+        .bind(if evidence_url.is_empty() { None } else { Some(evidence_url) })
+        .bind(&employee_note)
+        .bind(&employee_note)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error upserting raport_harian: {}", e);
+            AppError::Internal
+        })?;
+
+        if result.rows_affected() > 0 {
+            saved += 1;
+        }
+    }
+
+    Ok(json_ok("Raport harian saved", json!({ "saved": saved, "tanggal": tanggal })))
+}
+
+async fn review_raport_harian(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<ReviewRaportPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::PicRaport]).await?;
+    let status = payload.status.trim().to_lowercase();
+    if !matches!(status.as_str(), "pending" | "approved" | "rejected") {
+        return Err(AppError::Validation {
+            errors: vec!["Status review harus pending, approved, atau rejected".to_string()],
+        });
+    }
+    let score = match status.as_str() {
+        "pending" => None,
+        "rejected" => Some(0),
+        _ => Some(payload.score.unwrap_or(100).clamp(0, 100)),
+    };
+    let comment = payload.comment.unwrap_or_default().trim().to_string();
+
+    let result = if status == "pending" {
+        sqlx::query(
+            "UPDATE raport_harian SET review_status = ?, score = NULL, reviewer_comment = ?, reviewed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        )
+        .bind(&status)
+        .bind(&comment)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+    } else {
+        sqlx::query(
+            "UPDATE raport_harian SET review_status = ?, score = ?, reviewer_comment = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        )
+        .bind(&status)
+        .bind(score)
+        .bind(&comment)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+    }
+    .map_err(|e| {
+        tracing::error!("DB error reviewing raport_harian: {}", e);
+        AppError::Internal
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    state.audit("raport.reviewed", Some(&user.id)).await;
+    Ok(json_ok("Raport reviewed", json!({ "id": id, "status": status, "score": score })))
 }
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────

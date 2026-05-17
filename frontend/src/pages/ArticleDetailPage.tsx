@@ -270,7 +270,7 @@ const ArticleDetailPage: React.FC = () => {
                   <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <h3 className="font-display text-headline-sm font-bold text-white mb-4 relative z-10">Punya Pertanyaan Mengenai Artikel Ini?</h3>
                   <p className="text-on-surface-variant mb-8 max-w-xl mx-auto relative z-10">
-                    Tim ahli kami di Tridjaya Manado siap membantu Anda memberikan informasi lebih detail mengenai topik di atas.
+                    Tim ahli kami di Tridjaya Group siap membantu Anda memberikan informasi lebih detail mengenai topik di atas.
                   </p>
                   <div className="flex flex-wrap justify-center gap-4 relative z-10">
                     <Link
@@ -432,7 +432,7 @@ const ArticleDetailPage: React.FC = () => {
               {/* Newsletter Placeholder */}
               <div className="p-6 rounded-2xl bg-gradient-to-br from-secondary/10 to-primary/5 border border-outline-variant/10 relative overflow-hidden">
                 <div className="absolute -right-8 -bottom-8 w-24 h-24 bg-primary/10 rounded-full blur-2xl" />
-                <h5 className="font-display font-bold text-white mb-2">Tridjaya Manado Insight</h5>
+                <h5 className="font-display font-bold text-white mb-2">Tridjaya Group Insight</h5>
                 <p className="text-xs text-on-surface-variant mb-4">Dapatkan tips perawatan dan info promo eksklusif langsung ke email Anda.</p>
                 <div className="relative">
                   <input 
@@ -494,7 +494,7 @@ const ArticleDetailPage: React.FC = () => {
       <div className="bg-primary py-4 text-center">
         <div className="container-custom">
           <p className="font-display text-xs font-bold text-surface uppercase tracking-[0.3em]">
-            Tridjaya Manado · Partner Mobilitas Urban Terpercaya Sejak 2020
+            Tridjaya Group · Partner Mobilitas Urban Terpercaya Sejak 2020
           </p>
         </div>
       </div>

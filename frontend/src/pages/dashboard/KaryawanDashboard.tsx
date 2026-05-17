@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -22,6 +22,7 @@ import {
 import { todayKey } from '../../data/picRaportData';
 import { employeeRaports } from '../../data/ownerRaportData';
 import { useAuthStore } from '../../store/authStore';
+import { formatProspekDateKey, useKaryawanProspekStore } from '../../store/karyawanProspekStore';
 import { usePicRaportStore } from '../../store/picRaportStore';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
@@ -41,9 +42,16 @@ const KaryawanDashboard: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const divisions = usePicRaportStore((state) => state.divisions);
   const evidence = usePicRaportStore((state) => state.evidence);
+  const prospek = useKaryawanProspekStore((state) => state.prospek);
+  const fetchProspek = useKaryawanProspekStore((state) => state.fetchProspek);
   const divisi = user?.divisi || 'Belum ditentukan';
   const position = getPositionMatch(divisi, divisions);
   const userName = user?.name?.trim().toLowerCase();
+  const todayProspekKey = useMemo(() => formatProspekDateKey(new Date()), []);
+
+  useEffect(() => {
+    fetchProspek({ tanggal: todayProspekKey, limit: 500 });
+  }, [fetchProspek, todayProspekKey]);
   const employeeRecord = useMemo(
     () =>
       employeeRaports.find((item) => item.id === user?.id) ||
@@ -73,7 +81,15 @@ const KaryawanDashboard: React.FC = () => {
   const ratedJobdeskCount = new Set(scoredToday.map((item) => item.jobdeskIndex)).size;
   const raportProgress = jobdeskCount > 0 ? Math.round((ratedJobdeskCount / jobdeskCount) * 100) : 0;
   const isSales = divisi.toLowerCase().includes('sales') || divisi.toLowerCase().includes('koordinator');
-  const prospekHariIni = 8;
+  const prospekHariIni = useMemo(
+    () =>
+      prospek.filter(
+        (item) =>
+          item.tanggal === todayProspekKey &&
+          (item.karyawanId === user?.id || (userName && item.karyawanName.toLowerCase() === userName))
+      ).length,
+    [prospek, todayProspekKey, user?.id, userName]
+  );
   const targetProspek = isSales ? 20 : 5;
   const prospekProgress = Math.min(Math.round((prospekHariIni / targetProspek) * 100), 100);
   const targetGap = Math.max(targetProspek - prospekHariIni, 0);

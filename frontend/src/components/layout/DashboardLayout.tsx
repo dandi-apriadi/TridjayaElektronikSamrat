@@ -421,7 +421,7 @@ const DashboardLayout: React.FC = () => {
       >
         {/* Brand */}
         <div className="h-20 flex-shrink-0 flex items-center px-6 gap-4 overflow-hidden border-b border-outline-variant/10">
-          <img src={logoPng} alt="Tridjaya Manado" className="h-12 w-auto max-w-full object-contain" />
+          <img src={logoPng} alt="Tridjaya Group" className="h-12 w-auto max-w-full object-contain" />
           {isMobile && (
             <button onClick={() => setMobileMenuOpen(false)} className="ml-auto p-2 rounded-lg bg-surface-high hover:bg-surface-highest transition-colors">
               <X className="w-6 h-6 text-on-surface-variant" />

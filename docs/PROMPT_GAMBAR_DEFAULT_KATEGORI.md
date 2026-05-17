@@ -2,7 +2,7 @@
 
 ## Konteks
 
-Toko Tridjaya Manado memiliki **68 kategori produk** dengan total ~3.200+ produk. Saat ini hampir semua produk menggunakan placeholder image generik (logo toko atau gambar kategori lain yang tidak sesuai). Hanya ~23 produk yang punya foto asli.
+Toko Tridjaya Group memiliki **68 kategori produk** dengan total ~3.200+ produk. Saat ini hampir semua produk menggunakan placeholder image generik (logo toko atau gambar kategori lain yang tidak sesuai). Hanya ~23 produk yang punya foto asli.
 
 **Tujuan:** Membuat 1 gambar default per kategori yang representatif, modern, dan konsisten secara visual untuk ditampilkan di katalog online.
 

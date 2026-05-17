@@ -200,7 +200,7 @@ const CatalogPage: React.FC = () => {
                 : activeCategory
                   ? activeCategory.toLowerCase()
                   : 'produk terbaik'}{' '}
-              kami. Temukan kualitas dan harga bersaing hanya di Tridjaya Manado.
+              kami. Temukan kualitas dan harga bersaing hanya di Tridjaya Group.
             </p>
           </motion.div>
         </div>

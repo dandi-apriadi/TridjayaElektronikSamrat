@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { apiFetch } from '../utils/apiClient';
 
 export type ProspekStatus = 'deal' | 'not_deal' | 'fu_ulang' | 'tanya_tanya' | 'polling';
 
@@ -42,96 +42,136 @@ export const formatProspekDateKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const daysAgo = (days: number) => {
-  const date = new Date();
-  date.setHours(12, 0, 0, 0);
-  date.setDate(date.getDate() - days);
-  return formatProspekDateKey(date);
-};
-
 export const normalizeWhatsapp = (value: string) => {
   const digits = value.replace(/\D/g, '');
   if (!digits) return '';
-  if (digits.startsWith('62')) return digits;
-  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
-  if (digits.startsWith('8')) return `62${digits}`;
-  return digits;
+
+  if (digits.startsWith('620')) {
+    return `0${digits.slice(3)}`;
+  }
+  if (digits.startsWith('62')) {
+    return `0${digits.slice(2)}`;
+  }
+  if (digits.startsWith('8')) {
+    return `0${digits}`;
+  }
+  if (digits.startsWith('0')) {
+    return digits;
+  }
+
+  return `0${digits}`;
+};
+
+const toWhatsappLinkNumber = (value: string) => {
+  const normalized = normalizeWhatsapp(value);
+  if (!normalized) return '';
+  return `62${normalized.slice(1)}`;
 };
 
 export const buildWhatsappUrl = (phone: string, name: string) => {
-  const normalized = normalizeWhatsapp(phone);
-  const message = `Halo ${name}, saya dari Tridjaya Manado ingin follow up minat produk yang sebelumnya dibahas.`;
+  const normalized = toWhatsappLinkNumber(phone);
+  const message = `Halo ${name}, saya dari Tridjaya Group ingin follow up minat produk yang sebelumnya dibahas.`;
   return normalized ? `https://wa.me/${normalized}?text=${encodeURIComponent(message)}` : '#';
 };
 
-interface SeedUser {
-  id?: string;
-  name?: string;
-  divisi?: string;
-}
-
 interface KaryawanProspekState {
   prospek: KaryawanProspekEntry[];
-  addProspek: (entry: Omit<KaryawanProspekEntry, 'id'>) => void;
-  ensureSeedForUser: (user: SeedUser | null | undefined) => void;
+  isLoading: boolean;
+  error: string | null;
+  fetchProspek: (params?: { tanggal?: string; karyawanId?: string; limit?: number }) => Promise<void>;
+  addProspek: (entry: Omit<KaryawanProspekEntry, 'id'>) => Promise<void>;
+  updateProspek: (id: string, updates: Partial<Omit<KaryawanProspekEntry, 'id' | 'karyawanId' | 'karyawanName' | 'tanggal' | 'createdAt'>>) => Promise<void>;
+  deleteProspek: (id: string) => Promise<void>;
 }
 
-const createSeedRows = (user: SeedUser): KaryawanProspekEntry[] => {
-  const ownerId = user.id || 'emp-local';
-  const ownerName = user.name || 'Karyawan Tridjaya';
-  const divisi = user.divisi || 'Sales';
+const mapApiProspek = (item: any): KaryawanProspekEntry => ({
+  id: String(item.id),
+  karyawanId: String(item.karyawanId || item.karyawan_id || ''),
+  karyawanName: String(item.karyawanName || item.karyawan_name || ''),
+  cabang: String(item.cabang || 'Manado'),
+  divisi: String(item.divisi || 'Karyawan'),
+  namaProspek: String(item.namaProspek || item.nama_prospek || ''),
+  noWhatsapp: normalizeWhatsapp(String(item.noWhatsapp || item.no_whatsapp || '')),
+  minatBarang: String(item.minatBarang || item.minat_barang || ''),
+  keteranganProspek: String(item.keteranganProspek || item.keterangan_prospek || ''),
+  statusProspek: (item.statusProspek || item.status_prospek || 'tanya_tanya') as ProspekStatus,
+  keteranganFincoy: String(item.keteranganFincoy || item.keterangan_fincoy || ''),
+  tanggal: String(item.tanggal || formatProspekDateKey(new Date())),
+  createdAt: String(item.createdAt || item.created_at || ''),
+});
 
-  return [
-    ['1', 'BUDI SANTOSO', '081234567890', 'TV LED 43 INCH', 'Minta simulasi cicilan dan promo akhir pekan.', 'fu_ulang', 'FIF', 0, '08:30'],
-    ['2', 'SITI RAHAYU', '082345678901', 'KULKAS 2 PINTU', 'Siap datang ke toko setelah jam kerja.', 'deal', 'Spektra', 0, '09:15'],
-    ['3', 'AHMAD FAUZI', '083456789012', 'AC 1 PK', 'Masih bandingkan harga dengan toko sebelah.', 'tanya_tanya', '', 0, '10:00'],
-    ['4', 'MELDA KANDEWANGKO', '085240001122', 'MESIN CUCI 2 TABUNG', 'Minta dihubungi sore untuk DP.', 'fu_ulang', 'Adira', 1, '15:40'],
-    ['5', 'FERDI LUMEMBAN', '081355667788', 'SAIGE POLARIS', 'Belum cocok di tenor, minta opsi lebih ringan.', 'polling', 'FIF', 2, '12:10'],
-    ['6', 'NOVA WUISAN', '082198765432', 'SMART TV 50 INCH', 'Setuju harga promo, menunggu konfirmasi keluarga.', 'deal', 'Tunai', 3, '16:20'],
-    ['7', 'RIZKY MANGINDAAN', '081244556677', 'FREEZER BOX', 'Butuh stok cepat untuk usaha.', 'tanya_tanya', '', 4, '11:05'],
-    ['8', 'CLARA RUNTU', '085256789123', 'KIPAS ANGIN', 'Nomor tidak aktif saat follow up kedua.', 'not_deal', '', 5, '14:15'],
-    ['9', 'HENDRA TUMBELAKA', '081390112233', 'SPRING BED', 'Minta brosur ukuran dan warna.', 'fu_ulang', 'Spektra', 6, '09:50'],
-    ['10', 'YULIANA LASUT', '082292334455', 'KOMPOR TANAM', 'Masih tanya-tanya fitur garansi.', 'tanya_tanya', '', 8, '13:25'],
-    ['11', 'ANDRE ROMPAS', '081247890123', 'LAPTOP ASUS', 'Butuh cicilan kantor, minta invoice sementara.', 'deal', 'Kredit Plus', 10, '10:45'],
-    ['12', 'TESSA KAWATU', '085341234567', 'DISPENSER GALON BAWAH', 'Akan follow up setelah gajian.', 'fu_ulang', 'FIF', 12, '17:05'],
-    ['13', 'MARLON PAAT', '082345111222', 'SPEAKER AKTIF', 'Harga belum masuk budget.', 'not_deal', '', 16, '11:35'],
-    ['14', 'EKA TUMUNDO', '081356222333', 'SEPEDA LISTRIK', 'Masih polling warna untuk anak.', 'polling', 'Adira', 20, '15:00'],
-    ['15', 'RENI WOROTIKAN', '085299887766', 'KULKAS 1 PINTU', 'Minta pengiriman area Minahasa.', 'deal', 'Tunai', 25, '12:40'],
-  ].map((row) => ({
-    id: `${ownerId}-seed-${row[0]}`,
-    karyawanId: ownerId,
-    karyawanName: ownerName,
-    cabang: 'Manado',
-    divisi,
-    namaProspek: row[1] as string,
-    noWhatsapp: row[2] as string,
-    minatBarang: row[3] as string,
-    keteranganProspek: row[4] as string,
-    statusProspek: row[5] as ProspekStatus,
-    keteranganFincoy: row[6] as string,
-    tanggal: daysAgo(row[7] as number),
-    createdAt: row[8] as string,
-  }));
+const readApiError = async (response: Response, fallback: string) => {
+  const payload = await response.json().catch(() => null);
+  if (Array.isArray(payload?.errors) && payload.errors.length > 0) return payload.errors.join(', ');
+  return payload?.detail || payload?.message || fallback;
 };
 
-export const useKaryawanProspekStore = create<KaryawanProspekState>()(
-  persist(
-    (set, get) => ({
-      prospek: [],
-      addProspek: (entry) => {
-        const id = `prospek-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        set((state) => ({ prospek: [{ ...entry, id }, ...state.prospek] }));
-      },
-      ensureSeedForUser: (user) => {
-        const ownerId = user?.id || 'emp-local';
-        const hasSeed = get().prospek.some((item) => item.karyawanId === ownerId && item.id.startsWith(`${ownerId}-seed-`));
-        if (hasSeed) return;
-        set((state) => ({ prospek: [...createSeedRows(user || {}), ...state.prospek] }));
-      },
-    }),
-    {
-      name: 'tridjaya-karyawan-prospek',
-      version: 1,
-    },
-  ),
-);
+export const useKaryawanProspekStore = create<KaryawanProspekState>()((set, get) => ({
+  prospek: [],
+  isLoading: false,
+  error: null,
+  fetchProspek: async (params) => {
+    set({ isLoading: true, error: null });
+    const query = new URLSearchParams();
+    if (params?.tanggal) query.set('tanggal', params.tanggal);
+    if (params?.karyawanId) query.set('karyawan_id', params.karyawanId);
+    query.set('limit', String(params?.limit || 500));
+
+    try {
+      const response = await apiFetch(`/api/prospek-harian?${query.toString()}`);
+      if (!response.ok) throw new Error(await readApiError(response, 'Gagal memuat prospek.'));
+      const payload = await response.json();
+      set({ prospek: (payload.data?.items || []).map(mapApiProspek), isLoading: false });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Gagal memuat prospek.', isLoading: false });
+    }
+  },
+  addProspek: async (entry) => {
+    const normalizedWhatsapp = normalizeWhatsapp(entry.noWhatsapp);
+    if (!normalizedWhatsapp || normalizedWhatsapp.length < 10) {
+      throw new Error('Nomor WhatsApp harus valid dan diawali 08.');
+    }
+
+    const response = await apiFetch('/api/prospek-harian', {
+      method: 'POST',
+      body: JSON.stringify({
+        cabang: entry.cabang,
+        divisi: entry.divisi,
+        namaProspek: entry.namaProspek,
+        noWhatsapp: normalizedWhatsapp,
+        minatBarang: entry.minatBarang,
+        keteranganProspek: entry.keteranganProspek,
+        statusProspek: entry.statusProspek,
+        keteranganFincoy: entry.keteranganFincoy,
+        tanggal: entry.tanggal,
+      }),
+    });
+    if (!response.ok) throw new Error(await readApiError(response, 'Gagal menyimpan prospek.'));
+    await get().fetchProspek({ limit: 500 });
+  },
+  updateProspek: async (id, updates) => {
+    const payload: Record<string, unknown> = {};
+    if (updates.cabang !== undefined) payload.cabang = updates.cabang;
+    if (updates.divisi !== undefined) payload.divisi = updates.divisi;
+    if (updates.namaProspek !== undefined) payload.namaProspek = updates.namaProspek;
+    if (updates.noWhatsapp !== undefined) payload.noWhatsapp = normalizeWhatsapp(updates.noWhatsapp);
+    if (updates.minatBarang !== undefined) payload.minatBarang = updates.minatBarang;
+    if (updates.keteranganProspek !== undefined) payload.keteranganProspek = updates.keteranganProspek;
+    if (updates.statusProspek !== undefined) payload.statusProspek = updates.statusProspek;
+    if (updates.keteranganFincoy !== undefined) payload.keteranganFincoy = updates.keteranganFincoy;
+
+    const response = await apiFetch(`/api/prospek-harian/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(await readApiError(response, 'Gagal memperbarui prospek.'));
+    await get().fetchProspek({ limit: 500 });
+  },
+  deleteProspek: async (id) => {
+    const response = await apiFetch(`/api/prospek-harian/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error(await readApiError(response, 'Gagal menghapus prospek.'));
+    set((state) => ({ prospek: state.prospek.filter((item) => item.id !== id) }));
+  },
+}));

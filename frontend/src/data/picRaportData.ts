@@ -67,7 +67,12 @@ const sampleImages = [
   '/assets/images/defaults/default-sepeda-listrik.webp',
 ];
 
-export const toDateKey = (date: Date) => date.toISOString().slice(0, 10);
+export const toDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const todayKey = toDateKey(new Date());
 
@@ -204,7 +209,27 @@ export const buildPicEmployeeSummaries = (evidence: PicRaportEvidence[]): PicEmp
     statsByEmployee.set(item.employeeId, stats);
   });
 
-  return employeeRaports.map((employee) => {
+  const knownEmployees = employeeRaports.filter((employee) => statsByEmployee.has(employee.id));
+  const discoveredEmployees = [...statsByEmployee.keys()]
+    .filter((employeeId) => !employeeRaports.some((employee) => employee.id === employeeId))
+    .map((employeeId) => {
+      const firstEvidence = evidence.find((item) => item.employeeId === employeeId);
+      const employeeItems = evidence.filter((item) => item.employeeId === employeeId);
+      const reviewed = employeeItems.filter((item) => item.reviewStatus !== 'pending').length;
+      const total = Math.max(employeeItems.length, 1);
+
+      return {
+        id: employeeId,
+        nama: firstEvidence?.employeeName || 'Karyawan',
+        posisi: firstEvidence?.divisiName || firstEvidence?.divisiId || 'Umum',
+        cabang: firstEvidence?.cabang || 'Manado',
+        selesai: reviewed,
+        totalJobdesk: total,
+        persentase: Math.round((reviewed / total) * 100),
+      };
+    });
+
+  return [...knownEmployees, ...discoveredEmployees].map((employee) => {
     const stats = statsByEmployee.get(employee.id);
     return {
       ...employee,

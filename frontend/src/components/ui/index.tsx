@@ -47,7 +47,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
 
     const shareData = {
       title: product.name,
-      text: `Lihat ${product.name} di Tridjaya Manado!`,
+      text: `Lihat ${product.name} di Tridjaya Group!`,
       url: url,
     };
 

@@ -1,47 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Users, Target, BarChart3, TrendingUp, TrendingDown, Minus, Trophy, Search, SlidersHorizontal, X } from 'lucide-react';
-import { ownerDashboardData } from '../../data/ownerDashboardData';
-import type { TrendDirection } from '../../data/ownerDashboardData';
+import { Users, Target, BarChart3, Trophy, Search, SlidersHorizontal, X } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
+import { apiFetch } from '../../utils/apiClient';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
 const itemVariants = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
-
-const TrendIcon: React.FC<{ direction: TrendDirection; className?: string }> = ({ direction, className = 'w-4 h-4' }) => {
-  if (direction === 'up') return <TrendingUp className={className} />;
-  if (direction === 'down') return <TrendingDown className={className} />;
-  return <Minus className={className} />;
-};
-
-// Dummy data: Top Sales by Prospek (target min 20/hari)
-const topSalesProspek = [
-  { rank: 1, nama: 'Randy Kalalo', cabang: 'Manado Pusat', prospekHariIni: 32, target: 20, persentase: 160 },
-  { rank: 2, nama: 'Novi Lumenta', cabang: 'Tomohon', prospekHariIni: 28, target: 20, persentase: 140 },
-  { rank: 3, nama: 'Fajar Rumengan', cabang: 'Bitung', prospekHariIni: 25, target: 20, persentase: 125 },
-  { rank: 4, nama: 'Alicia Wuisan', cabang: 'Minahasa', prospekHariIni: 24, target: 20, persentase: 120 },
-  { rank: 5, nama: 'Dion Paat', cabang: 'Kotamobagu', prospekHariIni: 23, target: 20, persentase: 115 },
-  { rank: 6, nama: 'Kevin Mambu', cabang: 'Tondano', prospekHariIni: 22, target: 20, persentase: 110 },
-  { rank: 7, nama: 'Wendy Langi', cabang: 'Airmadidi', prospekHariIni: 21, target: 20, persentase: 105 },
-  { rank: 8, nama: 'Siska Tuerah', cabang: 'Langowan', prospekHariIni: 20, target: 20, persentase: 100 },
-  { rank: 9, nama: 'Eka Tumundo', cabang: 'Ratahan', prospekHariIni: 18, target: 20, persentase: 90 },
-  { rank: 10, nama: 'Rizky Wienas', cabang: 'Amurang', prospekHariIni: 15, target: 20, persentase: 75 },
-];
-
-// Dummy data: Top Non-Sales by Prospek (target min 5/hari)
-const topNonSalesProspek = [
-  { rank: 1, nama: 'Meyke Tumel', cabang: 'Manado Pusat', posisi: 'Support Konten', prospekHariIni: 12, target: 5, persentase: 240 },
-  { rank: 2, nama: 'Yopi Wuntu', cabang: 'Tomohon', posisi: 'Driver', prospekHariIni: 10, target: 5, persentase: 200 },
-  { rank: 3, nama: 'Stevi Moniaga', cabang: 'Bitung', posisi: 'Admin Stok', prospekHariIni: 9, target: 5, persentase: 180 },
-  { rank: 4, nama: 'Jesi Pangomanan', cabang: 'Minahasa', posisi: 'PDI', prospekHariIni: 8, target: 5, persentase: 160 },
-  { rank: 5, nama: 'Mita Tilaar', cabang: 'Kotamobagu', posisi: 'Kasir', prospekHariIni: 7, target: 5, persentase: 140 },
-  { rank: 6, nama: 'Hendra Kaligis', cabang: 'Tondano', posisi: 'GC', prospekHariIni: 7, target: 5, persentase: 140 },
-  { rank: 7, nama: 'Nita Watukow', cabang: 'Airmadidi', posisi: 'Support Online', prospekHariIni: 6, target: 5, persentase: 120 },
-  { rank: 8, nama: 'Arland Ruru', cabang: 'Langowan', posisi: 'Admin SPK', prospekHariIni: 5, target: 5, persentase: 100 },
-  { rank: 9, nama: 'Vicky Pandolaki', cabang: 'Ratahan', posisi: 'CRM', prospekHariIni: 4, target: 5, persentase: 80 },
-  { rank: 10, nama: 'Tin Mangindaan', cabang: 'Amurang', posisi: 'Desk Call', prospekHariIni: 3, target: 5, persentase: 60 },
-];
 
 type EmployeeProspekRow = {
   rank: number;
@@ -57,169 +22,20 @@ type EmployeeProspekRow = {
 type AchievementFilter = 'Semua' | 'Tercapai' | 'Belum Tercapai';
 type EmployeeSortKey = 'rank' | 'nama' | 'cabang' | 'prospek_desc' | 'prospek_asc' | 'persentase_desc' | 'persentase_asc';
 
-const branches = [
-  'Manado Pusat',
-  'Tomohon',
-  'Bitung',
-  'Minahasa',
-  'Kotamobagu',
-  'Tondano',
-  'Airmadidi',
-  'Langowan',
-  'Ratahan',
-  'Amurang',
-  'Kawangkoan',
-  'Tateli',
-  'Paniki',
-  'Malalayang',
-  'Paal Dua',
-  'Tuminting',
-];
+type ProspekActivityRow = {
+  id: string;
+  karyawanId: string;
+  karyawanName: string;
+  divisi: string;
+  statusProspek: string;
+  tanggal: string;
+  createdAt: string;
+};
 
-const additionalSalesNames = [
-  'Aldo Kairupan',
-  'Ria Sumual',
-  'Mario Runtuwene',
-  'Claudia Rotinsulu',
-  'Vano Pangemanan',
-  'Lidia Mandagi',
-  'Reno Sondakh',
-  'Maya Tumbelaka',
-  'Dimas Wowor',
-  'Grace Roring',
-  'Ivan Lumenta',
-  'Putri Mamesah',
-  'Andre Kaunang',
-  'Tasya Manoppo',
-];
-
-const nonSalesPositions = [
-  'Support Konten',
-  'Driver',
-  'Admin Stok',
-  'PDI',
-  'Kasir',
-  'GC',
-  'Support Online',
-  'Admin SPK',
-  'CRM',
-  'Desk Call',
-  'Gudang',
-  'Teknisi',
-  'Collector',
-  'Admin Finance',
-];
-
-const additionalNonSalesNames = [
-  'Yuni Kawilarang',
-  'Berto Mokoagow',
-  'Laras Londa',
-  'Glen Dondokambey',
-  'Icha Rondonuwu',
-  'Tio Kalalo',
-  'Nessa Karamoy',
-  'Rio Sumendap',
-  'Cindy Rantung',
-  'Reza Tatontos',
-  'Mona Pangkey',
-  'Bima Wenas',
-  'Aurel Makalalag',
-  'Evan Rarung',
-  'Nadia Supit',
-  'Jovan Karundeng',
-  'Kezia Tilaar',
-  'Rama Polii',
-  'Intan Lasut',
-  'Steven Rumokoy',
-  'Felly Mantiri',
-  'Aldi Warouw',
-  'Niken Pelealu',
-  'Robby Paruntu',
-  'Lia Katuuk',
-  'Jojo Tendean',
-  'Elsa Lengkong',
-  'Rafael Kolondam',
-  'Mira Panambunan',
-  'Nico Pangalila',
-  'Fika Mokodompit',
-  'Dicky Kumaat',
-  'Anya Tangkudung',
-  'Rivaldi Walangitan',
-  'Mitha Pontoh',
-  'Theo Wullur',
-  'Nana Sengkey',
-  'Jefry Pondaag',
-  'Cella Mamahit',
-  'Fandy Kalesaran',
-  'Riska Waworuntu',
-  'Owen Tumiwa',
-  'Tania Kandou',
-  'Dede Mamonto',
-  'Melda Sarundajang',
-  'Brian Liow',
-];
-
-const allEmployeeProspek: EmployeeProspekRow[] = [
-  ...topSalesProspek.map((row) => ({
-    nama: row.nama,
-    cabang: row.cabang,
-    kategori: 'Sales' as const,
-    posisi: 'Sales',
-    prospekHariIni: row.prospekHariIni,
-    target: row.target,
-    persentase: row.persentase,
-  })),
-  ...additionalSalesNames.map((nama, index) => {
-    const prospekHariIni = [14, 14, 13, 13, 12, 12, 11, 11, 10, 10, 9, 9, 10, 9][index];
-    const target = 20;
-    return {
-      nama,
-      cabang: branches[(index + 10) % branches.length],
-      kategori: 'Sales' as const,
-      posisi: 'Sales',
-      prospekHariIni,
-      target,
-      persentase: Math.round((prospekHariIni / target) * 100),
-    };
-  }),
-  ...topNonSalesProspek.map((row) => ({
-    nama: row.nama,
-    cabang: row.cabang,
-    kategori: 'Non-Sales' as const,
-    posisi: row.posisi,
-    prospekHariIni: row.prospekHariIni,
-    target: row.target,
-    persentase: row.persentase,
-  })),
-  ...additionalNonSalesNames.map((nama, index) => {
-    const prospekHariIni = index < 35 ? 3 : 2;
-    const target = 5;
-    return {
-      nama,
-      cabang: branches[(index + 5) % branches.length],
-      kategori: 'Non-Sales' as const,
-      posisi: nonSalesPositions[index % nonSalesPositions.length],
-      prospekHariIni,
-      target,
-      persentase: Math.round((prospekHariIni / target) * 100),
-    };
-  }),
-]
-  .sort((a, b) => b.prospekHariIni - a.prospekHariIni || b.persentase - a.persentase)
-  .map((row, index) => ({ ...row, rank: index + 1 }));
+const todayDateKey = () => new Date().toISOString().split('T')[0];
 
 const OwnerProspekPage: React.FC = () => {
-  const { prospek, closing, conversionRate, raportPersentase } = ownerDashboardData;
-
-  const cards = [
-    { ...prospek, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
-    { ...closing, icon: Target, color: 'text-secondary', bg: 'bg-secondary/10' },
-    { ...conversionRate, icon: BarChart3, color: 'text-tertiary', bg: 'bg-tertiary/10' },
-    { ...raportPersentase, icon: Target, color: 'text-primary', bg: 'bg-primary/10', isRaport: true },
-  ];
-
-  // Data per hari (24 jam, bisa pilih tanggal)
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(todayDateKey());
   const [viewMode, setViewMode] = useState<'minggu' | 'bulan'>('minggu');
   const [employeePage, setEmployeePage] = useState(1);
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -228,19 +44,46 @@ const OwnerProspekPage: React.FC = () => {
   const [employeePositionFilter, setEmployeePositionFilter] = useState('Semua');
   const [employeeAchievementFilter, setEmployeeAchievementFilter] = useState<AchievementFilter>('Semua');
   const [employeeSort, setEmployeeSort] = useState<EmployeeSortKey>('rank');
+  const [backendEmployeeProspek, setBackendEmployeeProspek] = useState<EmployeeProspekRow[]>([]);
+  const [prospekActivity, setProspekActivity] = useState<ProspekActivityRow[]>([]);
+  const [isLoadingProspek, setIsLoadingProspek] = useState(false);
   const employeeItemsPerPage = 12;
+  const activeDate = selectedDate || todayDateKey();
+  const employeeRows = backendEmployeeProspek;
   const employeeBranchOptions = useMemo(
-    () => ['Semua', ...Array.from(new Set(allEmployeeProspek.map((row) => row.cabang))).sort((a, b) => a.localeCompare(b, 'id'))],
-    []
+    () => ['Semua', ...Array.from(new Set(employeeRows.map((row) => row.cabang))).sort((a, b) => a.localeCompare(b, 'id'))],
+    [employeeRows]
   );
   const employeePositionOptions = useMemo(
-    () => ['Semua', ...Array.from(new Set(allEmployeeProspek.map((row) => row.posisi))).sort((a, b) => a.localeCompare(b, 'id'))],
-    []
+    () => ['Semua', ...Array.from(new Set(employeeRows.map((row) => row.posisi))).sort((a, b) => a.localeCompare(b, 'id'))],
+    [employeeRows]
   );
+  const topSalesRows = useMemo(() => employeeRows.filter((row) => row.kategori === 'Sales').slice(0, 10), [employeeRows]);
+  const topNonSalesRows = useMemo(() => employeeRows.filter((row) => row.kategori === 'Non-Sales').slice(0, 10), [employeeRows]);
+  const salesRows = useMemo(() => employeeRows.filter((row) => row.kategori === 'Sales'), [employeeRows]);
+  const nonSalesRows = useMemo(() => employeeRows.filter((row) => row.kategori === 'Non-Sales'), [employeeRows]);
+  const totalProspek = useMemo(() => employeeRows.reduce((sum, row) => sum + row.prospekHariIni, 0), [employeeRows]);
+  const totalTarget = useMemo(() => employeeRows.reduce((sum, row) => sum + row.target, 0), [employeeRows]);
+  const totalClosing = useMemo(() => prospekActivity.filter((row) => row.statusProspek === 'deal').length, [prospekActivity]);
+  const conversionPercent = totalProspek > 0 ? Math.round((totalClosing / totalProspek) * 100) : 0;
+  const achievementPercent = totalTarget > 0 ? Math.round((totalProspek / totalTarget) * 100) : 0;
+  const categoryByEmployee = useMemo(() => {
+    const map = new Map<string, EmployeeProspekRow['kategori']>();
+    employeeRows.forEach((row) => {
+      map.set(row.nama.toLowerCase(), row.kategori);
+    });
+    return map;
+  }, [employeeRows]);
+
+  const getActivityCategory = (row: ProspekActivityRow): EmployeeProspekRow['kategori'] => {
+    const fromEmployee = categoryByEmployee.get(row.karyawanName.toLowerCase());
+    if (fromEmployee) return fromEmployee;
+    return row.divisi.toLowerCase().includes('sales') ? 'Sales' : 'Non-Sales';
+  };
   const filteredEmployeeProspek = useMemo(() => {
     const searchValue = employeeSearch.trim().toLowerCase();
 
-    return allEmployeeProspek
+    return employeeRows
       .filter((row) => {
         const matchesSearch =
           searchValue.length === 0 ||
@@ -268,6 +111,7 @@ const OwnerProspekPage: React.FC = () => {
     employeeBranchFilter,
     employeeCategoryFilter,
     employeePositionFilter,
+    employeeRows,
     employeeSearch,
     employeeSort,
   ]);
@@ -296,6 +140,64 @@ const OwnerProspekPage: React.FC = () => {
     employeeSort,
   ]);
 
+  useEffect(() => {
+    let mounted = true;
+    const loadProspek = async () => {
+      setIsLoadingProspek(true);
+      const query = new URLSearchParams();
+      query.set('limit', '500');
+      if (selectedDate) query.set('tanggal', selectedDate);
+
+      const [summaryResponse, activityResponse] = await Promise.all([
+        apiFetch(`/api/prospek-harian/summary?tanggal=${encodeURIComponent(activeDate)}`),
+        apiFetch(`/api/prospek-harian?${query.toString()}`),
+      ]);
+      if (!mounted) return;
+
+      if (summaryResponse.ok) {
+        const summaryPayload = await summaryResponse.json();
+        setBackendEmployeeProspek((summaryPayload.data?.items || []).map((item: any) => ({
+          rank: Number(item.rank || 0),
+          nama: String(item.nama || ''),
+          cabang: String(item.cabang || 'Manado'),
+          kategori: item.kategori === 'Sales' ? 'Sales' : 'Non-Sales',
+          posisi: String(item.posisi || 'Karyawan'),
+          prospekHariIni: Number(item.prospekHariIni || item.prospek_hari_ini || 0),
+          target: Number(item.target || 0),
+          persentase: Number(item.persentase || 0),
+        })));
+      } else {
+        setBackendEmployeeProspek([]);
+      }
+
+      if (activityResponse.ok) {
+        const activityPayload = await activityResponse.json();
+        setProspekActivity((activityPayload.data?.items || []).map((item: any) => ({
+          id: String(item.id),
+          karyawanId: String(item.karyawanId || item.karyawan_id || ''),
+          karyawanName: String(item.karyawanName || item.karyawan_name || ''),
+          divisi: String(item.divisi || ''),
+          statusProspek: String(item.statusProspek || item.status_prospek || ''),
+          tanggal: String(item.tanggal || ''),
+          createdAt: String(item.createdAt || item.created_at || ''),
+        })));
+      } else {
+        setProspekActivity([]);
+      }
+
+      setIsLoadingProspek(false);
+    };
+    loadProspek().catch(() => {
+      if (!mounted) return;
+      setBackendEmployeeProspek([]);
+      setProspekActivity([]);
+      setIsLoadingProspek(false);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [activeDate, selectedDate]);
+
   const resetEmployeeFilters = () => {
     setEmployeeSearch('');
     setEmployeeBranchFilter('Semua');
@@ -304,38 +206,80 @@ const OwnerProspekPage: React.FC = () => {
     setEmployeeAchievementFilter('Semua');
     setEmployeeSort('rank');
   };
-  const hourlyData = [
-    { jam: '00:00', sales: 0, nonSales: 0 }, { jam: '01:00', sales: 0, nonSales: 0 },
-    { jam: '02:00', sales: 0, nonSales: 0 }, { jam: '03:00', sales: 0, nonSales: 0 },
-    { jam: '04:00', sales: 0, nonSales: 0 }, { jam: '05:00', sales: 0, nonSales: 0 },
-    { jam: '06:00', sales: 1, nonSales: 0 }, { jam: '07:00', sales: 3, nonSales: 1 },
-    { jam: '08:00', sales: 12, nonSales: 5 }, { jam: '09:00', sales: 22, nonSales: 10 },
-    { jam: '10:00', sales: 35, nonSales: 15 }, { jam: '11:00', sales: 28, nonSales: 12 },
-    { jam: '12:00', sales: 15, nonSales: 7 }, { jam: '13:00', sales: 25, nonSales: 11 },
-    { jam: '14:00', sales: 32, nonSales: 14 }, { jam: '15:00', sales: 38, nonSales: 16 },
-    { jam: '16:00', sales: 30, nonSales: 13 }, { jam: '17:00', sales: 22, nonSales: 9 },
-    { jam: '18:00', sales: 15, nonSales: 5 }, { jam: '19:00', sales: 10, nonSales: 3 },
-    { jam: '20:00', sales: 5, nonSales: 2 }, { jam: '21:00', sales: 3, nonSales: 1 },
-    { jam: '22:00', sales: 1, nonSales: 0 }, { jam: '23:00', sales: 0, nonSales: 0 },
-  ];
+  const hourlyData = useMemo(() => {
+    const rows = Array.from({ length: 24 }, (_, hour) => ({ jam: `${String(hour).padStart(2, '0')}:00`, sales: 0, nonSales: 0 }));
+    prospekActivity.forEach((row) => {
+      if (row.tanggal !== activeDate) return;
+      const hour = Number(row.createdAt.slice(11, 13));
+      if (!Number.isFinite(hour) || hour < 0 || hour > 23) return;
+      if (getActivityCategory(row) === 'Sales') rows[hour].sales += 1;
+      else rows[hour].nonSales += 1;
+    });
+    return rows;
+  }, [activeDate, categoryByEmployee, prospekActivity]);
 
-  // Data per minggu (Senin - Minggu)
-  const weeklyData = [
-    { hari: 'Senin', sales: 95, nonSales: 42 },
-    { hari: 'Selasa', sales: 110, nonSales: 48 },
-    { hari: 'Rabu', sales: 88, nonSales: 38 },
-    { hari: 'Kamis', sales: 102, nonSales: 45 },
-    { hari: 'Jumat', sales: 98, nonSales: 40 },
-    { hari: 'Sabtu', sales: 120, nonSales: 52 },
-    { hari: 'Minggu', sales: 45, nonSales: 18 },
-  ];
+  const weeklyData = useMemo(() => {
+    const labels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const rows = labels.map((hari) => ({ hari, sales: 0, nonSales: 0 }));
+    prospekActivity.forEach((row) => {
+      const date = new Date(`${row.tanggal}T12:00:00`);
+      if (Number.isNaN(date.getTime())) return;
+      const target = rows[date.getDay()];
+      if (getActivityCategory(row) === 'Sales') target.sales += 1;
+      else target.nonSales += 1;
+    });
+    return [rows[1], rows[2], rows[3], rows[4], rows[5], rows[6], rows[0]];
+  }, [categoryByEmployee, prospekActivity]);
 
-  // Data per bulan (tanggal 1 - 31)
-  const monthlyData = Array.from({ length: 31 }, (_, i) => ({
-    tanggal: `${i + 1}`,
-    sales: Math.floor(Math.random() * 60) + 60,
-    nonSales: Math.floor(Math.random() * 30) + 20,
-  }));
+  const monthlyData = useMemo(() => {
+    const rows = Array.from({ length: 31 }, (_, index) => ({ tanggal: `${index + 1}`, sales: 0, nonSales: 0 }));
+    prospekActivity.forEach((row) => {
+      const day = Number(row.tanggal.slice(8, 10));
+      if (!Number.isFinite(day) || day < 1 || day > 31) return;
+      if (getActivityCategory(row) === 'Sales') rows[day - 1].sales += 1;
+      else rows[day - 1].nonSales += 1;
+    });
+    return rows;
+  }, [categoryByEmployee, prospekActivity]);
+
+  const cards = [
+    {
+      label: 'Prospek Masuk Hari Ini',
+      formattedValue: totalProspek.toLocaleString('id-ID'),
+      helper: isLoadingProspek ? 'Memuat data backend' : `${employeeRows.length} karyawan tercatat`,
+      icon: Users,
+      color: 'text-primary',
+      bg: 'bg-primary/10',
+      valueColor: 'text-on-surface',
+    },
+    {
+      label: 'Closing',
+      formattedValue: totalClosing.toLocaleString('id-ID'),
+      helper: 'Status prospek deal',
+      icon: Target,
+      color: 'text-secondary',
+      bg: 'bg-secondary/10',
+      valueColor: 'text-on-surface',
+    },
+    {
+      label: 'Conversion Rate',
+      formattedValue: `${conversionPercent}%`,
+      helper: `${totalClosing} dari ${totalProspek} prospek`,
+      icon: BarChart3,
+      color: 'text-tertiary',
+      bg: 'bg-tertiary/10',
+      valueColor: 'text-on-surface',
+    },
+    {
+      label: 'Pencapaian Target',
+      formattedValue: `${achievementPercent}%`,
+      helper: `${totalProspek} / ${totalTarget} prospek`,
+      icon: Target,
+      color: 'text-primary',
+      bg: 'bg-primary/10',
+      valueColor: achievementPercent >= 100 ? 'text-secondary' : achievementPercent >= 70 ? 'text-yellow-400' : 'text-error',
+    },
+  ];
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -348,24 +292,19 @@ const OwnerProspekPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => {
           const Icon = card.icon;
-          let trendColor = 'text-on-surface-variant';
-          let trendBg = 'bg-surface-high';
-          if (card.trend === 'up') { trendColor = 'text-secondary'; trendBg = 'bg-secondary/10'; }
-          else if (card.trend === 'down') { trendColor = 'text-error'; trendBg = 'bg-error/10'; }
-          const valueColor = (card as any).isRaport ? (card.value >= 100 ? 'text-secondary' : 'text-error') : 'text-on-surface';
 
           return (
             <motion.div key={card.label} variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
               <div className="flex justify-between items-start mb-4">
                 <div className={`p-2.5 rounded-lg ${card.bg} ${card.color}`}><Icon className="w-5 h-5" /></div>
-                <div className={`flex items-center gap-0.5 text-label-xs font-bold px-2 py-1 rounded-md ${trendBg} ${trendColor}`}>
-                  <TrendIcon direction={card.trend} className="w-3 h-3" />{card.trendPercentage}
+                <div className="rounded-md bg-surface-high px-2 py-1 text-label-xs font-bold text-on-surface-variant">
+                  Backend
                 </div>
               </div>
               <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">{card.label}</div>
-              <div className={`font-display text-headline-sm font-bold ${valueColor}`}>{card.formattedValue}</div>
-              <div className="text-label-xs text-on-surface-variant mt-1">Kemarin: {(card as any).isRaport ? `${card.previousValue}%` : card.previousValue.toLocaleString('id-ID')}</div>
+              <div className={`font-display text-headline-sm font-bold ${card.valueColor}`}>{card.formattedValue}</div>
+              <div className="text-label-xs text-on-surface-variant mt-1">{card.helper}</div>
             </motion.div>
           );
         })}
@@ -384,7 +323,7 @@ const OwnerProspekPage: React.FC = () => {
               <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-3 py-1.5 bg-surface-high border border-outline-variant/20 rounded-lg text-label-xs text-on-surface outline-none focus:ring-2 focus:ring-primary/40" />
             )}
             <div className="flex gap-1 bg-surface-high rounded-lg p-1">
-              <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`px-3 py-1.5 rounded-md text-label-xs font-semibold transition-colors ${selectedDate !== '' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}>Hari</button>
+              <button onClick={() => setSelectedDate(todayDateKey())} className={`px-3 py-1.5 rounded-md text-label-xs font-semibold transition-colors ${selectedDate !== '' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}>Hari</button>
               <button onClick={() => setSelectedDate('')} className={`px-3 py-1.5 rounded-md text-label-xs font-semibold transition-colors ${selectedDate === '' && viewMode === 'minggu' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`} onClickCapture={() => setViewMode('minggu')}>Minggu</button>
               <button onClick={() => { setSelectedDate(''); setViewMode('bulan'); }} className={`px-3 py-1.5 rounded-md text-label-xs font-semibold transition-colors ${selectedDate === '' && viewMode === 'bulan' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}>Bulan</button>
             </div>
@@ -431,11 +370,11 @@ const OwnerProspekPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {/* Sales */}
           {(() => {
-            const jumlahSales = 24;
-            const targetSalesPerOrang = 20;
-            const totalTargetSales = jumlahSales * targetSalesPerOrang;
-            const actualSales = 385;
-            const persentaseSales = Math.round((actualSales / totalTargetSales) * 100);
+            const jumlahSales = salesRows.length;
+            const totalTargetSales = salesRows.reduce((sum, row) => sum + row.target, 0);
+            const actualSales = salesRows.reduce((sum, row) => sum + row.prospekHariIni, 0);
+            const targetSalesPerOrang = jumlahSales > 0 ? Math.round(totalTargetSales / jumlahSales) : 20;
+            const persentaseSales = totalTargetSales > 0 ? Math.round((actualSales / totalTargetSales) * 100) : 0;
             return (
               <div className="rounded-xl border border-white/5 bg-surface-high/50 p-4">
                 <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Sales ({jumlahSales} orang)</div>
@@ -449,11 +388,11 @@ const OwnerProspekPage: React.FC = () => {
           })()}
           {/* Non-Sales */}
           {(() => {
-            const jumlahNonSales = 56;
-            const targetNonSalesPerOrang = 5;
-            const totalTargetNonSales = jumlahNonSales * targetNonSalesPerOrang;
-            const actualNonSales = 198;
-            const persentaseNonSales = Math.round((actualNonSales / totalTargetNonSales) * 100);
+            const jumlahNonSales = nonSalesRows.length;
+            const totalTargetNonSales = nonSalesRows.reduce((sum, row) => sum + row.target, 0);
+            const actualNonSales = nonSalesRows.reduce((sum, row) => sum + row.prospekHariIni, 0);
+            const targetNonSalesPerOrang = jumlahNonSales > 0 ? Math.round(totalTargetNonSales / jumlahNonSales) : 5;
+            const persentaseNonSales = totalTargetNonSales > 0 ? Math.round((actualNonSales / totalTargetNonSales) * 100) : 0;
             return (
               <div className="rounded-xl border border-white/5 bg-surface-high/50 p-4">
                 <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Non-Sales ({jumlahNonSales} orang)</div>
@@ -467,12 +406,11 @@ const OwnerProspekPage: React.FC = () => {
           })()}
           {/* Total */}
           {(() => {
-            const totalTarget = (24 * 20) + (56 * 5);
-            const totalActual = 385 + 198;
-            const persentaseTotal = Math.round((totalActual / totalTarget) * 100);
+            const totalActual = totalProspek;
+            const persentaseTotal = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
             return (
               <div className="rounded-xl border border-white/5 bg-surface-high/50 p-4">
-                <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total (80 karyawan)</div>
+                <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total ({employeeRows.length} karyawan)</div>
                 <div className={`font-display text-title-lg font-bold ${persentaseTotal >= 100 ? 'text-secondary' : persentaseTotal >= 70 ? 'text-yellow-400' : 'text-error'}`}>{persentaseTotal}%</div>
                 <div className="w-full bg-surface rounded-full h-2 mt-2 overflow-hidden">
                   <div className={`h-full rounded-full ${persentaseTotal >= 100 ? 'bg-secondary' : persentaseTotal >= 70 ? 'bg-yellow-400' : 'bg-error'}`} style={{ width: `${Math.min(persentaseTotal, 100)}%` }} />
@@ -507,7 +445,7 @@ const OwnerProspekPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {topSalesProspek.map((row) => (
+                {topSalesRows.map((row) => (
                   <tr key={row.rank} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1">
@@ -552,7 +490,7 @@ const OwnerProspekPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {topNonSalesProspek.map((row) => (
+                {topNonSalesRows.map((row) => (
                   <tr key={row.rank} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1">
@@ -582,7 +520,7 @@ const OwnerProspekPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="font-display text-title-md font-bold text-on-surface">Seluruh Karyawan — Pencapaian Prospek</h3>
-            <p className="text-label-xs text-on-surface-variant mt-1">Menampilkan {filteredEmployeeProspek.length} dari {allEmployeeProspek.length} karyawan</p>
+            <p className="text-label-xs text-on-surface-variant mt-1">Menampilkan {filteredEmployeeProspek.length} dari {employeeRows.length} karyawan</p>
           </div>
           <div className="rounded-lg border border-outline-variant/10 bg-surface-high px-3 py-2 text-label-xs text-on-surface-variant">
             Baris <span className="font-bold text-on-surface">{filteredEmployeeProspek.length === 0 ? 0 : employeePageStart + 1}</span> - <span className="font-bold text-on-surface">{Math.min(employeePageStart + employeeItemsPerPage, filteredEmployeeProspek.length)}</span> dari <span className="font-bold text-on-surface">{filteredEmployeeProspek.length}</span>

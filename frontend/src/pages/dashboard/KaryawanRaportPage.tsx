@@ -26,6 +26,7 @@ import {
   useJobdeskReportSettingsStore,
 } from '../../store/jobdeskReportSettingsStore';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { apiFetch } from '../../utils/apiClient';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -68,6 +69,10 @@ const KaryawanRaportPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const divisions = usePicRaportStore((state) => state.divisions);
   const picEvidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const fetchDivisions = usePicRaportStore((state) => state.fetchDivisions);
+  const submitRaport = usePicRaportStore((state) => state.submitRaport);
+  const raportError = usePicRaportStore((state) => state.error);
   const divisi = user?.divisi || '';
   const position = getPositionMatch(divisi, divisions);
   const jobdesks = useMemo(() => position?.jobdesks || [], [position]);
@@ -92,6 +97,8 @@ const KaryawanRaportPage: React.FC = () => {
   const previewUrlsRef = useRef<Set<string>>(new Set());
   const reportStartTime = useJobdeskReportSettingsStore((state) => state.startTime);
   const reportEndTime = useJobdeskReportSettingsStore((state) => state.endTime);
+  const fetchReportingWindow = useJobdeskReportSettingsStore((state) => state.fetchReportingWindow);
+  const reportSettingsError = useJobdeskReportSettingsStore((state) => state.error);
   const reportSettings = useMemo(
     () => ({
       startTime: reportStartTime,
@@ -107,6 +114,14 @@ const KaryawanRaportPage: React.FC = () => {
     });
     return initial;
   });
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+
+  useEffect(() => {
+    fetchEvidence({ tanggal: todayKey, limit: 500 });
+    fetchDivisions();
+    fetchReportingWindow();
+  }, [fetchDivisions, fetchEvidence, fetchReportingWindow]);
 
   useEffect(() => {
     return () => {
@@ -179,6 +194,63 @@ const KaryawanRaportPage: React.FC = () => {
   };
 
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+
+  const uploadEvidenceFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiFetch('/api/raport-harian/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = Array.isArray(payload?.errors) && payload.errors.length > 0
+        ? payload.errors.join(', ')
+        : payload?.detail || payload?.message || 'Upload bukti gagal.';
+      throw new Error(message);
+    }
+    return String(payload.data?.url || '');
+  };
+
+  const handleSaveRaport = async () => {
+    if (!canSubmitReport || saving) return;
+    const items = Object.entries(evidenceByJobdesk)
+      .filter(([, evidence]) => evidence.mode !== 'unset' && !evidence.error)
+      .map(([index, evidence]) => ({
+        jobdeskIndex: Number(index),
+        jobdeskText: jobdesks[Number(index)] || `Jobdesk ${Number(index) + 1}`,
+        mode: evidence.mode === 'unset' ? 'none' : evidence.mode,
+        evidenceUrl: evidence.previewUrl,
+        employeeNote: evidence.mode === 'none' ? 'Bukti ditandai tidak ada oleh karyawan.' : evidence.file?.name || '',
+      }));
+
+    if (items.length === 0) {
+      setSaveMessage('Pilih minimal satu bukti jobdesk sebelum menyimpan.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const uploadedItems = [];
+      for (const item of items) {
+        const evidence = evidenceByJobdesk[item.jobdeskIndex];
+        const evidenceUrl = evidence?.file ? await uploadEvidenceFile(evidence.file) : item.evidenceUrl;
+        uploadedItems.push({ ...item, evidenceUrl });
+      }
+      await submitRaport({
+        tanggal: todayKey,
+        cabang: 'Manado',
+        divisi: user?.divisi || position?.id || 'Karyawan',
+        items: uploadedItems,
+      });
+      setSaveMessage('Raport berhasil dikirim dan menunggu review PIC.');
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : 'Raport gagal disimpan.');
+    } finally {
+      setSaving(false);
+      window.setTimeout(() => setSaveMessage(''), 3500);
+    }
+  };
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -259,13 +331,27 @@ const KaryawanRaportPage: React.FC = () => {
             </p>
           </div>
           <button
+            type="button"
+            onClick={handleSaveRaport}
             disabled={!canSubmitReport}
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-body-sm font-bold text-on-primary shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
-            Simpan Raport
+            {saving ? 'Menyimpan...' : 'Simpan Raport'}
           </button>
         </div>
+
+      {saveMessage && (
+          <div className="mb-4 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-body-sm font-semibold text-primary">
+            {saveMessage}
+          </div>
+        )}
+
+        {(raportError || reportSettingsError) && (
+          <div className="mb-4 rounded-2xl border border-error/20 bg-error/10 px-4 py-3 text-body-sm font-semibold text-error">
+            {raportError || reportSettingsError}
+          </div>
+        )}
 
         <div className="space-y-4">
           {jobdesks.map((job, idx) => {

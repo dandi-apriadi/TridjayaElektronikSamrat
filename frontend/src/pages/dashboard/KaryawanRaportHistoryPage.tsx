@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -12,12 +12,13 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { toDateKey } from '../../data/picRaportData';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
 const weekdayLabels = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
-const dateKey = (date: Date) => date.toISOString().slice(0, 10);
+const dateKey = toDateKey;
 
 const statusMeta = {
   approved: {
@@ -40,7 +41,13 @@ const statusMeta = {
 const KaryawanRaportHistoryPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const evidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const raportError = usePicRaportStore((state) => state.error);
   const [selectedDate, setSelectedDate] = useState(dateKey(new Date()));
+
+  useEffect(() => {
+    fetchEvidence({ limit: 500 });
+  }, [fetchEvidence]);
 
   const employeeHistory = useMemo(() => {
     const userName = user?.name?.trim().toLowerCase();
@@ -131,6 +138,11 @@ const KaryawanRaportHistoryPage: React.FC = () => {
       </section>
 
       <motion.section variants={itemVariants} className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-5 shadow-sm lg:p-6">
+        {raportError && (
+          <div className="mb-4 rounded-2xl border border-error/20 bg-error/10 px-4 py-3 text-body-sm font-semibold text-error">
+            {raportError}
+          </div>
+        )}
         <div className="mb-5 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-title-lg font-black text-on-surface">Kalender bukti raport</h2>

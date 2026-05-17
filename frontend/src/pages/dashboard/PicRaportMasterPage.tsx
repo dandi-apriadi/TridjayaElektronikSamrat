@@ -3,12 +3,18 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   BriefcaseBusiness,
   CheckCircle2,
   ClipboardList,
+  Pencil,
   Layers3,
   Plus,
   Search,
+  Save,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { usePicRaportStore } from '../../store/picRaportStore';
 
@@ -18,11 +24,22 @@ const itemVariants = { hidden: { y: 10, opacity: 0 }, visible: { y: 0, opacity: 
 const PicRaportMasterPage: React.FC = () => {
   const divisions = usePicRaportStore((state) => state.divisions);
   const addDivision = usePicRaportStore((state) => state.addDivision);
+  const updateDivision = usePicRaportStore((state) => state.updateDivision);
+  const deleteDivision = usePicRaportStore((state) => state.deleteDivision);
+  const moveDivision = usePicRaportStore((state) => state.moveDivision);
   const addJobdesk = usePicRaportStore((state) => state.addJobdesk);
+  const updateJobdesk = usePicRaportStore((state) => state.updateJobdesk);
+  const deleteJobdesk = usePicRaportStore((state) => state.deleteJobdesk);
+  const moveJobdesk = usePicRaportStore((state) => state.moveJobdesk);
+  const fetchDivisions = usePicRaportStore((state) => state.fetchDivisions);
+  const masterError = usePicRaportStore((state) => state.error);
   const [search, setSearch] = useState('');
   const [newDivision, setNewDivision] = useState('');
   const [activeDivisionId, setActiveDivisionId] = useState(divisions[0]?.id || '');
   const [jobdeskDrafts, setJobdeskDrafts] = useState<Record<string, string>>({});
+  const [editingDivisionName, setEditingDivisionName] = useState('');
+  const [editingJobdeskIndex, setEditingJobdeskIndex] = useState<number | null>(null);
+  const [editingJobdeskText, setEditingJobdeskText] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
 
   const filteredDivisions = useMemo(() => {
@@ -40,6 +57,10 @@ const PicRaportMasterPage: React.FC = () => {
   const totalJobdesks = divisions.reduce((sum, division) => sum + division.jobdesks.length, 0);
 
   useEffect(() => {
+    fetchDivisions();
+  }, [fetchDivisions]);
+
+  useEffect(() => {
     if (!activeDivision && divisions[0]) {
       setActiveDivisionId(divisions[0].id);
     }
@@ -47,6 +68,13 @@ const PicRaportMasterPage: React.FC = () => {
       setActiveDivisionId(filteredDivisions[0]?.id || divisions[0]?.id || '');
     }
   }, [activeDivision, divisions, filteredDivisions, search]);
+
+  useEffect(() => {
+    if (!activeDivision) return;
+    setEditingDivisionName(activeDivision.posisi);
+    setEditingJobdeskIndex(null);
+    setEditingJobdeskText('');
+  }, [activeDivision?.id, activeDivision?.posisi]);
 
   const flashSaved = (message: string) => {
     setSavedMessage(message);
@@ -69,6 +97,39 @@ const PicRaportMasterPage: React.FC = () => {
     flashSaved('Jobdesk ditambahkan.');
   };
 
+  const handleUpdateDivision = () => {
+    if (!activeDivision) return;
+    updateDivision(activeDivision.id, editingDivisionName);
+    flashSaved('Divisi diperbarui.');
+  };
+
+  const handleDeleteDivision = (divisionId: string) => {
+    if (!window.confirm('Hapus divisi ini beserta semua jobdesk di dalamnya?')) return;
+    deleteDivision(divisionId);
+    setActiveDivisionId(divisions.find((division) => division.id !== divisionId)?.id || '');
+    flashSaved('Divisi dihapus.');
+  };
+
+  const startEditJobdesk = (index: number, text: string) => {
+    setEditingJobdeskIndex(index);
+    setEditingJobdeskText(text);
+  };
+
+  const handleUpdateJobdesk = () => {
+    if (!activeDivision || editingJobdeskIndex === null) return;
+    updateJobdesk(activeDivision.id, editingJobdeskIndex, editingJobdeskText);
+    setEditingJobdeskIndex(null);
+    setEditingJobdeskText('');
+    flashSaved('Jobdesk diperbarui.');
+  };
+
+  const handleDeleteJobdesk = (index: number) => {
+    if (!activeDivision) return;
+    if (!window.confirm('Hapus jobdesk ini?')) return;
+    deleteJobdesk(activeDivision.id, index);
+    flashSaved('Jobdesk dihapus.');
+  };
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-5">
       <motion.div variants={itemVariants} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -87,6 +148,11 @@ const PicRaportMasterPage: React.FC = () => {
           <div className="inline-flex h-10 items-center gap-2 rounded-lg border border-secondary/20 bg-secondary/10 px-3 text-label-sm font-bold text-secondary">
             <CheckCircle2 className="h-4 w-4" />
             {savedMessage}
+          </div>
+        )}
+        {masterError && (
+          <div className="inline-flex h-10 items-center gap-2 rounded-lg border border-error/20 bg-error/10 px-3 text-label-sm font-bold text-error">
+            {masterError}
           </div>
         )}
       </motion.div>
@@ -183,20 +249,63 @@ const PicRaportMasterPage: React.FC = () => {
                       <BriefcaseBusiness className="h-3.5 w-3.5" />
                       {activeDivision.id}
                     </div>
-                    <h2 className="mt-3 text-title-lg font-black text-on-surface">{activeDivision.posisi}</h2>
-                    <p className="mt-1 text-body-sm text-on-surface-variant">{activeDivision.jobdesks.length} jobdesk aktif.</p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        value={editingDivisionName}
+                        onChange={(event) => setEditingDivisionName(event.target.value)}
+                        className="h-11 min-w-0 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-title-sm font-black text-on-surface outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                        aria-label="Nama divisi"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleUpdateDivision}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-secondary/25 bg-secondary/10 px-3 text-label-sm font-bold text-secondary transition hover:bg-secondary hover:text-on-secondary"
+                      >
+                        <Save className="h-4 w-4" />
+                        Simpan
+                      </button>
+                    </div>
+                    <p className="mt-2 text-body-sm text-on-surface-variant">{activeDivision.jobdesks.length} jobdesk aktif.</p>
                   </div>
-                  <div className="flex min-w-[220px] gap-2">
-                    <input
-                      value={jobdeskDrafts[activeDivision.id] || ''}
-                      onChange={(event) => setJobdeskDrafts((prev) => ({ ...prev, [activeDivision.id]: event.target.value }))}
-                      placeholder="Tambah jobdesk"
-                      className="h-10 min-w-0 flex-1 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-sm text-on-surface outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
-                    />
-                    <button type="button" onClick={() => handleAddJobdesk(activeDivision.id)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 text-label-sm font-bold text-primary transition hover:bg-primary hover:text-on-primary">
-                      <Plus className="h-4 w-4" />
-                      Jobdesk
-                    </button>
+                  <div className="flex flex-col gap-2 sm:min-w-[300px]">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => moveDivision(activeDivision.id, -1)}
+                        className="grid h-10 w-10 place-items-center rounded-lg border border-outline-variant/20 bg-surface-high text-on-surface-variant transition hover:text-primary"
+                        aria-label="Naikkan divisi"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveDivision(activeDivision.id, 1)}
+                        className="grid h-10 w-10 place-items-center rounded-lg border border-outline-variant/20 bg-surface-high text-on-surface-variant transition hover:text-primary"
+                        aria-label="Turunkan divisi"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDivision(activeDivision.id)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-error/25 bg-error/10 px-3 text-label-sm font-bold text-error transition hover:bg-error hover:text-on-error"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Hapus Divisi
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={jobdeskDrafts[activeDivision.id] || ''}
+                        onChange={(event) => setJobdeskDrafts((prev) => ({ ...prev, [activeDivision.id]: event.target.value }))}
+                        placeholder="Tambah jobdesk"
+                        className="h-10 min-w-0 flex-1 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-sm text-on-surface outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                      />
+                      <button type="button" onClick={() => handleAddJobdesk(activeDivision.id)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 text-label-sm font-bold text-primary transition hover:bg-primary hover:text-on-primary">
+                        <Plus className="h-4 w-4" />
+                        Jobdesk
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -205,7 +314,44 @@ const PicRaportMasterPage: React.FC = () => {
                 {activeDivision.jobdesks.map((jobdesk, index) => (
                   <div key={`${activeDivision.id}-${index}`} className="flex items-start gap-3 rounded-lg border border-outline-variant/10 bg-surface-high/35 p-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface text-label-xs font-black text-primary">{index + 1}</span>
-                    <p className="text-body-sm font-semibold text-on-surface">{jobdesk}</p>
+                    {editingJobdeskIndex === index ? (
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <textarea
+                          value={editingJobdeskText}
+                          onChange={(event) => setEditingJobdeskText(event.target.value)}
+                          rows={3}
+                          className="w-full resize-none rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-body-sm font-semibold text-on-surface outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={handleUpdateJobdesk} className="inline-flex h-8 items-center gap-2 rounded-lg bg-primary px-3 text-label-xs font-bold text-on-primary">
+                            <Save className="h-3.5 w-3.5" />
+                            Simpan
+                          </button>
+                          <button type="button" onClick={() => setEditingJobdeskIndex(null)} className="inline-flex h-8 items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-xs font-bold text-on-surface-variant">
+                            <X className="h-3.5 w-3.5" />
+                            Batal
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="min-w-0 flex-1 text-body-sm font-semibold text-on-surface">{jobdesk}</p>
+                        <div className="flex shrink-0 gap-1">
+                          <button type="button" onClick={() => moveJobdesk(activeDivision.id, index, -1)} className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-on-surface-variant hover:text-primary" aria-label="Naikkan jobdesk">
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button type="button" onClick={() => moveJobdesk(activeDivision.id, index, 1)} className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-on-surface-variant hover:text-primary" aria-label="Turunkan jobdesk">
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button type="button" onClick={() => startEditJobdesk(index, jobdesk)} className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-on-surface-variant hover:text-primary" aria-label="Edit jobdesk">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button type="button" onClick={() => handleDeleteJobdesk(index)} className="grid h-8 w-8 place-items-center rounded-lg bg-error/10 text-error hover:bg-error hover:text-on-error" aria-label="Hapus jobdesk">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
                 {activeDivision.jobdesks.length === 0 && (

@@ -75,7 +75,7 @@ class ErrorBoundary extends Component<Props, State> {
           </div>
           
           <p className="mt-12 text-xs text-on-surface-variant/40">
-            Tridjaya Manado Dashboard &bull; System Recovery Mode
+            Tridjaya Group Dashboard &bull; System Recovery Mode
           </p>
         </div>
       );

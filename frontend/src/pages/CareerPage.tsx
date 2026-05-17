@@ -210,7 +210,7 @@ const CareerPage: React.FC = () => {
 
   return (
     <>
-      <title>Karier – Tridjaya Manado</title>
+      <title>Karier – Tridjaya Group</title>
 
       {/* Hero */}
       <section className="relative pt-28 pb-16 overflow-hidden">

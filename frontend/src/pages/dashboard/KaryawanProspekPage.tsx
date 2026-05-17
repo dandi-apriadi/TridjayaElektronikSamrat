@@ -4,6 +4,7 @@ import { CheckCircle, Clock3, MessageCircle, Phone, Plus, Send, Sparkles, Target
 import { useAuthStore } from '../../store/authStore';
 import {
   formatProspekDateKey,
+  normalizeWhatsapp,
   statusColor,
   statusLabel,
   useKaryawanProspekStore,
@@ -17,7 +18,8 @@ const KaryawanProspekPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const allProspek = useKaryawanProspekStore((s) => s.prospek);
   const addProspek = useKaryawanProspekStore((s) => s.addProspek);
-  const ensureSeedForUser = useKaryawanProspekStore((s) => s.ensureSeedForUser);
+  const fetchProspek = useKaryawanProspekStore((s) => s.fetchProspek);
+  const prospekError = useKaryawanProspekStore((s) => s.error);
   const divisi = user?.divisi || '';
   const isSales = divisi.toLowerCase().includes('sales') || divisi.toLowerCase().includes('koordinator');
   const targetProspek = isSales ? 20 : 5;
@@ -34,8 +36,8 @@ const KaryawanProspekPage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
-    ensureSeedForUser(user);
-  }, [ensureSeedForUser, user]);
+    fetchProspek({ limit: 500 });
+  }, [fetchProspek]);
 
   const prospekList = useMemo(
     () => allProspek.filter((item) => item.karyawanId === employeeId && item.tanggal === todayKey),
@@ -46,19 +48,25 @@ const KaryawanProspekPage: React.FC = () => {
   const dealCount = useMemo(() => prospekList.filter((p) => p.statusProspek === 'deal').length, [prospekList]);
   const followUpCount = useMemo(() => prospekList.filter((p) => p.statusProspek === 'fu_ulang' || p.statusProspek === 'tanya_tanya').length, [prospekList]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!namaProspek.trim() || !noWhatsapp.trim() || !minatBarang.trim()) return;
 
+    const normalizedWhatsapp = normalizeWhatsapp(noWhatsapp);
+    if (!normalizedWhatsapp.startsWith('08') || normalizedWhatsapp.length < 10) {
+      setSuccessMsg('Nomor WhatsApp harus valid, rapi, dan diawali 08.');
+      return;
+    }
+
     setSubmitting(true);
-    window.setTimeout(() => {
-      addProspek({
+    try {
+      await addProspek({
         karyawanId: employeeId,
         karyawanName: user?.name || 'Karyawan Tridjaya',
         cabang: 'Manado',
         divisi: user?.divisi || 'Karyawan',
         namaProspek: namaProspek.toUpperCase(),
-        noWhatsapp,
+        noWhatsapp: normalizedWhatsapp,
         minatBarang: minatBarang.toUpperCase(),
         keteranganProspek,
         statusProspek,
@@ -72,10 +80,13 @@ const KaryawanProspekPage: React.FC = () => {
       setKeteranganProspek('');
       setStatusProspek('tanya_tanya');
       setKeteranganFincoy('');
-      setSubmitting(false);
       setSuccessMsg('Prospek berhasil dikirim.');
       window.setTimeout(() => setSuccessMsg(''), 3000);
-    }, 450);
+    } catch (error) {
+      setSuccessMsg(error instanceof Error ? error.message : 'Prospek gagal dikirim.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -146,6 +157,11 @@ const KaryawanProspekPage: React.FC = () => {
               {successMsg}
             </div>
           )}
+          {prospekError && (
+            <div className="mb-4 rounded-2xl border border-error/20 bg-error/10 px-4 py-3 text-body-sm font-semibold text-error">
+              {prospekError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -155,7 +171,7 @@ const KaryawanProspekPage: React.FC = () => {
               </label>
               <label className="space-y-1.5">
                 <span className="text-label-sm font-bold text-on-surface-variant">No WhatsApp *</span>
-                <input type="tel" value={noWhatsapp} onChange={(e) => setNoWhatsapp(e.target.value)} placeholder="08xxxxxxxxxx" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15" required />
+                <input type="tel" value={noWhatsapp} onChange={(e) => setNoWhatsapp(normalizeWhatsapp(e.target.value))} placeholder="08xxxxxxxxxx" inputMode="numeric" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15" required />
               </label>
             </div>
 

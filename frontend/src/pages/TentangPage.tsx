@@ -25,7 +25,7 @@ const TentangPage: React.FC = () => {
               Memberdayakan Sulawesi Dengan <span className="gradient-text-primary">Inovasi Berkelanjutan</span>
             </h1>
             <p className="font-body text-body-lg text-on-surface-variant leading-relaxed">
-              Tridjaya Manado adalah mitra terpercaya Anda untuk solusi mobilitas listrik, elektronik premium, dan furnitur berkualitas di wilayah Sulawesi.
+              Tridjaya Group adalah mitra terpercaya Anda untuk solusi mobilitas listrik, elektronik premium, dan furnitur berkualitas di wilayah Sulawesi.
             </p>
           </motion.div>
         </div>
@@ -66,7 +66,7 @@ const TentangPage: React.FC = () => {
               />
               <div className="space-y-4 font-body text-body-lg text-on-surface-variant leading-relaxed">
                 <p>
-                  Tridjaya Manado merupakan bagian dari <strong>Tridjaya Group</strong> yang didirikan oleh <strong>dr. Setiawan Widjaya</strong> (dikenal sebagai Ko Iwan). Berawal dari kesuksesan Tridjaya Motor sebagai salah satu dealer motor terbesar, dr. Setiawan berekspansi untuk memberikan solusi kebutuhan gaya hidup modern yang lebih luas kepada masyarakat.
+                  Tridjaya Group didirikan oleh <strong>dr. Setiawan Widjaya</strong> (dikenal sebagai Ko Iwan). Berawal dari kesuksesan Tridjaya Motor sebagai salah satu dealer motor terbesar, dr. Setiawan berekspansi untuk memberikan solusi kebutuhan gaya hidup modern yang lebih luas kepada masyarakat.
                 </p>
                 <p>
                   <strong>Tridjaya Elektronik</strong> secara resmi berdiri pada <strong>2 Desember 2022</strong>, dan mulai menancapkan jejaknya di Kota Manado pada <strong>12 Januari 2024</strong> melalui peresmian cabang Samrat sebagai cabang ke-8 nasional.

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -37,6 +37,9 @@ import {
   posisiRaportSummary,
 } from '../../data/ownerRaportData';
 import ComingSoonBadge from '../../components/dashboard/ComingSoonBadge';
+import { apiFetch } from '../../utils/apiClient';
+import { buildPicEmployeeSummaries, toDateKey } from '../../data/picRaportData';
+import { usePicRaportStore } from '../../store/picRaportStore';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -80,8 +83,119 @@ interface KpiConfig {
   href: string;
 }
 
+interface ProspekOverviewStats {
+  totalProspek: number;
+  closing: number;
+  conversionRate: number;
+  employeeCount: number;
+}
+
 const OwnerDashboard: React.FC = () => {
-  const { prospek, closing, conversionRate, raportPersentase } = ownerDashboardData;
+  const { raportPersentase } = ownerDashboardData;
+  const evidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const [prospekStats, setProspekStats] = useState<ProspekOverviewStats>({
+    totalProspek: 0,
+    closing: 0,
+    conversionRate: 0,
+    employeeCount: 0,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    const loadProspekOverview = async () => {
+      const today = toDateKey(new Date());
+      const [summaryResponse, activityResponse] = await Promise.all([
+        apiFetch(`/api/prospek-harian/summary?tanggal=${encodeURIComponent(today)}`),
+        apiFetch(`/api/prospek-harian?tanggal=${encodeURIComponent(today)}&limit=500`),
+      ]);
+      if (!mounted || !summaryResponse.ok || !activityResponse.ok) return;
+
+      const [summaryPayload, activityPayload] = await Promise.all([
+        summaryResponse.json(),
+        activityResponse.json(),
+      ]);
+      if (!mounted) return;
+
+      const employees = summaryPayload.data?.items || [];
+      const activities = activityPayload.data?.items || [];
+      const totalProspek = employees.reduce(
+        (sum: number, item: any) => sum + Number(item.prospekHariIni || item.prospek_hari_ini || 0),
+        0
+      );
+      const closing = activities.filter((item: any) => (item.statusProspek || item.status_prospek) === 'deal').length;
+      setProspekStats({
+        totalProspek,
+        closing,
+        conversionRate: totalProspek > 0 ? Math.round((closing / totalProspek) * 100) : 0,
+        employeeCount: employees.length,
+      });
+    };
+    loadProspekOverview().catch(() => {});
+    fetchEvidence({ limit: 500 }).catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [fetchEvidence]);
+
+  const liveEmployeeRaports = useMemo(() => {
+    const summaries = buildPicEmployeeSummaries(evidence);
+    if (summaries.length === 0) return employeeRaports;
+    return summaries.map((employee) => {
+      const totalEvidence = employee.pendingEvidence + employee.approvedEvidence + employee.rejectedEvidence;
+      const decidedEvidence = employee.approvedEvidence + employee.rejectedEvidence;
+      const completionPercentage = totalEvidence ? Math.round((decidedEvidence / totalEvidence) * 100) : 0;
+      return {
+        id: employee.id,
+        nama: employee.nama,
+        posisi: employee.posisi,
+        cabang: employee.cabang,
+        selesai: decidedEvidence,
+        totalJobdesk: Math.max(totalEvidence, employee.totalJobdesk || 0, 1),
+        persentase: employee.averageScore || completionPercentage,
+      };
+    });
+  }, [evidence]);
+
+  const liveOverallRaport = useMemo(
+    () =>
+      evidence.length > 0 && liveEmployeeRaports.length > 0
+        ? Math.round(liveEmployeeRaports.reduce((sum, employee) => sum + employee.persentase, 0) / liveEmployeeRaports.length)
+        : overallRaportPersentase,
+    [evidence.length, liveEmployeeRaports]
+  );
+
+  const liveCabangSummary = useMemo(() => {
+    if (evidence.length === 0) return cabangRaportSummary;
+    const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
+    liveEmployeeRaports.forEach((employee) => {
+      const current = grouped.get(employee.cabang) || { totalKaryawan: 0, totalPersentase: 0 };
+      current.totalKaryawan += 1;
+      current.totalPersentase += employee.persentase;
+      grouped.set(employee.cabang, current);
+    });
+    return [...grouped.entries()].map(([cabang, summary]) => ({
+      cabang,
+      totalKaryawan: summary.totalKaryawan,
+      rataPersentase: summary.totalKaryawan ? Math.round(summary.totalPersentase / summary.totalKaryawan) : 0,
+    }));
+  }, [evidence.length, liveEmployeeRaports]);
+
+  const livePosisiSummary = useMemo(() => {
+    if (evidence.length === 0) return posisiRaportSummary;
+    const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
+    liveEmployeeRaports.forEach((employee) => {
+      const current = grouped.get(employee.posisi) || { totalKaryawan: 0, totalPersentase: 0 };
+      current.totalKaryawan += 1;
+      current.totalPersentase += employee.persentase;
+      grouped.set(employee.posisi, current);
+    });
+    return [...grouped.entries()].map(([posisi, summary]) => ({
+      posisi,
+      totalKaryawan: summary.totalKaryawan,
+      rataPersentase: summary.totalKaryawan ? Math.round(summary.totalPersentase / summary.totalKaryawan) : 0,
+    }));
+  }, [evidence.length, liveEmployeeRaports]);
 
   const summary = useMemo(() => {
     const totalOmsetCabang = ownerDashboardData.omsetPerCabang.reduce((sum, branch) => sum + branch.omset, 0);
@@ -93,12 +207,12 @@ const OwnerDashboard: React.FC = () => {
     const targetGap = latestTarget ? calculateGapPercentage(latestTarget.actual, latestTarget.target) : 0;
     const totalSalesRevenue = ownerDashboardData.topSales.reduce((sum, sales) => sum + sales.revenue, 0);
     const totalNonSalesContribution = ownerDashboardData.topNonSales.reduce((sum, entry) => sum + entry.contributionCount, 0);
-    const completedJobdesk = employeeRaports.reduce((sum, employee) => sum + employee.selesai, 0);
-    const totalJobdesk = employeeRaports.reduce((sum, employee) => sum + employee.totalJobdesk, 0);
-    const weakBranches = [...cabangRaportSummary]
+    const completedJobdesk = liveEmployeeRaports.reduce((sum, employee) => sum + employee.selesai, 0);
+    const totalJobdesk = liveEmployeeRaports.reduce((sum, employee) => sum + employee.totalJobdesk, 0);
+    const weakBranches = [...liveCabangSummary]
       .sort((a, b) => a.rataPersentase - b.rataPersentase)
       .slice(0, 4);
-    const weakDivisions = [...posisiRaportSummary]
+    const weakDivisions = [...livePosisiSummary]
       .filter((item) => item.totalKaryawan > 0)
       .sort((a, b) => a.rataPersentase - b.rataPersentase)
       .slice(0, 4);
@@ -117,14 +231,39 @@ const OwnerDashboard: React.FC = () => {
       weakBranches,
       weakDivisions,
     };
-  }, []);
+  }, [liveCabangSummary, liveEmployeeRaports, livePosisiSummary]);
+
+  const prospek: KpiCardData = {
+    label: 'Prospek Masuk',
+    value: prospekStats.totalProspek,
+    formattedValue: prospekStats.totalProspek.toLocaleString('id-ID'),
+    previousValue: prospekStats.employeeCount,
+    trend: 'neutral',
+    trendPercentage: `${prospekStats.employeeCount} karyawan`,
+  };
+  const closing: KpiCardData = {
+    label: 'Closing',
+    value: prospekStats.closing,
+    formattedValue: prospekStats.closing.toLocaleString('id-ID'),
+    previousValue: 0,
+    trend: 'neutral',
+    trendPercentage: 'Backend',
+  };
+  const conversionRate: KpiCardData = {
+    label: 'Conversion Rate',
+    value: prospekStats.conversionRate,
+    formattedValue: `${prospekStats.conversionRate}%`,
+    previousValue: 0,
+    trend: 'neutral',
+    trendPercentage: 'Backend',
+  };
 
   const kpiCards: KpiConfig[] = [
     { data: prospek, icon: Users, tone: 'text-primary bg-primary/10', href: '/dashboard/owner/prospek' },
     { data: closing, icon: CheckCircle2, tone: 'text-secondary bg-secondary/10', href: '/dashboard/owner/prospek' },
     { data: conversionRate, icon: BarChart3, tone: 'text-tertiary bg-tertiary/10', href: '/dashboard/owner/prospek' },
     {
-      data: { ...raportPersentase, value: overallRaportPersentase, formattedValue: `${overallRaportPersentase}%` },
+      data: { ...raportPersentase, value: liveOverallRaport, formattedValue: `${liveOverallRaport}%` },
       icon: BookOpen,
       tone: 'text-primary bg-primary/10',
       href: '/dashboard/owner/raport',
@@ -142,10 +281,10 @@ const OwnerDashboard: React.FC = () => {
     },
     {
       title: 'Raport Jobdesk',
-      description: `${summary.completedJobdesk}/${summary.totalJobdesk} jobdesk selesai dari ${employeeRaports.length} karyawan.`,
+      description: `${summary.completedJobdesk}/${summary.totalJobdesk} jobdesk selesai dari ${liveEmployeeRaports.length} karyawan.`,
       href: '/dashboard/owner/raport',
       icon: BookOpen,
-      metric: `${overallRaportPersentase}%`,
+      metric: `${liveOverallRaport}%`,
       label: 'Rata-rata',
     },
     {

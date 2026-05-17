@@ -100,7 +100,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ origin, destination }) => {
         />
         
         <Marker position={[origin.latitude, origin.longitude]} icon={storeIcon}>
-          <Popup>Toko Tridjaya Manado</Popup>
+          <Popup>Toko Tridjaya Group</Popup>
         </Marker>
         
         <Marker position={[destination.latitude, destination.longitude]} icon={destIcon}>

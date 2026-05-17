@@ -44,6 +44,8 @@ import {
   isWithinReportingWindow,
   useJobdeskReportSettingsStore,
 } from '../../store/jobdeskReportSettingsStore';
+import { buildPicEmployeeSummaries, toDateKey } from '../../data/picRaportData';
+import { usePicRaportStore } from '../../store/picRaportStore';
 
 type StatusFilter = 'all' | 'excellent' | 'on-track' | 'at-risk';
 type SortKey = 'lowest' | 'highest' | 'name' | 'branch' | 'position';
@@ -119,10 +121,15 @@ function getStatus(persentase: number) {
 }
 
 const OwnerRaportPage: React.FC = () => {
+  const evidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const raportError = usePicRaportStore((state) => state.error);
   const reportStartTime = useJobdeskReportSettingsStore((state) => state.startTime);
   const reportEndTime = useJobdeskReportSettingsStore((state) => state.endTime);
   const reportUpdatedAt = useJobdeskReportSettingsStore((state) => state.updatedAt);
   const setReportingWindow = useJobdeskReportSettingsStore((state) => state.setReportingWindow);
+  const fetchReportingWindow = useJobdeskReportSettingsStore((state) => state.fetchReportingWindow);
+  const reportSettingsError = useJobdeskReportSettingsStore((state) => state.error);
   const reportSettings = useMemo(
     () => ({
       startTime: reportStartTime,
@@ -138,20 +145,81 @@ const OwnerRaportPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [trendMode, setTrendMode] = useState<TrendMode>('hari');
-  const [selectedTrendDate, setSelectedTrendDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedTrendDate, setSelectedTrendDate] = useState(toDateKey(new Date()));
   const [draftStartTime, setDraftStartTime] = useState(reportSettings.startTime);
   const [draftEndTime, setDraftEndTime] = useState(reportSettings.endTime);
   const [saveWindowMessage, setSaveWindowMessage] = useState('');
 
+  const liveEmployeeRaports = useMemo(() => {
+    const summaries = buildPicEmployeeSummaries(evidence);
+    if (summaries.length === 0) return employeeRaports;
+
+    return summaries.map((employee) => {
+      const totalEvidence = employee.pendingEvidence + employee.approvedEvidence + employee.rejectedEvidence;
+      const decidedEvidence = employee.approvedEvidence + employee.rejectedEvidence;
+      const completionPercentage = totalEvidence ? Math.round((decidedEvidence / totalEvidence) * 100) : 0;
+
+      return {
+        id: employee.id,
+        nama: employee.nama,
+        posisi: employee.posisi,
+        cabang: employee.cabang,
+        selesai: decidedEvidence,
+        totalJobdesk: Math.max(totalEvidence, employee.totalJobdesk || 0, 1),
+        persentase: employee.averageScore || completionPercentage,
+      };
+    });
+  }, [evidence]);
+
+  const liveCabangSummary = useMemo(() => {
+    if (evidence.length === 0) return cabangRaportSummary;
+    const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
+    liveEmployeeRaports.forEach((employee) => {
+      const current = grouped.get(employee.cabang) || { totalKaryawan: 0, totalPersentase: 0 };
+      current.totalKaryawan += 1;
+      current.totalPersentase += employee.persentase;
+      grouped.set(employee.cabang, current);
+    });
+    return [...grouped.entries()].map(([cabang, summary]) => ({
+      cabang,
+      totalKaryawan: summary.totalKaryawan,
+      rataPersentase: summary.totalKaryawan ? Math.round(summary.totalPersentase / summary.totalKaryawan) : 0,
+    }));
+  }, [evidence.length, liveEmployeeRaports]);
+
+  const livePosisiSummary = useMemo(() => {
+    if (evidence.length === 0) return posisiRaportSummary;
+    const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
+    liveEmployeeRaports.forEach((employee) => {
+      const current = grouped.get(employee.posisi) || { totalKaryawan: 0, totalPersentase: 0 };
+      current.totalKaryawan += 1;
+      current.totalPersentase += employee.persentase;
+      grouped.set(employee.posisi, current);
+    });
+    return [...grouped.entries()].map(([posisi, summary]) => ({
+      posisi,
+      totalKaryawan: summary.totalKaryawan,
+      rataPersentase: summary.totalKaryawan ? Math.round(summary.totalPersentase / summary.totalKaryawan) : 0,
+    }));
+  }, [evidence.length, liveEmployeeRaports]);
+
+  const liveOverallRaport = useMemo(
+    () =>
+      evidence.length > 0 && liveEmployeeRaports.length > 0
+        ? Math.round(liveEmployeeRaports.reduce((sum, employee) => sum + employee.persentase, 0) / liveEmployeeRaports.length)
+        : overallRaportPersentase,
+    [evidence.length, liveEmployeeRaports]
+  );
+
   const branchChartData = useMemo(
-    () => [...cabangRaportSummary].sort((a, b) => b.rataPersentase - a.rataPersentase),
-    []
+    () => [...liveCabangSummary].sort((a, b) => b.rataPersentase - a.rataPersentase),
+    [liveCabangSummary]
   );
 
   const posisiChartData = useMemo(
     () => jobdeskPositions
       .map((position) => {
-        const summary = posisiRaportSummary.find((item) => item.posisi === position.posisi);
+        const summary = livePosisiSummary.find((item) => item.posisi === position.posisi);
         return {
           posisi: position.posisi,
           totalKaryawan: summary?.totalKaryawan ?? 0,
@@ -164,12 +232,12 @@ const OwnerRaportPage: React.FC = () => {
         if (a.totalKaryawan > 0 && b.totalKaryawan === 0) return -1;
         return a.rataPersentase - b.rataPersentase || a.posisi.localeCompare(b.posisi, 'id');
       }),
-    []
+    [livePosisiSummary]
   );
 
   const cabangNames = useMemo(
-    () => [...new Set(employeeRaports.map((employee) => employee.cabang))].sort((a, b) => a.localeCompare(b, 'id')),
-    []
+    () => [...new Set(liveEmployeeRaports.map((employee) => employee.cabang))].sort((a, b) => a.localeCompare(b, 'id')),
+    [liveEmployeeRaports]
   );
 
   const posisiNames = useMemo(
@@ -188,7 +256,7 @@ const OwnerRaportPage: React.FC = () => {
   const filteredEmployees = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
 
-    return employeeRaports
+    return liveEmployeeRaports
       .filter((employee) => {
         const status = getStatus(employee.persentase);
         const matchesSearch =
@@ -215,7 +283,7 @@ const OwnerRaportPage: React.FC = () => {
   const reportDateLabel = reportDateFormatter.format(new Date());
 
   const statusCounts = useMemo(() => {
-    return employeeRaports.reduce(
+    return liveEmployeeRaports.reduce(
       (counts, employee) => {
         const status = getStatus(employee.persentase).key;
         counts[status] += 1;
@@ -223,7 +291,7 @@ const OwnerRaportPage: React.FC = () => {
       },
       { excellent: 0, 'on-track': 0, 'at-risk': 0 }
     );
-  }, []);
+  }, [liveEmployeeRaports]);
 
   const bestBranch = branchChartData[0];
   const lowestBranch = branchChartData[branchChartData.length - 1];
@@ -231,8 +299,8 @@ const OwnerRaportPage: React.FC = () => {
     0,
     Math.floor((lowestBranch?.rataPersentase ?? 0) / 10) * 10 - 10
   );
-  const totalCompleted = employeeRaports.reduce((sum, employee) => sum + employee.selesai, 0);
-  const totalJobdesk = employeeRaports.reduce((sum, employee) => sum + employee.totalJobdesk, 0);
+  const totalCompleted = liveEmployeeRaports.reduce((sum, employee) => sum + employee.selesai, 0);
+  const totalJobdesk = liveEmployeeRaports.reduce((sum, employee) => sum + employee.totalJobdesk, 0);
   const raportTrendData = trendMode === 'hari'
     ? hourlyRaportData.map((item) => ({ label: item.jam, raport: item.raport, selesai: item.selesai }))
     : trendMode === 'minggu'
@@ -247,7 +315,12 @@ const OwnerRaportPage: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterCabang, filterPosisi, filterStatus, search, sortKey]);
+  }, [filterCabang, filterPosisi, filterStatus, liveEmployeeRaports, search, sortKey]);
+
+  useEffect(() => {
+    fetchReportingWindow();
+    fetchEvidence({ limit: 500 });
+  }, [fetchEvidence, fetchReportingWindow]);
 
   useEffect(() => {
     setDraftStartTime(reportSettings.startTime);
@@ -267,7 +340,7 @@ const OwnerRaportPage: React.FC = () => {
     window.setTimeout(() => setSaveWindowMessage(''), 2400);
   };
 
-  const handleReportingTimeChange = (field: 'start' | 'end', value: string) => {
+  const handleReportingTimeChange = async (field: 'start' | 'end', value: string) => {
     const nextStartTime = field === 'start' ? value : draftStartTime;
     const nextEndTime = field === 'end' ? value : draftEndTime;
 
@@ -277,11 +350,16 @@ const OwnerRaportPage: React.FC = () => {
       setDraftEndTime(value);
     }
 
-    setReportingWindow({
-      startTime: nextStartTime,
-      endTime: nextEndTime,
-    });
-    showAutoSaveNotification();
+    try {
+      await setReportingWindow({
+        startTime: nextStartTime,
+        endTime: nextEndTime,
+      });
+      showAutoSaveNotification();
+    } catch (error) {
+      setSaveWindowMessage(error instanceof Error ? error.message : 'Jam pelaporan gagal disimpan.');
+      window.setTimeout(() => setSaveWindowMessage(''), 3200);
+    }
   };
 
   const reportWindowOpen = isWithinReportingWindow(reportSettings);
@@ -358,6 +436,18 @@ const OwnerRaportPage: React.FC = () => {
             {saveWindowMessage}
           </div>
         )}
+        {reportSettingsError && (
+          <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-error/20 bg-error/10 px-4 py-3 text-body-sm font-bold text-error">
+            <AlertTriangle className="h-4 w-4" />
+            {reportSettingsError}
+          </div>
+        )}
+        {raportError && (
+          <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-error/20 bg-error/10 px-4 py-3 text-body-sm font-bold text-error">
+            <AlertTriangle className="h-4 w-4" />
+            {raportError}
+          </div>
+        )}
       </motion.section>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -365,14 +455,14 @@ const OwnerRaportPage: React.FC = () => {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Rata-rata Raport</div>
-              <div className={`font-display text-headline-sm font-bold ${getStatus(overallRaportPersentase).textClass}`}>{overallRaportPersentase}%</div>
+              <div className={`font-display text-headline-sm font-bold ${getStatus(liveOverallRaport).textClass}`}>{liveOverallRaport}%</div>
             </div>
             <div className="rounded-lg bg-primary/10 p-2.5 text-primary">
               <ClipboardCheck className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-high">
-            <div className={`h-full rounded-full ${getStatus(overallRaportPersentase).barClass}`} style={{ width: `${overallRaportPersentase}%` }} />
+            <div className={`h-full rounded-full ${getStatus(liveOverallRaport).barClass}`} style={{ width: `${liveOverallRaport}%` }} />
           </div>
           <div className="mt-2 text-label-xs text-on-surface-variant">{totalCompleted} dari {totalJobdesk} jobdesk selesai</div>
         </motion.div>
@@ -381,7 +471,7 @@ const OwnerRaportPage: React.FC = () => {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Karyawan Dipantau</div>
-              <div className="font-display text-headline-sm font-bold text-on-surface">{employeeRaports.length}</div>
+              <div className="font-display text-headline-sm font-bold text-on-surface">{liveEmployeeRaports.length}</div>
             </div>
             <div className="rounded-lg bg-secondary/10 p-2.5 text-secondary">
               <Users className="h-5 w-5" />
@@ -583,7 +673,7 @@ const OwnerRaportPage: React.FC = () => {
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h3 className="font-display text-title-md font-bold text-on-surface">Detail Raport Karyawan</h3>
-            <p className="mt-1 text-label-xs text-on-surface-variant">Menampilkan {filteredEmployees.length} dari {employeeRaports.length} karyawan.</p>
+            <p className="mt-1 text-label-xs text-on-surface-variant">Menampilkan {filteredEmployees.length} dari {liveEmployeeRaports.length} karyawan.</p>
             <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 px-3 py-1.5 text-label-xs font-bold text-primary">
               <CalendarDays className="h-3.5 w-3.5" />
               Tanggal report: {reportDateLabel}

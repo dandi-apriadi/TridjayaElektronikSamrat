@@ -46,6 +46,8 @@ const evidenceLabel = (item: PicRaportEvidence) => {
 
 const PicRaportHistoryPage: React.FC = () => {
   const evidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const raportError = usePicRaportStore((state) => state.error);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [monthCursor, setMonthCursor] = useState(() => new Date());
   const [search, setSearch] = useState('');
@@ -53,6 +55,10 @@ const PicRaportHistoryPage: React.FC = () => {
   const [status, setStatus] = useState<FilterStatus>('all');
   const [visibleLimit, setVisibleLimit] = useState(HISTORY_BATCH_SIZE);
   const debouncedSearch = useDebounce(search, 250);
+
+  useEffect(() => {
+    fetchEvidence({ limit: 500 });
+  }, [fetchEvidence]);
 
   const summaries = useMemo(() => buildPicDaySummaries(evidence), [evidence]);
   const summaryByDate = useMemo(() => new Map(summaries.map((item) => [item.tanggal, item])), [summaries]);
@@ -106,6 +112,11 @@ const PicRaportHistoryPage: React.FC = () => {
       </motion.div>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        {raportError && (
+          <div className="xl:col-span-2 rounded-2xl border border-error/20 bg-error/10 px-4 py-3 text-body-sm font-semibold text-error">
+            {raportError}
+          </div>
+        )}
         <motion.div variants={itemVariants} className="rounded-xl border border-outline-variant/20 bg-surface shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-outline-variant/10 p-4">
             <button type="button" onClick={() => moveMonth(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-surface-high text-on-surface-variant hover:text-primary" aria-label="Bulan sebelumnya">

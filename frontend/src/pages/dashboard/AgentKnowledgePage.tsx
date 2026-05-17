@@ -179,7 +179,7 @@ const AgentKnowledgePage: React.FC = () => {
       if (p.priceInstallment) cicilLine = `💳 Cicilan: ${formatPrice(p.priceInstallment)}/bln\n`;
     }
 
-    const text = `*PROMO Tridjaya Manado* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(publicPrice)}\n${dpLine}${cicilLine}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
+    const text = `*PROMO Tridjaya Group* 🚀\n\n*${p.name}*\n🏷️ Harga: ${formatPrice(publicPrice)}\n${dpLine}${cicilLine}\n✨ *Keunggulan Utama:*\n- ${mkt.highlights.join('\n- ')}\n\n💡 *Keuntungan Beli Sekarang:*\n- ${mkt.sellingPoints.join('\n- ')}\n\nCek detailnya di sini:\n${productUrl}\n\n_Segera hubungi saya untuk pemesanan!_`;
 
     navigator.clipboard.writeText(text);
     toast.success('Materi Penjualan Disalin', 'Teks siap ditempel (paste) ke WhatsApp atau Media Sosial.');
@@ -538,7 +538,7 @@ const AgentKnowledgePage: React.FC = () => {
                                     <p className="text-label-sm font-bold text-on-surface">Informasi Penting</p>
                                     <p className="text-[10px] text-on-surface-variant leading-relaxed">
                                       Simulasi di atas sudah termasuk biaya admin <strong>Rp 700.000</strong>. 
-                                      Pembulatan harga barang dilakukan ke kelipatan <strong>Rp 25.000</strong> terdekat sesuai aturan baku pricelist Tridjaya Manado 2025. 
+                                      Pembulatan harga barang dilakukan ke kelipatan <strong>Rp 25.000</strong> terdekat sesuai aturan baku pricelist Tridjaya Group 2025. 
                                       Persetujuan final ditentukan oleh leasing partner.
                                     </p>
                                   </div>

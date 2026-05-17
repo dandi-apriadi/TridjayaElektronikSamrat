@@ -284,7 +284,7 @@ const AgentDashboard: React.FC = () => {
           </div>
           <div className="space-y-3">
             {hotLeads.map((lead) => {
-              const waText = encodeURIComponent(`Halo ${lead.customerName}, saya dari Tridjaya Manado. Ingin menindaklanjuti minat Anda pada ${lead.interestedProduct}.`);
+              const waText = encodeURIComponent(`Halo ${lead.customerName}, saya dari Tridjaya Group. Ingin menindaklanjuti minat Anda pada ${lead.interestedProduct}.`);
               return (
                 <div key={lead.id} className="flex items-center gap-3 p-3.5 rounded-xl border border-outline-variant/10 hover:bg-surface-high/30 transition-colors group">
                   <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center font-bold text-on-primary text-sm flex-shrink-0">

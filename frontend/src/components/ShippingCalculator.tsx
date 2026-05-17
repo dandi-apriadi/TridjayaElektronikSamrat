@@ -4,7 +4,7 @@ import { Truck, MapPin, ExternalLink, Navigation, Search, Loader2, X, Zap, Shiel
 import { motion, AnimatePresence } from 'framer-motion';
 import RouteMap from './RouteMap';
 
-const ORIGIN_COORDS = { latitude: 1.4931, longitude: 124.8413 }; // Tridjaya Manado
+const ORIGIN_COORDS = { latitude: 1.4931, longitude: 124.8413 }; // Tridjaya Group
 const ORIGIN_MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=1.4931,124.8413';
 
 interface LocationResult {

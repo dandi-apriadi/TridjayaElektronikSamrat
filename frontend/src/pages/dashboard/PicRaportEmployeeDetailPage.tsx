@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -42,9 +42,17 @@ const statusLabel = (status: PicRaportEvidence['reviewStatus']) => {
 const PicRaportEmployeeDetailPage: React.FC = () => {
   const { employeeId } = useParams();
   const evidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const isLoading = usePicRaportStore((state) => state.isLoading);
+  const raportError = usePicRaportStore((state) => state.error);
   const employee = useMemo(() => buildPicEmployeeSummaries(evidence).find((item) => item.id === employeeId), [employeeId, evidence]);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [visibleLimit, setVisibleLimit] = useState(EMPLOYEE_DETAIL_BATCH_SIZE);
+
+  useEffect(() => {
+    if (!employeeId) return;
+    fetchEvidence({ karyawanId: employeeId, limit: 500 });
+  }, [employeeId, fetchEvidence]);
 
   const employeeEvidence = useMemo(
     () => evidence.filter((item) => item.employeeId === employeeId).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
@@ -65,8 +73,40 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
     setVisibleLimit(EMPLOYEE_DETAIL_BATCH_SIZE);
   }, [selectedDate]);
 
-  if (!employee) {
-    return <Navigate to="/dashboard/pic-raport" replace />;
+  const displayEmployee = employee || (employeeEvidence[0]
+    ? {
+        id: employeeEvidence[0].employeeId,
+        nama: employeeEvidence[0].employeeName,
+        posisi: employeeEvidence[0].divisiName,
+        cabang: employeeEvidence[0].cabang,
+        selesai: employeeEvidence.filter((item) => item.reviewStatus !== 'pending').length,
+        totalJobdesk: employeeEvidence.length,
+        persentase: employeeEvidence.length
+          ? Math.round((employeeEvidence.filter((item) => item.reviewStatus !== 'pending').length / employeeEvidence.length) * 100)
+          : 0,
+        pendingEvidence: employeeEvidence.filter((item) => item.reviewStatus === 'pending').length,
+        rejectedEvidence: employeeEvidence.filter((item) => item.reviewStatus === 'rejected').length,
+        approvedEvidence: employeeEvidence.filter((item) => item.reviewStatus === 'approved').length,
+        averageScore: 0,
+      }
+    : null);
+
+  if (!displayEmployee) {
+    return (
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-5">
+        <Link to="/dashboard/pic-raport" className="inline-flex h-9 items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm font-bold text-on-surface-variant transition hover:text-primary">
+          <ArrowLeft className="h-4 w-4" />
+          Review
+        </Link>
+        <div className="rounded-xl border border-outline-variant/20 bg-surface p-8 text-center shadow-sm">
+          <FileCheck2 className="mx-auto h-8 w-8 text-on-surface-variant" />
+          <p className="mt-3 text-body-sm font-bold text-on-surface">
+            {isLoading ? 'Memuat raport karyawan...' : 'Data karyawan belum ditemukan.'}
+          </p>
+          {(raportError && !isLoading) && <p className="mt-2 text-label-sm font-semibold text-error">{raportError}</p>}
+        </div>
+      </motion.div>
+    );
   }
 
   const selectedItems = byDate.get(selectedDate) || [];
@@ -85,7 +125,7 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
   const latestComments = employeeEvidence.filter((item) => item.reviewerComment).slice(0, 5);
   const latestActivity = employeeEvidence.slice(0, 8);
   const completionRate = employeeEvidence.length
-    ? Math.round(((employee.approvedEvidence + employee.rejectedEvidence) / employeeEvidence.length) * 100)
+    ? Math.round(((displayEmployee.approvedEvidence + displayEmployee.rejectedEvidence) / employeeEvidence.length) * 100)
     : 0;
 
   return (
@@ -97,13 +137,13 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
             Review
           </Link>
           <p className="text-label-xs font-bold uppercase tracking-widest text-primary">Detail karyawan</p>
-          <h1 className="mt-1 text-headline-sm font-black text-on-surface">{employee.nama}</h1>
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-body-sm text-on-surface-variant">
-            <UserRound className="h-4 w-4" />
-            {employee.posisi}
+              <h1 className="mt-1 text-headline-sm font-black text-on-surface">{displayEmployee.nama}</h1>
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-body-sm text-on-surface-variant">
+                <UserRound className="h-4 w-4" />
+            {displayEmployee.posisi}
             <span>|</span>
             <Building2 className="h-4 w-4" />
-            {employee.cabang}
+            {displayEmployee.cabang}
           </p>
         </div>
       </motion.div>
@@ -114,22 +154,22 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
             <div>
               <p className="text-label-sm font-bold text-on-surface-variant">Kualitas review</p>
               <div className="mt-1 flex items-end gap-3">
-                <span className="text-headline-md font-black text-primary">{employee.averageScore}/100</span>
+                <span className="text-headline-md font-black text-primary">{displayEmployee.averageScore}/100</span>
                 <span className="pb-1 text-label-sm font-bold text-on-surface-variant">{completionRate}% sudah diputuskan</span>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
               <div className="rounded-lg bg-surface-high/60 px-3 py-2">
                 <p className="text-label-xs font-bold text-on-surface-variant">Disetujui</p>
-                <p className="text-title-md font-black text-secondary">{employee.approvedEvidence}</p>
+                <p className="text-title-md font-black text-secondary">{displayEmployee.approvedEvidence}</p>
               </div>
               <div className="rounded-lg bg-surface-high/60 px-3 py-2">
                 <p className="text-label-xs font-bold text-on-surface-variant">Pending</p>
-                <p className="text-title-md font-black text-amber-600">{employee.pendingEvidence}</p>
+                <p className="text-title-md font-black text-amber-600">{displayEmployee.pendingEvidence}</p>
               </div>
               <div className="rounded-lg bg-surface-high/60 px-3 py-2">
                 <p className="text-label-xs font-bold text-on-surface-variant">Ditolak</p>
-                <p className="text-title-md font-black text-error">{employee.rejectedEvidence}</p>
+                <p className="text-title-md font-black text-error">{displayEmployee.rejectedEvidence}</p>
               </div>
             </div>
           </div>
