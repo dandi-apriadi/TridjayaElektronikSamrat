@@ -22,14 +22,17 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'operator' | 'sales' | 'agent' | string;
+  role: 'admin' | 'operator' | 'admin-sales' | 'sales' | 'agent' | string;
   /** Jabatan (title/position) — display only, does NOT affect system access.
-   *  Only meaningful for users with role = "sales".
-   *  Values: "kepala_cabang" | "supervisor" | "koordinator" | "sales"
+   *  For admin-sales: title. For karyawan: target category ("sales" | "non_sales").
    */
   jabatan?: string;
   /** Divisi karyawan. Menentukan jobdesk harian dan target prospek. */
   divisi?: string;
+  cabangId?: string;
+  cabang_id?: string;
+  cabangName?: string;
+  cabang_name?: string;
   avatar: string;
   bank_account?: string;
   whatsapp?: string;
@@ -51,6 +54,7 @@ interface UserStoreState {
     role: string;
     jabatan?: string;
     divisi?: string;
+    cabangId?: string;
     password: string;
     avatar?: string;
     bankAccount?: string;
@@ -63,6 +67,7 @@ interface UserStoreState {
     role: string;
     jabatan: string;
     divisi: string;
+    cabangId: string;
     password: string;
     avatar: string;
     bankAccount: string;

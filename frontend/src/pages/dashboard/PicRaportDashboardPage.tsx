@@ -80,7 +80,7 @@ const PicRaportDashboardPage: React.FC = () => {
   );
 
   useEffect(() => {
-    fetchEvidence({ tanggal: todayKey, limit: 500 });
+    fetchEvidence({ tanggal: todayKey, limit: 2000 });
     fetchDivisions();
   }, [fetchDivisions, fetchEvidence]);
   const employees = useMemo(() => buildPicEmployeeSummaries(evidence), [evidence]);

@@ -29,7 +29,7 @@ async fn require_wa_gateway_auth(
     authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
 

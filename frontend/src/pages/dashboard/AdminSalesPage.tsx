@@ -13,6 +13,7 @@ import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
 import { usePersistedState } from '../../hooks/usePersistedState';
 import { buildReferralLink } from '../../utils/apiClient';
+import { isAdminSalesRole } from '../../utils/roles';
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
   Active:    { cls: 'bg-secondary/15 text-secondary', dot: 'bg-secondary animate-pulse' },
@@ -60,7 +61,7 @@ const AdminSalesPage: React.FC = () => {
   const handleVerify = async (id: string) => {
     const success = await verifyUser(id);
     if (success) {
-      toast.success('Sales Diverifikasi', 'Sales sekarang sudah bisa login.');
+      toast.success('Admin Sales Diverifikasi', 'Admin sales sekarang sudah bisa login.');
     }
   };
 
@@ -74,7 +75,7 @@ const AdminSalesPage: React.FC = () => {
     setIsResetting(true);
     const success = await resetUserPassword(resettingUserId, newPassword);
     if (success) {
-      toast.success('Berhasil', 'Kata sandi sales telah diatur ulang.');
+      toast.success('Berhasil', 'Kata sandi admin sales telah diatur ulang.');
       setResettingUserId(null);
       setNewPassword('');
     }
@@ -86,11 +87,11 @@ const AdminSalesPage: React.FC = () => {
     setIsDeleting(true);
     const success = await deleteUser(deletingUserId);
     if (success) {
-      toast.success('Berhasil', 'Sales telah dihapus dari sistem.');
+      toast.success('Berhasil', 'Admin sales telah dihapus dari sistem.');
       setDeletingUserId(null);
     } else {
       const errorMsg = useUserStore.getState().error;
-      toast.error('Gagal menghapus sales', errorMsg || 'Terjadi kesalahan saat menghapus sales.');
+      toast.error('Gagal menghapus admin sales', errorMsg || 'Terjadi kesalahan saat menghapus admin sales.');
     }
     setIsDeleting(false);
   };
@@ -102,7 +103,7 @@ const AdminSalesPage: React.FC = () => {
     toast.success('Link Referral Disalin', 'Siap dibagikan ke customer.');
   };
 
-  const salesUsers = users.filter(u => u.role.toLowerCase() === 'sales');
+  const salesUsers = users.filter(u => isAdminSalesRole(u.role));
 
   const filtered = salesUsers.filter((u) => {
     const matchSearch = `${u.name} ${u.email} ${u.referral_slug || ''}`.toLowerCase().includes(search.toLowerCase());
@@ -122,11 +123,11 @@ const AdminSalesPage: React.FC = () => {
   const suspendedSales = salesUsers.filter(u => !u.is_active).length;
 
   if (isLoading) {
-    return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data sales...</div>;
+    return <div className="text-center py-20 text-on-surface-variant animate-pulse">Memuat data admin sales...</div>;
   }
 
   if (error) {
-    return <div className="text-center py-20 text-error">Galat memuat data sales: {error}</div>;
+    return <div className="text-center py-20 text-error">Galat memuat data admin sales: {error}</div>;
   }
 
   return (
@@ -138,20 +139,20 @@ const AdminSalesPage: React.FC = () => {
         <div className="absolute -right-16 -top-16 w-56 h-56 bg-tertiary/5 rounded-full blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-label-sm text-on-surface-variant font-semibold uppercase tracking-widest mb-1">Sales Management</p>
+            <p className="text-label-sm text-on-surface-variant font-semibold uppercase tracking-widest mb-1">Admin Sales Management</p>
             <h2 className="font-display text-headline-sm font-bold text-on-surface inline-flex items-center gap-3">
-              <Share2 className="w-6 h-6 text-tertiary" /> Manajemen Sales
+              <Share2 className="w-6 h-6 text-tertiary" /> Manajemen Admin Sales
             </h2>
             <p className="text-body-sm text-on-surface-variant mt-1">
-              Kelola tim sales, pantau link referral, dan atur hak akses operasional mereka.
+              Kelola tim admin sales, pantau link referral, dan atur hak akses operasional mereka.
             </p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             <Link
-              to="/dashboard/admin/users/new?role=sales"
+              to="/dashboard/admin/users/new?role=admin-sales"
               className="px-4 py-2.5 rounded-lg bg-tertiary/15 text-tertiary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-tertiary/25 transition-colors"
             >
-              <Plus className="w-4 h-4" /> Tambah Sales
+              <Plus className="w-4 h-4" /> Tambah Admin Sales
             </Link>
           </div>
         </div>
@@ -160,10 +161,10 @@ const AdminSalesPage: React.FC = () => {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Sales',     value: totalSales,    color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: Users },
-          { label: 'Sales Aktif',     value: activeSales,   color: 'text-secondary', bg: 'bg-secondary/10', icon: CheckCircle2 },
-          { label: 'Sales Terverifikasi', value: verifiedSales, color: 'text-primary',   bg: 'bg-primary/10',   icon: Shield },
-          { label: 'Sales Suspended',  value: suspendedSales, color: 'text-error',     bg: 'bg-error/10',     icon: AlertTriangle },
+          { label: 'Total Admin Sales',     value: totalSales,    color: 'text-tertiary',  bg: 'bg-tertiary/10',  icon: Users },
+          { label: 'Admin Sales Aktif',     value: activeSales,   color: 'text-secondary', bg: 'bg-secondary/10', icon: CheckCircle2 },
+          { label: 'Admin Sales Terverifikasi', value: verifiedSales, color: 'text-primary',   bg: 'bg-primary/10',   icon: Shield },
+          { label: 'Admin Sales Suspended',  value: suspendedSales, color: 'text-error',     bg: 'bg-error/10',     icon: AlertTriangle },
         ].map((k) => (
           <motion.div key={k.label} variants={iv} className="glass-card rounded-xl p-5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
@@ -203,7 +204,7 @@ const AdminSalesPage: React.FC = () => {
           <table className="w-full text-left min-w-[860px]">
             <thead>
               <tr className="text-label-xs text-on-surface-variant border-b border-outline-variant/20 uppercase tracking-widest">
-                <th className="py-3 pr-4">Sales</th>
+                <th className="py-3 pr-4">Admin Sales</th>
                 <th className="py-3 pr-4">Jabatan</th>
                 <th className="py-3 pr-4">WhatsApp</th>
                 <th className="py-3 pr-4">Referral Slug</th>
@@ -260,7 +261,7 @@ const AdminSalesPage: React.FC = () => {
                     <td className="py-3.5">
                       <div className="flex items-center gap-2">
                         <Link to={`/dashboard/admin/users/edit/${user.id}`}
-                          className="p-1.5 rounded-md bg-tertiary/10 text-tertiary hover:bg-tertiary/20 transition-colors" title="Ubah Sales">
+                          className="p-1.5 rounded-md bg-tertiary/10 text-tertiary hover:bg-tertiary/20 transition-colors" title="Ubah Admin Sales">
                           <UserCog className="w-4 h-4" />
                         </Link>
                         <button type="button" onClick={() => toggleSuspend(user.id, user.is_active)}
@@ -280,7 +281,7 @@ const AdminSalesPage: React.FC = () => {
                         )}
                         <button type="button" onClick={() => setDeletingUserId(user.id)} 
                           className="p-1.5 rounded-md bg-error/10 text-error hover:bg-error/20 transition-colors"
-                          title="Hapus Sales">
+                          title="Hapus Admin Sales">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -289,7 +290,7 @@ const AdminSalesPage: React.FC = () => {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant text-body-sm">Tidak ada sales yang sesuai filter.</td></tr>
+                <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant text-body-sm">Tidak ada admin sales yang sesuai filter.</td></tr>
               )}
             </tbody>
           </table>
@@ -304,7 +305,7 @@ const AdminSalesPage: React.FC = () => {
 
         <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between text-label-sm">
           <span className="text-on-surface-variant">
-            Menampilkan <strong className="text-on-surface">{filtered.length}</strong> sales
+            Menampilkan <strong className="text-on-surface">{filtered.length}</strong> admin sales
           </span>
           <Link to="/dashboard/admin/users" className="text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
             Lihat Semua User <ArrowUpRight className="w-3.5 h-3.5" />
@@ -318,10 +319,10 @@ const AdminSalesPage: React.FC = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResettingUserId(null)} />
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative w-full max-w-md glass-card rounded-2xl p-6 shadow-2xl">
             <h3 className="font-display text-title-md font-bold text-on-surface mb-4 inline-flex items-center gap-2">
-              <Lock className="w-5 h-5 text-tertiary" /> Reset Password Sales
+              <Lock className="w-5 h-5 text-tertiary" /> Reset Password Admin Sales
             </h3>
             <p className="text-body-sm text-on-surface-variant mb-6">
-              Masukkan kata sandi baru untuk sales <strong>{users.find(u => u.id === resettingUserId)?.name}</strong>.
+              Masukkan kata sandi baru untuk admin sales <strong>{users.find(u => u.id === resettingUserId)?.name}</strong>.
             </p>
             
             <div className="space-y-4">
@@ -365,10 +366,10 @@ const AdminSalesPage: React.FC = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isDeleting && setDeletingUserId(null)} />
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative w-full max-w-md glass-card rounded-2xl p-6 shadow-2xl">
             <h3 className="font-display text-title-md font-bold text-on-surface mb-2 inline-flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-error" /> Hapus Sales
+              <AlertTriangle className="w-5 h-5 text-error" /> Hapus Admin Sales
             </h3>
             <p className="text-body-sm text-on-surface-variant mb-6">
-              Anda akan menghapus sales <strong>{users.find(u => u.id === deletingUserId)?.name}</strong> secara permanen. Tindakan ini tidak dapat dibatalkan.
+              Anda akan menghapus admin sales <strong>{users.find(u => u.id === deletingUserId)?.name}</strong> secara permanen. Tindakan ini tidak dapat dibatalkan.
             </p>
 
             <div className="flex gap-3">
@@ -386,7 +387,7 @@ const AdminSalesPage: React.FC = () => {
                 disabled={isDeleting}
                 className="flex-1 py-2.5 rounded-lg bg-error text-on-error font-bold text-label-sm hover:bg-error transition-all disabled:opacity-50"
               >
-                {isDeleting ? 'Menghapus...' : 'Hapus Sales'}
+                {isDeleting ? 'Menghapus...' : 'Hapus Admin Sales'}
               </button>
             </div>
           </motion.div>

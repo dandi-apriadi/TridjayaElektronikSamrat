@@ -19,6 +19,13 @@ const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 
 const weekdayLabels = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 const dateKey = toDateKey;
+const getCurrentMonthRange = () => {
+  const now = new Date();
+  return {
+    from: dateKey(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: dateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  };
+};
 
 const statusMeta = {
   approved: {
@@ -46,7 +53,8 @@ const KaryawanRaportHistoryPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(dateKey(new Date()));
 
   useEffect(() => {
-    fetchEvidence({ limit: 500 });
+    const range = getCurrentMonthRange();
+    fetchEvidence({ tanggalFrom: range.from, tanggalTo: range.to, limit: 2000 });
   }, [fetchEvidence]);
 
   const employeeHistory = useMemo(() => {

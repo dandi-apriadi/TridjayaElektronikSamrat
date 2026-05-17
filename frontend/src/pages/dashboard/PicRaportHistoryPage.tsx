@@ -26,6 +26,11 @@ const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1 } };
 const itemVariants = { hidden: { y: 10, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 const weekdays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
+const getMonthRange = (date: Date) => ({
+  from: toDateKey(new Date(date.getFullYear(), date.getMonth(), 1)),
+  to: toDateKey(new Date(date.getFullYear(), date.getMonth() + 1, 0)),
+});
+
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
 
@@ -57,8 +62,9 @@ const PicRaportHistoryPage: React.FC = () => {
   const debouncedSearch = useDebounce(search, 250);
 
   useEffect(() => {
-    fetchEvidence({ limit: 500 });
-  }, [fetchEvidence]);
+    const range = getMonthRange(monthCursor);
+    fetchEvidence({ tanggalFrom: range.from, tanggalTo: range.to, limit: 2000 });
+  }, [fetchEvidence, monthCursor]);
 
   const summaries = useMemo(() => buildPicDaySummaries(evidence), [evidence]);
   const summaryByDate = useMemo(() => new Map(summaries.map((item) => [item.tanggal, item])), [summaries]);

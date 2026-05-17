@@ -10,6 +10,7 @@ import { useMinInstallment } from '../../hooks/useMinInstallment';
 import { useAuthStore } from '../../store/authStore';
 import { recordTelemetry } from '../../utils/telemetry';
 import { getPublicPrice } from '../../utils/publicPricing';
+import { isAdminSalesRole } from '../../utils/roles';
 
 interface ProductCardProps {
   product: Product;
@@ -29,7 +30,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
   const minInstallment = useMinInstallment(product);
   const publicPrice = getPublicPrice(product);
   const { user: loggedInUser } = useAuthStore();
-  const salesReferralSlug = loggedInUser?.role === 'sales' ? loggedInUser.referral_slug?.trim() : null;
+  const salesReferralSlug = isAdminSalesRole(loggedInUser?.role) ? loggedInUser.referral_slug?.trim() : null;
   
   // By default show images, unless explicitly told to be compact (Lite Mode)
   const effectiveShowImages = isCompact !== undefined ? !isCompact : true;

@@ -31,6 +31,9 @@ import { apiFetch } from '../../utils/apiClient';
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
 
+const getUserCabang = (user: ReturnType<typeof useAuthStore.getState>['user']) =>
+  user?.cabangName || user?.cabang_name || user?.cabangId || user?.cabang_id || '';
+
 type EvidenceMode = 'unset' | 'none' | 'image' | 'video';
 
 interface JobdeskEvidence {
@@ -58,6 +61,34 @@ const getPositionMatch = (divisi: string, positions: ReturnType<typeof usePicRap
   );
 };
 
+const normalizeDivisionKey = (value?: string) => (value || '').toLowerCase().trim();
+
+const evidenceMatchesCurrentDivision = (
+  item: PicRaportEvidence,
+  divisi: string,
+  position: ReturnType<typeof getPositionMatch>
+) => {
+  const activeKeys = [
+    normalizeDivisionKey(divisi),
+    normalizeDivisionKey(position?.id),
+    normalizeDivisionKey(position?.posisi),
+  ].filter(Boolean);
+  const evidenceKeys = [
+    normalizeDivisionKey(item.divisiId),
+    normalizeDivisionKey(item.divisiName),
+  ].filter(Boolean);
+
+  if (activeKeys.length === 0 || evidenceKeys.length === 0) return true;
+  return evidenceKeys.some((evidenceKey) =>
+    activeKeys.some(
+      (activeKey) =>
+        evidenceKey === activeKey ||
+        evidenceKey.includes(activeKey) ||
+        activeKey.includes(evidenceKey)
+    )
+  );
+};
+
 const reviewStatusMeta: Record<PicRaportEvidence['reviewStatus'] | 'not_submitted', { label: string; className: string }> = {
   approved: { label: 'Disetujui PIC', className: 'bg-secondary/10 text-secondary' },
   rejected: { label: 'Ditolak PIC', className: 'bg-error/10 text-error' },
@@ -74,6 +105,7 @@ const KaryawanRaportPage: React.FC = () => {
   const submitRaport = usePicRaportStore((state) => state.submitRaport);
   const raportError = usePicRaportStore((state) => state.error);
   const divisi = user?.divisi || '';
+  const cabang = getUserCabang(user);
   const position = getPositionMatch(divisi, divisions);
   const jobdesks = useMemo(() => position?.jobdesks || [], [position]);
   const todayReviewedEvidence = useMemo(() => {
@@ -81,9 +113,10 @@ const KaryawanRaportPage: React.FC = () => {
     return picEvidence.filter(
       (item) =>
         item.tanggal === todayKey &&
-        (item.employeeId === user?.id || (userName && item.employeeName.toLowerCase() === userName))
+        (item.employeeId === user?.id || (userName && item.employeeName.toLowerCase() === userName)) &&
+        evidenceMatchesCurrentDivision(item, divisi, position)
     );
-  }, [picEvidence, user?.id, user?.name]);
+  }, [divisi, picEvidence, position, user?.id, user?.name]);
   const todayEvidenceByJobdesk = useMemo(() => {
     const map = new Map<number, PicRaportEvidence>();
     todayReviewedEvidence.forEach((item) => {
@@ -118,7 +151,7 @@ const KaryawanRaportPage: React.FC = () => {
   const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
-    fetchEvidence({ tanggal: todayKey, limit: 500 });
+    fetchEvidence({ tanggal: todayKey, limit: 2000 });
     fetchDivisions();
     fetchReportingWindow();
   }, [fetchDivisions, fetchEvidence, fetchReportingWindow]);
@@ -228,9 +261,19 @@ const KaryawanRaportPage: React.FC = () => {
       setSaveMessage('Pilih minimal satu bukti jobdesk sebelum menyimpan.');
       return;
     }
+    if (!cabang.trim()) {
+      setSaveMessage('Cabang karyawan belum diatur. Hubungi admin untuk set cabang akun.');
+      return;
+    }
 
     setSaving(true);
     try {
+      const activeDivisi = user?.divisi?.trim() || position?.posisi || position?.id || '';
+      if (!activeDivisi) {
+        setSaveMessage('Divisi karyawan belum diatur. Hubungi admin untuk set divisi akun.');
+        setSaving(false);
+        return;
+      }
       const uploadedItems = [];
       for (const item of items) {
         const evidence = evidenceByJobdesk[item.jobdeskIndex];
@@ -239,8 +282,8 @@ const KaryawanRaportPage: React.FC = () => {
       }
       await submitRaport({
         tanggal: todayKey,
-        cabang: 'Manado',
-        divisi: user?.divisi || position?.id || 'Karyawan',
+        cabang,
+        divisi: activeDivisi,
         items: uploadedItems,
       });
       setSaveMessage('Raport berhasil dikirim dan menunggu review PIC.');

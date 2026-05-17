@@ -1,180 +1,334 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Plus, Edit2, Trash2, MapPin, User } from 'lucide-react';
+import { Building2, Edit2, Loader2, MapPin, Plus, Trash2, User, X } from 'lucide-react';
+import { useCabangStore } from '../../store/useCabangStore';
+import type { CabangItem } from '../../types';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
-interface Cabang {
-  id: string;
+type CabangFormState = {
   nama: string;
   alamat: string;
   kota: string;
   telepon: string;
   koordinatorNama: string;
   isActive: boolean;
-  jumlahKaryawan: number;
-}
+};
 
-// Dummy data
-const initialCabang: Cabang[] = [
-  { id: 'cab-01', nama: 'Manado Pusat', alamat: 'Jl. Sam Ratulangi No. 45', kota: 'Manado', telepon: '0431-123456', koordinatorNama: 'Gunawan', isActive: true, jumlahKaryawan: 12 },
-  { id: 'cab-02', nama: 'Tomohon', alamat: 'Jl. Raya Tomohon No. 12', kota: 'Tomohon', telepon: '0431-234567', koordinatorNama: 'Ricky Mamahit', isActive: true, jumlahKaryawan: 8 },
-  { id: 'cab-03', nama: 'Bitung', alamat: 'Jl. Yos Sudarso No. 78', kota: 'Bitung', telepon: '0438-345678', koordinatorNama: 'Denny Pangalila', isActive: true, jumlahKaryawan: 9 },
-  { id: 'cab-04', nama: 'Minahasa', alamat: 'Jl. Trans Sulawesi No. 33', kota: 'Tondano', telepon: '0431-456789', koordinatorNama: 'Mario Tendean', isActive: true, jumlahKaryawan: 7 },
-  { id: 'cab-05', nama: 'Kotamobagu', alamat: 'Jl. Ahmad Yani No. 56', kota: 'Kotamobagu', telepon: '0434-567890', koordinatorNama: 'Steffy Lumowa', isActive: true, jumlahKaryawan: 6 },
-  { id: 'cab-06', nama: 'Tondano', alamat: 'Jl. Manguni No. 21', kota: 'Tondano', telepon: '0431-678901', koordinatorNama: 'Grace Maramis', isActive: true, jumlahKaryawan: 5 },
-  { id: 'cab-07', nama: 'Airmadidi', alamat: 'Jl. Raya Airmadidi No. 8', kota: 'Airmadidi', telepon: '0431-789012', koordinatorNama: 'Feby Kalalo', isActive: true, jumlahKaryawan: 5 },
-  { id: 'cab-08', nama: 'Langowan', alamat: 'Jl. Pasar Langowan No. 15', kota: 'Langowan', telepon: '0431-890123', koordinatorNama: 'Jefri Sumolang', isActive: true, jumlahKaryawan: 4 },
-  { id: 'cab-09', nama: 'Ratahan', alamat: 'Jl. Trans Minahasa No. 42', kota: 'Ratahan', telepon: '0431-901234', koordinatorNama: 'Novita Runtuwene', isActive: true, jumlahKaryawan: 4 },
-  { id: 'cab-10', nama: 'Amurang', alamat: 'Jl. Pantai Amurang No. 7', kota: 'Amurang', telepon: '0431-012345', koordinatorNama: 'Hendra Waworuntu', isActive: true, jumlahKaryawan: 5 },
-  { id: 'cab-11', nama: 'Tahuna', alamat: 'Jl. Pelabuhan Tahuna No. 3', kota: 'Tahuna', telepon: '0432-123456', koordinatorNama: 'Melisa Tumewu', isActive: true, jumlahKaryawan: 4 },
-  { id: 'cab-12', nama: 'Tagulandang', alamat: 'Jl. Utama Tagulandang No. 1', kota: 'Tagulandang', telepon: '0432-234567', koordinatorNama: 'Agus Pinontoan', isActive: true, jumlahKaryawan: 3 },
-  { id: 'cab-13', nama: 'Lirung', alamat: 'Jl. Raya Lirung No. 9', kota: 'Lirung', telepon: '0432-345678', koordinatorNama: 'Budi Lasut', isActive: true, jumlahKaryawan: 3 },
-  { id: 'cab-14', nama: 'Ondong', alamat: 'Jl. Ondong Siau No. 5', kota: 'Ondong', telepon: '0432-456789', koordinatorNama: 'Christin Mokoginta', isActive: true, jumlahKaryawan: 3 },
-  { id: 'cab-15', nama: 'Beo', alamat: 'Jl. Beo Talaud No. 2', kota: 'Beo', telepon: '0432-567890', koordinatorNama: 'Rivaldo Lolowang', isActive: true, jumlahKaryawan: 3 },
-  { id: 'cab-16', nama: 'Melonguane', alamat: 'Jl. Melonguane No. 11', kota: 'Melonguane', telepon: '0432-678901', koordinatorNama: 'Siska Mawuntu', isActive: true, jumlahKaryawan: 3 },
-];
+const emptyForm: CabangFormState = {
+  nama: '',
+  alamat: '',
+  kota: '',
+  telepon: '',
+  koordinatorNama: '',
+  isActive: true,
+};
 
 const AdminCabangPage: React.FC = () => {
-  const [cabangList] = useState<Cabang[]>(initialCabang);
+  const cabangList = useCabangStore((state) => state.cabang);
+  const isLoading = useCabangStore((state) => state.isLoading);
+  const error = useCabangStore((state) => state.error);
+  const fetchCabang = useCabangStore((state) => state.fetchCabang);
+  const createCabang = useCabangStore((state) => state.createCabang);
+  const updateCabang = useCabangStore((state) => state.updateCabang);
+  const deleteCabang = useCabangStore((state) => state.deleteCabang);
+
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ nama: '', alamat: '', kota: '', telepon: '', koordinatorNama: '' });
+  const [formData, setFormData] = useState<CabangFormState>(emptyForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const totalKaryawan = cabangList.reduce((s, c) => s + c.jumlahKaryawan, 0);
-  const activeCabang = cabangList.filter((c) => c.isActive).length;
+  useEffect(() => {
+    void fetchCabang();
+  }, [fetchCabang]);
 
-  const handleEdit = (cab: Cabang) => {
-    setEditId(cab.id);
-    setFormData({ nama: cab.nama, alamat: cab.alamat, kota: cab.kota, telepon: cab.telepon, koordinatorNama: cab.koordinatorNama });
+  const totalKaryawan = useMemo(() => cabangList.reduce((sum, cabang) => sum + cabang.jumlahKaryawan, 0), [cabangList]);
+  const activeCabang = useMemo(() => cabangList.filter((cabang) => cabang.isActive).length, [cabangList]);
+
+  const openCreateForm = () => {
+    setEditId(null);
+    setFormData(emptyForm);
     setShowForm(true);
   };
 
-  const handleNew = () => {
-    setEditId(null);
-    setFormData({ nama: '', alamat: '', kota: '', telepon: '', koordinatorNama: '' });
+  const openEditForm = (cabang: CabangItem) => {
+    setEditId(cabang.id);
+    setFormData({
+      nama: cabang.nama,
+      alamat: cabang.alamat,
+      kota: cabang.kota,
+      telepon: cabang.telepon,
+      koordinatorNama: cabang.koordinatorNama,
+      isActive: cabang.isActive,
+    });
     setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditId(null);
+    setFormData(emptyForm);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+
+    const payload = {
+      nama: formData.nama.trim(),
+      alamat: formData.alamat.trim(),
+      kota: formData.kota.trim(),
+      telepon: formData.telepon.trim(),
+      koordinatorNama: formData.koordinatorNama.trim(),
+      isActive: formData.isActive,
+    };
+
+    const success = editId
+      ? await updateCabang(editId, payload)
+      : await createCabang(payload);
+
+    setIsSubmitting(false);
+    if (success) {
+      closeForm();
+    }
+  };
+
+  const handleDelete = async (cab: CabangItem) => {
+    const confirmed = window.confirm(`Hapus cabang ${cab.nama}?`);
+    if (!confirmed) return;
+    await deleteCabang(cab.id);
   };
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <motion.section variants={itemVariants} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-headline-sm font-bold text-on-surface">Cabang Management</h1>
-          <p className="text-body-sm text-on-surface-variant mt-1">Kelola seluruh cabang Tridjaya Elektronik</p>
+          <h1 className="font-display text-headline-sm font-bold text-on-surface">Cabang management</h1>
+          <p className="mt-1 max-w-2xl text-body-sm text-on-surface-variant">Data cabang diambil langsung dari backend, jadi input ulang bisa dilakukan tanpa data dummy yang mengganggu.</p>
         </div>
-        <button onClick={handleNew} className="px-4 py-2.5 bg-primary text-on-primary font-semibold rounded-xl hover:bg-primary/90 transition-colors inline-flex items-center gap-2 text-label-sm">
-          <Plus className="w-4 h-4" />Tambah Cabang
+        <button
+          type="button"
+          onClick={openCreateForm}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-label-sm font-semibold text-on-primary transition-colors hover:bg-primary/90 active:scale-[0.98]"
+        >
+          <Plus className="h-4 w-4" />
+          Tambah cabang
         </button>
-      </motion.div>
+      </motion.section>
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-          <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Cabang</div>
-          <div className="font-display text-headline-sm font-bold text-primary">{cabangList.length}</div>
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <motion.div variants={itemVariants} className="rounded-xl border border-outline-variant/10 bg-surface-high/70 p-5">
+          <div className="text-label-xs uppercase tracking-widest text-on-surface-variant">Total cabang</div>
+          <div className="mt-2 font-display text-headline-sm font-bold text-primary tabular-nums">{cabangList.length}</div>
         </motion.div>
-        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
-          <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Cabang Aktif</div>
-          <div className="font-display text-headline-sm font-bold text-secondary">{activeCabang}</div>
+        <motion.div variants={itemVariants} className="rounded-xl border border-outline-variant/10 bg-surface-high/70 p-5">
+          <div className="text-label-xs uppercase tracking-widest text-on-surface-variant">Cabang aktif</div>
+          <div className="mt-2 font-display text-headline-sm font-bold text-secondary tabular-nums">{activeCabang}</div>
         </motion.div>
-        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-          <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Karyawan</div>
-          <div className="font-display text-headline-sm font-bold text-on-surface">{totalKaryawan}</div>
+        <motion.div variants={itemVariants} className="rounded-xl border border-outline-variant/10 bg-surface-high/70 p-5">
+          <div className="text-label-xs uppercase tracking-widest text-on-surface-variant">Total karyawan</div>
+          <div className="mt-2 font-display text-headline-sm font-bold text-on-surface tabular-nums">{totalKaryawan}</div>
         </motion.div>
-      </div>
+      </section>
 
-      {/* Form Modal */}
       {showForm && (
-        <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-          <h3 className="font-display text-title-md font-bold text-on-surface mb-4">{editId ? 'Edit Cabang' : 'Tambah Cabang Baru'}</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-label-sm text-on-surface-variant font-semibold">Nama Cabang *</label>
-              <input type="text" value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} placeholder="Manado Pusat" className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 text-body-md" />
+        <motion.section variants={itemVariants} className="rounded-xl border border-outline-variant/10 bg-surface-high/60 p-6">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-display text-title-md font-bold text-on-surface">{editId ? 'Edit cabang' : 'Tambah cabang baru'}</h2>
+              <p className="mt-1 text-label-sm text-on-surface-variant">Simpan data cabang langsung ke backend.</p>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-label-sm text-on-surface-variant font-semibold">Kota *</label>
-              <input type="text" value={formData.kota} onChange={(e) => setFormData({ ...formData, kota: e.target.value })} placeholder="Manado" className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 text-body-md" />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-label-sm text-on-surface-variant font-semibold">Alamat</label>
-              <input type="text" value={formData.alamat} onChange={(e) => setFormData({ ...formData, alamat: e.target.value })} placeholder="Jl. Sam Ratulangi No. 45" className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 text-body-md" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-label-sm text-on-surface-variant font-semibold">Telepon</label>
-              <input type="text" value={formData.telepon} onChange={(e) => setFormData({ ...formData, telepon: e.target.value })} placeholder="0431-123456" className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 text-body-md" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-label-sm text-on-surface-variant font-semibold">Koordinator</label>
-              <input type="text" value={formData.koordinatorNama} onChange={(e) => setFormData({ ...formData, koordinatorNama: e.target.value })} placeholder="Nama koordinator" className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 text-body-md" />
-            </div>
+            <button type="button" onClick={closeForm} className="rounded-lg p-2 text-on-surface-variant transition hover:bg-on-surface/5 hover:text-on-surface">
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <div className="flex gap-3 mt-4">
-            <button className="px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-xl hover:bg-primary/90 transition-colors text-label-sm">{editId ? 'Simpan' : 'Tambah'}</button>
-            <button onClick={() => setShowForm(false)} className="px-5 py-2.5 bg-surface-high text-on-surface font-semibold rounded-xl hover:bg-surface-high/80 transition-colors text-label-sm">Batal</button>
-          </div>
-        </motion.div>
+
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="text-label-sm font-semibold text-on-surface-variant">Nama cabang *</span>
+              <input
+                value={formData.nama}
+                onChange={(event) => setFormData((current) => ({ ...current, nama: event.target.value }))}
+                className="w-full rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 text-body-md outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                placeholder="Samrat"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-label-sm font-semibold text-on-surface-variant">Kota *</span>
+              <input
+                value={formData.kota}
+                onChange={(event) => setFormData((current) => ({ ...current, kota: event.target.value }))}
+                className="w-full rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 text-body-md outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                placeholder="Manado"
+              />
+            </label>
+
+            <label className="space-y-1.5 sm:col-span-2">
+              <span className="text-label-sm font-semibold text-on-surface-variant">Alamat</span>
+              <input
+                value={formData.alamat}
+                onChange={(event) => setFormData((current) => ({ ...current, alamat: event.target.value }))}
+                className="w-full rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 text-body-md outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                placeholder="Jl. Sam Ratulangi No. 7"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-label-sm font-semibold text-on-surface-variant">Telepon</span>
+              <input
+                value={formData.telepon}
+                onChange={(event) => setFormData((current) => ({ ...current, telepon: event.target.value }))}
+                className="w-full rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 text-body-md outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                placeholder="0431-123456"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-label-sm font-semibold text-on-surface-variant">Koordinator</span>
+              <input
+                value={formData.koordinatorNama}
+                onChange={(event) => setFormData((current) => ({ ...current, koordinatorNama: event.target.value }))}
+                className="w-full rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 text-body-md outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                placeholder="Nama koordinator"
+              />
+            </label>
+
+            <label className="flex items-center gap-3 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(event) => setFormData((current) => ({ ...current, isActive: event.target.checked }))}
+                className="h-4 w-4 rounded border-outline-variant/40 text-primary focus:ring-primary/40"
+              />
+              <span className="text-label-sm font-semibold text-on-surface-variant">Cabang aktif</span>
+            </label>
+
+            <div className="flex gap-3 sm:col-span-2">
+              <button
+                type="submit"
+                disabled={isSubmitting || isLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-label-sm font-semibold text-on-primary transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting || isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {editId ? 'Simpan perubahan' : 'Tambah cabang'}
+              </button>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-xl bg-surface-high px-5 py-2.5 text-label-sm font-semibold text-on-surface transition-colors hover:bg-surface-high/80"
+              >
+                Batal
+              </button>
+            </div>
+          </form>
+        </motion.section>
       )}
 
-      {/* Table */}
-      <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-        <h3 className="font-display text-title-md font-bold text-on-surface mb-4">Daftar Cabang</h3>
+      {error ? (
+        <motion.div variants={itemVariants} className="rounded-xl border border-error/20 bg-error/5 px-4 py-3 text-body-sm text-error">
+          {error}
+        </motion.div>
+      ) : null}
+
+      <motion.section variants={itemVariants} className="rounded-xl border border-outline-variant/10 bg-surface-high/60 p-6">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-display text-title-md font-bold text-on-surface">Daftar cabang</h2>
+            <p className="mt-1 text-label-sm text-on-surface-variant">Semua perubahan akan disimpan ke backend dan langsung dirender ulang dari server.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchCabang(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-label-sm font-semibold text-on-surface transition hover:bg-surface-high"
+          >
+            <Loader2 className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Cabang</th>
-                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Alamat</th>
-                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Koordinator</th>
-                <th className="text-center text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Karyawan</th>
-                <th className="text-center text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Status</th>
-                <th className="text-center text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Aksi</th>
+              <tr className="border-b border-outline-variant/10">
+                <th className="px-4 py-3 text-left text-label-xs uppercase tracking-widest text-on-surface-variant">Cabang</th>
+                <th className="px-4 py-3 text-left text-label-xs uppercase tracking-widest text-on-surface-variant">Alamat</th>
+                <th className="px-4 py-3 text-left text-label-xs uppercase tracking-widest text-on-surface-variant">Koordinator</th>
+                <th className="px-4 py-3 text-center text-label-xs uppercase tracking-widest text-on-surface-variant">Karyawan</th>
+                <th className="px-4 py-3 text-center text-label-xs uppercase tracking-widest text-on-surface-variant">Status</th>
+                <th className="px-4 py-3 text-center text-label-xs uppercase tracking-widest text-on-surface-variant">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {cabangList.map((cab) => (
-                <tr key={cab.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-primary" />
-                      <div>
-                        <div className="text-body-sm font-semibold text-on-surface">{cab.nama}</div>
-                        <div className="text-label-xs text-on-surface-variant flex items-center gap-1"><MapPin className="w-3 h-3" />{cab.kota}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-body-sm text-on-surface-variant">{cab.alamat}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-on-surface-variant" />
-                      <span className="text-body-sm text-on-surface">{cab.koordinatorNama}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-body-sm text-on-surface text-center font-semibold">{cab.jumlahKaryawan}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-label-xs font-semibold ${cab.isActive ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
-                      {cab.isActive ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => handleEdit(cab)} className="p-1.5 rounded-lg hover:bg-white/5 text-on-surface-variant hover:text-primary transition-colors"><Edit2 className="w-4 h-4" /></button>
-                      <button className="p-1.5 rounded-lg hover:bg-white/5 text-on-surface-variant hover:text-error transition-colors"><Trash2 className="w-4 h-4" /></button>
-                    </div>
+              {isLoading && cabangList.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-14 text-center text-body-sm text-on-surface-variant">
+                    Memuat data cabang...
                   </td>
                 </tr>
-              ))}
+              ) : cabangList.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-14 text-center">
+                    <div className="text-body-sm font-semibold text-on-surface">Belum ada data cabang</div>
+                    <div className="mt-1 text-label-sm text-on-surface-variant">Input cabang dari awal akan langsung tersimpan ke backend.</div>
+                  </td>
+                </tr>
+              ) : (
+                cabangList.map((cab) => (
+                  <tr key={cab.id} className="border-b border-outline-variant/5 transition hover:bg-surface-high/60">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-primary" />
+                        <div>
+                          <div className="text-body-sm font-semibold text-on-surface">{cab.nama}</div>
+                          <div className="flex items-center gap-1 text-label-xs text-on-surface-variant">
+                            <MapPin className="h-3 w-3" />
+                            {cab.kota}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-body-sm text-on-surface-variant">{cab.alamat || '-'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-on-surface-variant" />
+                        <span className="text-body-sm text-on-surface">{cab.koordinatorNama || '-'}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center text-body-sm font-semibold text-on-surface tabular-nums">{cab.jumlahKaryawan}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-label-xs font-semibold ${cab.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        {cab.isActive ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(cab)}
+                          className="rounded-lg p-2 text-on-surface-variant transition hover:bg-on-surface/5 hover:text-primary"
+                          title="Edit cabang"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(cab)}
+                          className="rounded-lg p-2 text-on-surface-variant transition hover:bg-on-surface/5 hover:text-error"
+                          title="Hapus cabang"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-      </motion.div>
+      </motion.section>
     </motion.div>
   );
 };

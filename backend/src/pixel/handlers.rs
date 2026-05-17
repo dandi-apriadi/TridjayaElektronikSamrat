@@ -492,7 +492,9 @@ pub async fn assign_admin(
                 errors: vec!["Target user not found".to_string()],
             });
         }
-        Some((_, role)) if !role.eq_ignore_ascii_case("admin") && !role.eq_ignore_ascii_case("operator") => {
+        Some((_, role))
+            if !role.eq_ignore_ascii_case("admin") && !role.eq_ignore_ascii_case("operator") =>
+        {
             return Err(AppError::Validation {
                 errors: vec![format!(
                     "User must have role 'admin' or 'operator', but has role '{}'",

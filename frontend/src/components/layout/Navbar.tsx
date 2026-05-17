@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Menu, X, ChevronDown, ShoppingBag, LogIn, LayoutDashboard, ChevronRight, Search } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { getDashboardHomeByRole } from '../../utils/dashboardAccess';
 import logoHorizontal from '../../assets/images/logo-horizontal.webp';
 
 import { useProductStore } from '../../store/useProductStore';
@@ -145,11 +146,7 @@ const Navbar: React.FC = () => {
   }, [isSearchOpen]);
   const location = useLocation();
 
-  const dashboardPath = user?.role === 'admin' || user?.role === 'operator'
-      ? '/dashboard/admin'
-      : user?.role === 'agent'
-        ? '/dashboard/agent'
-        : '/dashboard';
+  const dashboardPath = getDashboardHomeByRole(user?.role);
 
   const uniqueCategories = Array.from(new Set(products.map(p => p.category)))
     .filter(cat => cat && categorize(cat) !== null);

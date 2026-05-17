@@ -1,6 +1,6 @@
 use crate::{
     response::AppError,
-    state::{AppState, UserPublic, UserRecord, USER_RECORD_SELECT},
+    state::{AppState, AuditContext, UserPublic, UserRecord, USER_RECORD_SELECT},
 };
 use axum::http::HeaderMap;
 use chrono::{Duration, Utc};
@@ -27,7 +27,8 @@ fn mask_email_for_log(email: &str) -> String {
 pub enum Role {
     Admin,
     Agent,
-    Sales,
+    #[serde(rename = "admin-sales", alias = "admin_sales", alias = "sales")]
+    AdminSales,
     Operator,
     Owner,
     #[serde(rename = "pic_raport")]
@@ -40,7 +41,7 @@ impl Display for Role {
         match self {
             Self::Admin => write!(f, "admin"),
             Self::Agent => write!(f, "agent"),
-            Self::Sales => write!(f, "sales"),
+            Self::AdminSales => write!(f, "admin-sales"),
             Self::Operator => write!(f, "operator"),
             Self::Owner => write!(f, "owner"),
             Self::PicRaport => write!(f, "pic_raport"),
@@ -55,7 +56,7 @@ impl FromStr for Role {
         match s.to_lowercase().as_str() {
             "admin" => Ok(Self::Admin),
             "agent" => Ok(Self::Agent),
-            "sales" => Ok(Self::Sales),
+            "admin-sales" | "admin_sales" | "sales" => Ok(Self::AdminSales),
             "operator" => Ok(Self::Operator),
             "owner" => Ok(Self::Owner),
             "pic_raport" | "pic-raport" | "pic raport" => Ok(Self::PicRaport),
@@ -138,9 +139,36 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
+/// Lazily-computed dummy Argon2 hash used to keep `verify_password` timing
+/// constant when the user record is not found. Without this, an attacker can
+/// distinguish "email not registered" from "email registered + wrong password"
+/// via response-time analysis even if both paths return the same error code.
+fn dummy_password_hash() -> &'static str {
+    use std::sync::OnceLock;
+    static DUMMY: OnceLock<String> = OnceLock::new();
+    DUMMY.get_or_init(|| hash_password("not-a-real-password"))
+}
+
+/// SHA-256 hex digest of a refresh token. Stored in `refresh_sessions.token_hash`
+/// so a stolen database dump cannot be used directly to forge sessions.
+pub fn hash_refresh_token(token: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 pub async fn login_with_request(
     state: &AppState,
     request: LoginRequest,
+) -> Result<AuthPayload, AppError> {
+    login_with_request_ctx(state, request, AuditContext::default()).await
+}
+
+pub async fn login_with_request_ctx(
+    state: &AppState,
+    request: LoginRequest,
+    audit_ctx: AuditContext,
 ) -> Result<AuthPayload, AppError> {
     let email = request.email.trim().to_lowercase();
     let password = request.password;
@@ -153,8 +181,8 @@ pub async fn login_with_request(
 
     let email_log = mask_email_for_log(&email);
 
-    tracing::info!("Login attempt for email: {}", email);
-    let query = format!("{USER_RECORD_SELECT} WHERE LOWER(email) = ?");
+    tracing::info!("Login attempt for email: {}", email_log);
+    let query = format!("{USER_RECORD_SELECT} WHERE LOWER(u.email) = ?");
     let user: UserRecord = sqlx::query_as(&query)
         .bind(&email)
         .fetch_optional(&state.pool)
@@ -165,15 +193,27 @@ pub async fn login_with_request(
         })?
         .ok_or_else(|| {
             tracing::warn!("Login failed: user not found for email '{}'", email_log);
-            AppError::LoginEmailNotFound
+            // Run a dummy verify to keep the response time roughly constant and
+            // close the user-enumeration timing oracle (see Quick Win #2).
+            let _ = verify_password(&password, dummy_password_hash());
+            AppError::LoginInvalidCredentials
         })?;
 
     tracing::debug!(
         "User record retrieved: email={}, is_active={}, is_verified={}",
-        user.email,
+        email_log,
         user.is_active,
         user.is_verified
     );
+
+    // IMPORTANT: verify password BEFORE checking is_active / is_verified so that
+    // attackers cannot enumerate registered emails via different status codes
+    // (Quick Win #2). Status / verification errors are only surfaced after the
+    // caller has already proven they know the password.
+    if !verify_password(&password, &user.password_hash) {
+        tracing::warn!("Login failed: incorrect password for email '{}'", email_log);
+        return Err(AppError::LoginInvalidCredentials);
+    }
 
     if !user.is_active {
         tracing::warn!(
@@ -181,11 +221,6 @@ pub async fn login_with_request(
             email_log
         );
         return Err(AppError::LoginAccountInactive);
-    }
-
-    if !verify_password(&password, &user.password_hash) {
-        tracing::warn!("Login failed: incorrect password for email '{}'", email_log);
-        return Err(AppError::LoginInvalidPassword);
     }
 
     if !user.is_verified {
@@ -237,11 +272,13 @@ pub async fn login_with_request(
         .await
         .insert(refresh_token.clone(), refresh_session.clone());
 
-    // Persist refresh session to database for survival across restarts
+    // Persist refresh session to database for survival across restarts. Only
+    // the SHA-256 hash of the refresh token is stored at rest (Quick Win #3);
+    // a leaked DB dump alone is no longer enough to forge a valid session.
     if let Err(e) = sqlx::query(
-        "INSERT INTO refresh_sessions (token, user_id, role, expires_at, remember) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO refresh_sessions (token_hash, user_id, role, expires_at, remember) VALUES (?, ?, ?, ?, ?)"
     )
-        .bind(&refresh_token)
+        .bind(hash_refresh_token(&refresh_token))
         .bind(&user.id)
         .bind(&role.to_string())
         .bind(refresh_expires_at.to_rfc3339())
@@ -252,7 +289,9 @@ pub async fn login_with_request(
         tracing::error!("Failed to persist refresh session: {}", e);
     }
 
-    state.audit("auth.login.success", Some(&user.email)).await;
+    state
+        .audit_with_context("auth.login.success", Some(&user.email), audit_ctx)
+        .await;
 
     Ok(AuthPayload {
         access_token,
@@ -268,20 +307,29 @@ pub async fn refresh_with_request(
     state: &AppState,
     request: RefreshRequest,
 ) -> Result<AuthPayload, AppError> {
+    refresh_with_request_ctx(state, request, AuditContext::default()).await
+}
+
+pub async fn refresh_with_request_ctx(
+    state: &AppState,
+    request: RefreshRequest,
+    audit_ctx: AuditContext,
+) -> Result<AuthPayload, AppError> {
     // First check in-memory cache
     let session = {
         let sessions = state.refresh_sessions.read().await;
         sessions.get(&request.refresh_token).cloned()
     };
 
-    // If not in memory, try to load from database (survives backend restarts)
+    // If not in memory, try to load from database (survives backend restarts).
+    // The DB stores `token_hash`, never the raw token (Quick Win #3).
     let session = match session {
         Some(s) => s,
         None => {
-            let row: Option<(String, String, String, String, bool)> = sqlx::query_as(
-                "SELECT token, user_id, role, expires_at, remember FROM refresh_sessions WHERE token = ?"
+            let row: Option<(String, String, String, bool)> = sqlx::query_as(
+                "SELECT user_id, role, expires_at, remember FROM refresh_sessions WHERE token_hash = ?"
             )
-                .bind(&request.refresh_token)
+                .bind(hash_refresh_token(&request.refresh_token))
                 .fetch_optional(&state.pool)
                 .await
                 .map_err(|e| {
@@ -290,13 +338,13 @@ pub async fn refresh_with_request(
                 })?;
 
             match row {
-                Some((token, user_id, role_str, expires_at_str, remember)) => {
+                Some((user_id, role_str, expires_at_str, remember)) => {
                     let expires_at = chrono::DateTime::parse_from_rfc3339(&expires_at_str)
                         .map(|dt| dt.with_timezone(&Utc))
                         .unwrap_or_else(|_| Utc::now());
                     let role = Role::from_str(&role_str).unwrap_or(Role::Agent);
                     let restored = RefreshSession {
-                        token,
+                        token: request.refresh_token.clone(),
                         user_id,
                         role,
                         expires_at,
@@ -319,7 +367,7 @@ pub async fn refresh_with_request(
         return Err(AppError::Unauthorized);
     }
 
-    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
+    let query = format!("{USER_RECORD_SELECT} WHERE u.id = ?");
     let user: UserRecord = sqlx::query_as(&query)
         .bind(&session.user_id)
         .fetch_optional(&state.pool)
@@ -370,15 +418,15 @@ pub async fn refresh_with_request(
         .await
         .remove(&request.refresh_token);
 
-    // Persist new refresh session and remove old one from database
-    let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token = ?")
-        .bind(&request.refresh_token)
+    // Persist new refresh session and remove old one from database (by hash).
+    let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token_hash = ?")
+        .bind(hash_refresh_token(&request.refresh_token))
         .execute(&state.pool)
         .await;
     if let Err(e) = sqlx::query(
-        "INSERT INTO refresh_sessions (token, user_id, role, expires_at, remember) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO refresh_sessions (token_hash, user_id, role, expires_at, remember) VALUES (?, ?, ?, ?, ?)"
     )
-        .bind(&refresh_token)
+        .bind(hash_refresh_token(&refresh_token))
         .bind(&user.id)
         .bind(&user.role)
         .bind(new_refresh_expires.to_rfc3339())
@@ -389,7 +437,9 @@ pub async fn refresh_with_request(
         tracing::error!("Failed to persist new refresh session: {}", e);
     }
 
-    state.audit("auth.refresh", Some(&user.email)).await;
+    state
+        .audit_with_context("auth.refresh", Some(&user.email), audit_ctx)
+        .await;
 
     Ok(AuthPayload {
         access_token,
@@ -402,6 +452,14 @@ pub async fn refresh_with_request(
 }
 
 pub async fn logout_with_headers(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
+    logout_with_headers_ctx(state, headers, AuditContext::default()).await
+}
+
+pub async fn logout_with_headers_ctx(
+    state: &AppState,
+    headers: &HeaderMap,
+    audit_ctx: AuditContext,
+) -> Result<(), AppError> {
     let token = bearer_token(headers)?;
     let session = {
         let mut sessions = state.access_sessions.write().await;
@@ -415,9 +473,9 @@ pub async fn logout_with_headers(state: &AppState, headers: &HeaderMap) -> Resul
         .await
         .remove(&session.refresh_token);
 
-    // Remove from database as well
-    let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token = ?")
-        .bind(&session.refresh_token)
+    // Remove from database as well (by hash).
+    let _ = sqlx::query("DELETE FROM refresh_sessions WHERE token_hash = ?")
+        .bind(hash_refresh_token(&session.refresh_token))
         .execute(&state.pool)
         .await;
 
@@ -428,7 +486,9 @@ pub async fn logout_with_headers(state: &AppState, headers: &HeaderMap) -> Resul
         .await
         .unwrap_or(None);
 
-    state.audit("auth.logout", user_email.as_deref()).await;
+    state
+        .audit_with_context("auth.logout", user_email.as_deref(), audit_ctx)
+        .await;
     Ok(())
 }
 
@@ -448,7 +508,7 @@ pub async fn authorize(
         return Err(AppError::Unauthorized);
     }
 
-    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
+    let query = format!("{USER_RECORD_SELECT} WHERE u.id = ?");
     let user: UserRecord = sqlx::query_as(&query)
         .bind(&session.user_id)
         .fetch_optional(&state.pool)

@@ -20,10 +20,10 @@ import {
   UserRound,
 } from 'lucide-react';
 import { todayKey } from '../../data/picRaportData';
-import { employeeRaports } from '../../data/ownerRaportData';
 import { useAuthStore } from '../../store/authStore';
 import { formatProspekDateKey, useKaryawanProspekStore } from '../../store/karyawanProspekStore';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { isSalesTargetKategori } from '../../utils/roles';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -38,27 +38,28 @@ const getPositionMatch = (divisi: string, positions: ReturnType<typeof usePicRap
   );
 };
 
+const getUserCabang = (user: ReturnType<typeof useAuthStore.getState>['user']) =>
+  user?.cabangName || user?.cabang_name || user?.cabangId || user?.cabang_id || '';
+
 const KaryawanDashboard: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const divisions = usePicRaportStore((state) => state.divisions);
   const evidence = usePicRaportStore((state) => state.evidence);
+  const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const fetchDivisions = usePicRaportStore((state) => state.fetchDivisions);
   const prospek = useKaryawanProspekStore((state) => state.prospek);
   const fetchProspek = useKaryawanProspekStore((state) => state.fetchProspek);
   const divisi = user?.divisi || 'Belum ditentukan';
+  const cabang = getUserCabang(user);
   const position = getPositionMatch(divisi, divisions);
   const userName = user?.name?.trim().toLowerCase();
   const todayProspekKey = useMemo(() => formatProspekDateKey(new Date()), []);
 
   useEffect(() => {
     fetchProspek({ tanggal: todayProspekKey, limit: 500 });
-  }, [fetchProspek, todayProspekKey]);
-  const employeeRecord = useMemo(
-    () =>
-      employeeRaports.find((item) => item.id === user?.id) ||
-      employeeRaports.find((item) => userName && item.nama.toLowerCase() === userName) ||
-      employeeRaports.find((item) => item.posisi.toLowerCase() === divisi.toLowerCase()),
-    [divisi, user?.id, userName]
-  );
+    fetchEvidence({ tanggal: todayKey, limit: 2000 });
+    fetchDivisions();
+  }, [fetchDivisions, fetchEvidence, fetchProspek, todayProspekKey]);
 
   const todayEvidence = useMemo(
     () =>
@@ -77,10 +78,10 @@ const KaryawanDashboard: React.FC = () => {
   const averageScore = scoredToday.length
     ? Math.round(scoredToday.reduce((sum, item) => sum + (item.reviewStatus === 'rejected' ? 0 : item.score || 0), 0) / scoredToday.length)
     : 0;
-  const jobdeskCount = position?.jobdesks.length || employeeRecord?.totalJobdesk || 0;
+  const jobdeskCount = position?.jobdesks.length || 0;
   const ratedJobdeskCount = new Set(scoredToday.map((item) => item.jobdeskIndex)).size;
   const raportProgress = jobdeskCount > 0 ? Math.round((ratedJobdeskCount / jobdeskCount) * 100) : 0;
-  const isSales = divisi.toLowerCase().includes('sales') || divisi.toLowerCase().includes('koordinator');
+  const isSales = isSalesTargetKategori(user?.jabatan, divisi);
   const prospekHariIni = useMemo(
     () =>
       prospek.filter(
@@ -108,8 +109,8 @@ const KaryawanDashboard: React.FC = () => {
   const userDetails = [
     { label: 'Email', value: user?.email || '-', icon: Mail },
     { label: 'WhatsApp', value: user?.whatsapp || '-', icon: Phone },
-    { label: 'Jabatan', value: user?.jabatan || divisi, icon: UserRound },
-    { label: 'Cabang', value: employeeRecord?.cabang || 'Belum tercatat', icon: Building2 },
+    { label: 'Target Prospek', value: isSales ? 'Sales' : 'Non-Sales', icon: UserRound },
+    { label: 'Cabang', value: cabang || 'Belum tercatat', icon: Building2 },
   ];
 
   const stats = [

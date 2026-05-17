@@ -115,6 +115,20 @@ export interface PartnerItem {
   updatedAt?: string;
 }
 
+export interface CabangItem {
+  id: string;
+  nama: string;
+  alamat: string;
+  kota: string;
+  telepon: string;
+  koordinatorId?: string | null;
+  koordinatorNama: string;
+  isActive: boolean;
+  jumlahKaryawan: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
 export interface LandingMetricSpec {
   iconKey: string;
   value: string;

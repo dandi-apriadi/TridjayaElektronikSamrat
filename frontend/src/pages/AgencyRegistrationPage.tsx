@@ -9,6 +9,7 @@ import {
 import { toast } from '../store/useNotificationStore';
 import { Badge, SectionHeader } from '../components/ui';
 import { apiFetch } from '../utils/apiClient';
+import { HCaptcha, isHCaptchaEnabled } from '../components/security/HCaptcha';
 
 const steps = [
   { id: 1, title: 'Data Diri', subtitle: 'Informasi personal' },
@@ -21,6 +22,8 @@ const AgencyRegistrationPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -113,6 +116,11 @@ const AgencyRegistrationPage: React.FC = () => {
       return;
     }
 
+    if (isHCaptchaEnabled && !captchaToken) {
+      toast.error('Verifikasi Diperlukan', 'Silakan selesaikan verifikasi keamanan terlebih dahulu.');
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -124,6 +132,7 @@ const AgencyRegistrationPage: React.FC = () => {
       data.append('city', formData.city);
       data.append('address', formData.address);
       data.append('preferredProducts', JSON.stringify(formData.preferredProducts));
+      if (captchaToken) data.append('captchaToken', captchaToken);
       
       if (files.profilePhoto) data.append('profilePhoto', files.profilePhoto);
       if (files.ktpPhoto) data.append('ktpPhoto', files.ktpPhoto);
@@ -142,6 +151,8 @@ const AgencyRegistrationPage: React.FC = () => {
       setFormSubmitted(true);
       toast.success('Pendaftaran Berhasil Dikirim', 'Tim kami akan menghubungi Anda dalam waktu dekat melalui WhatsApp.');
     } catch (error: any) {
+      setCaptchaToken('');
+      setCaptchaResetKey(prev => prev + 1);
       toast.error('Gagal Mengirim', error.message || 'Terjadi kesalahan sistem. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
@@ -422,6 +433,13 @@ const AgencyRegistrationPage: React.FC = () => {
                                 <span className="text-primary font-bold">Privasi Data:</span> Dokumen Anda akan dijaga kerahasiaannya dan hanya digunakan untuk proses verifikasi kemitraan resmi.
                               </p>
                             </div>
+
+                            <HCaptcha
+                              resetKey={captchaResetKey}
+                              onVerify={setCaptchaToken}
+                              onExpire={() => setCaptchaToken('')}
+                              onError={() => setCaptchaToken('')}
+                            />
                           </motion.div>
                         )}
 

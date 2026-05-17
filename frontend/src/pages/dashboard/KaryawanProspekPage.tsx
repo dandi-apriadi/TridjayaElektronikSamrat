@@ -10,9 +10,13 @@ import {
   useKaryawanProspekStore,
 } from '../../store/karyawanProspekStore';
 import type { ProspekStatus } from '../../store/karyawanProspekStore';
+import { isSalesTargetKategori } from '../../utils/roles';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
+
+const getUserCabang = (user: ReturnType<typeof useAuthStore.getState>['user']) =>
+  user?.cabangName || user?.cabang_name || user?.cabangId || user?.cabang_id || '';
 
 const KaryawanProspekPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
@@ -21,7 +25,8 @@ const KaryawanProspekPage: React.FC = () => {
   const fetchProspek = useKaryawanProspekStore((s) => s.fetchProspek);
   const prospekError = useKaryawanProspekStore((s) => s.error);
   const divisi = user?.divisi || '';
-  const isSales = divisi.toLowerCase().includes('sales') || divisi.toLowerCase().includes('koordinator');
+  const cabang = getUserCabang(user);
+  const isSales = isSalesTargetKategori(user?.jabatan, divisi);
   const targetProspek = isSales ? 20 : 5;
   const employeeId = user?.id || 'emp-local';
   const todayKey = useMemo(() => formatProspekDateKey(new Date()), []);
@@ -51,6 +56,15 @@ const KaryawanProspekPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!namaProspek.trim() || !noWhatsapp.trim() || !minatBarang.trim()) return;
+    if (!cabang.trim()) {
+      setSuccessMsg('Cabang karyawan belum diatur. Hubungi admin untuk set cabang akun.');
+      return;
+    }
+    const activeDivisi = divisi.trim();
+    if (!activeDivisi) {
+      setSuccessMsg('Divisi karyawan belum diatur. Hubungi admin untuk set divisi akun.');
+      return;
+    }
 
     const normalizedWhatsapp = normalizeWhatsapp(noWhatsapp);
     if (!normalizedWhatsapp.startsWith('08') || normalizedWhatsapp.length < 10) {
@@ -63,8 +77,8 @@ const KaryawanProspekPage: React.FC = () => {
       await addProspek({
         karyawanId: employeeId,
         karyawanName: user?.name || 'Karyawan Tridjaya',
-        cabang: 'Manado',
-        divisi: user?.divisi || 'Karyawan',
+        cabang,
+        divisi: activeDivisi,
         namaProspek: namaProspek.toUpperCase(),
         noWhatsapp: normalizedWhatsapp,
         minatBarang: minatBarang.toUpperCase(),

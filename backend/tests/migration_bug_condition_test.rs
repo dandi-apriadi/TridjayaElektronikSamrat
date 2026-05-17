@@ -226,8 +226,8 @@ mod bug_condition_tests {
     #[test]
     fn property_cargo_toml_uses_mysql_feature() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let cargo_toml = fs::read_to_string(manifest_dir.join("Cargo.toml"))
-            .expect("Failed to read Cargo.toml");
+        let cargo_toml =
+            fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("Failed to read Cargo.toml");
 
         // The sqlx dependency line should contain "mysql" feature
         assert!(

@@ -16,14 +16,12 @@ import { usePersistedState } from '../../hooks/usePersistedState';
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
   'Follow Up':      { cls: 'bg-primary/15 text-primary',      dot: 'bg-primary' },
-  'Negotiation':    { cls: 'bg-tertiary/15 text-tertiary',    dot: 'bg-tertiary' },
-  'Payment Pending':{ cls: 'bg-yellow-500/15 text-yellow-400',dot: 'bg-yellow-400' },
-  'Cold':           { cls: 'bg-surface-highest text-on-surface-variant', dot: 'bg-on-surface-variant' },
+  'Negosiasi':      { cls: 'bg-tertiary/15 text-tertiary',    dot: 'bg-tertiary' },
   'Closed Won':     { cls: 'bg-secondary/15 text-secondary',  dot: 'bg-secondary' },
   'Closed Lost':    { cls: 'bg-error/15 text-error',          dot: 'bg-error' },
 };
 
-const statuses = ['Semua', 'Follow Up', 'Negotiation', 'Payment Pending', 'Cold', 'Closed Won', 'Closed Lost'];
+const statuses = ['Semua', 'Follow Up', 'Negosiasi', 'Closed Won', 'Closed Lost'];
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1 } };
@@ -133,7 +131,7 @@ const AdminLeadsPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Prospek', value: leads.length, sub: 'lintas seluruh agen', color: 'text-primary', bg: 'bg-primary/10', icon: Users },
-          { label: 'Pipeline Aktif', value: countByStatus('Follow Up') + countByStatus('Negotiation'), sub: 'sedang diproses', color: 'text-tertiary', bg: 'bg-tertiary/10', icon: Clock },
+          { label: 'Pipeline Aktif', value: countByStatus('Follow Up') + countByStatus('Negosiasi'), sub: 'sedang diproses', color: 'text-tertiary', bg: 'bg-tertiary/10', icon: Clock },
           { label: 'Deal Berhasil', value: countByStatus('Closed Won'), sub: 'konversi sukses', color: 'text-secondary', bg: 'bg-secondary/10', icon: CheckCircle2 },
           { label: 'Avg. Conv. Rate', value: `${leads.length > 0 ? ((countByStatus('Closed Won') / leads.length) * 100).toFixed(1) : 0}%`, sub: 'performa global', color: 'text-primary', bg: 'bg-primary/10', icon: TrendingUp },
         ].map((k) => (
@@ -264,7 +262,7 @@ const AdminLeadsPage: React.FC = () => {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-on-surface-variant text-body-sm italic">
+                  <td colSpan={7} className="py-12 text-center text-on-surface-variant text-body-sm italic">
                     {isLoading ? 'Sedang memuat...' : 'Tidak ada prospek yang ditemukan.'}
                   </td>
                 </tr>

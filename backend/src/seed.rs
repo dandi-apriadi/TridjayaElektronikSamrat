@@ -479,7 +479,12 @@ pub async fn seed_database(pool: &MySqlPool) -> Result<(), Box<dyn std::error::E
             "Operator Tridjaya",
             "operator",
         ),
-        ("sls-001", "sales@gmail.com", "Sales Tridjaya", "sales"),
+        (
+            "sls-001",
+            "sales@gmail.com",
+            "Sales Tridjaya",
+            "admin-sales",
+        ),
         ("age-001", "agent@gmail.com", "Agent Tridjaya", "agent"),
         ("own-001", "owner@gmail.com", "Owner Tridjaya", "owner"),
         (
@@ -509,7 +514,7 @@ pub async fn seed_database(pool: &MySqlPool) -> Result<(), Box<dyn std::error::E
             .bind(name)
             .bind(role)
             .bind(password_hash.clone())
-            .bind("/avatars/default.webp")
+            .bind("")
             .execute(pool)
             .await?;
         }

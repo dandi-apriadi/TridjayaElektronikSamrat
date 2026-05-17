@@ -5,19 +5,25 @@ import {
   ShieldCheck, UserCog, Search, Plus,
   CheckCircle2, XCircle, Clock, Shield,
   Users, Lock, Unlock, Eye, EyeOff,
-  AlertTriangle, ArrowUpRight, Filter, Megaphone, Trash2
+  AlertTriangle, ArrowUpRight, Filter, Megaphone, Trash2, Building2
 } from 'lucide-react';
 import { useUserStore } from '../../store/useUserStore';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
 import Pagination from '../../components/ui/Pagination';
 import { usePersistedState } from '../../hooks/usePersistedState';
+import { normalizeAccessRole } from '../../utils/roles';
 
 const roleConfig: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
   agent:    { cls: 'bg-secondary/15 text-secondary', label: 'Agent',  icon: <Users className="w-3 h-3" /> },
-  sales:    { cls: 'bg-tertiary/15 text-tertiary', label: 'Sales',   icon: <UserCog className="w-3 h-3" /> },
+  'admin-sales': { cls: 'bg-tertiary/15 text-tertiary', label: 'Admin Sales', icon: <UserCog className="w-3 h-3" /> },
+  sales:    { cls: 'bg-tertiary/15 text-tertiary', label: 'Admin Sales', icon: <UserCog className="w-3 h-3" /> },
   operator: { cls: 'bg-tertiary/15 text-tertiary', label: 'Operator', icon: <UserCog className="w-3 h-3" /> },
+  karyawan: { cls: 'bg-secondary/15 text-secondary', label: 'Karyawan', icon: <Building2 className="w-3 h-3" /> },
+  pic_raport: { cls: 'bg-primary/15 text-primary', label: 'PIC Raport', icon: <Shield className="w-3 h-3" /> },
+  owner: { cls: 'bg-primary/15 text-primary', label: 'Owner', icon: <ShieldCheck className="w-3 h-3" /> },
+  super_admin: { cls: 'bg-primary/15 text-primary', label: 'Super Admin', icon: <ShieldCheck className="w-3 h-3" /> },
 };
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
@@ -29,9 +35,22 @@ const statusConfig: Record<string, { cls: string; dot: string }> = {
 const permissions = [
   { role: 'Admin',    perms: ['Dashboard Overview', 'Kelola Agen', 'Kelola Katalog', 'Kelola Promo', 'Kelola Konten', 'Keuangan & Payout', 'User & Akses', 'Telemetri'] },
   { role: 'Agent',    perms: ['Command Center', 'Product Knowledge', 'Pipeline Prospek', 'Push Prospek', 'Referral & Link', 'Komisi & Earning'] },
-  { role: 'Sales',    perms: ['Product Knowledge', 'Jadwal Pengiriman', 'Referral & Share Link'] },
+  { role: 'Admin Sales', perms: ['Product Knowledge', 'Jadwal Pengiriman', 'Referral & Share Link', 'WA Blast'] },
   { role: 'Operator', perms: ['WA Blast', 'Akun WA pribadi', 'Kelola Katalog', 'Kelola Konten', 'Pixel Campaign'] },
 ];
+
+const roleFilters = [
+  { label: 'Semua', value: 'Semua' },
+  { label: 'Admin', value: 'admin' },
+  { label: 'Operator', value: 'operator' },
+  { label: 'Admin Sales', value: 'admin-sales' },
+  { label: 'Agent', value: 'agent' },
+  { label: 'Karyawan', value: 'karyawan' },
+  { label: 'Owner', value: 'owner' },
+  { label: 'PIC Raport', value: 'pic_raport' },
+];
+
+const normalizeRoleFilter = (value: string) => normalizeAccessRole(value.toLowerCase().replace(/\s+/g, '_'));
 
 const cv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
@@ -130,12 +149,13 @@ const AdminUsersPage: React.FC = () => {
     };
 
     const rows = [
-      ['id', 'name', 'email', 'role', 'status', 'last_login', 'created_at'],
+      ['id', 'name', 'email', 'role', 'cabang', 'status', 'last_login', 'created_at'],
       ...filtered.map((user) => [
         user.id,
         user.name,
         user.email,
         user.role,
+        user.cabangName || user.cabang_name || user.cabangId || user.cabang_id || '',
         userStatus(user.is_active),
         user.last_login ?? '',
         user.created_at ?? '',
@@ -154,8 +174,8 @@ const AdminUsersPage: React.FC = () => {
   };
 
   const filtered = users.filter((u) => {
-    const matchSearch = `${u.name} ${u.email} ${u.id}`.toLowerCase().includes(search.toLowerCase());
-    const matchRole   = roleFilter === 'Semua' || u.role.toLowerCase() === roleFilter.toLowerCase();
+    const matchSearch = `${u.name} ${u.email} ${u.id} ${u.cabangName || u.cabang_name || u.cabangId || u.cabang_id || ''}`.toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === 'Semua' || normalizeAccessRole(u.role.toLowerCase()) === normalizeRoleFilter(roleFilter);
     const matchStatus = statusFilter === 'Semua' || userStatus(u.is_active) === statusFilter;
     return matchSearch && matchRole && matchStatus;
   });
@@ -243,7 +263,7 @@ const AdminUsersPage: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {permissions.map((p) => {
-              const rc = roleConfig[p.role.toLowerCase()];
+              const rc = roleConfig[normalizeAccessRole(p.role.toLowerCase())];
               return (
                 <div key={p.role} className="p-4 rounded-xl bg-surface-low border border-outline-variant/10">
                   <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-label-sm font-bold mb-3 ${rc.cls}`}>
@@ -278,10 +298,10 @@ const AdminUsersPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="w-4 h-4 text-on-surface-variant" />
-            {['Semua', 'Admin', 'Operator', 'Sales', 'Agent'].map((r) => (
-              <button key={r} type="button" onClick={() => setRoleFilter(r)}
-                className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${roleFilter === r ? 'bg-primary/20 text-primary' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
-                {r}
+            {roleFilters.map((filter) => (
+              <button key={filter.value} type="button" onClick={() => setRoleFilter(filter.value)}
+                className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-all ${normalizeRoleFilter(roleFilter) === normalizeRoleFilter(filter.value) ? 'bg-primary/20 text-primary' : 'bg-surface-high text-on-surface-variant hover:text-on-surface'}`}>
+                {filter.label}
               </button>
             ))}
             <div className="w-px h-5 bg-outline-variant/20" />
@@ -296,11 +316,12 @@ const AdminUsersPage: React.FC = () => {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[860px]">
+          <table className="w-full text-left min-w-[980px]">
             <thead>
               <tr className="text-label-xs text-on-surface-variant border-b border-outline-variant/20 uppercase tracking-widest">
                 <th className="py-3 pr-4">User</th>
                 <th className="py-3 pr-4">Role</th>
+                <th className="py-3 pr-4">Cabang</th>
                 <th className="py-3 pr-4">Status</th>
                 <th className="py-3 pr-4">Last Login</th>
                 <th className="py-3 pr-4">Dibuat</th>
@@ -309,9 +330,10 @@ const AdminUsersPage: React.FC = () => {
             </thead>
             <tbody>
               {paginated.map((user) => {
-                const rc = roleConfig[user.role.toLowerCase()] || roleConfig.operator;
+                const rc = roleConfig[normalizeAccessRole(user.role.toLowerCase())] || roleConfig.operator;
                 const effectiveStatus = userStatus(user.is_active);
                 const sc = statusConfig[effectiveStatus] || statusConfig['Pending'];
+                const cabangLabel = user.cabangName || user.cabang_name || user.cabangId || user.cabang_id || '-';
                 return (
                   <tr key={user.id} className={`border-b border-outline-variant/10 hover:bg-surface-high/30 transition-colors group ${!user.is_active ? 'opacity-60' : ''}`}>
                     <td className="py-3.5 pr-4">
@@ -329,6 +351,9 @@ const AdminUsersPage: React.FC = () => {
                       <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1 ${rc.cls}`}>
                         {rc.icon}{rc.label}
                       </span>
+                    </td>
+                    <td className="py-3.5 pr-4 text-body-sm text-on-surface-variant">
+                      {user.role.toLowerCase() === 'karyawan' ? cabangLabel : '-'}
                     </td>
                     <td className="py-3.5 pr-4">
                       <span className={`px-2 py-0.5 rounded-md text-label-xs font-bold inline-flex items-center gap-1.5 ${sc.cls}`}>
@@ -378,7 +403,7 @@ const AdminUsersPage: React.FC = () => {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant text-body-sm">Tidak ada user yang sesuai filter.</td></tr>
+                <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant text-body-sm">Tidak ada user yang sesuai filter.</td></tr>
               )}
             </tbody>
           </table>

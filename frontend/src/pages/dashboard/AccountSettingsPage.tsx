@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../store/useNotificationStore';
+import { isAdminSalesRole } from '../../utils/roles';
 
 const itemVariants = {
   hidden: { y: 10, opacity: 0 },
@@ -27,7 +28,7 @@ const AccountSettingsPage: React.FC = () => {
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  const canEditBankAccount = user?.role === 'agent' || user?.role === 'sales';
+  const canEditBankAccount = user?.role === 'agent' || isAdminSalesRole(user?.role);
 
   const handleUpdateProfile = async (event: React.FormEvent) => {
     event.preventDefault();

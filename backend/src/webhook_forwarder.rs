@@ -116,6 +116,12 @@ impl WebhookForwarder {
     /// Create a new webhook forwarder
     pub fn new(config: WebhookForwarderConfig, pool: MySqlPool) -> Self {
         let http_client = Client::builder()
+            // Defense-in-depth: even though the URL has been validated through
+            // the SSRF guard when the webhook config was created, refuse to
+            // follow redirects so a public host cannot bounce us into a
+            // private network at delivery time.
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(config.http_timeout_seconds))
             .build()
             .expect("Failed to create HTTP client");

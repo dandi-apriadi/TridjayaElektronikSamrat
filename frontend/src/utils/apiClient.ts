@@ -6,8 +6,27 @@
 import { useAuthStore } from '../store/authStore';
 
 function normalizeApiBaseUrl(value: string | undefined): string {
-  const baseUrl = (value?.trim() || 'http://localhost:8081').replace(/\/+$/, '');
-  return baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+  const raw = (value?.trim() || 'http://localhost:8081').replace(/\/+$/, '');
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error('VITE_API_BASE_URL must be an absolute http(s) URL');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('VITE_API_BASE_URL must use http or https');
+  }
+
+  const allowedOrigins = ((import.meta.env.VITE_ALLOWED_API_ORIGINS as string | undefined) || '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  if (allowedOrigins.length > 0 && !allowedOrigins.includes(parsed.origin)) {
+    throw new Error('VITE_API_BASE_URL origin is not in VITE_ALLOWED_API_ORIGINS');
+  }
+
+  return raw.endsWith('/api') ? raw : `${raw}/api`;
 }
 
 export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);

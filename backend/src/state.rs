@@ -8,8 +8,8 @@ use tokio::sync::RwLock;
 
 const MAX_AUDIT_LOG_ENTRIES: usize = 1_000;
 pub const MYSQL_DATETIME_FORMAT: &str = "%Y-%m-%d %H:%i:%s";
-pub const USER_RECORD_SELECT: &str = "SELECT id, email, name, role, password_hash, jabatan, divisi, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
-pub const USER_PUBLIC_SELECT: &str = "SELECT id, email, name, role, jabatan, divisi, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
+pub const USER_RECORD_SELECT: &str = "SELECT u.id, u.email, u.name, u.role, u.password_hash, u.jabatan, u.divisi, u.cabang_id, COALESCE(c.nama, '') AS cabang_name, '' AS avatar, u.bank_account, u.whatsapp, u.referral_slug, DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(u.last_login, '%Y-%m-%d %H:%i:%s') AS last_login, u.is_active, u.is_verified, u.must_change_password FROM users u LEFT JOIN cabang c ON c.id = u.cabang_id";
+pub const USER_PUBLIC_SELECT: &str = "SELECT u.id, u.email, u.name, u.role, u.jabatan, u.divisi, u.cabang_id, COALESCE(c.nama, '') AS cabang_name, '' AS avatar, u.bank_account, u.whatsapp, u.referral_slug, DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(u.last_login, '%Y-%m-%d %H:%i:%s') AS last_login, u.is_active, u.is_verified, u.must_change_password FROM users u LEFT JOIN cabang c ON c.id = u.cabang_id";
 
 #[derive(Clone)]
 pub struct AppState {
@@ -178,11 +178,26 @@ impl AppState {
     }
 
     pub async fn audit(&self, action: impl Into<String>, actor: Option<&str>) {
+        self.audit_with_context(action, actor, AuditContext::default())
+            .await;
+    }
+
+    /// Same as [`Self::audit`] but also stores client IP and User-Agent for
+    /// forensic / incident response. Pass [`AuditContext::from_headers`] from
+    /// the request handler.
+    pub async fn audit_with_context(
+        &self,
+        action: impl Into<String>,
+        actor: Option<&str>,
+        ctx: AuditContext,
+    ) {
         let mut audit_log = self.audit_log.write().await;
         audit_log.push(AuditEntry {
             id: uuid::Uuid::new_v4().to_string(),
             action: action.into(),
             actor: actor.map(ToString::to_string),
+            ip: ctx.ip,
+            user_agent: ctx.user_agent,
             created_at: Utc::now(),
         });
         let overflow = audit_log.len().saturating_sub(MAX_AUDIT_LOG_ENTRIES);
@@ -281,9 +296,8 @@ pub struct UserPublic {
     pub email: String,
     pub name: String,
     pub role: String, // String for DB compatibility, convert to Role in logic if needed
-    /// Jabatan (title/position) — display only, does NOT affect system access.
-    /// Examples: "kepala_cabang", "supervisor", "koordinator", "sales"
-    /// Only meaningful for users with role = "sales".
+    /// Jabatan/title for admin-sales, or prospek target category for karyawan.
+    /// Karyawan values: "sales" or "non_sales"; this does not affect system access.
     #[sqlx(default)]
     pub jabatan: String,
     /// Divisi karyawan — menentukan jobdesk dan target prospek.
@@ -291,6 +305,10 @@ pub struct UserPublic {
     /// Only meaningful for users with role = "karyawan".
     #[sqlx(default)]
     pub divisi: String,
+    #[sqlx(default)]
+    pub cabang_id: String,
+    #[sqlx(default)]
+    pub cabang_name: String,
     pub avatar: String,
     pub bank_account: String,
     pub whatsapp: String,
@@ -318,6 +336,10 @@ pub struct UserRecord {
     pub jabatan: String,
     #[sqlx(default)]
     pub divisi: String,
+    #[sqlx(default)]
+    pub cabang_id: String,
+    #[sqlx(default)]
+    pub cabang_name: String,
     pub avatar: String,
     pub bank_account: String,
     pub whatsapp: String,
@@ -339,7 +361,9 @@ impl UserRecord {
             role: self.role.to_lowercase(),
             jabatan: self.jabatan.clone(),
             divisi: self.divisi.clone(),
-            avatar: self.avatar.clone(),
+            cabang_id: self.cabang_id.clone(),
+            cabang_name: self.cabang_name.clone(),
+            avatar: String::new(),
             bank_account: self.bank_account.clone(),
             whatsapp: self.whatsapp.clone(),
             referral_slug: self.referral_slug.clone(),
@@ -357,5 +381,41 @@ pub struct AuditEntry {
     pub id: String,
     pub action: String,
     pub actor: Option<String>,
+    /// Client IP that initiated the audited action, if known. Resolved from
+    /// `X-Forwarded-For` / `X-Real-IP` when `TRUST_PROXY_HEADERS=true`, else
+    /// from the TCP peer address.
+    pub ip: Option<String>,
+    /// `User-Agent` header from the originating request, truncated to a sane
+    /// maximum to avoid log bloat.
+    pub user_agent: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+/// Optional request context attached to an audit log entry. Use
+/// [`AuditContext::from_headers`] from a request handler to populate it.
+#[derive(Default, Clone)]
+pub struct AuditContext {
+    pub ip: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+impl AuditContext {
+    /// Extracts forensic context (IP, User-Agent) from a request's headers.
+    /// Truncates the User-Agent header to 255 chars to bound memory.
+    pub fn from_headers(headers: &axum::http::HeaderMap, ip: Option<String>) -> Self {
+        let user_agent = headers
+            .get(axum::http::header::USER_AGENT)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| {
+                let trimmed = value.trim();
+                if trimmed.len() > 255 {
+                    trimmed[..255].to_string()
+                } else {
+                    trimmed.to_string()
+                }
+            })
+            .filter(|value| !value.is_empty());
+
+        Self { ip, user_agent }
+    }
 }

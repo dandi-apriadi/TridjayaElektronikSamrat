@@ -20,6 +20,13 @@ const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1 } };
 const itemVariants = { hidden: { y: 10, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 const weekdays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 const EMPLOYEE_DETAIL_BATCH_SIZE = 12;
+const getCurrentMonthRange = () => {
+  const now = new Date();
+  return {
+    from: toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  };
+};
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
@@ -51,7 +58,8 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (!employeeId) return;
-    fetchEvidence({ karyawanId: employeeId, limit: 500 });
+    const range = getCurrentMonthRange();
+    fetchEvidence({ karyawanId: employeeId, tanggalFrom: range.from, tanggalTo: range.to, limit: 2000 });
   }, [employeeId, fetchEvidence]);
 
   const employeeEvidence = useMemo(

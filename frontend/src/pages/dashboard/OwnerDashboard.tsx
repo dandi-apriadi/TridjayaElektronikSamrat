@@ -30,16 +30,12 @@ import {
 } from 'lucide-react';
 import { calculateGapPercentage, formatRupiah, ownerDashboardData } from '../../data/ownerDashboardData';
 import type { KpiCardData, TrendDirection } from '../../data/ownerDashboardData';
-import {
-  cabangRaportSummary,
-  employeeRaports,
-  overallRaportPersentase,
-  posisiRaportSummary,
-} from '../../data/ownerRaportData';
 import ComingSoonBadge from '../../components/dashboard/ComingSoonBadge';
 import { apiFetch } from '../../utils/apiClient';
 import { buildPicEmployeeSummaries, toDateKey } from '../../data/picRaportData';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { useCabangStore } from '../../store/useCabangStore';
+import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -76,6 +72,14 @@ function pct(actual: number, target: number) {
   return target > 0 ? Math.round((actual / target) * 1000) / 10 : 0;
 }
 
+const currentMonthRange = () => {
+  const now = new Date();
+  return {
+    from: toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: toDateKey(now),
+  };
+};
+
 interface KpiConfig {
   data: KpiCardData;
   icon: React.FC<{ className?: string }>;
@@ -94,6 +98,10 @@ const OwnerDashboard: React.FC = () => {
   const { raportPersentase } = ownerDashboardData;
   const evidence = usePicRaportStore((state) => state.evidence);
   const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const cabangList = useCabangStore((state) => state.cabang);
+  const fetchCabang = useCabangStore((state) => state.fetchCabang);
+  const cabangLookup = useMemo(() => createCabangLookup(cabangList), [cabangList]);
+  const getBranchDisplay = (value: string) => getCabangDisplay(value, cabangLookup);
   const [prospekStats, setProspekStats] = useState<ProspekOverviewStats>({
     totalProspek: 0,
     closing: 0,
@@ -132,15 +140,17 @@ const OwnerDashboard: React.FC = () => {
       });
     };
     loadProspekOverview().catch(() => {});
-    fetchEvidence({ limit: 500 }).catch(() => {});
+    fetchCabang();
+    const range = currentMonthRange();
+    fetchEvidence({ tanggalFrom: range.from, tanggalTo: range.to, limit: 2000 }).catch(() => {});
     return () => {
       mounted = false;
     };
-  }, [fetchEvidence]);
+  }, [fetchCabang, fetchEvidence]);
 
   const liveEmployeeRaports = useMemo(() => {
     const summaries = buildPicEmployeeSummaries(evidence);
-    if (summaries.length === 0) return employeeRaports;
+    if (summaries.length === 0) return [];
     return summaries.map((employee) => {
       const totalEvidence = employee.pendingEvidence + employee.approvedEvidence + employee.rejectedEvidence;
       const decidedEvidence = employee.approvedEvidence + employee.rejectedEvidence;
@@ -161,12 +171,12 @@ const OwnerDashboard: React.FC = () => {
     () =>
       evidence.length > 0 && liveEmployeeRaports.length > 0
         ? Math.round(liveEmployeeRaports.reduce((sum, employee) => sum + employee.persentase, 0) / liveEmployeeRaports.length)
-        : overallRaportPersentase,
+        : 0,
     [evidence.length, liveEmployeeRaports]
   );
 
   const liveCabangSummary = useMemo(() => {
-    if (evidence.length === 0) return cabangRaportSummary;
+    if (evidence.length === 0) return [];
     const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
     liveEmployeeRaports.forEach((employee) => {
       const current = grouped.get(employee.cabang) || { totalKaryawan: 0, totalPersentase: 0 };
@@ -182,7 +192,7 @@ const OwnerDashboard: React.FC = () => {
   }, [evidence.length, liveEmployeeRaports]);
 
   const livePosisiSummary = useMemo(() => {
-    if (evidence.length === 0) return posisiRaportSummary;
+    if (evidence.length === 0) return [];
     const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
     liveEmployeeRaports.forEach((employee) => {
       const current = grouped.get(employee.posisi) || { totalKaryawan: 0, totalPersentase: 0 };
@@ -211,7 +221,8 @@ const OwnerDashboard: React.FC = () => {
     const totalJobdesk = liveEmployeeRaports.reduce((sum, employee) => sum + employee.totalJobdesk, 0);
     const weakBranches = [...liveCabangSummary]
       .sort((a, b) => a.rataPersentase - b.rataPersentase)
-      .slice(0, 4);
+      .slice(0, 4)
+      .map((branch) => ({ ...branch, cabangLabel: getBranchDisplay(branch.cabang).filterLabel }));
     const weakDivisions = [...livePosisiSummary]
       .filter((item) => item.totalKaryawan > 0)
       .sort((a, b) => a.rataPersentase - b.rataPersentase)
@@ -231,7 +242,7 @@ const OwnerDashboard: React.FC = () => {
       weakBranches,
       weakDivisions,
     };
-  }, [liveCabangSummary, liveEmployeeRaports, livePosisiSummary]);
+  }, [cabangLookup, liveCabangSummary, liveEmployeeRaports, livePosisiSummary]);
 
   const prospek: KpiCardData = {
     label: 'Prospek Masuk',
@@ -439,7 +450,7 @@ const OwnerDashboard: React.FC = () => {
               <div className="space-y-2">
                 {summary.weakBranches.map((branch) => (
                   <Link key={branch.cabang} to="/dashboard/owner/raport" className="flex items-center justify-between rounded-lg bg-surface-high/60 px-3 py-2.5 transition hover:bg-surface-high">
-                    <span className="text-body-sm font-semibold text-on-surface">{branch.cabang}</span>
+                    <span className="text-body-sm font-semibold text-on-surface">{branch.cabangLabel}</span>
                     <span className="text-label-sm font-bold text-error">{branch.rataPersentase}%</span>
                   </Link>
                 ))}

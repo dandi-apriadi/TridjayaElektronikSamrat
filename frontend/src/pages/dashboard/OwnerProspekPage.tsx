@@ -3,13 +3,17 @@ import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Users, Target, BarChart3, Trophy, Search, SlidersHorizontal, X } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
+import { useCabangStore } from '../../store/useCabangStore';
 import { apiFetch } from '../../utils/apiClient';
+import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
+import { normalizeTargetKategori } from '../../utils/roles';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
 const itemVariants = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 110, damping: 18 } } };
 
 type EmployeeProspekRow = {
   rank: number;
+  employeeId: string;
   nama: string;
   cabang: string;
   kategori: 'Sales' | 'Non-Sales';
@@ -27,6 +31,7 @@ type ProspekActivityRow = {
   karyawanId: string;
   karyawanName: string;
   divisi: string;
+  targetKategori?: string;
   statusProspek: string;
   tanggal: string;
   createdAt: string;
@@ -47,12 +52,16 @@ const OwnerProspekPage: React.FC = () => {
   const [backendEmployeeProspek, setBackendEmployeeProspek] = useState<EmployeeProspekRow[]>([]);
   const [prospekActivity, setProspekActivity] = useState<ProspekActivityRow[]>([]);
   const [isLoadingProspek, setIsLoadingProspek] = useState(false);
+  const cabangList = useCabangStore((state) => state.cabang);
+  const fetchCabang = useCabangStore((state) => state.fetchCabang);
   const employeeItemsPerPage = 12;
   const activeDate = selectedDate || todayDateKey();
   const employeeRows = backendEmployeeProspek;
+  const cabangLookup = useMemo(() => createCabangLookup(cabangList), [cabangList]);
+  const getBranchDisplay = (value: string) => getCabangDisplay(value, cabangLookup);
   const employeeBranchOptions = useMemo(
-    () => ['Semua', ...Array.from(new Set(employeeRows.map((row) => row.cabang))).sort((a, b) => a.localeCompare(b, 'id'))],
-    [employeeRows]
+    () => ['Semua', ...Array.from(new Set(employeeRows.map((row) => row.cabang))).sort((a, b) => getBranchDisplay(a).label.localeCompare(getBranchDisplay(b).label, 'id'))],
+    [cabangLookup, employeeRows]
   );
   const employeePositionOptions = useMemo(
     () => ['Semua', ...Array.from(new Set(employeeRows.map((row) => row.posisi))).sort((a, b) => a.localeCompare(b, 'id'))],
@@ -76,6 +85,7 @@ const OwnerProspekPage: React.FC = () => {
   }, [employeeRows]);
 
   const getActivityCategory = (row: ProspekActivityRow): EmployeeProspekRow['kategori'] => {
+    if (row.targetKategori) return normalizeTargetKategori(row.targetKategori) === 'sales' ? 'Sales' : 'Non-Sales';
     const fromEmployee = categoryByEmployee.get(row.karyawanName.toLowerCase());
     if (fromEmployee) return fromEmployee;
     return row.divisi.toLowerCase().includes('sales') ? 'Sales' : 'Non-Sales';
@@ -85,9 +95,10 @@ const OwnerProspekPage: React.FC = () => {
 
     return employeeRows
       .filter((row) => {
+        const branchDisplay = getBranchDisplay(row.cabang);
         const matchesSearch =
           searchValue.length === 0 ||
-          `${row.nama} ${row.cabang} ${row.kategori} ${row.posisi}`.toLowerCase().includes(searchValue);
+          `${row.nama} ${row.cabang} ${branchDisplay.searchText} ${row.kategori} ${row.posisi}`.toLowerCase().includes(searchValue);
         const matchesBranch = employeeBranchFilter === 'Semua' || row.cabang === employeeBranchFilter;
         const matchesCategory = employeeCategoryFilter === 'Semua' || row.kategori === employeeCategoryFilter;
         const matchesPosition = employeePositionFilter === 'Semua' || row.posisi === employeePositionFilter;
@@ -99,7 +110,7 @@ const OwnerProspekPage: React.FC = () => {
       })
       .sort((a, b) => {
         if (employeeSort === 'nama') return a.nama.localeCompare(b.nama, 'id');
-        if (employeeSort === 'cabang') return a.cabang.localeCompare(b.cabang, 'id') || a.rank - b.rank;
+        if (employeeSort === 'cabang') return getBranchDisplay(a.cabang).label.localeCompare(getBranchDisplay(b.cabang).label, 'id') || a.rank - b.rank;
         if (employeeSort === 'prospek_desc') return b.prospekHariIni - a.prospekHariIni || a.rank - b.rank;
         if (employeeSort === 'prospek_asc') return a.prospekHariIni - b.prospekHariIni || a.rank - b.rank;
         if (employeeSort === 'persentase_desc') return b.persentase - a.persentase || a.rank - b.rank;
@@ -114,6 +125,7 @@ const OwnerProspekPage: React.FC = () => {
     employeeRows,
     employeeSearch,
     employeeSort,
+    cabangLookup,
   ]);
   const employeeTotalPages = Math.max(1, Math.ceil(filteredEmployeeProspek.length / employeeItemsPerPage));
   const employeePageStart = (employeePage - 1) * employeeItemsPerPage;
@@ -141,6 +153,10 @@ const OwnerProspekPage: React.FC = () => {
   ]);
 
   useEffect(() => {
+    fetchCabang();
+  }, [fetchCabang]);
+
+  useEffect(() => {
     let mounted = true;
     const loadProspek = async () => {
       setIsLoadingProspek(true);
@@ -158,8 +174,9 @@ const OwnerProspekPage: React.FC = () => {
         const summaryPayload = await summaryResponse.json();
         setBackendEmployeeProspek((summaryPayload.data?.items || []).map((item: any) => ({
           rank: Number(item.rank || 0),
+          employeeId: String(item.employeeId || item.employee_id || ''),
           nama: String(item.nama || ''),
-          cabang: String(item.cabang || 'Manado'),
+          cabang: String(item.cabang || 'Cabang belum diatur'),
           kategori: item.kategori === 'Sales' ? 'Sales' : 'Non-Sales',
           posisi: String(item.posisi || 'Karyawan'),
           prospekHariIni: Number(item.prospekHariIni || item.prospek_hari_ini || 0),
@@ -177,6 +194,7 @@ const OwnerProspekPage: React.FC = () => {
           karyawanId: String(item.karyawanId || item.karyawan_id || ''),
           karyawanName: String(item.karyawanName || item.karyawan_name || ''),
           divisi: String(item.divisi || ''),
+          targetKategori: String(item.targetKategori || item.target_kategori || ''),
           statusProspek: String(item.statusProspek || item.status_prospek || ''),
           tanggal: String(item.tanggal || ''),
           createdAt: String(item.createdAt || item.created_at || ''),
@@ -445,8 +463,10 @@ const OwnerProspekPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {topSalesRows.map((row) => (
-                  <tr key={row.rank} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+              {topSalesRows.map((row) => {
+                const branch = getBranchDisplay(row.cabang);
+                return (
+                  <tr key={`${row.employeeId || row.nama}-sales`} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1">
                         {row.rank <= 3 && <Trophy className={`w-3.5 h-3.5 ${row.rank === 1 ? 'text-yellow-400' : row.rank === 2 ? 'text-gray-300' : 'text-amber-600'}`} />}
@@ -454,7 +474,10 @@ const OwnerProspekPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="py-2.5 px-3 text-body-sm font-medium text-on-surface">{row.nama}</td>
-                    <td className="py-2.5 px-3 text-body-sm text-on-surface-variant">{row.cabang}</td>
+                    <td className="py-2.5 px-3">
+                      <div className="text-body-sm font-semibold text-on-surface">{branch.label}</div>
+                      <div className="text-label-xs text-on-surface-variant">{branch.detail}</div>
+                    </td>
                     <td className="py-2.5 px-3 text-body-sm text-on-surface text-right font-semibold">{row.prospekHariIni}</td>
                     <td className="py-2.5 px-3 text-right">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-label-xs font-bold ${row.persentase >= 100 ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
@@ -462,7 +485,8 @@ const OwnerProspekPage: React.FC = () => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>
@@ -484,14 +508,17 @@ const OwnerProspekPage: React.FC = () => {
                 <tr className="border-b border-white/10">
                   <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3 w-12">#</th>
                   <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Nama</th>
+                  <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Cabang</th>
                   <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Posisi</th>
                   <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Prospek</th>
                   <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">%</th>
                 </tr>
               </thead>
               <tbody>
-                {topNonSalesRows.map((row) => (
-                  <tr key={row.rank} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                {topNonSalesRows.map((row) => {
+                  const branch = getBranchDisplay(row.cabang);
+                  return (
+                  <tr key={`${row.employeeId || row.nama}-non-sales`} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1">
                         {row.rank <= 3 && <Trophy className={`w-3.5 h-3.5 ${row.rank === 1 ? 'text-yellow-400' : row.rank === 2 ? 'text-gray-300' : 'text-amber-600'}`} />}
@@ -499,6 +526,10 @@ const OwnerProspekPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="py-2.5 px-3 text-body-sm font-medium text-on-surface">{row.nama}</td>
+                    <td className="py-2.5 px-3">
+                      <div className="text-body-sm font-semibold text-on-surface">{branch.label}</div>
+                      <div className="text-label-xs text-on-surface-variant">{branch.detail}</div>
+                    </td>
                     <td className="py-2.5 px-3 text-body-sm text-on-surface-variant">{row.posisi}</td>
                     <td className="py-2.5 px-3 text-body-sm text-on-surface text-right font-semibold">{row.prospekHariIni}</td>
                     <td className="py-2.5 px-3 text-right">
@@ -507,7 +538,8 @@ const OwnerProspekPage: React.FC = () => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -549,7 +581,7 @@ const OwnerProspekPage: React.FC = () => {
               className="h-10 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
             >
               {employeeBranchOptions.map((branch) => (
-                <option key={branch} value={branch}>Cabang: {branch}</option>
+                <option key={branch} value={branch}>Cabang: {branch === 'Semua' ? 'Semua' : getBranchDisplay(branch).filterLabel}</option>
               ))}
             </select>
             <select
@@ -618,11 +650,16 @@ const OwnerProspekPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {paginatedEmployeeProspek.map((row) => (
-                <tr key={`${row.kategori}-${row.nama}`} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+              {paginatedEmployeeProspek.map((row) => {
+                const branch = getBranchDisplay(row.cabang);
+                return (
+                <tr key={`${row.employeeId || row.nama}-${row.kategori}`} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                   <td className="py-2.5 px-3 text-body-sm font-bold text-on-surface">{row.rank}</td>
                   <td className="py-2.5 px-3 text-body-sm font-medium text-on-surface">{row.nama}</td>
-                  <td className="py-2.5 px-3 text-body-sm text-on-surface-variant">{row.cabang}</td>
+                  <td className="py-2.5 px-3">
+                    <div className="text-body-sm font-semibold text-on-surface">{branch.label}</div>
+                    <div className="text-label-xs text-on-surface-variant">{branch.detail}</div>
+                  </td>
                   <td className="py-2.5 px-3">
                     <span className={`inline-flex rounded-md px-2 py-1 text-label-xs font-bold ${row.kategori === 'Sales' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>
                       {row.kategori}
@@ -637,7 +674,8 @@ const OwnerProspekPage: React.FC = () => {
                     </span>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -102,15 +102,17 @@ mod placeholder_tests {
         };
         setup_preservation_tables(&pool).await;
 
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("s1")
-            .bind("Alice")
-            .bind("alice@test.com")
-            .bind(10)
-            .bind(100.50)
-            .execute(&pool)
-            .await
-            .expect("String placeholder insert failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("s1")
+        .bind("Alice")
+        .bind("alice@test.com")
+        .bind(10)
+        .bind(100.50)
+        .execute(&pool)
+        .await
+        .expect("String placeholder insert failed");
 
         let row: (String,) = sqlx::query_as("SELECT name FROM _pres_parent WHERE id = ?")
             .bind("s1")
@@ -128,15 +130,17 @@ mod placeholder_tests {
         };
         setup_preservation_tables(&pool).await;
 
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("i1")
-            .bind("Bob")
-            .bind("bob@test.com")
-            .bind(42i64)
-            .bind(0.0)
-            .execute(&pool)
-            .await
-            .expect("i64 placeholder insert failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("i1")
+        .bind("Bob")
+        .bind("bob@test.com")
+        .bind(42i64)
+        .bind(0.0)
+        .execute(&pool)
+        .await
+        .expect("i64 placeholder insert failed");
 
         let row: (i64,) = sqlx::query_as("SELECT score FROM _pres_parent WHERE id = ?")
             .bind("i1")
@@ -313,15 +317,17 @@ mod pagination_tests {
 
         // Insert 10 rows
         for i in 0..10 {
-            sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-                .bind(format!("pg{:02}", i))
-                .bind(format!("User{}", i))
-                .bind(format!("user{}@test.com", i))
-                .bind(i as i64)
-                .bind(0.0)
-                .execute(&pool)
-                .await
-                .expect("Pagination insert failed");
+            sqlx::query(
+                "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+            )
+            .bind(format!("pg{:02}", i))
+            .bind(format!("User{}", i))
+            .bind(format!("user{}@test.com", i))
+            .bind(i as i64)
+            .bind(0.0)
+            .execute(&pool)
+            .await
+            .expect("Pagination insert failed");
         }
 
         // Page 1: LIMIT 3 OFFSET 0
@@ -414,9 +420,9 @@ mod aggregate_tests {
         // SUM of scores: 10 + 20 + 30 + 40 + 50 = 150
         let row: (i64,) =
             sqlx::query_as("SELECT CAST(COALESCE(SUM(score), 0) AS SIGNED) FROM _pres_parent")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(row.0, 150);
     }
 
@@ -432,9 +438,9 @@ mod aggregate_tests {
         // AVG of scores: 150 / 5 = 30.0
         let row: (f64,) =
             sqlx::query_as("SELECT CAST(COALESCE(AVG(score), 0) AS DOUBLE) FROM _pres_parent")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert!((row.0 - 30.0).abs() < 0.01);
     }
 
@@ -448,12 +454,11 @@ mod aggregate_tests {
         seed_aggregate_data(&pool).await;
 
         // COALESCE on nullable notes column
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT COALESCE(notes, 'default') FROM _pres_parent ORDER BY id",
-        )
-        .fetch_all(&pool)
-        .await
-        .unwrap();
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT COALESCE(notes, 'default') FROM _pres_parent ORDER BY id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
 
         // agg0 has notes, agg1 null, agg2 has notes, agg3 null, agg4 has notes
         assert_eq!(rows[0].0, "noted");
@@ -483,15 +488,17 @@ mod transaction_tests {
 
         let mut tx = pool.begin().await.expect("begin() failed");
 
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("tx1")
-            .bind("TxUser")
-            .bind("tx@test.com")
-            .bind(77)
-            .bind(0.0)
-            .execute(&mut *tx)
-            .await
-            .expect("Insert in tx failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("tx1")
+        .bind("TxUser")
+        .bind("tx@test.com")
+        .bind(77)
+        .bind(0.0)
+        .execute(&mut *tx)
+        .await
+        .expect("Insert in tx failed");
 
         tx.commit().await.expect("commit() failed");
 
@@ -513,38 +520,41 @@ mod transaction_tests {
         setup_preservation_tables(&pool).await;
 
         // Insert a row first (outside transaction)
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("txr_base")
-            .bind("Base")
-            .bind("base@test.com")
-            .bind(0)
-            .bind(0.0)
-            .execute(&pool)
-            .await
-            .expect("Base insert failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("txr_base")
+        .bind("Base")
+        .bind("base@test.com")
+        .bind(0)
+        .bind(0.0)
+        .execute(&pool)
+        .await
+        .expect("Base insert failed");
 
         // Start transaction, insert, then rollback
         let mut tx = pool.begin().await.expect("begin() failed");
 
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("txr_rolled")
-            .bind("RolledBack")
-            .bind("rolled@test.com")
-            .bind(0)
-            .bind(0.0)
-            .execute(&mut *tx)
-            .await
-            .expect("Insert in tx failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("txr_rolled")
+        .bind("RolledBack")
+        .bind("rolled@test.com")
+        .bind(0)
+        .bind(0.0)
+        .execute(&mut *tx)
+        .await
+        .expect("Insert in tx failed");
 
         tx.rollback().await.expect("rollback() failed");
 
         // Verify rolled-back row does NOT exist
-        let rows: Vec<(String,)> =
-            sqlx::query_as("SELECT id FROM _pres_parent WHERE id = ?")
-                .bind("txr_rolled")
-                .fetch_all(&pool)
-                .await
-                .unwrap();
+        let rows: Vec<(String,)> = sqlx::query_as("SELECT id FROM _pres_parent WHERE id = ?")
+            .bind("txr_rolled")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
         assert!(rows.is_empty(), "Rolled-back row should not exist");
 
         // Verify base row still exists
@@ -568,15 +578,17 @@ mod transaction_tests {
 
         // Multiple inserts in one transaction
         for i in 0..3 {
-            sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-                .bind(format!("txm{}", i))
-                .bind(format!("Multi{}", i))
-                .bind(format!("multi{}@test.com", i))
-                .bind(i as i64 * 10)
-                .bind(0.0)
-                .execute(&mut *tx)
-                .await
-                .expect("Multi insert in tx failed");
+            sqlx::query(
+                "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+            )
+            .bind(format!("txm{}", i))
+            .bind(format!("Multi{}", i))
+            .bind(format!("multi{}@test.com", i))
+            .bind(i as i64 * 10)
+            .bind(0.0)
+            .execute(&mut *tx)
+            .await
+            .expect("Multi insert in tx failed");
         }
 
         // Update within same transaction
@@ -597,12 +609,11 @@ mod transaction_tests {
             .unwrap();
         assert_eq!(row.0, 999);
 
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM _pres_parent WHERE id LIKE 'txm%'",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM _pres_parent WHERE id LIKE 'txm%'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(count.0, 3);
     }
 }
@@ -625,15 +636,17 @@ mod cascade_tests {
         setup_preservation_tables(&pool).await;
 
         // Insert parent
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("cas_p1")
-            .bind("Parent1")
-            .bind("parent1@test.com")
-            .bind(0)
-            .bind(0.0)
-            .execute(&pool)
-            .await
-            .expect("Parent insert failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("cas_p1")
+        .bind("Parent1")
+        .bind("parent1@test.com")
+        .bind(0)
+        .bind(0.0)
+        .execute(&pool)
+        .await
+        .expect("Parent insert failed");
 
         // Insert children
         for i in 0..3 {
@@ -647,13 +660,11 @@ mod cascade_tests {
         }
 
         // Verify children exist
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM _pres_child WHERE parent_id = ?",
-        )
-        .bind("cas_p1")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM _pres_child WHERE parent_id = ?")
+            .bind("cas_p1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(count.0, 3);
 
         // Delete parent - children should cascade
@@ -664,13 +675,11 @@ mod cascade_tests {
             .expect("Parent delete failed");
 
         // Verify children are gone (CASCADE)
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM _pres_child WHERE parent_id = ?",
-        )
-        .bind("cas_p1")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM _pres_child WHERE parent_id = ?")
+            .bind("cas_p1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(count.0, 0);
     }
 }
@@ -693,25 +702,29 @@ mod unique_constraint_tests {
         setup_preservation_tables(&pool).await;
 
         // Insert first row
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("uniq1")
-            .bind("First")
-            .bind("unique@test.com")
-            .bind(0)
-            .bind(0.0)
-            .execute(&pool)
-            .await
-            .expect("First unique insert failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("uniq1")
+        .bind("First")
+        .bind("unique@test.com")
+        .bind(0)
+        .bind(0.0)
+        .execute(&pool)
+        .await
+        .expect("First unique insert failed");
 
         // Attempt duplicate email (UNIQUE constraint)
-        let result = sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("uniq2")
-            .bind("Second")
-            .bind("unique@test.com")
-            .bind(0)
-            .bind(0.0)
-            .execute(&pool)
-            .await;
+        let result = sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("uniq2")
+        .bind("Second")
+        .bind("unique@test.com")
+        .bind(0)
+        .bind(0.0)
+        .execute(&pool)
+        .await;
 
         assert!(
             result.is_err(),
@@ -737,30 +750,30 @@ mod lower_tests {
         };
         setup_preservation_tables(&pool).await;
 
-        sqlx::query("INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)")
-            .bind("low1")
-            .bind("MiXeD CaSe")
-            .bind("mixed@test.com")
-            .bind(0)
-            .bind(0.0)
-            .execute(&pool)
-            .await
-            .expect("Insert for LOWER test failed");
+        sqlx::query(
+            "INSERT INTO _pres_parent (id, name, email, score, amount) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("low1")
+        .bind("MiXeD CaSe")
+        .bind("mixed@test.com")
+        .bind(0)
+        .bind(0.0)
+        .execute(&pool)
+        .await
+        .expect("Insert for LOWER test failed");
 
         // LOWER(column) comparison
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT name FROM _pres_parent WHERE LOWER(name) = LOWER(?)",
-        )
-        .bind("MIXED CASE")
-        .fetch_all(&pool)
-        .await
-        .unwrap();
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM _pres_parent WHERE LOWER(name) = LOWER(?)")
+                .bind("MIXED CASE")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].0, "MiXeD CaSe");
     }
 }
-
 
 // ============================================================================
 // Property-Based Tests using proptest
@@ -775,7 +788,8 @@ mod proptest_preservation {
 
     // Strategy: generate valid string values for placeholder tests
     fn valid_string_strategy() -> impl Strategy<Value = String> {
-        "[a-zA-Z0-9_ ]{1,50}".prop_map(|s| s.trim().to_string())
+        "[a-zA-Z0-9_ ]{1,50}"
+            .prop_map(|s| s.trim().to_string())
             .prop_filter("non-empty", |s| !s.is_empty())
     }
 

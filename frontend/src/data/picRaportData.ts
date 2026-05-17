@@ -222,7 +222,7 @@ export const buildPicEmployeeSummaries = (evidence: PicRaportEvidence[]): PicEmp
         id: employeeId,
         nama: firstEvidence?.employeeName || 'Karyawan',
         posisi: firstEvidence?.divisiName || firstEvidence?.divisiId || 'Umum',
-        cabang: firstEvidence?.cabang || 'Manado',
+        cabang: firstEvidence?.cabang || 'Cabang belum diatur',
         selesai: reviewed,
         totalJobdesk: total,
         persentase: Math.round((reviewed / total) * 100),
@@ -231,12 +231,18 @@ export const buildPicEmployeeSummaries = (evidence: PicRaportEvidence[]): PicEmp
 
   return [...knownEmployees, ...discoveredEmployees].map((employee) => {
     const stats = statsByEmployee.get(employee.id);
+    const totalEvidence = (stats?.pendingEvidence || 0) + (stats?.rejectedEvidence || 0) + (stats?.approvedEvidence || 0);
+    const reviewedEvidence = (stats?.rejectedEvidence || 0) + (stats?.approvedEvidence || 0);
     return {
       ...employee,
       pendingEvidence: stats?.pendingEvidence || 0,
       rejectedEvidence: stats?.rejectedEvidence || 0,
       approvedEvidence: stats?.approvedEvidence || 0,
-      averageScore: stats?.scoreCount ? Math.round(stats.scoreSum / stats.scoreCount) : Math.round(employee.persentase * 0.9),
+      averageScore: stats?.scoreCount
+        ? Math.round(stats.scoreSum / stats.scoreCount)
+        : totalEvidence
+          ? Math.round((reviewedEvidence / totalEvidence) * 100)
+          : 0,
       lastUploadAt: stats?.lastUploadAt,
     };
   });

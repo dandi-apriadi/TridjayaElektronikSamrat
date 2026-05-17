@@ -69,6 +69,13 @@ pub enum AppError {
     Validation { errors: Vec<String> },
     #[error("unauthorized")]
     Unauthorized,
+    /// Generic invalid-credentials error. Replaces the separate
+    /// `LoginEmailNotFound` / `LoginInvalidPassword` variants to prevent user
+    /// enumeration via differing response bodies. The legacy variants are
+    /// retained as aliases for any callers still emitting them — they map to
+    /// the same response.
+    #[error("login invalid credentials")]
+    LoginInvalidCredentials,
     #[error("login email not found")]
     LoginEmailNotFound,
     #[error("login invalid password")]
@@ -112,6 +119,9 @@ impl AppError {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::LoginInvalidCredentials => StatusCode::UNAUTHORIZED,
+            // Legacy variants — keep returning 401 (same as generic credentials
+            // error) instead of leaking enumeration info via different statuses.
             Self::LoginEmailNotFound => StatusCode::UNAUTHORIZED,
             Self::LoginInvalidPassword => StatusCode::UNAUTHORIZED,
             Self::LoginAccountInactive => StatusCode::FORBIDDEN,
@@ -131,11 +141,12 @@ impl AppError {
             Self::BadRequest(msg) => msg.clone(),
             Self::Database(msg) => format!("Database error: {}", msg),
             Self::Unauthorized => "Authentication required".to_string(),
-            Self::LoginEmailNotFound => {
-                "Email tidak terdaftar. Periksa kembali email atau hubungi admin.".to_string()
-            }
-            Self::LoginInvalidPassword => {
-                "Password salah. Periksa kembali password Anda.".to_string()
+            Self::LoginInvalidCredentials
+            | Self::LoginEmailNotFound
+            | Self::LoginInvalidPassword => {
+                // Generic message that does not reveal whether the email or the
+                // password was wrong — prevents user enumeration.
+                "Email atau password salah".to_string()
             }
             Self::LoginAccountInactive => {
                 "Akun tidak aktif. Hubungi admin untuk mengaktifkan akses.".to_string()
@@ -161,12 +172,12 @@ impl IntoResponse for AppError {
             Self::EmailUnverified => {
                 Some("Email belum terverifikasi. Silakan cek inbox Anda.".to_string())
             }
-            Self::LoginEmailNotFound => {
-                Some("Tidak ada akun internal yang memakai email tersebut.".to_string())
-            }
-            Self::LoginInvalidPassword => {
-                Some("Email ditemukan, tetapi password yang dimasukkan tidak cocok.".to_string())
-            }
+            // Quick Win #2 — do NOT differentiate detail strings for
+            // LoginEmailNotFound vs LoginInvalidPassword vs LoginInvalidCredentials.
+            // All three return the same generic message so an attacker cannot
+            // distinguish whether the email exists. LoginAccountInactive is
+            // only emitted after the password has been validated, so it is safe
+            // to keep a specific detail.
             Self::LoginAccountInactive => {
                 Some("Akun ini sedang dinonaktifkan atau belum diizinkan login.".to_string())
             }

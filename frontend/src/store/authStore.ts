@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type UserRole = 'admin' | 'operator' | 'sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan';
+export type UserRole = 'admin' | 'operator' | 'admin-sales' | 'sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan';
 
 interface User {
   id: string;
@@ -9,6 +9,10 @@ interface User {
   role: UserRole;
   jabatan?: string;
   divisi?: string;
+  cabangId?: string;
+  cabang_id?: string;
+  cabangName?: string;
+  cabang_name?: string;
   avatar?: string;
   bank_account?: string;
   whatsapp?: string;

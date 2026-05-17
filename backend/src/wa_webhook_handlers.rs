@@ -116,38 +116,62 @@ fn generate_secret_key() -> String {
     base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes)
 }
 
-/// Validate webhook URL format
-fn validate_webhook_url(url: &str) -> Result<(), AppError> {
-    let url_trimmed = url.trim();
-
-    if url_trimmed.is_empty() {
+/// Validate webhook URL format **and** resolve it through the SSRF guard so a
+/// compromised operator cannot register a webhook pointing at internal
+/// services or cloud metadata endpoints.
+async fn validate_webhook_url(url: &str) -> Result<(), AppError> {
+    if url.trim().is_empty() {
         return Err(AppError::Validation {
             errors: vec!["Webhook URL tidak boleh kosong".to_string()],
         });
     }
 
-    // Parse URL to validate format
-    match reqwest::Url::parse(url_trimmed) {
-        Ok(parsed) => {
-            // Only allow HTTP and HTTPS schemes
-            if parsed.scheme() != "http" && parsed.scheme() != "https" {
-                return Err(AppError::Validation {
-                    errors: vec![
+    crate::url_safety::ensure_safe_external_url(url)
+        .await
+        .map_err(|err| {
+            tracing::warn!(url = url, error = %err, "Webhook URL rejected by SSRF guard");
+            AppError::Validation {
+                errors: vec![match err {
+                    crate::url_safety::UrlSafetyError::BadScheme => {
                         "Webhook URL harus menggunakan protokol HTTP atau HTTPS".to_string()
-                    ],
-                });
+                    }
+                    crate::url_safety::UrlSafetyError::BlockedHost(_) => {
+                        "Webhook URL menunjuk ke alamat internal/private dan tidak diizinkan"
+                            .to_string()
+                    }
+                    crate::url_safety::UrlSafetyError::Empty => {
+                        "Webhook URL tidak boleh kosong".to_string()
+                    }
+                    crate::url_safety::UrlSafetyError::Parse(_) => {
+                        "Format webhook URL tidak valid".to_string()
+                    }
+                    crate::url_safety::UrlSafetyError::DnsResolution(_, _)
+                    | crate::url_safety::UrlSafetyError::NoUsableAddress(_) => {
+                        "Webhook URL tidak dapat di-resolve melalui DNS".to_string()
+                    }
+                    crate::url_safety::UrlSafetyError::MissingHost => {
+                        "Webhook URL harus memiliki host yang valid".to_string()
+                    }
+                }],
             }
-            Ok(())
-        }
-        Err(_) => Err(AppError::Validation {
-            errors: vec!["Format webhook URL tidak valid".to_string()],
-        }),
-    }
+        })?;
+
+    Ok(())
 }
 
-/// Test webhook URL accessibility with a test HTTP request
+/// Test webhook URL accessibility with a test HTTP request. The URL is first
+/// re-validated through the SSRF guard before a request is issued so that even
+/// in the unlikely case the caller bypassed [`validate_webhook_url`] we cannot
+/// hit an internal host.
 async fn test_webhook_url(url: &str) -> Result<(), AppError> {
+    // Re-validate to defend in depth.
+    validate_webhook_url(url).await?;
+
     let client = reqwest::Client::builder()
+        // Disallow redirects so attackers cannot bypass the SSRF check via a
+        // 302 from a public host to a private one.
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(std::time::Duration::from_secs(3))
         .timeout(std::time::Duration::from_secs(5))
         .build()
         .map_err(|e| {
@@ -279,8 +303,8 @@ pub async fn create_webhook(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     ensure_account_access(&state, &user, &payload.account_id).await?;
 
-    // Validate webhook URL
-    validate_webhook_url(&payload.webhook_url)?;
+    // Validate webhook URL (includes SSRF guard).
+    validate_webhook_url(&payload.webhook_url).await?;
 
     // Validate retry config if provided
     if let Some(ref retry_config) = payload.retry_config {
@@ -542,9 +566,9 @@ pub async fn update_webhook(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Operator]).await?;
     ensure_webhook_access(&state, &user, &id).await?;
 
-    // Validate webhook URL if provided
+    // Validate webhook URL if provided (includes SSRF guard).
     if let Some(ref webhook_url) = payload.webhook_url {
-        validate_webhook_url(webhook_url)?;
+        validate_webhook_url(webhook_url).await?;
         test_webhook_url(webhook_url).await?;
     }
 

@@ -131,7 +131,11 @@ impl MediaHandler {
     /// Create a new MediaHandler
     pub fn new(redis: redis::aio::ConnectionManager) -> Self {
         let http_client = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            // Disable redirects so an attacker cannot bypass the SSRF guard by
+            // making a public host respond with a redirect to an internal one.
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("Failed to create HTTP client");
 
@@ -198,6 +202,10 @@ impl MediaHandler {
     /// Download media from URL with optional authentication headers
     ///
     /// **Validates: Requirements 7.3, 7.8**
+    ///
+    /// Routes the URL through the SSRF guard ([`crate::url_safety::ensure_safe_external_url`])
+    /// so that a malicious or compromised user cannot coerce the backend into
+    /// fetching internal services or cloud metadata endpoints.
     pub async fn download_media(
         &self,
         url: &str,
@@ -205,11 +213,12 @@ impl MediaHandler {
     ) -> Result<(Vec<u8>, String), MediaError> {
         debug!("Downloading media from URL: {}", url);
 
-        // Validate URL
-        if !url.starts_with("http://") && !url.starts_with("https://") {
+        // Validate URL + run SSRF guard.
+        if let Err(err) = crate::url_safety::ensure_safe_external_url(url).await {
+            warn!(url = url, error = %err, "Media URL rejected by SSRF guard");
             return Err(MediaError::InvalidUrl(format!(
-                "URL must start with http:// or https://: {}",
-                url
+                "URL ditolak (kemungkinan menunjuk ke alamat internal): {}",
+                err
             )));
         }
 

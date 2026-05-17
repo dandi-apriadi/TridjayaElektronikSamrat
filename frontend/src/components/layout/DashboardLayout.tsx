@@ -45,6 +45,7 @@ import { useUIPreferenceStore } from '../../store/useUIPreferenceStore';
 import { useDashboardNotificationsStore } from '../../store/useDashboardNotificationsStore';
 import { toast } from '../../store/useNotificationStore';
 import { canAccessDashboardPath, getDashboardHomeByRole } from '../../utils/dashboardAccess';
+import { isAdminSalesRole } from '../../utils/roles';
 import logoPng from '../../assets/images/logo.webp';
 
 const DashboardLayout: React.FC = () => {
@@ -62,6 +63,7 @@ const DashboardLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const previousUnreadRef = React.useRef<number | null>(null);
+  const isAdminSales = isAdminSalesRole(user?.role);
 
   // Detect mobile view for logic branching
   React.useEffect(() => {
@@ -338,7 +340,7 @@ const DashboardLayout: React.FC = () => {
     : user?.role === 'pic_raport' ? picRaportSections
     : user?.role === 'karyawan' ? karyawanSections
     : user?.role === 'operator' ? operatorSections
-    : user?.role === 'sales' ? salesSections
+    : isAdminSales ? salesSections
     : agentSections;
 
   const toggleSectionHandler = (title: string) => {
@@ -364,16 +366,16 @@ const DashboardLayout: React.FC = () => {
     : user?.role === 'karyawan'
     ? []
     : [
-        { label: 'Knowledge', icon: BookOpen, path: user?.role === 'sales' ? '/dashboard/sales/knowledge' : '/dashboard/agent/knowledge', color: 'text-primary' },
-        { label: 'Prospek', icon: TrendingUp, path: user?.role === 'sales' ? '/dashboard/sales/push-prospek' : '/dashboard/agent/push-prospek', color: 'text-secondary' },
-        ...(user?.role === 'sales' ? [{ label: 'WA Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns', color: 'text-tertiary' }] : []),
+        { label: 'Knowledge', icon: BookOpen, path: isAdminSales ? '/dashboard/sales/knowledge' : '/dashboard/agent/knowledge', color: 'text-primary' },
+        { label: 'Prospek', icon: TrendingUp, path: isAdminSales ? '/dashboard/sales/push-prospek' : '/dashboard/agent/push-prospek', color: 'text-secondary' },
+        ...(isAdminSales ? [{ label: 'WA Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns', color: 'text-tertiary' }] : []),
       ];
 
   const allNavItems = navSections.flatMap(s => s.items);
   const activeItem = allNavItems.find((item) => activeItemPath === item.path);
   const notificationsPath = (user?.role === 'admin' || user?.role === 'operator')
     ? '/dashboard/admin/notifications'
-    : user?.role === 'sales'
+    : isAdminSales
       ? '/dashboard/sales/notifications'
       : user?.role === 'pic_raport'
         ? '/dashboard/pic-raport'
@@ -381,7 +383,6 @@ const DashboardLayout: React.FC = () => {
           ? '/dashboard/karyawan'
       : '/dashboard/agent/notifications';
 
-  const avatarUrl = user?.avatar?.trim();
   const avatarInitial = (user?.name?.trim() || user?.email?.trim() || '?').charAt(0).toUpperCase();
 
   // Removed auto-expand effect to respect user's persistent choices
@@ -614,13 +615,9 @@ const DashboardLayout: React.FC = () => {
                 <div className="font-body text-label-sm text-primary uppercase tracking-widest">{user?.role}</div>
               </div>
               <div className="w-10 h-10 rounded-lg overflow-hidden border border-outline-variant/30 flex-shrink-0 bg-primary/10 text-primary">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={user?.name || 'User'} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-label-md font-black">
-                    {avatarInitial}
-                  </div>
-                )}
+                <div className="grid h-full w-full place-items-center text-label-md font-black">
+                  {avatarInitial}
+                </div>
               </div>
             </div>
           </div>

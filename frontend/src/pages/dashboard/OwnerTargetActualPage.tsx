@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Bar,
@@ -13,6 +13,8 @@ import {
 import { Building2, Layers3, Search, Target, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { calculateGapPercentage, formatRupiah } from '../../data/ownerDashboardData';
 import ComingSoonBadge from '../../components/dashboard/ComingSoonBadge';
+import { useCabangStore } from '../../store/useCabangStore';
+import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
 
 type Scope = 'all' | 'branch' | 'division' | 'employee';
 
@@ -69,6 +71,14 @@ function gap(actual: number, target: number) {
 const OwnerTargetActualPage: React.FC = () => {
   const [scope, setScope] = useState<Scope>('all');
   const [search, setSearch] = useState('');
+  const cabangList = useCabangStore((state) => state.cabang);
+  const fetchCabang = useCabangStore((state) => state.fetchCabang);
+  const cabangLookup = useMemo(() => createCabangLookup(cabangList), [cabangList]);
+  const getBranchDisplay = (value?: string) => getCabangDisplay(value, cabangLookup);
+
+  useEffect(() => {
+    fetchCabang();
+  }, [fetchCabang]);
 
   const allRow = useMemo<TargetActualRow>(() => {
     const branchRows = rows.filter((row) => row.scope === 'branch');
@@ -85,9 +95,9 @@ const OwnerTargetActualPage: React.FC = () => {
     const source = scope === 'all' ? [allRow] : rows.filter((row) => row.scope === scope);
     const query = search.trim().toLowerCase();
     return source
-      .filter((row) => query.length === 0 || `${row.name} ${row.branch ?? ''} ${row.division ?? ''}`.toLowerCase().includes(query))
+      .filter((row) => query.length === 0 || `${row.name} ${row.branch ?? ''} ${row.branch ? getBranchDisplay(row.branch).searchText : ''} ${row.division ?? ''}`.toLowerCase().includes(query))
       .sort((a, b) => pct(b.actual, b.target) - pct(a.actual, a.target));
-  }, [allRow, scope, search]);
+  }, [allRow, cabangLookup, scope, search]);
 
   const totalTarget = activeRows.reduce((sum, row) => sum + row.target, 0);
   const totalActual = activeRows.reduce((sum, row) => sum + row.actual, 0);
@@ -206,7 +216,11 @@ const OwnerTargetActualPage: React.FC = () => {
                   <tr key={row.id} className="border-b border-outline-variant/10 transition hover:bg-surface-high/30">
                     <td className="px-4 py-3">
                       <div className="text-body-sm font-bold text-on-surface">{row.name}</div>
-                      {(row.branch || row.division) && <div className="text-label-xs text-on-surface-variant">{[row.branch, row.division].filter(Boolean).join(' / ')}</div>}
+                      {(row.branch || row.division) && (
+                        <div className="text-label-xs text-on-surface-variant">
+                          {[row.branch ? getBranchDisplay(row.branch).filterLabel : '', row.division].filter(Boolean).join(' / ')}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-body-sm capitalize text-on-surface-variant">{scope === 'all' ? 'all cabang' : row.scope}</td>
                     <td className="px-4 py-3 text-right text-body-sm text-on-surface">{formatRupiah(row.target)}</td>

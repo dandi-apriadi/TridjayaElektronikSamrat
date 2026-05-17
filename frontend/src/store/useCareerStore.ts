@@ -35,6 +35,10 @@ export interface JobListing {
   applicantsCount?: number;
 }
 
+type JobApplicationPayload = Omit<JobApplication, 'id' | 'status' | 'appliedAt'> & {
+  captchaToken?: string;
+};
+
 interface CareerStore {
   jobs: JobListing[];
   applications: JobApplication[];
@@ -43,7 +47,7 @@ interface CareerStore {
   error: string | null;
   // Public
   fetchJobs: () => Promise<void>;
-  submitApplication: (data: Omit<JobApplication, 'id' | 'status' | 'appliedAt'>) => Promise<boolean>;
+  submitApplication: (data: JobApplicationPayload) => Promise<boolean>;
   // Admin
   fetchApplications: () => Promise<void>;
   createJob: (data: Omit<JobListing, 'id' | 'createdAt' | 'applicantsCount'>) => Promise<boolean>;

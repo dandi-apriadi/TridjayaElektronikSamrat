@@ -45,41 +45,56 @@ pub fn get_encryption_key() -> [u8; 32] {
 }
 
 /// Reads the `PIXEL_ENCRYPTION_KEY` environment variable (32-byte hex string)
-/// and returns the decoded key bytes. Falls back to a dev-only default key
-/// (32 zero bytes) if the variable is missing or invalid, logging a warning.
+/// and returns the decoded key bytes. Panics if the variable is missing or invalid
+/// **unless** `ALLOW_INSECURE_PIXEL_KEY=true` is set explicitly (intended for
+/// local tests only). Falling back silently to a zero-key in any other mode
+/// would silently downgrade encryption of PII fields, so we refuse to start.
 fn load_encryption_key_from_env() -> [u8; 32] {
+    let allow_insecure = std::env::var("ALLOW_INSECURE_PIXEL_KEY")
+        .map(|value| value.eq_ignore_ascii_case("true") || value == "1")
+        .unwrap_or(false);
+
+    let warn_or_panic = |msg: &str| -> [u8; 32] {
+        if allow_insecure {
+            tracing::warn!(
+                "{} — ALLOW_INSECURE_PIXEL_KEY=true, falling back to all-zero dev key. \
+                 DO NOT use this in production!",
+                msg
+            );
+            [0u8; 32]
+        } else {
+            tracing::error!(
+                "FATAL: {} Set PIXEL_ENCRYPTION_KEY to a 64-char hex string \
+                 (generate with `openssl rand -hex 32`). To temporarily allow the \
+                 all-zero dev key for local testing, set ALLOW_INSECURE_PIXEL_KEY=true.",
+                msg
+            );
+            panic!("PIXEL_ENCRYPTION_KEY is missing or invalid; refusing to start");
+        }
+    };
+
     match std::env::var("PIXEL_ENCRYPTION_KEY") {
         Ok(hex_str) => {
             let hex_str = hex_str.trim();
             if hex_str.len() != 64 {
-                tracing::warn!(
-                    "PIXEL_ENCRYPTION_KEY must be a 64-character hex string (32 bytes). \
-                     Falling back to dev-only default key — DO NOT use in production!"
+                return warn_or_panic(
+                    "PIXEL_ENCRYPTION_KEY must be a 64-character hex string (32 bytes).",
                 );
-                return [0u8; 32];
             }
             match decode_hex(hex_str) {
                 Some(bytes) if bytes.len() == 32 => {
+                    // Reject the all-zero key even if it was supplied verbatim.
+                    if bytes.iter().all(|byte| *byte == 0) {
+                        return warn_or_panic("PIXEL_ENCRYPTION_KEY is all zeros.");
+                    }
                     let mut key = [0u8; 32];
                     key.copy_from_slice(&bytes);
                     key
                 }
-                _ => {
-                    tracing::warn!(
-                        "PIXEL_ENCRYPTION_KEY is not valid hex. \
-                         Falling back to dev-only default key — DO NOT use in production!"
-                    );
-                    [0u8; 32]
-                }
+                _ => warn_or_panic("PIXEL_ENCRYPTION_KEY is not valid hex."),
             }
         }
-        Err(_) => {
-            tracing::warn!(
-                "PIXEL_ENCRYPTION_KEY is not set. \
-                 Falling back to dev-only default key — DO NOT use in production!"
-            );
-            [0u8; 32]
-        }
+        Err(_) => warn_or_panic("PIXEL_ENCRYPTION_KEY is not set."),
     }
 }
 

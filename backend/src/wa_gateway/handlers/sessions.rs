@@ -17,7 +17,7 @@ pub async fn list_sessions(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     let rows: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<String>, String)> =
@@ -97,7 +97,7 @@ pub async fn get_session_status(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_session_access(&state, &user, &id).await?;
@@ -169,7 +169,7 @@ pub async fn get_session_qr(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_session_access(&state, &user, &id).await?;
@@ -202,7 +202,7 @@ pub async fn connect_session(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_session_access(&state, &user, &id).await?;
@@ -333,7 +333,7 @@ pub async fn disconnect_session(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_session_access(&state, &user, &id).await?;

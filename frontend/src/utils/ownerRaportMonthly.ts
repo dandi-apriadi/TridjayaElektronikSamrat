@@ -21,6 +21,14 @@ export interface EmployeeMonthlyReport {
   history: EmployeeDailyReport[];
 }
 
+export type RaportTrendMode = 'hari' | 'minggu' | 'bulan';
+
+export interface RaportTrendPoint {
+  label: string;
+  raport: number;
+  selesai: number;
+}
+
 export const reportDateFormatter = new Intl.DateTimeFormat('id-ID', {
   weekday: 'long',
   day: '2-digit',
@@ -40,6 +48,102 @@ export const monthYearFormatter = new Intl.DateTimeFormat('id-ID', {
 
 function employeeSeed(employee: EmployeeRaport) {
   return employee.id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+}
+
+const toDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateKey = (value: string) => {
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const emptyMonthlyReport = (employee: Pick<EmployeeRaport, 'totalJobdesk'>): EmployeeMonthlyReport => {
+  const today = new Date();
+  const fallback = {
+    tanggal: today.toISOString(),
+    nilai: 0,
+    selesai: 0,
+    totalJobdesk: Math.max(employee.totalJobdesk || 0, 1),
+    bukti: 0,
+    terlambat: false,
+    catatan: 'Belum ada history pelaporan.',
+  };
+
+  return {
+    rataNilai: 0,
+    hariLapor: 0,
+    totalBukti: 0,
+    hariTerlambat: 0,
+    terbaik: fallback,
+    terendah: fallback,
+    history: [],
+  };
+};
+
+const summarizeEvidenceBucket = (items: PicRaportEvidence[]): Pick<RaportTrendPoint, 'raport' | 'selesai'> => {
+  if (items.length === 0) {
+    return { raport: 0, selesai: 0 };
+  }
+
+  const reviewedItems = items.filter((item) => item.reviewStatus !== 'pending');
+  const scoredItems = items.filter((item) => typeof item.score === 'number');
+  const raport = scoredItems.length
+    ? Math.round(scoredItems.reduce((sum, item) => sum + (item.score || 0), 0) / scoredItems.length)
+    : Math.round((reviewedItems.length / items.length) * 100);
+
+  return {
+    raport,
+    selesai: reviewedItems.length,
+  };
+};
+
+export function buildRaportTrendFromEvidence(
+  evidence: PicRaportEvidence[],
+  mode: RaportTrendMode,
+  selectedDateKey = toDateKey(new Date())
+): RaportTrendPoint[] {
+  const selectedDate = parseDateKey(selectedDateKey);
+
+  if (mode === 'hari') {
+    return Array.from({ length: 12 }, (_, index) => {
+      const hour = index + 8;
+      const label = `${String(hour).padStart(2, '0')}:00`;
+      const items = evidence.filter((item) => {
+        const submittedAt = new Date(item.submittedAt);
+        return item.tanggal === selectedDateKey && submittedAt.getHours() === hour;
+      });
+      return { label, ...summarizeEvidenceBucket(items) };
+    });
+  }
+
+  if (mode === 'minggu') {
+    const weekdayLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const start = new Date(selectedDate);
+    start.setDate(selectedDate.getDate() - selectedDate.getDay());
+
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const key = toDateKey(date);
+      const items = evidence.filter((item) => item.tanggal === key);
+      return { label: weekdayLabels[date.getDay()], ...summarizeEvidenceBucket(items) };
+    });
+  }
+
+  const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+  return Array.from({ length: daysInMonth }, (_, index) => {
+    const date = new Date(firstDay);
+    date.setDate(index + 1);
+    const key = toDateKey(date);
+    const items = evidence.filter((item) => item.tanggal === key);
+    return { label: String(index + 1), ...summarizeEvidenceBucket(items) };
+  });
 }
 
 export function buildEmployeeMonthlyReport(employee: EmployeeRaport): EmployeeMonthlyReport {
@@ -101,10 +205,15 @@ export function buildEmployeeMonthlyReportFromEvidence(
   employee: EmployeeRaport,
   evidence: PicRaportEvidence[]
 ): EmployeeMonthlyReport {
-  if (evidence.length === 0) return buildEmployeeMonthlyReport(employee);
+  if (evidence.length === 0) return emptyMonthlyReport(employee);
+
+  const today = new Date();
+  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const monthlyEvidence = evidence.filter((item) => item.tanggal.startsWith(monthPrefix));
+  if (monthlyEvidence.length === 0) return emptyMonthlyReport(employee);
 
   const byDate = new Map<string, PicRaportEvidence[]>();
-  evidence.forEach((item) => {
+  monthlyEvidence.forEach((item) => {
     byDate.set(item.tanggal, [...(byDate.get(item.tanggal) || []), item]);
   });
 

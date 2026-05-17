@@ -9,6 +9,7 @@ export interface KaryawanProspekEntry {
   karyawanName: string;
   cabang: string;
   divisi: string;
+  targetKategori?: 'sales' | 'non_sales';
   namaProspek: string;
   noWhatsapp: string;
   minatBarang: string;
@@ -90,6 +91,7 @@ const mapApiProspek = (item: any): KaryawanProspekEntry => ({
   karyawanName: String(item.karyawanName || item.karyawan_name || ''),
   cabang: String(item.cabang || 'Manado'),
   divisi: String(item.divisi || 'Karyawan'),
+  targetKategori: (item.targetKategori || item.target_kategori || 'non_sales') === 'sales' ? 'sales' : 'non_sales',
   namaProspek: String(item.namaProspek || item.nama_prospek || ''),
   noWhatsapp: normalizeWhatsapp(String(item.noWhatsapp || item.no_whatsapp || '')),
   minatBarang: String(item.minatBarang || item.minat_barang || ''),

@@ -19,19 +19,34 @@ import {
   Timer,
   TrendingUp,
 } from 'lucide-react';
-import { employeeRaports } from '../../data/ownerRaportData';
 import {
-  buildEmployeeMonthlyReport,
   buildEmployeeMonthlyReportFromEvidence,
   monthYearFormatter,
   reportDateFormatter,
   shortDateFormatter,
 } from '../../utils/ownerRaportMonthly';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { useCabangStore } from '../../store/useCabangStore';
+import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
 const weekdayLabels = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+const toDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentMonthRange = () => {
+  const now = new Date();
+  return {
+    from: toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  };
+};
 
 function getStatus(persentase: number) {
   if (persentase >= 80) {
@@ -75,12 +90,14 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
   const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
   const isLoading = usePicRaportStore((state) => state.isLoading);
   const raportError = usePicRaportStore((state) => state.error);
+  const cabangList = useCabangStore((state) => state.cabang);
+  const fetchCabang = useCabangStore((state) => state.fetchCabang);
+  const cabangLookup = useMemo(() => createCabangLookup(cabangList), [cabangList]);
   const employeeEvidence = useMemo(
     () => evidence.filter((item) => item.employeeId === employeeId),
     [employeeId, evidence]
   );
-  const seedEmployee = employeeRaports.find((item) => item.id === employeeId);
-  const employee = seedEmployee || (employeeEvidence[0]
+  const employee = employeeEvidence[0]
     ? {
         id: employeeEvidence[0].employeeId,
         nama: employeeEvidence[0].employeeName,
@@ -92,11 +109,18 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
           ? Math.round((employeeEvidence.filter((item) => item.reviewStatus !== 'pending').length / employeeEvidence.length) * 100)
           : 0,
       }
-    : null);
+    : null;
+  const currentDate = useMemo(() => new Date(), []);
+  const [selectedDay, setSelectedDay] = React.useState(currentDate.getDate());
+
+  useEffect(() => {
+    fetchCabang();
+  }, [fetchCabang]);
 
   useEffect(() => {
     if (!employeeId) return;
-    fetchEvidence({ karyawanId: employeeId, limit: 500 });
+    const range = getCurrentMonthRange();
+    fetchEvidence({ karyawanId: employeeId, tanggalFrom: range.from, tanggalTo: range.to, limit: 2000 });
   }, [employeeId, fetchEvidence]);
 
   if (!employee) {
@@ -120,14 +144,11 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
     );
   }
 
-  const report = employeeEvidence.length
-    ? buildEmployeeMonthlyReportFromEvidence(employee, employeeEvidence)
-    : buildEmployeeMonthlyReport(employee);
+  const report = buildEmployeeMonthlyReportFromEvidence(employee, employeeEvidence);
+  const branch = getCabangDisplay(employee.cabang, cabangLookup);
   const scoreStatus = getStatus(report.rataNilai);
   const todayStatus = getStatus(employee.persentase);
   const reportDateLabel = reportDateFormatter.format(new Date());
-  const currentDate = new Date();
-  const [selectedDay, setSelectedDay] = React.useState(currentDate.getDate());
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const reportByDay = new Map(report.history.map((item) => [new Date(item.tanggal).getDate(), item]));
@@ -192,7 +213,7 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface-high/70 px-3 py-1.5">
                   <MapPin className="h-4 w-4 text-secondary" />
-                  {employee.cabang}
+                  {branch.filterLabel}
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface-high/70 px-3 py-1.5">
                   <CalendarDays className="h-4 w-4 text-on-surface-variant" />
@@ -245,7 +266,7 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
             { label: 'Hari pelaporan', value: `${report.hariLapor} hari`, helper: 'Riwayat yang masuk bulan ini', icon: CalendarDays, tone: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Total bukti', value: `${report.totalBukti}`, helper: `${totalCompletedThisMonth} jobdesk selesai`, icon: ImageIcon, tone: 'text-secondary', bg: 'bg-secondary/10' },
             { label: 'Terlambat', value: `${report.hariTerlambat} hari`, helper: report.hariTerlambat > 0 ? 'Perlu cek alasan keterlambatan' : 'Tidak ada keterlambatan tercatat', icon: Timer, tone: report.hariTerlambat > 0 ? 'text-yellow-500' : 'text-secondary', bg: report.hariTerlambat > 0 ? 'bg-yellow-500/10' : 'bg-secondary/10' },
-            { label: 'Cabang', value: employee.cabang, helper: employee.posisi, icon: Building2, tone: 'text-on-surface', bg: 'bg-surface-high' },
+            { label: 'Cabang', value: branch.label, helper: branch.detail || employee.posisi, icon: Building2, tone: 'text-on-surface', bg: 'bg-surface-high' },
           ].map((item) => {
             const Icon = item.icon;
             return (

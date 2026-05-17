@@ -8,6 +8,7 @@ import {
 import { Badge, SectionHeader } from '../components/ui';
 import { useCareerStore, type JobListing } from '../store/useCareerStore';
 import { toast } from '../store/useNotificationStore';
+import { HCaptcha, isHCaptchaEnabled } from '../components/security/HCaptcha';
 
 // ──────────────────────────────────
 // Application Modal
@@ -17,6 +18,8 @@ interface ApplyModalProps { job: JobListing; onClose: () => void; }
 const ApplyModal: React.FC<ApplyModalProps> = ({ job, onClose }) => {
   const { submitApplication, isSubmitting } = useCareerStore();
   const [submitted, setSubmitted] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', address: '',
     education: 'SMA/SMK', major: '', experience: '', coverLetter: '',
@@ -33,11 +36,18 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, onClose }) => {
       toast.error('Harap lengkapi semua bidang yang wajib diisi.');
       return;
     }
-    const ok = await submitApplication({ ...form, jobId: job.id, jobTitle: job.title });
+    if (isHCaptchaEnabled && !captchaToken) {
+      toast.error('Verifikasi diperlukan', 'Silakan selesaikan verifikasi keamanan terlebih dahulu.');
+      return;
+    }
+
+    const ok = await submitApplication({ ...form, jobId: job.id, jobTitle: job.title, captchaToken });
     if (ok) {
       setSubmitted(true);
       toast.success('Lamaran berhasil dikirim!', 'Tim kami akan menghubungi Anda segera.');
     } else {
+      setCaptchaToken('');
+      setCaptchaResetKey(prev => prev + 1);
       toast.error('Gagal mengirim lamaran', 'Silakan coba kembali.');
     }
   };
@@ -171,6 +181,13 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, onClose }) => {
                     placeholder="https://drive.google.com/..." />
                 </div>
               </div>
+
+              <HCaptcha
+                resetKey={captchaResetKey}
+                onVerify={setCaptchaToken}
+                onExpire={() => setCaptchaToken('')}
+                onError={() => setCaptchaToken('')}
+              />
 
               <div className="pt-2 border-t border-outline-variant/10 flex items-center gap-4">
                 <button type="button" onClick={onClose}

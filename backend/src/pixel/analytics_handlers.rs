@@ -573,7 +573,7 @@ pub async fn get_sales_pixel_analytics(
     headers: HeaderMap,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<Response, AppError> {
-    let user = authorize(&state, &headers, &[Role::Sales]).await?;
+    let user = authorize(&state, &headers, &[Role::AdminSales]).await?;
 
     let period_type = query.period_type;
     let start_date = query.start_date.unwrap_or_else(|| {

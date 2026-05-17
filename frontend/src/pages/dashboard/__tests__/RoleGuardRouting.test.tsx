@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
 import type { UserRole } from '../../../store/authStore';
+import { normalizeAccessRole } from '../../../utils/roles';
 
 /**
  * Unit tests for RoleGuard and DashboardRoot owner routing.
@@ -41,7 +42,7 @@ const RoleGuard: React.FC<{ children: React.ReactElement; roles: string[] }> = (
 
   if (isInitializing) return <div data-testid="loading">Loading...</div>;
 
-  if (!user?.role || !roles.includes(user.role)) {
+  if (!user?.role || !roles.includes(normalizeAccessRole(user.role))) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -55,7 +56,7 @@ const DashboardRoot = () => {
   if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
   if (role === 'owner') return <Navigate to="/dashboard/owner" replace />;
   if (role === 'operator') return <Navigate to="/dashboard/admin/wa/campaigns" replace />;
-  if (role === 'sales') return <Navigate to="/dashboard/sales" replace />;
+  if (normalizeAccessRole(role) === 'admin-sales') return <Navigate to="/dashboard/sales" replace />;
   return <Navigate to="/dashboard/agent" replace />;
 };
 
@@ -128,7 +129,7 @@ describe('Feature: owner-dashboard, Property 2: RoleGuard Access Control', () =>
   });
 
   describe('RoleGuard with roles=["owner"] redirects non-owner roles', () => {
-    const nonOwnerRoles: UserRole[] = ['admin', 'agent', 'sales', 'operator'];
+    const nonOwnerRoles: UserRole[] = ['admin', 'agent', 'admin-sales', 'operator'];
 
     nonOwnerRoles.forEach((role) => {
       it(`should redirect user with role "${role}" to /dashboard`, () => {
@@ -196,9 +197,9 @@ describe('Feature: owner-dashboard, Property 2: RoleGuard Access Control', () =>
       expect(screen.getByTestId('location').textContent).toBe('/dashboard/admin');
     });
 
-    it('should redirect sales role to /dashboard/sales', () => {
+    it('should redirect admin-sales role to /dashboard/sales', () => {
       mockAuthState({
-        user: createUser('sales'),
+        user: createUser('admin-sales'),
         isAuthenticated: true,
       });
 

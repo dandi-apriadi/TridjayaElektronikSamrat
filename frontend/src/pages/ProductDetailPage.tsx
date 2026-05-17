@@ -19,6 +19,7 @@ import { useAuthStore } from '../store/authStore';
 import { getFrontendBaseUrl } from '../utils/apiClient';
 import { saveReferralCode, getActiveReferralCode } from '../utils/referralSession';
 import { getPublicPrice } from '../utils/publicPricing';
+import { isAdminSalesRole } from '../utils/roles';
 
 const ProductDetailPage: React.FC = () => {
   const { slug: rawSlug } = useParams<{ slug: string }>();
@@ -35,7 +36,7 @@ const ProductDetailPage: React.FC = () => {
   const [referralLabel, setReferralLabel] = useState('kami');
 
   const { user: loggedInUser } = useAuthStore();
-  const salesReferralSlug = loggedInUser?.role === 'sales' ? loggedInUser.referral_slug?.trim() : null;
+  const salesReferralSlug = isAdminSalesRole(loggedInUser?.role) ? loggedInUser.referral_slug?.trim() : null;
 
   // Ensure products are loaded — handles direct URL access (page refresh / shared link)
   useEffect(() => {

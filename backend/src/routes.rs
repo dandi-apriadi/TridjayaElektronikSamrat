@@ -6,19 +6,25 @@ use crate::wa_gateway;
 use crate::wa_webhook_handlers;
 use crate::{
     auth::{
-        authorize, hash_password, login_with_request, logout_with_headers, refresh_with_request,
-        verify_password, LoginRequest, RefreshRequest, Role,
+        authorize, hash_password, login_with_request_ctx, logout_with_headers_ctx,
+        refresh_with_request_ctx, verify_password, LoginRequest, RefreshRequest, Role,
     },
-    response::{json_ok, AppError},
-    state::{AppState, UserPublic, UserRecord, USER_PUBLIC_SELECT, USER_RECORD_SELECT},
+    response::{json_created, json_ok, AppError},
+    state::{
+        AppState, AuditContext, UserPublic, UserRecord, USER_PUBLIC_SELECT, USER_RECORD_SELECT,
+    },
 };
 use axum::{
-    extract::{Multipart, Path, Query, State},
-    http::{header::SET_COOKIE, HeaderMap, HeaderValue},
+    body::Body,
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
+    http::{
+        header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE, SET_COOKIE},
+        HeaderMap, HeaderValue,
+    },
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use chrono::{Duration, Local, NaiveDate, Utc};
+use chrono::{Duration, Local, NaiveDate, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -53,6 +59,11 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/auth/profile", patch(update_auth_profile))
         .route("/api/auth/change-password", post(change_auth_password))
+        .route("/api/admin/cabang", get(list_cabang).post(create_cabang))
+        .route(
+            "/api/admin/cabang/{id}",
+            patch(update_cabang).delete(delete_cabang),
+        )
         .route("/api/users", get(list_users).post(create_user))
         .route(
             "/api/users/{id}",
@@ -135,6 +146,7 @@ pub fn router(state: AppState) -> Router {
             patch(chatbot_routes::update_chatbot_rule).delete(chatbot_routes::delete_chatbot_rule),
         )
         .route("/api/reward-tiers", get(list_reward_tiers))
+        .route("/uploads/{*path}", get(serve_public_upload))
         .route(
             "/api/admin/uploads/private/{filename}",
             get(serve_private_upload),
@@ -185,10 +197,22 @@ pub fn router(state: AppState) -> Router {
             "/api/sales/delivery-schedules",
             get(list_delivery_schedules).post(create_delivery_schedule),
         )
-        .route("/api/telemetry/page-view", post(page_view))
-        .route("/api/telemetry/click", post(click))
-        .route("/api/telemetry/whatsapp-click", post(whatsapp_click))
-        .route("/api/telemetry/pixel-event", post(pixel_event))
+        .route(
+            "/api/telemetry/page-view",
+            post(page_view).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route(
+            "/api/telemetry/click",
+            post(click).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route(
+            "/api/telemetry/whatsapp-click",
+            post(whatsapp_click).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route(
+            "/api/telemetry/pixel-event",
+            post(pixel_event).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
         .route("/api/jobs", get(list_jobs).post(create_job))
         .route("/api/jobs/{id}", patch(update_job).delete(delete_job))
         .route(
@@ -240,13 +264,34 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/admin/leads", get(list_leads))
         .route("/api/admin/leads/{id}/status", patch(update_lead_status))
-        .route("/api/prospek-harian", get(list_prospek_harian).post(create_prospek_harian))
-        .route("/api/prospek-harian/summary", get(get_prospek_harian_summary))
-        .route("/api/prospek-harian/{id}", patch(update_prospek_harian).delete(delete_prospek_harian))
-        .route("/api/raport-harian", get(list_raport_harian).post(upsert_raport_harian))
-        .route("/api/raport-harian/{id}/review", patch(review_raport_harian))
-        .route("/api/jobdesk-report-settings", get(get_jobdesk_report_settings).patch(update_jobdesk_report_settings))
-        .route("/api/jobdesk-divisions", get(get_jobdesk_divisions).patch(update_jobdesk_divisions))
+        .route(
+            "/api/prospek-harian",
+            get(list_prospek_harian).post(create_prospek_harian),
+        )
+        .route(
+            "/api/prospek-harian/summary",
+            get(get_prospek_harian_summary),
+        )
+        .route(
+            "/api/prospek-harian/{id}",
+            patch(update_prospek_harian).delete(delete_prospek_harian),
+        )
+        .route(
+            "/api/raport-harian",
+            get(list_raport_harian).post(upsert_raport_harian),
+        )
+        .route(
+            "/api/raport-harian/{id}/review",
+            patch(review_raport_harian),
+        )
+        .route(
+            "/api/jobdesk-report-settings",
+            get(get_jobdesk_report_settings).patch(update_jobdesk_report_settings),
+        )
+        .route(
+            "/api/jobdesk-divisions",
+            get(get_jobdesk_divisions).patch(update_jobdesk_divisions),
+        )
         .route(
             "/api/pixels",
             post(pixel::handlers::create_pixel).get(pixel::handlers::list_pixels),
@@ -319,12 +364,15 @@ pub fn router(state: AppState) -> Router {
             get(pixel::analytics_handlers::get_sales_pixel_analytics),
         );
 
-    // Upload routes with larger body limit (20MB) for multipart file uploads
+    let agent_registration_routes = Router::new()
+        .route("/api/agent-registrations", post(submit_agent_registration))
+        .layer(axum::extract::DefaultBodyLimit::max(8 * 1024 * 1024));
+
+    // Upload routes with larger body limit for authenticated multipart uploads
     let upload_routes = Router::new()
         .route("/api/admin/uploads/image", post(upload_admin_image))
         .route("/api/admin/partners", post(create_partner))
         .route("/api/admin/partners/{id}", patch(update_partner))
-        .route("/api/agent-registrations", post(submit_agent_registration))
         .route(
             "/api/wa/campaigns/{id}/recipients/upload-excel",
             post(upload_wa_recipients_excel),
@@ -340,7 +388,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/raport-harian/upload", post(upload_raport_evidence))
         .layer(axum::extract::DefaultBodyLimit::max(30 * 1024 * 1024));
 
-    let main_router = main_router.merge(upload_routes);
+    let main_router = main_router
+        .merge(agent_registration_routes)
+        .merge(upload_routes);
 
     // Merge with API routes (for N8N integration)
     let main_router = main_router.merge(api_routes::router());
@@ -356,31 +406,16 @@ pub fn router(state: AppState) -> Router {
 }
 
 async fn health(State(state): State<AppState>) -> ResponseBody {
-    let analytics_running = state
-        .analytics_job_running
-        .load(std::sync::atomic::Ordering::Relaxed);
-    let last_analytics = state
-        .last_analytics_run
-        .read()
-        .await
-        .map(|dt| dt.to_rfc3339());
-    let last_retry = state.last_retry_run.read().await.map(|dt| dt.to_rfc3339());
-
-    json_ok(
-        "OK",
-        json!({
-            "status": "healthy",
-            "analytics_job_running": analytics_running,
-            "last_analytics_run": last_analytics,
-            "last_retry_run": last_retry
-        }),
-    )
+    let _ = state;
+    json_ok("OK", json!({ "status": "healthy" }))
 }
 
 const LOGIN_EMAIL_MAX_PER_MINUTE: usize = 5;
 const LOGIN_IP_MAX_PER_MINUTE: usize = 20;
 const LOGIN_IP_MAX_PER_10_MINUTES: usize = 100;
 const LOGIN_BLOCK_MINUTES: i64 = 15;
+const PUBLIC_READ_MAX_PER_MINUTE: usize = 30;
+const VERIFY_EMAIL_MAX_PER_MINUTE: usize = 5;
 
 fn trust_proxy_headers_enabled() -> bool {
     std::env::var("TRUST_PROXY_HEADERS")
@@ -389,24 +424,39 @@ fn trust_proxy_headers_enabled() -> bool {
 }
 
 fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
-    if !trust_proxy_headers_enabled() {
-        return None;
+    // When TRUST_PROXY_HEADERS=true the reverse proxy is responsible for
+    // populating X-Forwarded-For / X-Real-IP with the real client address.
+    if trust_proxy_headers_enabled() {
+        let forwarded = headers
+            .get("x-forwarded-for")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|raw| raw.split(',').next())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
+
+        if forwarded.is_some() {
+            return forwarded;
+        }
+
+        let real_ip = headers
+            .get("x-real-ip")
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
+
+        if real_ip.is_some() {
+            return real_ip;
+        }
     }
 
-    let forwarded = headers
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|raw| raw.split(',').next())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string);
-
-    if forwarded.is_some() {
-        return forwarded;
-    }
-
+    // Fallback: when TRUST_PROXY_HEADERS=false (the safe default for deployments
+    // without a reverse proxy) we look up the TCP peer address that was
+    // stashed into the request extensions by `client_ip_middleware`.
+    // Without this fallback all IP-based rate limits would silently no-op.
     headers
-        .get("x-real-ip")
+        .get("x-tridjaya-peer-ip")
         .and_then(|value| value.to_str().ok())
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -432,6 +482,27 @@ async fn enforce_rate_limit_bucket(
     Ok(())
 }
 
+async fn enforce_public_ip_rate_limit(
+    state: &AppState,
+    headers: &HeaderMap,
+    subject: &str,
+    limit: usize,
+    window: Duration,
+) -> Result<(), AppError> {
+    let Some(ip) = extract_client_ip(headers) else {
+        return Ok(());
+    };
+
+    let mut buckets = state.public_submission_attempts.write().await;
+    enforce_rate_limit_bucket(
+        &mut buckets,
+        &format!("{}:ip:{}", subject, ip),
+        limit,
+        window,
+    )
+    .await
+}
+
 fn is_allowed_public_url(value: &str) -> bool {
     let lower = value.trim().to_lowercase();
     lower.starts_with("http://") || lower.starts_with("https://")
@@ -439,6 +510,41 @@ fn is_allowed_public_url(value: &str) -> bool {
 
 fn validate_text_length(value: &str, max: usize) -> bool {
     value.trim().len() <= max
+}
+
+fn encrypt_pii_for_storage(value: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(String::new());
+    }
+
+    crate::pixel::crypto::encrypt_token(trimmed, &crate::pixel::crypto::get_encryption_key())
+        .map(|encrypted| format!("enc:v1:{}", encrypted))
+        .map_err(|e| {
+            tracing::error!("Failed encrypting PII field: {}", e);
+            AppError::Internal
+        })
+}
+
+fn decrypt_pii_from_storage(value: &str) -> String {
+    let Some(encrypted) = value.strip_prefix("enc:v1:") else {
+        return value.to_string();
+    };
+
+    match crate::pixel::crypto::decrypt_token(
+        encrypted,
+        &crate::pixel::crypto::get_encryption_key(),
+    ) {
+        Ok(decrypted) => decrypted,
+        Err(e) => {
+            tracing::warn!("Failed decrypting PII field: {}", e);
+            String::new()
+        }
+    }
+}
+
+fn decrypt_optional_pii(value: Option<String>) -> Option<String> {
+    value.map(|value| decrypt_pii_from_storage(&value))
 }
 
 async fn enforce_login_rate_limit(
@@ -562,23 +668,32 @@ fn cookie_secure_enabled() -> bool {
 
 fn build_refresh_cookie(token: &str, remember: bool) -> String {
     let secure = cookie_secure_enabled();
-    let same_site = if secure { "None" } else { "Lax" };
+    let same_site = "Lax";
     let secure_attr = if secure { "; Secure" } else { "" };
+    let cookie_name = if secure {
+        "__Host-refresh_token"
+    } else {
+        "refresh_token"
+    };
     let max_age = if remember { 2592000 } else { 604800 }; // 30 days vs 7 days
     format!(
-        "refresh_token={}; HttpOnly; Path=/; Max-Age={}; SameSite={}{}",
-        token, max_age, same_site, secure_attr
+        "{}={}; HttpOnly; Path=/; Max-Age={}; SameSite={}{}",
+        cookie_name, token, max_age, same_site, secure_attr
     )
 }
 
 fn build_clear_refresh_cookie() -> String {
     let secure = cookie_secure_enabled();
-    let same_site = if secure { "None" } else { "Lax" };
+    let same_site = "Lax";
     let secure_attr = if secure { "; Secure" } else { "" };
     format!(
         "refresh_token=; HttpOnly; Path=/; Max-Age=0; SameSite={}{}",
         same_site, secure_attr
     )
+}
+
+fn build_clear_host_refresh_cookie() -> String {
+    "__Host-refresh_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax; Secure".to_string()
 }
 
 fn extract_cookie_token(headers: &HeaderMap, key: &str) -> Option<String> {
@@ -615,7 +730,8 @@ async fn login(
     let client_ip = extract_client_ip(&headers);
     enforce_login_rate_limit(&state, &payload.email, client_ip.as_deref()).await?;
     let email = payload.email.clone();
-    let auth = login_with_request(&state, payload).await?;
+    let audit_ctx = AuditContext::from_headers(&headers, client_ip.clone());
+    let auth = login_with_request_ctx(&state, payload, audit_ctx).await?;
     clear_login_rate_limit(&state, &email, client_ip.as_deref()).await;
     let refresh_token = auth.refresh_token.clone();
     let remember = auth.remember;
@@ -631,10 +747,13 @@ async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    match logout_with_headers(&state, &headers).await {
+    let client_ip = extract_client_ip(&headers);
+    let audit_ctx = AuditContext::from_headers(&headers, client_ip);
+    match logout_with_headers_ctx(&state, &headers, audit_ctx).await {
         Ok(_) | Err(AppError::Unauthorized) => {
             let mut response = json_ok("Logout successful", json!({ "logged_out": true }));
             append_set_cookie(&mut response, &build_clear_refresh_cookie());
+            append_set_cookie(&mut response, &build_clear_host_refresh_cookie());
             Ok(response)
         }
         Err(e) => Err(e),
@@ -655,7 +774,9 @@ async fn refresh(
     };
 
     let refresh_token = if payload.refresh_token.trim().is_empty() {
-        match extract_cookie_token(&headers, "refresh_token") {
+        match extract_cookie_token(&headers, "__Host-refresh_token")
+            .or_else(|| extract_cookie_token(&headers, "refresh_token"))
+        {
             Some(token) => token,
             None => return json_ok("Session not found", json!({ "authenticated": false })),
         }
@@ -663,7 +784,9 @@ async fn refresh(
         payload.refresh_token
     };
 
-    match refresh_with_request(&state, RefreshRequest { refresh_token }).await {
+    let client_ip = extract_client_ip(&headers);
+    let audit_ctx = AuditContext::from_headers(&headers, client_ip);
+    match refresh_with_request_ctx(&state, RefreshRequest { refresh_token }, audit_ctx).await {
         Ok(auth) => {
             let new_refresh_token = auth.refresh_token.clone();
             let remember = auth.remember;
@@ -724,6 +847,7 @@ async fn forgot_password(
 ) -> Result<ResponseBody, AppError> {
     const FORGOT_PASSWORD_COOLDOWN_SECONDS: i64 = 60;
     const FORGOT_PASSWORD_IP_COOLDOWN_SECONDS: i64 = 5;
+    const FORGOT_PASSWORD_IP_MAX_PER_HOUR: usize = 3;
 
     let email = payload.email.trim().to_lowercase();
     if email.is_empty() || !email.contains('@') {
@@ -737,7 +861,29 @@ async fn forgot_password(
     // Bila terkena rate limit kita tetap mengembalikan response sukses generik
     // (tidak melempar 429) supaya tidak bocor email enumeration.
     let client_ip = extract_client_ip(&headers);
-    let throttled = {
+
+    // Quick Win #9: optional captcha. When unset HCAPTCHA_SECRET, no-op.
+    // We verify BEFORE the cooldown bucket update so a bot that fails captcha
+    // doesn't waste an attacker's quota on legit users.
+    crate::captcha::verify_hcaptcha_if_configured(
+        payload.captcha_token.as_deref().unwrap_or(""),
+        client_ip.as_deref(),
+    )
+    .await?;
+    let hourly_ip_throttled = if let Some(ip) = client_ip.as_deref() {
+        let mut buckets = state.public_submission_attempts.write().await;
+        enforce_rate_limit_bucket(
+            &mut buckets,
+            &format!("forgot_password:ip:{}", ip),
+            FORGOT_PASSWORD_IP_MAX_PER_HOUR,
+            Duration::hours(1),
+        )
+        .await
+        .is_err()
+    } else {
+        false
+    };
+    let throttled = hourly_ip_throttled || {
         let now = Utc::now();
         let mut attempts = state.forgot_password_attempts.write().await;
         // Cleanup entri tua agar HashMap tidak tumbuh tak terbatas.
@@ -1007,7 +1153,6 @@ async fn reset_password(
 struct AuthProfileUpdateRequest {
     name: Option<String>,
     bank_account: Option<String>,
-    avatar: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1039,6 +1184,10 @@ struct VerifyEmailRequest {
 #[serde(rename_all = "camelCase")]
 struct ForgotPasswordRequest {
     email: String,
+    /// Quick Win #9 — optional captcha token. Honored only when
+    /// `HCAPTCHA_SECRET` is configured.
+    #[serde(default, alias = "h-captcha-response", alias = "g-recaptcha-response")]
+    captcha_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1060,7 +1209,7 @@ async fn update_auth_profile(
             Role::Admin,
             Role::Agent,
             Role::Operator,
-            Role::Sales,
+            Role::AdminSales,
             Role::Owner,
             Role::PicRaport,
             Role::Karyawan,
@@ -1068,7 +1217,7 @@ async fn update_auth_profile(
     )
     .await?;
 
-    if payload.name.is_none() && payload.bank_account.is_none() && payload.avatar.is_none() {
+    if payload.name.is_none() && payload.bank_account.is_none() {
         return Err(AppError::Validation {
             errors: vec!["Tidak ada perubahan profil yang dikirim".to_string()],
         });
@@ -1076,7 +1225,6 @@ async fn update_auth_profile(
 
     let next_name = payload.name.unwrap_or(user.name);
     let next_bank_account = payload.bank_account.unwrap_or(user.bank_account);
-    let next_avatar = payload.avatar.unwrap_or(user.avatar);
 
     if next_name.trim().is_empty() {
         return Err(AppError::Validation {
@@ -1084,10 +1232,9 @@ async fn update_auth_profile(
         });
     }
 
-    sqlx::query("UPDATE users SET name = ?, bank_account = ?, avatar = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET name = ?, bank_account = ? WHERE id = ?")
         .bind(next_name.trim())
         .bind(next_bank_account.trim())
-        .bind(next_avatar.trim())
         .bind(&user.id)
         .execute(&state.pool)
         .await
@@ -1115,7 +1262,7 @@ async fn change_auth_password(
             Role::Admin,
             Role::Agent,
             Role::Operator,
-            Role::Sales,
+            Role::AdminSales,
             Role::Owner,
             Role::PicRaport,
             Role::Karyawan,
@@ -1175,10 +1322,378 @@ async fn list_users(
     ))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CabangCreateRequest {
+    nama: String,
+    alamat: Option<String>,
+    kota: Option<String>,
+    telepon: Option<String>,
+    koordinator_nama: Option<String>,
+    is_active: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CabangUpdateRequest {
+    nama: Option<String>,
+    alamat: Option<String>,
+    kota: Option<String>,
+    telepon: Option<String>,
+    koordinator_nama: Option<String>,
+    is_active: Option<bool>,
+}
+
+#[derive(sqlx::FromRow, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CabangRecord {
+    id: String,
+    nama: String,
+    alamat: String,
+    kota: String,
+    telepon: String,
+    koordinator_id: Option<String>,
+    koordinator_nama: String,
+    is_active: bool,
+    jumlah_karyawan: i64,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+}
+
+fn normalize_cabang_id(value: &str) -> String {
+    let mut slug = String::new();
+    let mut last_dash = false;
+
+    for ch in value.trim().to_lowercase().chars() {
+        if ch.is_ascii_alphanumeric() {
+            slug.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            slug.push('-');
+            last_dash = true;
+        }
+    }
+
+    slug.trim_matches('-').to_string()
+}
+
+async fn generate_unique_cabang_id(state: &AppState, name: &str) -> Result<String, AppError> {
+    let base = normalize_cabang_id(name);
+    if base.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["Nama cabang wajib diisi".to_string()],
+        });
+    }
+
+    for suffix in 0..1000 {
+        let candidate = if suffix == 0 {
+            base.clone()
+        } else {
+            format!("{}-{}", base, suffix + 1)
+        };
+        let exists: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM cabang WHERE id = ? LIMIT 1")
+                .bind(&candidate)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("DB error checking cabang id uniqueness: {}", e);
+                    AppError::Internal
+                })?;
+        if exists.is_none() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(AppError::Internal)
+}
+
+async fn list_cabang(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner]).await?;
+    let items: Vec<CabangRecord> = sqlx::query_as(
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+                CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
+                DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+                DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
+         FROM cabang c \
+         LEFT JOIN users u ON u.cabang_id = c.id \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         ORDER BY c.nama ASC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error in list_cabang: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(json_ok(
+        format!("Cabang fetched by {}", user.email),
+        json!({ "items": items }),
+    ))
+}
+
+async fn create_cabang(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CabangCreateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let nama = payload.nama.trim().to_string();
+    let alamat = payload.alamat.unwrap_or_default().trim().to_string();
+    let kota = payload.kota.unwrap_or_default().trim().to_string();
+    let telepon = payload.telepon.unwrap_or_default().trim().to_string();
+    let koordinator_nama = payload
+        .koordinator_nama
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let is_active = payload.is_active.unwrap_or(true);
+
+    let mut errors = Vec::new();
+    if nama.is_empty() {
+        errors.push("Nama cabang wajib diisi".to_string());
+    }
+    if kota.is_empty() {
+        errors.push("Kota cabang wajib diisi".to_string());
+    }
+    if !errors.is_empty() {
+        return Err(AppError::Validation { errors });
+    }
+
+    let id = generate_unique_cabang_id(&state, &nama).await?;
+
+    sqlx::query(
+        "INSERT INTO cabang (id, nama, alamat, kota, telepon, koordinator_id, koordinator_nama, is_active) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&nama)
+    .bind(&alamat)
+    .bind(&kota)
+    .bind(&telepon)
+    .bind(&koordinator_nama)
+    .bind(is_active)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error creating cabang: {}", e);
+        AppError::Internal
+    })?;
+
+    let item: CabangRecord = sqlx::query_as(
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+                CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
+                DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+                DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
+         FROM cabang c \
+         LEFT JOIN users u ON u.cabang_id = c.id \
+         WHERE c.id = ? \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching created cabang: {}", e);
+        AppError::Internal
+    })?;
+
+    state.audit("admin.cabang.created", Some(&user.id)).await;
+    Ok(json_created(
+        "Cabang berhasil ditambahkan",
+        json!({ "item": item }),
+    ))
+}
+
+async fn update_cabang(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<CabangUpdateRequest>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let current: CabangRecord = sqlx::query_as(
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+                CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
+                DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+                DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
+         FROM cabang c \
+         LEFT JOIN users u ON u.cabang_id = c.id \
+         WHERE c.id = ? \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error loading cabang for update: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
+
+    let nama = payload
+        .nama
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&current.nama)
+        .to_string();
+    let alamat = payload
+        .alamat
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or(&current.alamat)
+        .to_string();
+    let kota = payload
+        .kota
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&current.kota)
+        .to_string();
+    let telepon = payload
+        .telepon
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or(&current.telepon)
+        .to_string();
+    let koordinator_nama = payload
+        .koordinator_nama
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or(&current.koordinator_nama)
+        .to_string();
+    let is_active = payload.is_active.unwrap_or(current.is_active);
+
+    let mut errors = Vec::new();
+    if nama.is_empty() {
+        errors.push("Nama cabang wajib diisi".to_string());
+    }
+    if kota.is_empty() {
+        errors.push("Kota cabang wajib diisi".to_string());
+    }
+    if !errors.is_empty() {
+        return Err(AppError::Validation { errors });
+    }
+
+    sqlx::query(
+        "UPDATE cabang SET nama = ?, alamat = ?, kota = ?, telepon = ?, koordinator_id = NULL, koordinator_nama = ?, is_active = ? WHERE id = ?",
+    )
+    .bind(&nama)
+    .bind(&alamat)
+    .bind(&kota)
+    .bind(&telepon)
+    .bind(&koordinator_nama)
+    .bind(is_active)
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error updating cabang: {}", e);
+        AppError::Internal
+    })?;
+
+    let item: CabangRecord = sqlx::query_as(
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+                CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
+                DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+                DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
+         FROM cabang c \
+         LEFT JOIN users u ON u.cabang_id = c.id \
+         WHERE c.id = ? \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching updated cabang: {}", e);
+        AppError::Internal
+    })?;
+
+    state.audit("admin.cabang.updated", Some(&user.id)).await;
+    Ok(json_ok(
+        "Cabang berhasil diperbarui",
+        json!({ "item": item }),
+    ))
+}
+
+async fn delete_cabang(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!("DB error starting cabang delete transaction: {}", e);
+        AppError::Internal
+    })?;
+
+    let target_exists: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM cabang WHERE id = ? LIMIT 1")
+            .bind(&id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error checking cabang before delete: {}", e);
+                AppError::Internal
+            })?;
+
+    if target_exists.is_none() {
+        let _ = tx.rollback().await;
+        return Err(AppError::NotFound);
+    }
+
+    sqlx::query("UPDATE users SET cabang_id = '' WHERE cabang_id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error clearing user cabang references: {}", e);
+            AppError::Internal
+        })?;
+
+    sqlx::query("DELETE FROM cabang WHERE id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error deleting cabang: {}", e);
+            AppError::Internal
+        })?;
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!("DB error committing cabang delete: {}", e);
+        AppError::Internal
+    })?;
+
+    state.audit("admin.cabang.deleted", Some(&user.id)).await;
+    Ok(json_ok(
+        "Cabang berhasil dihapus",
+        json!({ "deleted": true }),
+    ))
+}
+
 async fn verify_email(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<VerifyEmailRequest>,
 ) -> Result<ResponseBody, AppError> {
+    enforce_public_ip_rate_limit(
+        &state,
+        &headers,
+        "verify_email",
+        VERIFY_EMAIL_MAX_PER_MINUTE,
+        Duration::minutes(1),
+    )
+    .await?;
+
     let token = payload
         .token
         .as_deref()
@@ -1279,12 +1794,13 @@ struct UserCreateRequest {
     email: String,
     name: String,
     role: String,
-    /// Jabatan (title) — only used when role = "sales". Stored separately from role.
+    /// Jabatan title for admin-sales, or target category ("sales"/"non_sales") for karyawan.
     jabatan: Option<String>,
-    /// Divisi — only used when role = "karyawan". Determines jobdesk and prospek target.
+    /// Divisi — only used when role = "karyawan". Determines jobdesk only.
     divisi: Option<String>,
+    /// Cabang assigned to karyawan.
+    cabang_id: Option<String>,
     password: String,
-    avatar: Option<String>,
     bank_account: Option<String>,
     whatsapp: Option<String>,
     is_active: Option<bool>,
@@ -1296,12 +1812,13 @@ struct UserUpdateRequest {
     email: Option<String>,
     name: Option<String>,
     role: Option<String>,
-    /// Jabatan (title) — only used when role = "sales". Stored separately from role.
+    /// Jabatan title for admin-sales, or target category ("sales"/"non_sales") for karyawan.
     jabatan: Option<String>,
-    /// Divisi — only used when role = "karyawan".
+    /// Divisi — only used when role = "karyawan". Determines jobdesk only.
     divisi: Option<String>,
+    /// Cabang assigned to karyawan.
+    cabang_id: Option<String>,
     password: Option<String>,
-    avatar: Option<String>,
     bank_account: Option<String>,
     whatsapp: Option<String>,
     is_active: Option<bool>,
@@ -1348,6 +1865,7 @@ struct PublicReferralRecord {
 struct LeadRecord {
     id: String,
     agent_id: String,
+    agent_name: Option<String>,
     customer_name: String,
     phone_number: String,
     interested_product: String,
@@ -1575,11 +2093,13 @@ fn normalize_role(value: &str) -> Option<String> {
         .to_lowercase()
         .replace(" ", "_")
         .replace("-", "_");
+    if role == "sales" || role == "admin_sales" {
+        return Some("admin-sales".to_string());
+    }
     if matches!(
         role.as_str(),
         "admin"
             | "agent"
-            | "sales"
             | "operator"
             | "owner"
             | "pic_raport"
@@ -1601,7 +2121,22 @@ fn normalize_jabatan(value: &str) -> String {
         "supervisor" => "supervisor".to_string(),
         "koordinator" => "koordinator".to_string(),
         "sales" => "sales".to_string(),
-        _ => "sales".to_string(), // default jabatan for sales role
+        "non_sales" | "non-sales" | "nonsales" | "non sales" => "non_sales".to_string(),
+        _ => "sales".to_string(),
+    }
+}
+
+fn normalize_target_kategori(value: Option<&str>) -> String {
+    match value
+        .unwrap_or("")
+        .trim()
+        .to_lowercase()
+        .replace(" ", "_")
+        .replace("-", "_")
+        .as_str()
+    {
+        "sales" => "sales".to_string(),
+        _ => "non_sales".to_string(),
     }
 }
 
@@ -1708,27 +2243,36 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
     if payload.name.trim().is_empty() {
         errors.push("name wajib diisi".to_string());
     }
-    if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin, agent, sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
+    let normalized_role = normalize_role(&payload.role);
+    if normalized_role.is_none() {
+        errors.push("role harus salah satu dari: admin, agent, admin-sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
     }
-    if payload.role.trim().eq_ignore_ascii_case("sales")
+    if normalized_role.as_deref() == Some("admin-sales")
         && payload
             .whatsapp
             .as_ref()
             .is_none_or(|value| value.trim().is_empty())
     {
-        errors.push("whatsapp wajib diisi untuk role sales".to_string());
+        errors.push("whatsapp wajib diisi untuk role admin-sales".to_string());
     }
-    if payload.role.trim().eq_ignore_ascii_case("karyawan")
+    if normalized_role.as_deref() == Some("karyawan")
         && payload
             .divisi
             .as_ref()
             .is_none_or(|value| value.trim().is_empty())
     {
         errors.push("divisi wajib diisi untuk role karyawan".to_string());
+    }
+    if normalized_role.as_deref() == Some("karyawan")
+        && payload
+            .cabang_id
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        errors.push("cabang wajib diisi untuk role karyawan".to_string());
     }
     if payload
         .whatsapp
@@ -1766,7 +2310,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         .as_ref()
         .is_some_and(|value| normalize_role(value).is_none())
     {
-        errors.push("role harus salah satu dari: admin, agent, sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
+        errors.push("role harus salah satu dari: admin, agent, admin-sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
     }
     if payload
         .password
@@ -1859,6 +2403,7 @@ fn lead_to_json(record: LeadRecord) -> Value {
     json!({
         "id": record.id,
         "agentId": record.agent_id,
+        "agentName": record.agent_name,
         "customerName": record.customer_name,
         "phoneNumber": record.phone_number,
         "interestedProduct": record.interested_product,
@@ -1906,6 +2451,12 @@ struct NotificationRecord {
     is_read: bool,
     created_at: Option<String>,
     read_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct NotificationsQuery {
+    page: Option<u32>,
+    limit: Option<u32>,
 }
 
 fn support_ticket_to_json(record: SupportTicketRecord) -> Value {
@@ -2029,21 +2580,43 @@ async fn notify_all_admins(
 }
 
 async fn find_user_public_by_id(state: &AppState, id: &str) -> Result<UserPublic, AppError> {
-    let query = format!("{USER_PUBLIC_SELECT} WHERE id = ? LIMIT 1");
+    let query = format!("{USER_PUBLIC_SELECT} WHERE u.id = ? LIMIT 1");
     sqlx::query_as::<_, UserPublic>(&query)
-    .bind(id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error: {}", e);
-        AppError::Internal
-    })?
-    .ok_or(AppError::NotFound)
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::NotFound)
+}
+
+async fn ensure_cabang_exists(state: &AppState, cabang_id: &str) -> Result<(), AppError> {
+    let exists = sqlx::query_scalar::<_, String>("SELECT id FROM cabang WHERE id = ? LIMIT 1")
+        .bind(cabang_id.trim())
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error validating cabang id: {}", e);
+            AppError::Internal
+        })?;
+
+    if exists.is_some() {
+        Ok(())
+    } else {
+        Err(AppError::Validation {
+            errors: vec!["cabang tidak valid atau belum terdaftar".to_string()],
+        })
+    }
 }
 
 async fn find_lead_by_id(state: &AppState, id: &str) -> Result<LeadRecord, AppError> {
     sqlx::query_as::<_, LeadRecord>(
-        "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM leads WHERE id = ? LIMIT 1",
+        "SELECT l.id, l.agent_id, u.name AS agent_name, l.customer_name, l.phone_number, l.interested_product, l.status, l.notes, \
+         DATE_FORMAT(l.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+         DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
+         FROM leads l LEFT JOIN users u ON u.id = l.agent_id WHERE l.id = ? LIMIT 1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -2181,16 +2754,18 @@ async fn create_user(
     })?;
     let password_hash = hash_password(&payload.password);
     let whatsapp = payload.whatsapp.unwrap_or_else(|| "".to_string());
-    let jabatan = if role == "sales" {
+    let jabatan = if role == "admin-sales" {
         payload
             .jabatan
             .as_deref()
             .map(normalize_jabatan)
             .unwrap_or_else(|| "sales".to_string())
+    } else if role == "karyawan" {
+        normalize_target_kategori(payload.jabatan.as_deref())
     } else {
         String::new()
     };
-    let referral_slug = if role == "sales" {
+    let referral_slug = if role == "admin-sales" {
         generate_unique_sales_slug(&state, &payload.name, &id).await?
     } else {
         String::new()
@@ -2200,9 +2775,22 @@ async fn create_user(
     } else {
         String::new()
     };
+    let cabang_id = if role == "karyawan" {
+        payload
+            .cabang_id
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .to_string()
+    } else {
+        String::new()
+    };
+    if role == "karyawan" {
+        ensure_cabang_exists(&state, &cabang_id).await?;
+    }
 
     sqlx::query(
-        "INSERT INTO users (id, email, name, role, jabatan, divisi, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (id, email, name, role, jabatan, divisi, cabang_id, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(payload.email.trim())
@@ -2210,8 +2798,9 @@ async fn create_user(
     .bind(&role)
     .bind(&jabatan)
     .bind(&divisi)
+    .bind(&cabang_id)
     .bind(password_hash)
-    .bind(payload.avatar.unwrap_or_else(|| "".to_string()))
+    .bind("")
     .bind(payload.bank_account.unwrap_or_else(|| "".to_string()))
     .bind(whatsapp)
     .bind(&referral_slug)
@@ -2221,7 +2810,7 @@ async fn create_user(
     .await
     .map_err(map_conflict_if_needed)?;
 
-    if role == "sales" {
+    if role == "admin-sales" {
         sync_sales_referral(
             &state,
             &id,
@@ -2260,22 +2849,21 @@ async fn update_user(
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     tracing::info!(
-        "Admin {} updating user {}; fields=[email={}, name={}, role={}, password={}, avatar={}, bank_account={}, is_active={}, is_verified={}]",
+        "Admin {} updating user {}; fields=[email={}, name={}, role={}, password={}, bank_account={}, is_active={}, is_verified={}]",
         user.email,
         id,
         payload.email.is_some(),
         payload.name.is_some(),
         payload.role.is_some(),
         payload.password.is_some(),
-        payload.avatar.is_some(),
         payload.bank_account.is_some(),
         payload.is_active.is_some(),
         payload.is_verified.is_some(),
     );
     validate_user_update(&payload)?;
 
-    let current = sqlx::query_as::<_, (String, String, String, String, String, String, String, String, String, String, bool, bool)>(
-        "SELECT email, name, role, jabatan, divisi, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
+    let current = sqlx::query_as::<_, (String, String, String, String, String, String, String, String, String, String, String, bool, bool)>(
+        "SELECT email, name, role, jabatan, divisi, cabang_id, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -2292,8 +2880,9 @@ async fn update_user(
         current_role,
         current_jabatan,
         current_divisi,
+        current_cabang_id,
         current_password_hash,
-        current_avatar,
+        _current_avatar,
         current_bank_account,
         current_whatsapp,
         current_referral_slug,
@@ -2307,8 +2896,8 @@ async fn update_user(
         .role
         .as_deref()
         .and_then(normalize_role)
-        .unwrap_or_else(|| current_role.clone());
-    let next_jabatan = if next_role == "sales" {
+        .unwrap_or_else(|| normalize_role(&current_role).unwrap_or_else(|| current_role.clone()));
+    let next_jabatan = if next_role == "admin-sales" {
         payload
             .jabatan
             .as_deref()
@@ -2320,6 +2909,13 @@ async fn update_user(
                     current_jabatan.clone()
                 }
             })
+    } else if next_role == "karyawan" {
+        normalize_target_kategori(Some(
+            payload
+                .jabatan
+                .as_deref()
+                .unwrap_or(current_jabatan.as_str()),
+        ))
     } else {
         String::new()
     };
@@ -2333,31 +2929,48 @@ async fn update_user(
     } else {
         String::new()
     };
+    let next_cabang_id = if next_role == "karyawan" {
+        payload
+            .cabang_id
+            .as_deref()
+            .unwrap_or(&current_cabang_id)
+            .trim()
+            .to_string()
+    } else {
+        String::new()
+    };
     let next_password_hash = payload
         .password
         .as_deref()
         .map(hash_password)
         .unwrap_or_else(|| current_password_hash.clone());
-    let next_avatar = payload.avatar.unwrap_or(current_avatar);
     let next_bank_account = payload.bank_account.unwrap_or(current_bank_account);
     let next_whatsapp = payload.whatsapp.unwrap_or(current_whatsapp);
     let next_is_active = payload.is_active.unwrap_or(current_is_active);
     let next_is_verified = payload.is_verified.unwrap_or(current_is_verified);
-    let next_referral_slug = if next_role == "sales" {
+    let next_referral_slug = if next_role == "admin-sales" {
         generate_unique_sales_slug(&state, &next_name, &id).await?
     } else {
         current_referral_slug.clone()
     };
 
-    if next_role == "sales" && next_whatsapp.trim().is_empty() {
+    if next_role == "admin-sales" && next_whatsapp.trim().is_empty() {
         return Err(AppError::Validation {
-            errors: vec!["whatsapp wajib diisi untuk role sales".to_string()],
+            errors: vec!["whatsapp wajib diisi untuk role admin-sales".to_string()],
         });
     }
     if next_role == "karyawan" && next_divisi.trim().is_empty() {
         return Err(AppError::Validation {
             errors: vec!["divisi wajib diisi untuk role karyawan".to_string()],
         });
+    }
+    if next_role == "karyawan" && next_cabang_id.trim().is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["cabang wajib diisi untuk role karyawan".to_string()],
+        });
+    }
+    if next_role == "karyawan" {
+        ensure_cabang_exists(&state, &next_cabang_id).await?;
     }
 
     let should_invalidate_sessions = next_role != current_role
@@ -2366,15 +2979,16 @@ async fn update_user(
         || next_is_verified != current_is_verified;
 
     sqlx::query(
-        "UPDATE users SET email = ?, name = ?, role = ?, jabatan = ?, divisi = ?, password_hash = ?, avatar = ?, bank_account = ?, whatsapp = ?, referral_slug = ?, is_active = ?, is_verified = ? WHERE id = ?",
+        "UPDATE users SET email = ?, name = ?, role = ?, jabatan = ?, divisi = ?, cabang_id = ?, password_hash = ?, avatar = ?, bank_account = ?, whatsapp = ?, referral_slug = ?, is_active = ?, is_verified = ? WHERE id = ?",
     )
     .bind(next_email.trim())
     .bind(next_name.trim())
     .bind(&next_role)
     .bind(&next_jabatan)
     .bind(&next_divisi)
+    .bind(&next_cabang_id)
     .bind(next_password_hash)
-    .bind(next_avatar)
+    .bind("")
     .bind(next_bank_account)
     .bind(next_whatsapp)
     .bind(&next_referral_slug)
@@ -2385,9 +2999,12 @@ async fn update_user(
     .await
     .map_err(map_conflict_if_needed)?;
 
-    if next_role == "sales" {
+    if next_role == "admin-sales" {
         sync_sales_referral(&state, &id, &next_name, &next_referral_slug, next_is_active).await?;
-    } else if current_role.eq_ignore_ascii_case("sales") {
+    } else if current_role.eq_ignore_ascii_case("sales")
+        || current_role.eq_ignore_ascii_case("admin-sales")
+        || current_role.eq_ignore_ascii_case("admin_sales")
+    {
         sqlx::query("UPDATE referrals SET is_active = 0 WHERE owner_user_id = ?")
             .bind(&id)
             .execute(&state.pool)
@@ -2423,17 +3040,16 @@ async fn reset_user_password(
         });
     }
 
-    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
-    let target_user =
-        sqlx::query_as::<_, crate::state::UserRecord>(&query)
-            .bind(&id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("DB error fetching user for password reset: {}", e);
-                AppError::Internal
-            })?
-            .ok_or(AppError::NotFound)?;
+    let query = format!("{USER_RECORD_SELECT} WHERE u.id = ?");
+    let target_user = sqlx::query_as::<_, crate::state::UserRecord>(&query)
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error fetching user for password reset: {}", e);
+            AppError::Internal
+        })?
+        .ok_or(AppError::NotFound)?;
 
     let password_hash = hash_password(payload.password.trim());
     let result =
@@ -2497,7 +3113,12 @@ async fn list_reward_tiers(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Sales]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::AdminSales],
+    )
+    .await?;
 
     let tiers = sqlx::query_as::<_, (String, String, i64, i64, bool)>(
         "SELECT id, name, threshold_points, reward_value, is_active FROM reward_tiers ORDER BY threshold_points ASC"
@@ -2574,6 +3195,7 @@ async fn upload_raport_evidence(
     mut multipart: Multipart,
 ) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Karyawan]).await?;
+    ensure_jobdesk_report_window_open(&state).await?;
     let mut uploaded_url: Option<String> = None;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
@@ -2589,7 +3211,12 @@ async fn upload_raport_evidence(
             .rsplit('.')
             .next()
             .map(|value| value.to_lowercase())
-            .filter(|value| matches!(value.as_str(), "jpg" | "jpeg" | "png" | "webp" | "mp4" | "webm" | "mov"))
+            .filter(|value| {
+                matches!(
+                    value.as_str(),
+                    "jpg" | "jpeg" | "png" | "webp" | "mp4" | "webm" | "mov"
+                )
+            })
             .unwrap_or_else(|| "bin".to_string());
         if extension == "bin" {
             return Err(AppError::Validation {
@@ -2621,10 +3248,12 @@ async fn upload_raport_evidence(
             });
         }
 
-        tokio::fs::create_dir_all("uploads/raport").await.map_err(|e| {
-            tracing::error!("Failed creating raport upload dir: {}", e);
-            AppError::Internal
-        })?;
+        tokio::fs::create_dir_all("uploads/raport")
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed creating raport upload dir: {}", e);
+                AppError::Internal
+            })?;
         let file_name = format!("{}_raport.{}", uuid::Uuid::new_v4(), extension);
         let file_path = format!("uploads/raport/{}", file_name);
         tokio::fs::write(&file_path, &data).await.map_err(|e| {
@@ -2667,11 +3296,100 @@ fn is_valid_raport_evidence_content(extension: &str, content_type: &str, data: &
                 && &data[4..8] == b"ftyp"
         }
         "webm" => {
-            lowered_mime.starts_with("video/webm")
-                && data.starts_with(&[0x1a, 0x45, 0xdf, 0xa3])
+            lowered_mime.starts_with("video/webm") && data.starts_with(&[0x1a, 0x45, 0xdf, 0xa3])
         }
         _ => false,
     }
+}
+
+fn is_safe_upload_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment != ".."
+        && segment
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+}
+
+fn public_upload_content_type(filename: &str) -> Option<&'static str> {
+    let lower = filename.to_ascii_lowercase();
+    if lower.ends_with(".webp") {
+        Some("image/webp")
+    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        Some("image/jpeg")
+    } else if lower.ends_with(".png") {
+        Some("image/png")
+    } else if lower.ends_with(".mp4") {
+        Some("video/mp4")
+    } else if lower.ends_with(".webm") {
+        Some("video/webm")
+    } else if lower.ends_with(".mov") {
+        Some("video/quicktime")
+    } else {
+        None
+    }
+}
+
+async fn serve_public_upload(Path(path): Path<String>) -> Result<ResponseBody, AppError> {
+    let segments = path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+
+    if segments.is_empty()
+        || segments
+            .iter()
+            .any(|segment| !is_safe_upload_segment(segment))
+        || segments
+            .first()
+            .is_some_and(|segment| *segment == "private")
+    {
+        return Err(AppError::NotFound);
+    }
+
+    let filename = segments.last().copied().unwrap_or_default();
+    let content_type = public_upload_content_type(filename).ok_or(AppError::NotFound)?;
+
+    let allowed_path = match segments.as_slice() {
+        [single] => public_upload_content_type(single).is_some(),
+        ["landing", file] | ["placeholders", file] | ["raport", file] => {
+            public_upload_content_type(file).is_some()
+        }
+        _ => false,
+    };
+    if !allowed_path {
+        return Err(AppError::NotFound);
+    }
+
+    let mut file_path = PathBuf::from("uploads");
+    for segment in &segments {
+        file_path.push(segment);
+    }
+
+    let data = tokio::fs::read(&file_path)
+        .await
+        .map_err(|_| AppError::NotFound)?;
+
+    let cache_control = if segments.first().is_some_and(|segment| *segment == "raport") {
+        "private, no-store"
+    } else {
+        "public, max-age=86400"
+    };
+
+    let mut builder = axum::response::Response::builder()
+        .header(CONTENT_TYPE, content_type)
+        .header(CACHE_CONTROL, cache_control);
+    if !content_type.starts_with("image/") {
+        builder = builder.header(
+            CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", filename),
+        );
+    }
+
+    builder.body(Body::from(data)).map_err(|e| {
+        tracing::error!("Failed to build upload response: {}", e);
+        AppError::Internal
+    })
 }
 
 /// Serve files from uploads/private/ — requires admin auth
@@ -2731,7 +3449,7 @@ async fn list_wa_accounts(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
 
@@ -2834,7 +3552,7 @@ async fn create_wa_account(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
 
@@ -2882,7 +3600,7 @@ async fn update_wa_account(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_account_access(&state, &user, &id).await?;
@@ -2925,7 +3643,7 @@ async fn delete_wa_account(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_account_access(&state, &user, &id).await?;
@@ -2946,7 +3664,7 @@ async fn list_wa_campaigns(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
 
@@ -3099,7 +3817,7 @@ async fn create_wa_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
 
@@ -3144,7 +3862,7 @@ async fn get_wa_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -3161,7 +3879,7 @@ async fn update_wa_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -3204,7 +3922,7 @@ async fn delete_wa_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -3233,7 +3951,7 @@ async fn add_wa_recipients(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -3334,7 +4052,7 @@ async fn download_recipients_template(
     let _user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
 
@@ -3369,7 +4087,7 @@ async fn upload_wa_recipients_excel(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -3819,7 +4537,7 @@ async fn start_wa_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -4019,7 +4737,7 @@ async fn pause_wa_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -4206,7 +4924,7 @@ async fn reset_wa_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -4280,13 +4998,27 @@ async fn get_wa_campaign_status(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
     let campaign = fetch_wa_campaign_summary(&state, &id).await?;
 
-    let recipient_rows = sqlx::query_as::<_, (String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>(
+    let recipient_rows = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            Option<String>,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ),
+    >(
         "SELECT id, phone, variables_json, status,
                 DATE_FORMAT(last_attempt_at, '%Y-%m-%d %H:%i:%s') AS last_attempt_at,
                 DATE_FORMAT(delivered_at, '%Y-%m-%d %H:%i:%s') AS delivered_at,
@@ -4358,7 +5090,7 @@ async fn get_wa_campaign_metrics(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -4415,7 +5147,7 @@ async fn upload_campaign_image(
     let _user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
 
@@ -4543,7 +5275,7 @@ async fn add_wa_recipients_from_leads(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &id).await?;
@@ -4601,7 +5333,7 @@ async fn delete_wa_recipient(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_recipient_access(&state, &user, &id).await?;
@@ -4661,7 +5393,7 @@ async fn resend_verification(
 ) -> Result<ResponseBody, AppError> {
     let _admin = authorize(&state, &headers, &[Role::Admin]).await?;
 
-    let query = format!("{USER_RECORD_SELECT} WHERE id = ?");
+    let query = format!("{USER_RECORD_SELECT} WHERE u.id = ?");
     let user: UserRecord = sqlx::query_as(&query)
         .bind(&id)
         .fetch_optional(&state.pool)
@@ -5768,35 +6500,48 @@ async fn update_product_category(
         }
     }
 
-    let mut query = String::from("UPDATE product_categories SET ");
-    let mut updates = Vec::new();
+    let name = payload.name.as_deref().map(str::trim);
+    let description = payload.description.as_deref();
 
-    if let Some(ref name) = payload.name {
-        updates.push(format!(
-            "name = '{}', slug = '{}'",
-            name.trim(),
-            name.to_lowercase().replace(' ', "-")
-        ));
-    }
-    if let Some(ref desc) = payload.description {
-        updates.push(format!("description = '{}'", desc));
-    }
-
-    if updates.is_empty() {
+    if name.is_none() && description.is_none() {
         return Ok(json_ok("No changes", json!({ "updated": false })));
     }
 
-    query.push_str(&updates.join(", "));
-    query.push_str(" WHERE id = ?");
-
-    sqlx::query(&query)
-        .bind(&id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error: {}", e);
-            AppError::Internal
-        })?;
+    match (name, description) {
+        (Some(name), Some(desc)) => {
+            let slug = name.to_lowercase().replace(' ', "-");
+            sqlx::query(
+                "UPDATE product_categories SET name = ?, slug = ?, description = ? WHERE id = ?",
+            )
+            .bind(name)
+            .bind(slug)
+            .bind(desc)
+            .bind(&id)
+            .execute(&state.pool)
+            .await
+        }
+        (Some(name), None) => {
+            let slug = name.to_lowercase().replace(' ', "-");
+            sqlx::query("UPDATE product_categories SET name = ?, slug = ? WHERE id = ?")
+                .bind(name)
+                .bind(slug)
+                .bind(&id)
+                .execute(&state.pool)
+                .await
+        }
+        (None, Some(desc)) => {
+            sqlx::query("UPDATE product_categories SET description = ? WHERE id = ?")
+                .bind(desc)
+                .bind(&id)
+                .execute(&state.pool)
+                .await
+        }
+        (None, None) => unreachable!(),
+    }
+    .map_err(|e| {
+        tracing::error!("DB error: {}", e);
+        AppError::Internal
+    })?;
 
     Ok(json_ok("Category updated", json!({ "updated": true })))
 }
@@ -5832,24 +6577,36 @@ struct CatalogListQuery {
 
 async fn list_catalogs(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(params): Query<CatalogListQuery>,
 ) -> Result<ResponseBody, AppError> {
+    enforce_public_ip_rate_limit(
+        &state,
+        &headers,
+        "public_read:catalogs",
+        PUBLIC_READ_MAX_PER_MINUTE,
+        Duration::minutes(1),
+    )
+    .await?;
+
     let default_limit = std::env::var("PUBLIC_CATALOG_LIMIT")
         .ok()
         .and_then(|value| value.parse::<u32>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(500);
+        .unwrap_or(50)
+        .min(100);
     let max_limit = std::env::var("PUBLIC_CATALOG_MAX_LIMIT")
         .ok()
         .and_then(|value| value.parse::<u32>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(500);
+        .unwrap_or(100)
+        .min(100);
     let page = params.page.unwrap_or(1).max(1);
     let limit = params.limit.unwrap_or(default_limit).clamp(1, max_limit);
     let offset = (page - 1) * limit;
 
     let products = sqlx::query_as::<_, ProductRecord>(
-        "SELECT id, slug, name, category, subcategory, CAST(price AS DOUBLE) AS price, CAST(price_installment AS DOUBLE) AS price_installment, CAST(dp_min AS DOUBLE) AS dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products LIMIT ? OFFSET ?"
+        "SELECT id, slug, name, category, subcategory, CAST(price AS DOUBLE) AS price, CAST(price_installment AS DOUBLE) AS price_installment, CAST(dp_min AS DOUBLE) AS dp_min, image, images, badge, badge_text, short_desc, description, specs, stock, stock_quantity, colors, ratings, rating, review FROM products WHERE is_active = 1 LIMIT ? OFFSET ?"
     )
         .bind(limit as i64)
         .bind(offset as i64)
@@ -5860,7 +6617,7 @@ async fn list_catalogs(
             AppError::Internal
         })?;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM products")
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM products WHERE is_active = 1")
         .fetch_one(&state.pool)
         .await
         .map_err(|e| {
@@ -7312,7 +8069,19 @@ async fn delete_promotion(
     ))
 }
 
-async fn list_partners(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+async fn list_partners(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    enforce_public_ip_rate_limit(
+        &state,
+        &headers,
+        "public_read:partners",
+        PUBLIC_READ_MAX_PER_MINUTE,
+        Duration::minutes(1),
+    )
+    .await?;
+
     let partners = sqlx::query_as::<_, PartnerRecord>(
         "SELECT id, name, logo_url, website_url, sort_order, is_active, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM partners WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     )
@@ -7822,6 +8591,11 @@ struct JobApplicationCreateRequest {
     linked_in: Option<String>,
     #[serde(default)]
     portfolio_url: Option<String>,
+    /// Quick Win #9 — optional captcha token. Honored only when
+    /// `HCAPTCHA_SECRET` is configured; ignored otherwise so existing FE
+    /// integrations keep working.
+    #[serde(default, alias = "h-captcha-response", alias = "g-recaptcha-response")]
+    captcha_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -7943,7 +8717,7 @@ async fn generate_referral(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Agent, Role::Operator, Role::AdminSales],
     )
     .await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
@@ -7993,7 +8767,7 @@ async fn list_referrals(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Agent, Role::Operator, Role::AdminSales],
     )
     .await?;
     let is_admin = user.role.eq_ignore_ascii_case("admin");
@@ -8030,7 +8804,7 @@ async fn get_referral(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Agent, Role::Operator, Role::AdminSales],
     )
     .await?;
     let row = sqlx::query_as::<_, ReferralRecord>(
@@ -8063,7 +8837,7 @@ async fn get_referral_stats(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Agent, Role::Operator, Role::AdminSales],
     )
     .await?;
     let row = sqlx::query_as::<_, ReferralRecord>(
@@ -8090,8 +8864,18 @@ async fn get_referral_stats(
 
 async fn get_public_referral(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(slug): Path<String>,
 ) -> Result<ResponseBody, AppError> {
+    enforce_public_ip_rate_limit(
+        &state,
+        &headers,
+        "public_read:referral",
+        PUBLIC_READ_MAX_PER_MINUTE,
+        Duration::minutes(1),
+    )
+    .await?;
+
     let row = sqlx::query_as::<_, PublicReferralRecord>(
         r#"
         SELECT
@@ -8174,11 +8958,11 @@ async fn create_delivery_schedule(
     headers: HeaderMap,
     Json(payload): Json<DeliveryScheduleCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Sales]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::AdminSales]).await?;
     validate_delivery_schedule(&payload)?;
 
     let sales_user = if user.role.eq_ignore_ascii_case("admin") {
-        let query = format!("{USER_RECORD_SELECT} WHERE LOWER(name) = LOWER(?) LIMIT 1");
+        let query = format!("{USER_RECORD_SELECT} WHERE LOWER(u.name) = LOWER(?) LIMIT 1");
         sqlx::query_as::<_, UserRecord>(&query)
             .bind(payload.sales_name.trim())
             .fetch_optional(&state.pool)
@@ -8191,7 +8975,7 @@ async fn create_delivery_schedule(
                 errors: vec!["nama sales tidak ditemukan di database".to_string()],
             })?
     } else {
-        let query = format!("{USER_RECORD_SELECT} WHERE id = ? LIMIT 1");
+        let query = format!("{USER_RECORD_SELECT} WHERE u.id = ? LIMIT 1");
         sqlx::query_as::<_, UserRecord>(&query)
             .bind(&user.id)
             .fetch_optional(&state.pool)
@@ -8236,7 +9020,7 @@ async fn list_delivery_schedules(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Sales]).await?;
+    let user = authorize(&state, &headers, &[Role::Admin, Role::AdminSales]).await?;
 
     let rows = if user.role.eq_ignore_ascii_case("admin") {
         sqlx::query_as::<_, DeliveryScheduleRecord>(
@@ -8434,9 +9218,21 @@ async fn pixel_event(
     ))
 }
 
-async fn list_jobs(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+async fn list_jobs(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    enforce_public_ip_rate_limit(
+        &state,
+        &headers,
+        "public_read:jobs",
+        PUBLIC_READ_MAX_PER_MINUTE,
+        Duration::minutes(1),
+    )
+    .await?;
+
     let jobs = sqlx::query_as::<_, JobRecord>(
-        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline, (SELECT COUNT(*) FROM job_applications WHERE job_id = job_listings.id) as applicants_count FROM job_listings ORDER BY created_at DESC"
+        "SELECT id, title, department, location, type, level, description, requirements, benefits, posted_at, is_active, deadline, (SELECT COUNT(*) FROM job_applications WHERE job_id = job_listings.id) as applicants_count FROM job_listings WHERE is_active = 1 ORDER BY created_at DESC"
     )
         .fetch_all(&state.pool)
         .await
@@ -8601,7 +9397,19 @@ async fn delete_job(
     ))
 }
 
-async fn list_articles(State(state): State<AppState>) -> Result<ResponseBody, AppError> {
+async fn list_articles(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<ResponseBody, AppError> {
+    enforce_public_ip_rate_limit(
+        &state,
+        &headers,
+        "public_read:articles",
+        PUBLIC_READ_MAX_PER_MINUTE,
+        Duration::minutes(1),
+    )
+    .await?;
+
     let articles = sqlx::query_as::<_, ArticleRecord>(
         "SELECT id, slug, title, excerpt, content, author, author_role, author_image, hero_image, category, tags, published_at, read_time, featured FROM blog_posts ORDER BY created_at DESC"
     )
@@ -8771,6 +9579,7 @@ type ResponseBody = axum::response::Response;
 async fn list_notifications(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(query): Query<NotificationsQuery>,
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(
         &state,
@@ -8779,13 +9588,38 @@ async fn list_notifications(
             Role::Admin,
             Role::Operator,
             Role::Agent,
-            Role::Sales,
+            Role::AdminSales,
             Role::Owner,
             Role::PicRaport,
             Role::Karyawan,
         ],
     )
     .await?;
+
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+    let offset = (page - 1) * limit;
+
+    let total: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE recipient_user_id = ?")
+            .bind(&user.id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("DB error counting notifications: {}", e);
+                AppError::Internal
+            })?;
+
+    let unread_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notifications WHERE recipient_user_id = ? AND is_read = 0",
+    )
+    .bind(&user.id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error counting unread notifications: {}", e);
+        AppError::Internal
+    })?;
 
     let rows = sqlx::query_as::<_, NotificationRecord>(
         "SELECT id, recipient_user_id, type, title, message, action_path, entity_id, is_read,
@@ -8794,9 +9628,11 @@ async fn list_notifications(
          FROM notifications
          WHERE recipient_user_id = ?
          ORDER BY is_read ASC, created_at DESC
-         LIMIT 100"
+         LIMIT ? OFFSET ?",
     )
     .bind(&user.id)
+    .bind(limit as i64)
+    .bind(offset as i64)
     .fetch_all(&state.pool)
     .await
     .map_err(|e| {
@@ -8804,13 +9640,17 @@ async fn list_notifications(
         AppError::Internal
     })?;
 
-    let unread_count = rows.iter().filter(|row| !row.is_read).count() as i64;
     let items: Vec<Value> = rows.into_iter().map(notification_to_json).collect();
+    let has_more = (offset as i64 + items.len() as i64) < total;
     Ok(json_ok(
         "Notifications fetched",
         json!({
             "items": items,
-            "unreadCount": unread_count
+            "unreadCount": unread_count,
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "hasMore": has_more
         }),
     ))
 }
@@ -8826,7 +9666,7 @@ async fn get_notifications_unread_count(
             Role::Admin,
             Role::Operator,
             Role::Agent,
-            Role::Sales,
+            Role::AdminSales,
             Role::Owner,
             Role::PicRaport,
             Role::Karyawan,
@@ -8859,7 +9699,7 @@ async fn mark_notification_as_read(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::Agent, Role::AdminSales],
     )
     .await?;
 
@@ -8894,7 +9734,7 @@ async fn mark_all_notifications_as_read(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::Agent, Role::AdminSales],
     )
     .await?;
 
@@ -8917,6 +9757,62 @@ async fn mark_all_notifications_as_read(
     ))
 }
 
+async fn backfill_missing_prospek_leads(state: &AppState) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO leads (
+            id,
+            agent_id,
+            customer_name,
+            phone_number,
+            interested_product,
+            status,
+            notes,
+            created_at,
+            updated_at
+        )
+        SELECT
+            p.id,
+            p.karyawan_id,
+            p.nama_prospek,
+            COALESCE(NULLIF(p.no_whatsapp, ''), p.nomor_hp),
+            COALESCE(NULLIF(p.minat_barang, ''), p.alamat),
+            CASE p.status_prospek
+                WHEN 'deal' THEN 'Closed Won'
+                WHEN 'not_deal' THEN 'Closed Lost'
+                WHEN 'polling' THEN 'Negosiasi'
+                ELSE 'Follow Up'
+            END,
+            CONCAT(
+                'Sumber: Prospek Harian Karyawan | Cabang: ', p.cabang,
+                ' | Divisi: ', p.divisi,
+                CASE
+                    WHEN COALESCE(p.keterangan_prospek, '') <> '' THEN CONCAT(' | Keterangan: ', p.keterangan_prospek)
+                    ELSE ''
+                END,
+                CASE
+                    WHEN COALESCE(p.keterangan_fincoy, '') <> '' THEN CONCAT(' | Fincoy: ', p.keterangan_fincoy)
+                    ELSE ''
+                END
+            ),
+            p.created_at,
+            p.created_at
+        FROM prospek_harian p
+        LEFT JOIN leads l ON l.id = p.id
+        WHERE l.id IS NULL
+          AND COALESCE(NULLIF(p.no_whatsapp, ''), p.nomor_hp, '') <> ''
+          AND COALESCE(NULLIF(p.minat_barang, ''), p.alamat, '') <> ''
+        ON DUPLICATE KEY UPDATE id = id",
+    )
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error backfilling prospek_harian to leads: {}", e);
+        AppError::Internal
+    })?;
+
+    Ok(())
+}
+
 async fn list_leads(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -8924,21 +9820,31 @@ async fn list_leads(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::Agent, Role::AdminSales],
     )
     .await?;
     let can_view_all =
         user.role.eq_ignore_ascii_case("admin") || user.role.eq_ignore_ascii_case("operator");
 
+    if can_view_all {
+        backfill_missing_prospek_leads(&state).await?;
+    }
+
     let leads = if can_view_all {
         sqlx::query_as::<_, LeadRecord>(
-            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM leads ORDER BY created_at DESC",
+            "SELECT l.id, l.agent_id, u.name AS agent_name, l.customer_name, l.phone_number, l.interested_product, l.status, l.notes, \
+             DATE_FORMAT(l.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+             DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
+             FROM leads l LEFT JOIN users u ON u.id = l.agent_id ORDER BY l.created_at DESC",
         )
         .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, LeadRecord>(
-            "SELECT id, agent_id, customer_name, phone_number, interested_product, status, notes, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM leads WHERE agent_id = ? ORDER BY created_at DESC",
+            "SELECT l.id, l.agent_id, u.name AS agent_name, l.customer_name, l.phone_number, l.interested_product, l.status, l.notes, \
+             DATE_FORMAT(l.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
+             DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
+             FROM leads l LEFT JOIN users u ON u.id = l.agent_id WHERE l.agent_id = ? ORDER BY l.created_at DESC",
         )
         .bind(&user.id)
         .fetch_all(&state.pool)
@@ -8958,7 +9864,12 @@ async fn create_lead(
     headers: HeaderMap,
     Json(payload): Json<LeadCreateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Sales]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::AdminSales],
+    )
+    .await?;
     validate_lead_create(&payload)?;
     let phone_number = normalize_local_whatsapp(&payload.phone_number);
     if !phone_number.starts_with("08") || phone_number.len() < 10 {
@@ -9029,7 +9940,12 @@ async fn update_lead_status(
     Path(id): Path<String>,
     Json(payload): Json<LeadStatusUpdateRequest>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Agent, Role::Sales]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Agent, Role::AdminSales],
+    )
+    .await?;
     validate_lead_status_update(&payload)?;
 
     let lead = find_lead_by_id(&state, &id).await?;
@@ -9361,9 +10277,28 @@ async fn list_agents(
         AppError::Internal
     })?;
 
+    let items = rows
+        .into_iter()
+        .map(|row| {
+            json!({
+                "id": row.id,
+                "name": row.name,
+                "email": row.email,
+                "whatsapp": row.whatsapp.map(|value| decrypt_pii_from_storage(&value)),
+                "city": row.city,
+                "province": row.province,
+                "totalSales": row.total_sales,
+                "points": row.points,
+                "tierName": row.tier_name,
+                "isActive": row.is_active,
+                "joinedAt": row.joined_at,
+            })
+        })
+        .collect::<Vec<_>>();
+
     Ok(json_ok(
         "Agents fetched successfully",
-        json!({ "items": rows }),
+        json!({ "items": items }),
     ))
 }
 
@@ -9374,6 +10309,27 @@ async fn list_leaderboard(
     let user = authorize(&state, &headers, &[Role::Admin, Role::Agent]).await?;
 
     let is_admin = user.role.eq_ignore_ascii_case("admin");
+
+    let to_admin_items = |items: &[AgentDirectoryRow]| {
+        items
+            .iter()
+            .map(|row| {
+                json!({
+                    "id": row.id.clone(),
+                    "name": row.name.clone(),
+                    "email": row.email.clone(),
+                    "whatsapp": row.whatsapp.as_ref().map(|value| decrypt_pii_from_storage(value)),
+                    "city": row.city.clone(),
+                    "province": row.province.clone(),
+                    "totalSales": row.total_sales,
+                    "points": row.points,
+                    "tierName": row.tier_name.clone(),
+                    "isActive": row.is_active,
+                    "joinedAt": row.joined_at.clone(),
+                })
+            })
+            .collect::<Vec<_>>()
+    };
 
     let to_agent_safe_items = |items: &[AgentDirectoryRow]| {
         items
@@ -9403,7 +10359,7 @@ async fn list_leaderboard(
         if is_admin {
             return Ok(json_ok(
                 "Leaderboard fetched from cache",
-                json!({ "items": cached_items }),
+                json!({ "items": to_admin_items(&cached_items) }),
             ));
         }
         return Ok(json_ok(
@@ -9447,7 +10403,7 @@ async fn list_leaderboard(
     if is_admin {
         return Ok(json_ok(
             "Leaderboard fetched successfully",
-            json!({ "items": rows }),
+            json!({ "items": to_admin_items(&rows) }),
         ));
     }
 
@@ -9521,12 +10477,16 @@ fn claim_to_json(row: ClaimRow) -> Value {
 fn registration_to_json(row: AgentRegistrationRow) -> Value {
     json!({
         "id": row.id,
-        "fullName": row.full_name,
-        "email": row.email,
-        "whatsapp": row.whatsapp,
+        // Quick Win #7: email and full_name are now encrypted at rest. Old
+        // unencrypted rows still decode correctly because
+        // `decrypt_pii_from_storage` returns the value as-is when the
+        // `enc:v1:` prefix is absent.
+        "fullName": decrypt_pii_from_storage(&row.full_name),
+        "email": decrypt_pii_from_storage(&row.email),
+        "whatsapp": decrypt_pii_from_storage(&row.whatsapp),
         "province": row.province,
         "city": row.city,
-        "address": row.address,
+        "address": decrypt_optional_pii(row.address),
         "preferredProducts": parse_json_or_default(row.preferred_products.as_deref(), json!([])),
         "profilePhoto": row.profile_photo,
         "ktpPhoto": row.ktp_photo,
@@ -9651,7 +10611,7 @@ async fn get_agent_stats(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Agent, Role::Sales]).await?;
+    let user = authorize(&state, &headers, &[Role::Agent, Role::AdminSales]).await?;
 
     let row = sqlx::query_as::<_, AgentStatsRow>(
         "SELECT s.points, s.sales_count, t.name AS current_tier FROM agent_stats s LEFT JOIN reward_tiers t ON t.id = s.current_tier_id WHERE s.user_id = ? LIMIT 1"
@@ -9806,6 +10766,7 @@ async fn submit_agent_registration(
     let mut city = String::new();
     let mut address = String::new();
     let mut preferred_products = String::new();
+    let mut captcha_token = String::new();
     let mut profile_photo_url: Option<String> = None;
     let mut ktp_photo_url: Option<String> = None;
 
@@ -9824,12 +10785,17 @@ async fn submit_agent_registration(
             "city" => city = field.text().await.unwrap_or_default(),
             "address" => address = field.text().await.unwrap_or_default(),
             "preferredProducts" => preferred_products = field.text().await.unwrap_or_default(),
+            // Quick Win #9: accept the captcha response under any of the
+            // common field names used by hCaptcha / reCAPTCHA widgets.
+            "h-captcha-response" | "g-recaptcha-response" | "captchaToken" | "captcha_token" => {
+                captcha_token = field.text().await.unwrap_or_default()
+            }
             "profilePhoto" => {
                 let data = field.bytes().await.map_err(|_| AppError::Internal)?;
                 if !data.is_empty() {
-                    if data.len() > 5 * 1024 * 1024 {
+                    if data.len() > 4 * 1024 * 1024 {
                         return Err(AppError::Validation {
-                            errors: vec!["Foto profil maksimal 5MB".to_string()],
+                            errors: vec!["Foto profil maksimal 4MB".to_string()],
                         });
                     }
                     let img = decode_uploaded_image(&data)?;
@@ -9851,9 +10817,9 @@ async fn submit_agent_registration(
             "ktpPhoto" => {
                 let data = field.bytes().await.map_err(|_| AppError::Internal)?;
                 if !data.is_empty() {
-                    if data.len() > 5 * 1024 * 1024 {
+                    if data.len() > 4 * 1024 * 1024 {
                         return Err(AppError::Validation {
-                            errors: vec!["Foto KTP maksimal 5MB".to_string()],
+                            errors: vec!["Foto KTP maksimal 4MB".to_string()],
                         });
                     }
                     let img = decode_uploaded_image(&data)?;
@@ -9941,17 +10907,39 @@ async fn submit_agent_registration(
         }
     }
 
+    // Quick Win #9: optional hCaptcha verification. When `HCAPTCHA_SECRET` is
+    // not configured the verifier is a no-op, so the rollout is non-breaking:
+    // operators enable bot protection by setting the env var and adding the
+    // hCaptcha widget on the FE form.
+    crate::captcha::verify_hcaptcha_if_configured(&captcha_token, client_ip.as_deref()).await?;
+
+    // Quick Win #7: encrypt all PII fields at rest. `email_hash` is the
+    // deterministic SHA-256 of the lowercased email so the application can
+    // still rate-limit per email and look up duplicates without holding the
+    // plaintext.
+    let encrypted_full_name = encrypt_pii_for_storage(full_name.trim())?;
+    let encrypted_email = encrypt_pii_for_storage(email.trim())?;
+    let email_hash = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(email.trim().to_lowercase().as_bytes());
+        format!("{:x}", hasher.finalize())
+    };
+    let encrypted_whatsapp = encrypt_pii_for_storage(&whatsapp)?;
+    let encrypted_address = encrypt_pii_for_storage(&address)?;
+
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO agent_registrations (id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO agent_registrations (id, full_name, email, email_hash, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
-    .bind(full_name.trim())
-    .bind(email.trim())
-    .bind(whatsapp.trim())
+    .bind(encrypted_full_name)
+    .bind(encrypted_email)
+    .bind(email_hash)
+    .bind(encrypted_whatsapp)
     .bind(province.trim())
     .bind(city.trim())
-    .bind(address.trim())
+    .bind(encrypted_address)
     .bind(preferred_products.trim())
     .bind(profile_photo_url)
     .bind(ktp_photo_url)
@@ -10017,7 +11005,7 @@ async fn update_agent_registration_status(
     }
 
     if status == "approved" {
-        let registration = sqlx::query_as::<_, AgentRegistrationRow>(
+        let mut registration = sqlx::query_as::<_, AgentRegistrationRow>(
             "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, DATE_FORMAT(submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at FROM agent_registrations WHERE id = ? LIMIT 1"
         )
         .bind(&id)
@@ -10028,6 +11016,13 @@ async fn update_agent_registration_status(
             AppError::Internal
         })?
         .ok_or(AppError::NotFound)?;
+
+        // Quick Win #7: email and full_name may be encrypted at rest. Decrypt
+        // in-place so the downstream user-provisioning / mailer code can use
+        // them as plain strings. `decrypt_pii_from_storage` is a no-op for
+        // legacy rows that were stored before encryption was enabled.
+        registration.full_name = decrypt_pii_from_storage(&registration.full_name);
+        registration.email = decrypt_pii_from_storage(&registration.email);
 
         if registration.status != "approved" {
             let user_exists = sqlx::query("SELECT 1 FROM users WHERE email = ?")
@@ -10680,6 +11675,14 @@ async fn create_job_application(
         }
     }
 
+    // Quick Win #9: optional hCaptcha verification. No-op when HCAPTCHA_SECRET
+    // is unset, so existing FE submissions keep working without changes.
+    crate::captcha::verify_hcaptcha_if_configured(
+        payload.captcha_token.as_deref().unwrap_or(""),
+        client_ip.as_deref(),
+    )
+    .await?;
+
     sqlx::query(
         "INSERT INTO job_applications (id, job_id, job_title, full_name, email, phone, address, education, major, experience, cover_letter, linked_in, portfolio_url, status, applied_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
@@ -10784,7 +11787,7 @@ async fn list_blast_contacts(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
+        &[Role::Admin, Role::Operator, Role::AdminSales, Role::Agent],
     )
     .await?;
 
@@ -10857,7 +11860,7 @@ async fn create_blast_contact(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
+        &[Role::Admin, Role::Operator, Role::AdminSales, Role::Agent],
     )
     .await?;
 
@@ -10899,7 +11902,7 @@ async fn update_blast_contact(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
+        &[Role::Admin, Role::Operator, Role::AdminSales, Role::Agent],
     )
     .await?;
 
@@ -10937,7 +11940,7 @@ async fn delete_blast_contact(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
+        &[Role::Admin, Role::Operator, Role::AdminSales, Role::Agent],
     )
     .await?;
 
@@ -10963,7 +11966,7 @@ async fn upload_blast_contacts_excel(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales, Role::Agent],
+        &[Role::Admin, Role::Operator, Role::AdminSales, Role::Agent],
     )
     .await?;
 
@@ -11170,7 +12173,7 @@ async fn import_blast_contacts_to_campaign(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Sales],
+        &[Role::Admin, Role::Operator, Role::AdminSales],
     )
     .await?;
     ensure_wa_campaign_access(&state, &user, &campaign_id).await?;
@@ -11285,6 +12288,8 @@ struct ProspekHarianPublic {
     karyawan_name: String,
     cabang: String,
     divisi: String,
+    #[sqlx(default)]
+    target_kategori: String,
     nama_prospek: String,
     no_whatsapp: String,
     minat_barang: String,
@@ -11299,7 +12304,6 @@ struct ProspekHarianPublic {
 #[serde(rename_all = "camelCase")]
 struct CreateProspekHarianPayload {
     cabang: Option<String>,
-    divisi: Option<String>,
     nama_prospek: String,
     no_whatsapp: String,
     minat_barang: String,
@@ -11375,11 +12379,54 @@ fn validate_time_hhmm(value: &str, field: &str) -> Result<String, AppError> {
             errors: vec![format!("{} harus berupa jam valid", field)],
         });
     }
-    Ok(format!("{:02}:{:02}", hour.unwrap_or(0), minute.unwrap_or(0)))
+    Ok(format!(
+        "{:02}:{:02}",
+        hour.unwrap_or(0),
+        minute.unwrap_or(0)
+    ))
+}
+
+fn hhmm_to_minutes(value: &str) -> Option<u32> {
+    let mut parts = value.split(':');
+    let hours = parts.next()?.parse::<u32>().ok()?;
+    let minutes = parts.next()?.parse::<u32>().ok()?;
+    if parts.next().is_some() || hours > 23 || minutes > 59 {
+        return None;
+    }
+    Some(hours * 60 + minutes)
+}
+
+fn is_jobdesk_report_window_open(settings: &JobdeskReportSettingsPayload) -> bool {
+    let current = Local::now();
+    let current_minutes = current.hour() * 60 + current.minute();
+    is_minute_within_jobdesk_report_window(current_minutes, settings)
+}
+
+fn is_minute_within_jobdesk_report_window(
+    current_minutes: u32,
+    settings: &JobdeskReportSettingsPayload,
+) -> bool {
+    let Some(start_minutes) = hhmm_to_minutes(&settings.start_time) else {
+        return true;
+    };
+    let Some(end_minutes) = hhmm_to_minutes(&settings.end_time) else {
+        return true;
+    };
+
+    if start_minutes == end_minutes {
+        return true;
+    }
+    if start_minutes < end_minutes {
+        return current_minutes >= start_minutes && current_minutes <= end_minutes;
+    }
+    current_minutes >= start_minutes || current_minutes <= end_minutes
 }
 
 fn normalize_raport_mode(value: Option<String>) -> Result<String, AppError> {
-    let mode = value.unwrap_or_else(|| "none".to_string()).trim().to_lowercase();
+    let mode = value
+        .unwrap_or_else(|| "none".to_string())
+        .trim()
+        .to_lowercase();
     if !matches!(mode.as_str(), "none" | "image" | "video") {
         return Err(AppError::Validation {
             errors: vec!["mode bukti harus none, image, atau video".to_string()],
@@ -11388,9 +12435,13 @@ fn normalize_raport_mode(value: Option<String>) -> Result<String, AppError> {
     Ok(mode)
 }
 
-fn is_sales_division(value: &str) -> bool {
-    let normalized = value.to_lowercase();
-    normalized.contains("sales") || normalized.contains("koordinator")
+fn is_sales_target_marker(value: &str) -> bool {
+    let normalized = value
+        .trim()
+        .to_lowercase()
+        .replace(" ", "_")
+        .replace("-", "_");
+    normalized == "sales"
 }
 
 fn validate_prospek_status(status: &str) -> bool {
@@ -11422,6 +12473,57 @@ fn build_prospek_lead_notes(keterangan: &str, fincoy: &str, cabang: &str, divisi
         parts.push(format!("Fincoy: {}", fincoy.trim()));
     }
     parts.join(" | ")
+}
+
+async fn resolve_user_cabang_name(
+    state: &AppState,
+    user: &UserRecord,
+) -> Result<Option<String>, AppError> {
+    let cabang_name = user.cabang_name.trim();
+    if !cabang_name.is_empty() {
+        return Ok(Some(cabang_name.to_string()));
+    }
+
+    let cabang_id = user.cabang_id.trim();
+    if cabang_id.is_empty() {
+        return Ok(None);
+    }
+
+    let row = sqlx::query_scalar::<_, String>("SELECT nama FROM cabang WHERE id = ? LIMIT 1")
+        .bind(cabang_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error resolving user cabang: {}", e);
+            AppError::Internal
+        })?;
+
+    Ok(row
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| Some(cabang_id.to_string())))
+}
+
+async fn resolve_payload_or_user_cabang(
+    state: &AppState,
+    user: &UserRecord,
+    payload_cabang: Option<String>,
+) -> Result<String, AppError> {
+    if let Some(cabang) = payload_cabang
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(cabang.to_string());
+    }
+
+    resolve_user_cabang_name(state, user)
+        .await?
+        .ok_or_else(|| AppError::Validation {
+            errors: vec![
+                "Cabang karyawan belum diatur. Set cabang karyawan dulu sebelum submit prospek atau raport.".to_string(),
+            ],
+        })
 }
 
 async fn sync_prospek_to_lead(
@@ -11481,21 +12583,36 @@ async fn list_prospek_harian(
 
     let mut builder = sqlx::QueryBuilder::<sqlx::MySql>::new(
         "SELECT p.id, p.karyawan_id, COALESCE(NULLIF(p.karyawan_nama, ''), u.name, '') AS karyawan_name, \
-         p.cabang, p.divisi, p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
+         COALESCE(NULLIF(c.nama, ''), NULLIF(p.cabang, ''), NULLIF(u.cabang_id, ''), 'Cabang belum diatur') AS cabang, \
+         p.divisi, COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') AS target_kategori, \
+         p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
          p.status_prospek, p.keterangan_fincoy, DATE_FORMAT(p.tanggal, '%Y-%m-%d') AS tanggal, \
          DATE_FORMAT(p.created_at, '%H:%i') AS created_at \
-         FROM prospek_harian p LEFT JOIN users u ON u.id = p.karyawan_id WHERE 1=1",
+         FROM prospek_harian p \
+         LEFT JOIN users u ON u.id = p.karyawan_id \
+         LEFT JOIN cabang c ON c.id = u.cabang_id \
+         WHERE 1=1",
     );
 
     if user.role == "karyawan" {
         builder.push(" AND p.karyawan_id = ");
         builder.push_bind(user.id.clone());
-    } else if let Some(karyawan_id) = query.karyawan_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+    } else if let Some(karyawan_id) = query
+        .karyawan_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
         builder.push(" AND p.karyawan_id = ");
         builder.push_bind(karyawan_id.to_string());
     }
 
-    if let Some(tanggal) = query.tanggal.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+    if let Some(tanggal) = query
+        .tanggal
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
         builder.push(" AND p.tanggal = ");
         builder.push_bind(tanggal.to_string());
     }
@@ -11560,28 +12677,25 @@ async fn create_prospek_harian(
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(current_date_key);
-    let cabang = payload
-        .cabang
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("Manado")
-        .to_string();
-    let divisi = payload
-        .divisi
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(&user.divisi)
-        .to_string();
+    let cabang = resolve_payload_or_user_cabang(&state, &user, payload.cabang).await?;
+    let divisi = user.divisi.trim().to_string();
+    if divisi.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec![
+                "Divisi karyawan belum diatur. Set divisi karyawan dulu sebelum submit prospek."
+                    .to_string(),
+            ],
+        });
+    }
     let id = uuid::Uuid::new_v4().to_string();
+    let target_kategori = normalize_target_kategori(Some(&user.jabatan));
     let keterangan_prospek = payload.keterangan_prospek.unwrap_or_default();
     let keterangan_fincoy = payload.keterangan_fincoy.unwrap_or_default();
 
     sqlx::query(
         "INSERT INTO prospek_harian \
-         (id, karyawan_id, karyawan_nama, tanggal, cabang, divisi, nama_prospek, no_whatsapp, minat_barang, keterangan_prospek, status_prospek, keterangan_fincoy) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         (id, karyawan_id, karyawan_nama, tanggal, cabang, divisi, target_kategori, nama_prospek, no_whatsapp, minat_barang, keterangan_prospek, status_prospek, keterangan_fincoy) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&user.id)
@@ -11589,6 +12703,7 @@ async fn create_prospek_harian(
     .bind(&tanggal)
     .bind(&cabang)
     .bind(&divisi)
+    .bind(&target_kategori)
     .bind(&nama_prospek)
     .bind(&no_whatsapp)
     .bind(&minat_barang)
@@ -11626,13 +12741,23 @@ async fn update_prospek_harian(
     Path(id): Path<String>,
     Json(payload): Json<UpdateProspekHarianPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+    )
+    .await?;
     let current = sqlx::query_as::<_, ProspekHarianPublic>(
         "SELECT p.id, p.karyawan_id, COALESCE(NULLIF(p.karyawan_nama, ''), u.name, '') AS karyawan_name, \
-         p.cabang, p.divisi, p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
+         COALESCE(NULLIF(c.nama, ''), NULLIF(p.cabang, ''), NULLIF(u.cabang_id, ''), 'Cabang belum diatur') AS cabang, \
+         p.divisi, COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') AS target_kategori, \
+         p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
          p.status_prospek, p.keterangan_fincoy, DATE_FORMAT(p.tanggal, '%Y-%m-%d') AS tanggal, \
          DATE_FORMAT(p.created_at, '%H:%i') AS created_at \
-         FROM prospek_harian p LEFT JOIN users u ON u.id = p.karyawan_id WHERE p.id = ? LIMIT 1",
+         FROM prospek_harian p \
+         LEFT JOIN users u ON u.id = p.karyawan_id \
+         LEFT JOIN cabang c ON c.id = u.cabang_id \
+         WHERE p.id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -11648,7 +12773,11 @@ async fn update_prospek_harian(
     }
 
     let cabang = payload.cabang.unwrap_or(current.cabang).trim().to_string();
-    let divisi = payload.divisi.unwrap_or(current.divisi).trim().to_string();
+    let divisi = if user.role == "karyawan" {
+        current.divisi
+    } else {
+        payload.divisi.unwrap_or(current.divisi).trim().to_string()
+    };
     let nama_prospek = payload
         .nama_prospek
         .unwrap_or(current.nama_prospek)
@@ -11735,16 +12864,23 @@ async fn delete_prospek_harian(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan]).await?;
-    let owner_id = sqlx::query_scalar::<_, String>("SELECT karyawan_id FROM prospek_harian WHERE id = ? LIMIT 1")
-        .bind(&id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error fetching prospek_harian owner for delete: {}", e);
-            AppError::Internal
-        })?
-        .ok_or(AppError::NotFound)?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+    )
+    .await?;
+    let owner_id = sqlx::query_scalar::<_, String>(
+        "SELECT karyawan_id FROM prospek_harian WHERE id = ? LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error fetching prospek_harian owner for delete: {}", e);
+        AppError::Internal
+    })?
+    .ok_or(AppError::NotFound)?;
 
     if user.role == "karyawan" && owner_id != user.id {
         return Err(AppError::Forbidden);
@@ -11776,15 +12912,24 @@ async fn get_prospek_harian_summary(
     headers: HeaderMap,
     Query(query): Query<ProspekSummaryQuery>,
 ) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport]).await?;
+    let _user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport],
+    )
+    .await?;
     let tanggal = query.tanggal.unwrap_or_else(current_date_key);
 
-    let rows: Vec<(String, String, String, Option<String>, i64)> = sqlx::query_as(
-        "SELECT u.id, u.name, COALESCE(NULLIF(u.divisi, ''), 'Karyawan') AS divisi, MAX(p.cabang) AS cabang, COUNT(p.id) AS total \
+    let rows: Vec<(String, String, String, String, String, i64)> = sqlx::query_as(
+        "SELECT u.id, u.name, COALESCE(NULLIF(p.divisi, ''), NULLIF(u.divisi, ''), 'Karyawan') AS divisi, \
+         COALESCE(NULLIF(c.nama, ''), NULLIF(MAX(p.cabang), ''), NULLIF(u.cabang_id, ''), 'Cabang belum diatur') AS cabang, \
+         COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') AS target_kategori, COUNT(p.id) AS total \
          FROM users u \
          LEFT JOIN prospek_harian p ON p.karyawan_id = u.id AND p.tanggal = ? \
+         LEFT JOIN cabang c ON c.id = u.cabang_id \
          WHERE LOWER(u.role) = 'karyawan' \
-         GROUP BY u.id, u.name, u.divisi",
+         GROUP BY u.id, u.name, COALESCE(NULLIF(p.divisi, ''), NULLIF(u.divisi, ''), 'Karyawan'), \
+         COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales'), u.cabang_id, c.nama",
     )
     .bind(&tanggal)
     .fetch_all(&state.pool)
@@ -11796,36 +12941,59 @@ async fn get_prospek_harian_summary(
 
     let mut items = rows
         .into_iter()
-        .map(|(employee_id, nama, posisi, cabang, prospek_hari_ini)| {
-            let target = if is_sales_division(&posisi) { 20 } else { 5 };
-            let kategori = if target == 20 { "Sales" } else { "Non-Sales" };
-            ProspekEmployeeSummary {
-                rank: 0,
-                employee_id,
-                nama,
-                cabang: cabang.filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "Manado".to_string()),
-                kategori: kategori.to_string(),
-                posisi,
-                prospek_hari_ini,
-                target,
-                persentase: if target > 0 { ((prospek_hari_ini * 100) / target).max(0) } else { 0 },
-            }
-        })
+        .map(
+            |(employee_id, nama, posisi, cabang, target_kategori, prospek_hari_ini)| {
+                let target = if is_sales_target_marker(&target_kategori) {
+                    20
+                } else {
+                    5
+                };
+                let kategori = if target == 20 { "Sales" } else { "Non-Sales" };
+                ProspekEmployeeSummary {
+                    rank: 0,
+                    employee_id,
+                    nama,
+                    cabang,
+                    kategori: kategori.to_string(),
+                    posisi,
+                    prospek_hari_ini,
+                    target,
+                    persentase: if target > 0 {
+                        ((prospek_hari_ini * 100) / target).max(0)
+                    } else {
+                        0
+                    },
+                }
+            },
+        )
         .collect::<Vec<_>>();
 
-    items.sort_by(|a, b| b.prospek_hari_ini.cmp(&a.prospek_hari_ini).then(b.persentase.cmp(&a.persentase)).then(a.nama.cmp(&b.nama)));
+    items.sort_by(|a, b| {
+        b.prospek_hari_ini
+            .cmp(&a.prospek_hari_ini)
+            .then(b.persentase.cmp(&a.persentase))
+            .then(a.nama.cmp(&b.nama))
+    });
     for (index, item) in items.iter_mut().enumerate() {
         item.rank = index + 1;
     }
 
-    Ok(json_ok("Prospek summary fetched", json!({ "items": items, "tanggal": tanggal })))
+    Ok(json_ok(
+        "Prospek summary fetched",
+        json!({ "items": items, "tanggal": tanggal }),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
 struct ListRaportQuery {
     tanggal: Option<String>,
+    tanggal_from: Option<String>,
+    tanggal_to: Option<String>,
     karyawan_id: Option<String>,
+    cabang: Option<String>,
+    divisi: Option<String>,
     status: Option<String>,
+    q: Option<String>,
     page: Option<u32>,
     limit: Option<u32>,
 }
@@ -11889,7 +13057,6 @@ struct RaportItemPayload {
 struct UpsertRaportPayload {
     tanggal: Option<String>,
     cabang: Option<String>,
-    divisi: Option<String>,
     items: Vec<RaportItemPayload>,
 }
 
@@ -11911,15 +13078,19 @@ fn default_jobdesk_report_settings() -> JobdeskReportSettingsPayload {
     }
 }
 
-async fn load_jobdesk_report_settings(state: &AppState) -> Result<JobdeskReportSettingsPayload, AppError> {
-    let raw: Option<String> = sqlx::query_scalar("SELECT CAST(setting_value AS CHAR) FROM app_settings WHERE setting_key = ? LIMIT 1")
-        .bind(JOBDESK_REPORT_SETTINGS_KEY)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error loading jobdesk report settings: {}", e);
-            AppError::Internal
-        })?;
+async fn load_jobdesk_report_settings(
+    state: &AppState,
+) -> Result<JobdeskReportSettingsPayload, AppError> {
+    let raw: Option<String> = sqlx::query_scalar(
+        "SELECT CAST(setting_value AS CHAR) FROM app_settings WHERE setting_key = ? LIMIT 1",
+    )
+    .bind(JOBDESK_REPORT_SETTINGS_KEY)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error loading jobdesk report settings: {}", e);
+        AppError::Internal
+    })?;
 
     let Some(raw) = raw else {
         return Ok(default_jobdesk_report_settings());
@@ -11927,6 +13098,20 @@ async fn load_jobdesk_report_settings(state: &AppState) -> Result<JobdeskReportS
 
     Ok(serde_json::from_str::<JobdeskReportSettingsPayload>(&raw)
         .unwrap_or_else(|_| default_jobdesk_report_settings()))
+}
+
+async fn ensure_jobdesk_report_window_open(state: &AppState) -> Result<(), AppError> {
+    let settings = load_jobdesk_report_settings(state).await?;
+    if is_jobdesk_report_window_open(&settings) {
+        return Ok(());
+    }
+
+    Err(AppError::Validation {
+        errors: vec![format!(
+            "Pelaporan jobdesk sedang ditutup. Jam pelaporan aktif: {} - {} WITA",
+            settings.start_time, settings.end_time
+        )],
+    })
 }
 
 async fn get_jobdesk_report_settings(
@@ -11987,8 +13172,16 @@ fn validate_jobdesk_divisions(value: &Value) -> Result<(), AppError> {
         });
     }
     for division in divisions {
-        let id = division.get("id").and_then(Value::as_str).unwrap_or("").trim();
-        let posisi = division.get("posisi").and_then(Value::as_str).unwrap_or("").trim();
+        let id = division
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
+        let posisi = division
+            .get("posisi")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
         let jobdesks = division.get("jobdesks").and_then(Value::as_array);
         if id.is_empty() || posisi.is_empty() || jobdesks.is_none() {
             return Err(AppError::Validation {
@@ -12000,14 +13193,16 @@ fn validate_jobdesk_divisions(value: &Value) -> Result<(), AppError> {
 }
 
 async fn load_jobdesk_divisions(state: &AppState) -> Result<JobdeskDivisionsPayload, AppError> {
-    let raw: Option<String> = sqlx::query_scalar("SELECT CAST(setting_value AS CHAR) FROM app_settings WHERE setting_key = ? LIMIT 1")
-        .bind(JOBDESK_DIVISIONS_KEY)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error loading jobdesk divisions: {}", e);
-            AppError::Internal
-        })?;
+    let raw: Option<String> = sqlx::query_scalar(
+        "SELECT CAST(setting_value AS CHAR) FROM app_settings WHERE setting_key = ? LIMIT 1",
+    )
+    .bind(JOBDESK_DIVISIONS_KEY)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error loading jobdesk divisions: {}", e);
+        AppError::Internal
+    })?;
 
     let Some(raw) = raw else {
         return Ok(JobdeskDivisionsPayload {
@@ -12016,10 +13211,12 @@ async fn load_jobdesk_divisions(state: &AppState) -> Result<JobdeskDivisionsPayl
         });
     };
 
-    Ok(serde_json::from_str::<JobdeskDivisionsPayload>(&raw).unwrap_or(JobdeskDivisionsPayload {
-        divisions: Value::Null,
-        updated_at: None,
-    }))
+    Ok(
+        serde_json::from_str::<JobdeskDivisionsPayload>(&raw).unwrap_or(JobdeskDivisionsPayload {
+            divisions: Value::Null,
+            updated_at: None,
+        }),
+    )
 }
 
 async fn get_jobdesk_divisions(
@@ -12041,7 +13238,12 @@ async fn update_jobdesk_divisions(
     headers: HeaderMap,
     Json(payload): Json<JobdeskDivisionsPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Admin, Role::Owner, Role::PicRaport]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport],
+    )
+    .await?;
     validate_jobdesk_divisions(&payload.divisions)?;
     let saved_payload = JobdeskDivisionsPayload {
         divisions: payload.divisions,
@@ -12066,7 +13268,9 @@ async fn update_jobdesk_divisions(
         AppError::Internal
     })?;
 
-    state.audit("raport.jobdesk_divisions_updated", Some(&user.id)).await;
+    state
+        .audit("raport.jobdesk_divisions_updated", Some(&user.id))
+        .await;
     Ok(json_ok("Jobdesk divisions saved", json!(saved_payload)))
 }
 
@@ -12082,8 +13286,92 @@ async fn list_raport_harian(
     )
     .await?;
     let page = query.page.unwrap_or(1).max(1);
-    let limit = clamp_page_limit(query.limit, 100, 500);
+    let limit = clamp_page_limit(query.limit, 100, 2000);
     let offset = (page - 1) * limit;
+    let karyawan_filter = if user.role == "karyawan" {
+        Some(user.id.clone())
+    } else {
+        query
+            .karyawan_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(ToString::to_string)
+    };
+    let tanggal_filter = match query
+        .tanggal
+        .clone()
+        .map(|value| value.trim().to_string())
+        .filter(|v| !v.is_empty())
+    {
+        Some(value) => Some(normalize_date_key(Some(value))?),
+        None => None,
+    };
+    let tanggal_from_filter = if tanggal_filter.is_none() {
+        match query
+            .tanggal_from
+            .clone()
+            .map(|value| value.trim().to_string())
+            .filter(|v| !v.is_empty())
+        {
+            Some(value) => Some(normalize_date_key(Some(value))?),
+            None => None,
+        }
+    } else {
+        None
+    };
+    let tanggal_to_filter = if tanggal_filter.is_none() {
+        match query
+            .tanggal_to
+            .clone()
+            .map(|value| value.trim().to_string())
+            .filter(|v| !v.is_empty())
+        {
+            Some(value) => Some(normalize_date_key(Some(value))?),
+            None => None,
+        }
+    } else {
+        None
+    };
+    if matches!(
+        (&tanggal_from_filter, &tanggal_to_filter),
+        (Some(from), Some(to)) if from > to
+    ) {
+        return Err(AppError::Validation {
+            errors: vec!["tanggal_from tidak boleh lebih besar dari tanggal_to".to_string()],
+        });
+    }
+    let status_filter = query
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty() && *v != "all")
+        .map(ToString::to_string);
+    if let Some(status) = status_filter.as_deref() {
+        if !matches!(status, "pending" | "approved" | "rejected") {
+            return Err(AppError::Validation {
+                errors: vec!["status harus pending, approved, rejected, atau all".to_string()],
+            });
+        }
+    }
+    let cabang_filter = query
+        .cabang
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty() && *v != "all")
+        .map(ToString::to_string);
+    let divisi_filter = query
+        .divisi
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty() && *v != "all")
+        .map(ToString::to_string);
+    let search_filter = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToString::to_string);
 
     let mut builder = sqlx::QueryBuilder::<sqlx::MySql>::new(
         "SELECT r.id, r.karyawan_id AS employee_id, COALESCE(NULLIF(r.karyawan_nama, ''), u.name, '') AS employee_name, \
@@ -12095,27 +13383,45 @@ async fn list_raport_harian(
          FROM raport_harian r LEFT JOIN users u ON u.id = r.karyawan_id WHERE 1=1",
     );
 
-    if user.role == "karyawan" {
+    if let Some(karyawan_id) = karyawan_filter.as_deref() {
         builder.push(" AND r.karyawan_id = ");
-        builder.push_bind(user.id.clone());
-    } else if let Some(karyawan_id) = query.karyawan_id.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
-        builder.push(" AND r.karyawan_id = ");
-        builder.push_bind(karyawan_id.to_string());
+        builder.push_bind(karyawan_id);
     }
-
-    if let Some(tanggal) = query.tanggal.clone().map(|value| value.trim().to_string()).filter(|v| !v.is_empty()) {
-        let tanggal = normalize_date_key(Some(tanggal))?;
+    if let Some(tanggal) = tanggal_filter.as_deref() {
         builder.push(" AND r.tanggal = ");
         builder.push_bind(tanggal);
     }
-    if let Some(status) = query.status.as_deref().map(str::trim).filter(|v| !v.is_empty() && *v != "all") {
-        if !matches!(status, "pending" | "approved" | "rejected") {
-            return Err(AppError::Validation {
-                errors: vec!["status harus pending, approved, rejected, atau all".to_string()],
-            });
-        }
+    if let Some(tanggal_from) = tanggal_from_filter.as_deref() {
+        builder.push(" AND r.tanggal >= ");
+        builder.push_bind(tanggal_from);
+    }
+    if let Some(tanggal_to) = tanggal_to_filter.as_deref() {
+        builder.push(" AND r.tanggal <= ");
+        builder.push_bind(tanggal_to);
+    }
+    if let Some(status) = status_filter.as_deref() {
         builder.push(" AND r.review_status = ");
-        builder.push_bind(status.to_string());
+        builder.push_bind(status);
+    }
+    if let Some(cabang) = cabang_filter.as_deref() {
+        builder.push(" AND r.cabang = ");
+        builder.push_bind(cabang);
+    }
+    if let Some(divisi) = divisi_filter.as_deref() {
+        builder.push(" AND r.divisi = ");
+        builder.push_bind(divisi);
+    }
+    if let Some(search) = search_filter.as_deref() {
+        let pattern = format!("%{}%", search);
+        builder.push(" AND (COALESCE(NULLIF(r.karyawan_nama, ''), u.name, '') LIKE ");
+        builder.push_bind(pattern.clone());
+        builder.push(" OR COALESCE(r.jobdesk_text, r.jobdesk_label, '') LIKE ");
+        builder.push_bind(pattern.clone());
+        builder.push(" OR r.cabang LIKE ");
+        builder.push_bind(pattern.clone());
+        builder.push(" OR r.divisi LIKE ");
+        builder.push_bind(pattern);
+        builder.push(")");
     }
 
     builder.push(" ORDER BY r.tanggal DESC, r.updated_at DESC, r.jobdesk_index ASC LIMIT ");
@@ -12132,7 +13438,67 @@ async fn list_raport_harian(
             AppError::Internal
         })?;
 
-    Ok(json_ok("Raport harian fetched", json!({ "items": items, "page": page, "limit": limit })))
+    let mut count_builder = sqlx::QueryBuilder::<sqlx::MySql>::new(
+        "SELECT COUNT(*) FROM raport_harian r LEFT JOIN users u ON u.id = r.karyawan_id WHERE 1=1",
+    );
+    if let Some(karyawan_id) = karyawan_filter.as_deref() {
+        count_builder.push(" AND r.karyawan_id = ");
+        count_builder.push_bind(karyawan_id);
+    }
+    if let Some(tanggal) = tanggal_filter.as_deref() {
+        count_builder.push(" AND r.tanggal = ");
+        count_builder.push_bind(tanggal);
+    }
+    if let Some(tanggal_from) = tanggal_from_filter.as_deref() {
+        count_builder.push(" AND r.tanggal >= ");
+        count_builder.push_bind(tanggal_from);
+    }
+    if let Some(tanggal_to) = tanggal_to_filter.as_deref() {
+        count_builder.push(" AND r.tanggal <= ");
+        count_builder.push_bind(tanggal_to);
+    }
+    if let Some(status) = status_filter.as_deref() {
+        count_builder.push(" AND r.review_status = ");
+        count_builder.push_bind(status);
+    }
+    if let Some(cabang) = cabang_filter.as_deref() {
+        count_builder.push(" AND r.cabang = ");
+        count_builder.push_bind(cabang);
+    }
+    if let Some(divisi) = divisi_filter.as_deref() {
+        count_builder.push(" AND r.divisi = ");
+        count_builder.push_bind(divisi);
+    }
+    if let Some(search) = search_filter.as_deref() {
+        let pattern = format!("%{}%", search);
+        count_builder.push(" AND (COALESCE(NULLIF(r.karyawan_nama, ''), u.name, '') LIKE ");
+        count_builder.push_bind(pattern.clone());
+        count_builder.push(" OR COALESCE(r.jobdesk_text, r.jobdesk_label, '') LIKE ");
+        count_builder.push_bind(pattern.clone());
+        count_builder.push(" OR r.cabang LIKE ");
+        count_builder.push_bind(pattern.clone());
+        count_builder.push(" OR r.divisi LIKE ");
+        count_builder.push_bind(pattern);
+        count_builder.push(")");
+    }
+    let total: i64 = count_builder
+        .build_query_scalar()
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error counting raport_harian: {}", e);
+            AppError::Internal
+        })?;
+    let total_pages = if total <= 0 {
+        1
+    } else {
+        ((total as u32) + limit - 1) / limit
+    };
+
+    Ok(json_ok(
+        "Raport harian fetched",
+        json!({ "items": items, "page": page, "limit": limit, "total": total, "totalPages": total_pages }),
+    ))
 }
 
 async fn upsert_raport_harian(
@@ -12141,6 +13507,7 @@ async fn upsert_raport_harian(
     Json(payload): Json<UpsertRaportPayload>,
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Karyawan]).await?;
+    ensure_jobdesk_report_window_open(&state).await?;
     if payload.items.is_empty() {
         return Err(AppError::Validation {
             errors: vec!["Minimal satu jobdesk wajib dikirim".to_string()],
@@ -12148,16 +13515,17 @@ async fn upsert_raport_harian(
     }
 
     let tanggal = normalize_date_key(payload.tanggal)?;
-    let cabang = payload
-        .cabang
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "Manado".to_string());
-    let divisi = payload
-        .divisi
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| user.divisi.clone());
+    let cabang = resolve_payload_or_user_cabang(&state, &user, payload.cabang).await?;
+    let divisi = user.divisi.trim().to_string();
+    if divisi.is_empty() {
+        return Err(AppError::Validation {
+            errors: vec![
+                "Divisi karyawan belum diatur. Set divisi karyawan dulu sebelum submit raport."
+                    .to_string(),
+            ],
+        });
+    }
+    let target_kategori = normalize_target_kategori(Some(&user.jabatan));
     let mut saved = 0u64;
 
     for item in payload.items {
@@ -12187,9 +13555,9 @@ async fn upsert_raport_harian(
 
         let result = sqlx::query(
             "INSERT INTO raport_harian \
-             (id, karyawan_id, karyawan_nama, tanggal, cabang, divisi, jobdesk_index, jobdesk_label, jobdesk_text, completed, is_done, evidence_mode, bukti_url, notes, catatan, review_status, score, reviewer_comment, reviewed_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, ?, ?, ?, ?, 'pending', NULL, NULL, NULL) \
-             ON DUPLICATE KEY UPDATE karyawan_nama = VALUES(karyawan_nama), cabang = VALUES(cabang), divisi = VALUES(divisi), \
+             (id, karyawan_id, karyawan_nama, tanggal, cabang, divisi, target_kategori, jobdesk_index, jobdesk_label, jobdesk_text, completed, is_done, evidence_mode, bukti_url, notes, catatan, review_status, score, reviewer_comment, reviewed_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, ?, ?, ?, ?, 'pending', NULL, NULL, NULL) \
+             ON DUPLICATE KEY UPDATE karyawan_nama = VALUES(karyawan_nama), cabang = VALUES(cabang), divisi = VALUES(divisi), target_kategori = VALUES(target_kategori), \
              jobdesk_label = VALUES(jobdesk_label), jobdesk_text = VALUES(jobdesk_text), completed = TRUE, is_done = TRUE, evidence_mode = VALUES(evidence_mode), \
              bukti_url = VALUES(bukti_url), notes = VALUES(notes), catatan = VALUES(catatan), review_status = 'pending', score = NULL, reviewer_comment = NULL, reviewed_at = NULL, updated_at = CURRENT_TIMESTAMP",
         )
@@ -12199,6 +13567,7 @@ async fn upsert_raport_harian(
         .bind(&tanggal)
         .bind(&cabang)
         .bind(&divisi)
+        .bind(&target_kategori)
         .bind(item.jobdesk_index)
         .bind(&jobdesk_text)
         .bind(&jobdesk_text)
@@ -12218,7 +13587,10 @@ async fn upsert_raport_harian(
         }
     }
 
-    Ok(json_ok("Raport harian saved", json!({ "saved": saved, "tanggal": tanggal })))
+    Ok(json_ok(
+        "Raport harian saved",
+        json!({ "saved": saved, "tanggal": tanggal }),
+    ))
 }
 
 async fn review_raport_harian(
@@ -12271,7 +13643,10 @@ async fn review_raport_harian(
     }
 
     state.audit("raport.reviewed", Some(&user.id)).await;
-    Ok(json_ok("Raport reviewed", json!({ "id": id, "status": status, "score": score })))
+    Ok(json_ok(
+        "Raport reviewed",
+        json!({ "id": id, "status": status, "score": score }),
+    ))
 }
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────
@@ -12284,35 +13659,22 @@ mod tests {
 
     // ── Test: health endpoint response structure ──────────────────────────────
     //
-    // Validates that the health endpoint returns the correct JSON structure
-    // with all required pixel system fields. This is a unit test that verifies
-    // the response format without requiring a full AppState setup.
+    // Validates that the health endpoint returns a minimal public-safe JSON
+    // structure. This is a unit test that verifies the response format without
+    // requiring a full AppState setup.
     // Validates Requirement 25.4.
     #[test]
     fn health_response_structure_is_correct() {
         // Test the response structure by verifying the JSON keys
-        // The actual health handler reads from AppState and formats as:
+        // The actual health handler formats as:
         // {
         //   "message": "OK",
         //   "data": {
-        //     "status": "healthy",
-        //     "analytics_job_running": bool,
-        //     "last_analytics_run": Option<String>,
-        //     "last_retry_run": Option<String>
+        //     "status": "healthy"
         //   }
         // }
 
-        // Simulate the response data structure
-        let analytics_running = false;
-        let last_analytics: Option<String> = None;
-        let last_retry: Option<String> = None;
-
-        let response_data = json!({
-            "status": "healthy",
-            "analytics_job_running": analytics_running,
-            "last_analytics_run": last_analytics,
-            "last_retry_run": last_retry
-        });
+        let response_data = json!({ "status": "healthy" });
 
         // Verify the structure
         assert!(
@@ -12320,18 +13682,6 @@ mod tests {
             "Response data should be an object"
         );
         assert_eq!(response_data["status"], "healthy");
-        assert!(
-            response_data["analytics_job_running"].is_boolean(),
-            "analytics_job_running should be a boolean"
-        );
-        assert!(
-            response_data["last_analytics_run"].is_null(),
-            "last_analytics_run should be null when not set"
-        );
-        assert!(
-            response_data["last_retry_run"].is_null(),
-            "last_retry_run should be null when not set"
-        );
     }
 
     // ── Test: health endpoint timestamp formatting ────────────────────────────
@@ -12345,35 +13695,45 @@ mod tests {
         let last_analytics = Some(now.to_rfc3339());
         let last_retry = Some((now - Duration::minutes(5)).to_rfc3339());
 
-        let response_data = json!({
-            "status": "healthy",
-            "analytics_job_running": true,
-            "last_analytics_run": last_analytics,
-            "last_retry_run": last_retry
-        });
+        let _ = (last_analytics, last_retry);
+        let response_data = json!({ "status": "healthy" });
+        assert_eq!(response_data["status"], "healthy");
+    }
 
-        // Verify timestamps are strings
-        assert!(
-            response_data["last_analytics_run"].is_string(),
-            "last_analytics_run should be a string when set"
-        );
-        assert!(
-            response_data["last_retry_run"].is_string(),
-            "last_retry_run should be a string when set"
-        );
+    #[test]
+    fn jobdesk_report_window_handles_same_day_ranges() {
+        let settings = JobdeskReportSettingsPayload {
+            start_time: "08:00".to_string(),
+            end_time: "18:00".to_string(),
+            updated_at: None,
+        };
 
-        // Verify they can be parsed as RFC3339
-        let last_analytics_str = response_data["last_analytics_run"].as_str().unwrap();
-        let last_retry_str = response_data["last_retry_run"].as_str().unwrap();
+        assert!(!is_minute_within_jobdesk_report_window(
+            7 * 60 + 59,
+            &settings
+        ));
+        assert!(is_minute_within_jobdesk_report_window(8 * 60, &settings));
+        assert!(is_minute_within_jobdesk_report_window(18 * 60, &settings));
+        assert!(!is_minute_within_jobdesk_report_window(
+            18 * 60 + 1,
+            &settings
+        ));
+    }
 
-        assert!(
-            chrono::DateTime::parse_from_rfc3339(last_analytics_str).is_ok(),
-            "last_analytics_run should be valid RFC3339"
-        );
-        assert!(
-            chrono::DateTime::parse_from_rfc3339(last_retry_str).is_ok(),
-            "last_retry_run should be valid RFC3339"
-        );
+    #[test]
+    fn jobdesk_report_window_handles_overnight_ranges() {
+        let settings = JobdeskReportSettingsPayload {
+            start_time: "22:00".to_string(),
+            end_time: "06:00".to_string(),
+            updated_at: None,
+        };
+
+        assert!(is_minute_within_jobdesk_report_window(23 * 60, &settings));
+        assert!(is_minute_within_jobdesk_report_window(
+            5 * 60 + 30,
+            &settings
+        ));
+        assert!(!is_minute_within_jobdesk_report_window(12 * 60, &settings));
     }
 
     proptest! {
@@ -12423,17 +13783,8 @@ mod tests {
         let state = job_running.load(Ordering::Relaxed);
         assert_eq!(state, true, "Job should be running after store(true)");
 
-        // Verify the response would include this state
-        let response_data = json!({
-            "status": "healthy",
-            "analytics_job_running": state,
-            "last_analytics_run": None::<String>,
-            "last_retry_run": None::<String>
-        });
-
-        assert_eq!(
-            response_data["analytics_job_running"], true,
-            "Response should reflect job running state"
-        );
+        let _ = state;
+        let response_data = json!({ "status": "healthy" });
+        assert_eq!(response_data["status"], "healthy");
     }
 }

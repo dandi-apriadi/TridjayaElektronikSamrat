@@ -5,12 +5,15 @@ import { ArrowRight, Mail, Sparkles, ShieldCheck, RefreshCcw, CheckCircle2, Load
 import Navbar from '../components/layout/Navbar';
 import logoPng from '../assets/images/logo.webp';
 import { apiFetch } from '../utils/apiClient';
+import { HCaptcha, isHCaptchaEnabled } from '../components/security/HCaptcha';
 
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -20,6 +23,12 @@ const ForgotPasswordPage: React.FC = () => {
     const formData = new FormData(event.currentTarget);
     const submittedEmail = String(formData.get('forgot-password-email') ?? '').trim();
 
+    if (isHCaptchaEnabled && !captchaToken) {
+      setErrorMessage('Silakan selesaikan verifikasi keamanan terlebih dahulu.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await apiFetch('/api/auth/forgot-password', {
         method: 'POST',
@@ -27,7 +36,7 @@ const ForgotPasswordPage: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: submittedEmail }),
+        body: JSON.stringify({ email: submittedEmail, captchaToken }),
       });
 
       if (!response.ok) {
@@ -37,6 +46,8 @@ const ForgotPasswordPage: React.FC = () => {
 
       setSubmitted(true);
     } catch (error) {
+      setCaptchaToken('');
+      setCaptchaResetKey(prev => prev + 1);
       setErrorMessage(error instanceof Error ? error.message : 'Permintaan reset gagal, silakan coba lagi.');
     } finally {
       setLoading(false);
@@ -188,6 +199,15 @@ const ForgotPasswordPage: React.FC = () => {
                       Jika email terdaftar, instruksi reset sudah dikirim. Silakan cek inbox atau folder spam.
                     </p>
                   </motion.div>
+                ) : null}
+
+                {!submitted ? (
+                  <HCaptcha
+                    resetKey={captchaResetKey}
+                    onVerify={setCaptchaToken}
+                    onExpire={() => setCaptchaToken('')}
+                    onError={() => setCaptchaToken('')}
+                  />
                 ) : null}
 
                 <button

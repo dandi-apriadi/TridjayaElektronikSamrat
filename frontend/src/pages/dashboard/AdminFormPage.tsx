@@ -14,15 +14,38 @@ import { useProductStore } from '../../store/useProductStore';
 import { usePromoStore } from '../../store/usePromoStore';
 import { useBlogStore } from '../../store/useBlogStore';
 import { useUserStore } from '../../store/useUserStore';
+import { useCabangStore } from '../../store/useCabangStore';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { buildReferralLink } from '../../utils/apiClient';
 import { jobdeskPositions } from '../../data/ownerRaportData';
+import { isAdminSalesRole, normalizeAccessRole, normalizeTargetKategori } from '../../utils/roles';
 
 type FormType = 'catalog' | 'promo' | 'content' | 'user';
 
 const isValidWhatsapp = (value: string) => {
   const digitCount = value.replace(/\D/g, '').length;
   return digitCount >= 9 && digitCount <= 16;
+};
+
+type AdminUserRole = 'admin' | 'editor' | 'operator' | 'admin-sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan' | 'wa_admin' | 'wa_operator' | 'super_admin';
+type UserJabatan = 'sales' | 'non_sales' | 'kepala_cabang' | 'supervisor' | 'koordinator';
+
+const formRoles: AdminUserRole[] = ['admin', 'editor', 'operator', 'admin-sales', 'agent', 'owner', 'pic_raport', 'karyawan', 'wa_admin', 'wa_operator', 'super_admin'];
+
+const normalizeFormRole = (value?: string | null): AdminUserRole => {
+  const normalized = normalizeAccessRole(value);
+  return formRoles.includes(normalized as AdminUserRole) ? normalized as AdminUserRole : 'karyawan';
+};
+
+const normalizeFormJabatan = (value?: string | null, currentRole?: string): UserJabatan => {
+  if (currentRole === 'karyawan') {
+    return normalizeTargetKategori(value) as UserJabatan;
+  }
+  const normalized = (value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (['sales', 'kepala_cabang', 'supervisor', 'koordinator'].includes(normalized)) {
+    return normalized as UserJabatan;
+  }
+  return 'sales';
 };
 
 const AdminFormPage: React.FC = () => {
@@ -38,7 +61,13 @@ const AdminFormPage: React.FC = () => {
   const { fetchPromos } = usePromoStore();
   const { fetchPosts } = useBlogStore();
   const { users, fetchUsers, createUser, updateUser, resendVerification, verifyUser } = useUserStore();
-  const { agents, fetchAgents, leads: adminLeads, fetchLeads, agentPerformance, fetchAgentPerformance } = useAdminNetworkStore();
+  const {
+    cabang: cabangList,
+    isLoading: isCabangLoading,
+    error: cabangError,
+    fetchCabang,
+  } = useCabangStore();
+  const { agents, fetchAgents, leads: adminLeads } = useAdminNetworkStore();
   
   const currentUser = useMemo(() => users.find((item) => item.id === id), [id, users]);
   const currentProduct = useMemo(() => products.find((item) => item.id === id), [id, products]);
@@ -56,12 +85,12 @@ const AdminFormPage: React.FC = () => {
     if (type === 'content') fetchPosts();
     if (type === 'user') {
       fetchUsers();
+      fetchCabang();
       fetchAgents();
-      fetchLeads();
-      if (id) fetchAgentPerformance(id);
     }
-  }, [fetchPosts, fetchProducts, fetchPromos, fetchUsers, type]);
+  }, [fetchAgents, fetchCabang, fetchPosts, fetchProducts, fetchPromos, fetchUsers, type]);
   const [activeTab, setActiveTab] = useState<string>('details');
+  const showPerformanceSection = isEdit && type !== 'user';
   const [isSaving, setIsSaving] = useState(false);
   const [specs, setSpecs] = useState<Array<{ key: string; value: string }>>([]);
   const [colors, setColors] = useState<string[]>([]);
@@ -77,11 +106,11 @@ const AdminFormPage: React.FC = () => {
   const [subcategory, setSubcategory] = useState('');
 
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'admin' | 'editor' | 'operator' | 'sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan' | 'wa_admin' | 'wa_operator' | 'super_admin'>('sales');
-  const [jabatan, setJabatan] = useState<'sales' | 'kepala_cabang' | 'supervisor' | 'koordinator'>('sales');
+  const [role, setRole] = useState<AdminUserRole>('karyawan');
+  const [jabatan, setJabatan] = useState<UserJabatan>('non_sales');
   const [divisi, setDivisi] = useState('');
+  const [cabangId, setCabangId] = useState('');
   const [password, setPassword] = useState('');
-  const [avatar, setAvatar] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [accountStatus, setAccountStatus] = useState<'active' | 'suspended' | 'pending'>('active');
   const [whatsapp, setWhatsapp] = useState('');
@@ -103,30 +132,41 @@ const AdminFormPage: React.FC = () => {
     return agents.find(a => a.id === id);
   }, [agents, id, type]);
 
-  const insightData = useMemo(() => {
-    if (!(type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role))) {
-      return [];
+  const insightData = useMemo<Array<{ day: string; views: number; clicks: number }>>(() => [], []);
+  const hasLiveInsights = false;
+
+  const cabangOptions = useMemo(() => {
+    const activeOptions = cabangList
+      .filter((cabang) => cabang.isActive)
+      .sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
+    const selectedCabang = cabangList.find((cabang) => cabang.id === cabangId);
+
+    if (selectedCabang && !activeOptions.some((cabang) => cabang.id === selectedCabang.id)) {
+      return [selectedCabang, ...activeOptions];
     }
 
-    const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-    const today = new Date();
+    return activeOptions;
+  }, [cabangId, cabangList]);
 
-    return Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date();
-      d.setDate(today.getDate() - (6 - i));
-      const day = days[d.getDay()];
-      const dateStr = d.toISOString().split('T')[0];
-      const perf = agentPerformance.find((entry) => entry.date === dateStr);
+  useEffect(() => {
+    if (!showPerformanceSection && activeTab === 'insights') {
+      setActiveTab('details');
+    }
+  }, [activeTab, showPerformanceSection]);
 
-      return {
-        day,
-        views: perf ? perf.activity : 0,
-        clicks: perf ? perf.leads : 0,
-      };
-    });
-  }, [agentPerformance, currentUser?.role, type]);
+  const selectedCabangFromDb = useMemo(
+    () => cabangList.find((cabang) => cabang.id === cabangId),
+    [cabangId, cabangList]
+  );
 
-  const hasLiveInsights = insightData.length > 0;
+  const legacyCabangLabel =
+    ((currentUser as any)?.cabangName || (currentUser as any)?.cabang_name || cabangId).trim();
+  const shouldShowLegacyCabang =
+    type === 'user' &&
+    role === 'karyawan' &&
+    Boolean(cabangId) &&
+    !selectedCabangFromDb &&
+    !isCabangLoading;
 
   useEffect(() => {
     if (type === 'catalog') {
@@ -159,12 +199,13 @@ const AdminFormPage: React.FC = () => {
     if (type !== 'user') return;
 
     if (currentUser) {
+      const nextRole = normalizeFormRole(currentUser.role);
       setName(currentUser.name || '');
       setEmail(currentUser.email || '');
-      setRole((currentUser.role as any) || 'sales');
-      setJabatan((currentUser.jabatan as any) || 'sales');
+      setRole(nextRole);
+      setJabatan(normalizeFormJabatan(currentUser.jabatan, nextRole));
       setDivisi((currentUser as any).divisi || '');
-      setAvatar(currentUser.avatar || '');
+      setCabangId((currentUser as any).cabangId || (currentUser as any).cabang_id || '');
       setBankAccount(currentUser.bank_account || '');
       setWhatsapp(currentUser.whatsapp || '');
       setAccountStatus(currentUser.is_active ? 'active' : 'suspended');
@@ -181,18 +222,18 @@ const AdminFormPage: React.FC = () => {
       }
     } else {
       const params = new URLSearchParams(location.search);
-      const roleParam = params.get('role');
+      const roleParam = normalizeFormRole(params.get('role'));
       
       setName('');
       setEmail('');
-      setRole((roleParam as any) || 'sales');
-      setJabatan('sales');
-      setAvatar('');
+      setRole(roleParam);
+      setJabatan(roleParam === 'karyawan' ? 'non_sales' : 'sales');
       setBankAccount('');
       setAccountStatus('active');
       setPassword('');
       setWhatsapp('');
       setDivisi(roleParam === 'karyawan' ? (params.get('divisi') || '') : '');
+      setCabangId(roleParam === 'karyawan' ? (params.get('cabangId') || '') : '');
       setCity('');
       setProvince('');
       setIsVerified(false);
@@ -263,8 +304,11 @@ const AdminFormPage: React.FC = () => {
         if (role === 'karyawan' && !divisi.trim()) {
           throw new Error('Divisi wajib dipilih untuk role karyawan.');
         }
-        if (role === 'sales' && !whatsapp.trim()) {
-          throw new Error('WhatsApp wajib diisi untuk role sales.');
+        if (role === 'karyawan' && !cabangId.trim()) {
+          throw new Error('Cabang wajib diisi untuk role karyawan.');
+        }
+        if (isAdminSalesRole(role) && !whatsapp.trim()) {
+          throw new Error('WhatsApp wajib diisi untuk role admin-sales.');
         }
         if (whatsapp.trim() && !isValidWhatsapp(whatsapp)) {
           throw new Error('WhatsApp tidak valid. Gunakan 9 sampai 16 digit angka.');
@@ -274,9 +318,9 @@ const AdminFormPage: React.FC = () => {
           email: email.trim(),
           name: name.trim(),
           role,
-          jabatan: role === 'sales' ? jabatan : undefined,
+          jabatan: isAdminSalesRole(role) || role === 'karyawan' ? jabatan : undefined,
           divisi: role === 'karyawan' ? divisi : undefined,
-          avatar: avatar.trim(),
+          cabangId: role === 'karyawan' ? cabangId.trim() : undefined,
           bankAccount: bankAccount.trim(),
           whatsapp: whatsapp.trim(),
           isActive: accountStatus === 'active',
@@ -377,8 +421,10 @@ const AdminFormPage: React.FC = () => {
         <motion.div variants={iv} className="glass-card rounded-2xl p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 border border-outline-variant/10">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
           <div className="flex items-center gap-5">
-            {type === 'user' && avatar ? (
-              <img src={avatar} alt={name} className="w-16 h-16 rounded-2xl object-cover border-2 border-primary/20 shadow-neon-cyan/10 shadow-lg" />
+            {type === 'user' ? (
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center border-2 border-primary/20 bg-primary/10 text-primary shadow-neon-cyan/10 shadow-lg font-bold text-xl">
+                {(name || email || '?').trim().charAt(0).toUpperCase()}
+              </div>
             ) : (
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-xl ${config.bg} ${config.color}`}>
                 <config.icon className="w-8 h-8" />
@@ -403,8 +449,9 @@ const AdminFormPage: React.FC = () => {
             </div>
           </div>
           
+          {type !== 'user' && (
           <div className="flex gap-6 pr-4">
-            {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) ? (
+            {currentUser?.role && (currentUser.role === 'agent' || isAdminSalesRole(currentUser.role)) ? (
               <>
                 <div>
                   <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Poin</div>
@@ -428,6 +475,7 @@ const AdminFormPage: React.FC = () => {
               </>
             )}
           </div>
+          )}
         </motion.div>
       )}
 
@@ -464,14 +512,16 @@ const AdminFormPage: React.FC = () => {
             </>
           )}
 
-          <button
-            onClick={() => setActiveTab('insights')}
-            className={`px-5 py-2.5 rounded-lg font-semibold text-body-sm transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'insights' ? 'bg-surface-low text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" /> Performa
-          </button>
+          {showPerformanceSection && (
+            <button
+              onClick={() => setActiveTab('insights')}
+              className={`px-5 py-2.5 rounded-lg font-semibold text-body-sm transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'insights' ? 'bg-surface-low text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" /> Performa
+            </button>
+          )}
         </motion.div>
       )}
 
@@ -479,7 +529,7 @@ const AdminFormPage: React.FC = () => {
       <motion.div variants={iv} className="glass-card rounded-2xl p-8 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
-        {activeTab !== 'insights' ? (
+        {activeTab !== 'insights' || !showPerformanceSection ? (
         <form id="admin-form" onSubmit={handleSave} className="space-y-8">
           {activeTab === 'details' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
@@ -759,13 +809,17 @@ const AdminFormPage: React.FC = () => {
                 <label className="text-label-sm text-on-surface-variant font-semibold">Role Akses Sistem</label>
                 <select
                   value={role}
-                  onChange={(event) => setRole(event.target.value as any)}
+                  onChange={(event) => {
+                    const nextRole = normalizeFormRole(event.target.value);
+                    setRole(nextRole);
+                    setJabatan(normalizeFormJabatan(jabatan, nextRole));
+                  }}
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
                 >
                   <option value="admin">Admin</option>
                   <option value="editor">Editor</option>
                   <option value="operator">Operator</option>
-                  <option value="sales">Sales</option>
+                  <option value="admin-sales">Admin Sales</option>
                   <option value="agent">Agent</option>
                   <option value="owner">Owner</option>
                   <option value="pic_raport">PIC Raport</option>
@@ -777,9 +831,9 @@ const AdminFormPage: React.FC = () => {
                 <p className="text-label-xs text-on-surface-variant">Menentukan dashboard dan fitur yang bisa diakses.</p>
               </div>
 
-              {role === 'sales' && (
+              {isAdminSalesRole(role) && (
                 <div className="space-y-1.5">
-                  <label className="text-label-sm text-on-surface-variant font-semibold">Jabatan</label>
+                  <label className="text-label-sm text-on-surface-variant font-semibold">Jabatan Admin Sales</label>
                   <select
                     value={jabatan}
                     onChange={(event) => setJabatan(event.target.value as any)}
@@ -790,30 +844,74 @@ const AdminFormPage: React.FC = () => {
                     <option value="supervisor">Supervisor</option>
                     <option value="kepala_cabang">Kepala Cabang</option>
                   </select>
-                  <p className="text-label-xs text-on-surface-variant">Hanya sebagai title tampilan, tidak mempengaruhi akses sistem.</p>
+                  <p className="text-label-xs text-on-surface-variant">Title tampilan untuk akun yang memiliki dashboard admin-sales.</p>
                 </div>
               )}
 
               {role === 'karyawan' && (
-                <div className="space-y-1.5">
-                  <label className="text-label-sm text-on-surface-variant font-semibold">Divisi *</label>
-                  <select
-                    value={divisi}
-                    onChange={(event) => setDivisi(event.target.value)}
-                    className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
-                  >
-                    <option value="">-- Pilih Divisi --</option>
-                    {jobdeskPositions.map((position) => (
-                      <option key={position.id} value={position.id}>{position.posisi}</option>
-                    ))}
-                  </select>
-                  <p className="text-label-xs text-on-surface-variant">Menentukan jobdesk harian dan target prospek karyawan.</p>
-                </div>
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-label-sm text-on-surface-variant font-semibold">Divisi *</label>
+                    <select
+                      value={divisi}
+                      onChange={(event) => setDivisi(event.target.value)}
+                      className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                    >
+                      <option value="">-- Pilih Divisi --</option>
+                      {jobdeskPositions.map((position) => (
+                        <option key={position.id} value={position.id}>{position.posisi}</option>
+                      ))}
+                    </select>
+                    <p className="text-label-xs text-on-surface-variant">Menentukan jobdesk harian. Target prospek diatur terpisah.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-label-sm text-on-surface-variant font-semibold">Kategori Target Prospek</label>
+                    <select
+                      value={normalizeTargetKategori(jabatan)}
+                      onChange={(event) => setJabatan(event.target.value as UserJabatan)}
+                      className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                    >
+                      <option value="non_sales">Non-Sales - 5 prospek/hari</option>
+                      <option value="sales">Sales - 20 prospek/hari</option>
+                    </select>
+                    <p className="text-label-xs text-on-surface-variant">
+                      Indikator target saja. Koordinator bisa dipilih sebagai Sales atau Non-Sales sesuai kebutuhan cabang.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-label-sm text-on-surface-variant font-semibold">Cabang *</label>
+                    <select
+                      value={cabangId}
+                      onChange={(event) => setCabangId(event.target.value)}
+                      disabled={isCabangLoading || (cabangOptions.length === 0 && !shouldShowLegacyCabang)}
+                      className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <option value="">
+                        {isCabangLoading ? 'Memuat cabang...' : '-- Pilih Cabang --'}
+                      </option>
+                      {shouldShowLegacyCabang && (
+                        <option value={cabangId}>{legacyCabangLabel} (tersimpan)</option>
+                      )}
+                      {cabangOptions.map((cabang) => (
+                        <option key={cabang.id} value={cabang.id}>
+                          {cabang.nama}{cabang.kota ? ` - ${cabang.kota}` : ''}{!cabang.isActive ? ' (nonaktif)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className={`text-label-xs ${cabangError ? 'text-error' : 'text-on-surface-variant'}`}>
+                      {cabangError
+                        ? `Gagal memuat cabang: ${cabangError}`
+                        : cabangOptions.length === 0 && !isCabangLoading && !shouldShowLegacyCabang
+                          ? 'Belum ada cabang aktif. Tambahkan cabang dari menu Cabang Management.'
+                          : 'Dipakai otomatis saat karyawan submit prospek dan raport.'}
+                    </p>
+                  </div>
+                </>
               )}
 
-              {(role === 'sales' || role === 'agent') && (
+              {(isAdminSalesRole(role) || role === 'agent') && (
                 <div className="space-y-1.5">
-                  <label className="text-label-sm text-on-surface-variant font-semibold">WhatsApp {role === 'sales' ? '*' : ''}</label>
+                  <label className="text-label-sm text-on-surface-variant font-semibold">WhatsApp {isAdminSalesRole(role) ? '*' : ''}</label>
                   <input
                     type="text"
                     value={whatsapp}
@@ -824,18 +922,7 @@ const AdminFormPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="text-label-sm text-on-surface-variant font-semibold">URL Avatar</label>
-                <input
-                  type="text"
-                  value={avatar}
-                  onChange={(event) => setAvatar(event.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all"
-                />
-              </div>
-
-              {role === 'sales' && isEdit && currentUser?.referral_slug && (
+              {isAdminSalesRole(role) && isEdit && currentUser?.referral_slug && (
                 <div className="space-y-1.5 md:col-span-2 xl:col-span-1">
                   <label className="text-label-sm text-on-surface-variant font-semibold">Referral Slug & Link</label>
                   <div className="flex gap-2">
@@ -976,10 +1063,10 @@ const AdminFormPage: React.FC = () => {
             <div className="flex items-center justify-between mb-6 border-b border-outline-variant/10 pb-4">
               <div>
                 <h3 className="font-display text-title-md font-bold text-on-surface">
-                  {type === 'user' && currentUser?.role === 'agent' ? 'Statistik Performa Agent' : 'Data Kinerja & Interaksi'}
+                  Data Kinerja & Interaksi
                 </h3>
                 <p className="text-body-sm text-on-surface-variant mt-0.5">
-                  {type === 'user' && currentUser?.role === 'agent' ? 'Aktivitas pengajuan prospek selama 7 hari terakhir.' : 'Metrik aktivitas selama 7 hari terakhir.'}
+                  Metrik aktivitas selama 7 hari terakhir.
                 </p>
               </div>
             </div>
@@ -1047,41 +1134,6 @@ const AdminFormPage: React.FC = () => {
                 </p>
               </div>
             )}
-
-             {/* Agent specific leads summary */}
-             {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) && (
-               <div className="glass-card rounded-xl p-4 border border-outline-variant/10">
-                 <div className="flex items-center justify-between mb-3">
-                   <h4 className="font-display text-label-md font-bold text-on-surface">Prospek Terbaru</h4>
-                   <button onClick={() => navigate('/dashboard/admin/leads')} className="text-label-xs text-primary font-bold hover:underline">Lihat Semua</button>
-                 </div>
-                 <div className="space-y-2">
-                   {adminLeads.filter(l => l.agentId === id).slice(0, 3).map((lead, idx) => (
-                     <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-surface-highest/50 border border-outline-variant/5">
-                       <div className="flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                           {lead.customerName?.charAt(0) || 'L'}
-                         </div>
-                         <div>
-                           <div className="text-label-sm font-bold text-on-surface">{lead.customerName}</div>
-                           <div className="text-label-xs text-on-surface-variant">{lead.interestedProduct}</div>
-                         </div>
-                       </div>
-                       <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                         lead.status === 'Closed Won' ? 'bg-secondary/10 text-secondary' :
-                         lead.status === 'Closed Lost' ? 'bg-error/10 text-error' :
-                         'bg-primary/10 text-primary'
-                       }`}>
-                         {lead.status}
-                       </div>
-                     </div>
-                   ))}
-                   {adminLeads.filter(l => l.agentId === id).length === 0 && (
-                     <div className="text-center py-4 text-label-sm text-on-surface-variant">Belum ada data prospek.</div>
-                   )}
-                 </div>
-               </div>
-             )}
           </div>
         )}
       </motion.div>

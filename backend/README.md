@@ -34,3 +34,22 @@ Untuk CORS allowlist gunakan environment variable berikut:
 ```bash
 ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
+
+## Production Security
+
+Di production, jalankan dengan konfigurasi eksplisit:
+
+```bash
+APP_ENV=production
+COOKIE_SECURE=true
+ALLOWED_ORIGINS=https://domain-frontend-anda
+TRUST_PROXY_HEADERS=true
+PIXEL_ENCRYPTION_KEY=<64_hex_chars>
+```
+
+Catatan:
+
+- `ALLOWED_ORIGINS` tidak boleh berisi wildcard karena cookie memakai credentials.
+- `.env` hanya dimuat otomatis saat bukan production; production sebaiknya memakai env dari service manager/secret manager.
+- Redis harus tersedia untuk rate limit yang konsisten antar instance backend.
+- Upload publik dilayani oleh handler `/uploads/{path}` yang memblokir `uploads/private` dan hanya mengizinkan tipe media yang dikenal.

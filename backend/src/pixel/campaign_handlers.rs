@@ -172,14 +172,14 @@ pub async fn list_campaigns(
                ORDER BY c.created_at DESC"#
         );
         sqlx::query_as(&query)
-        .bind(&user.id)
-        .bind(status)
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to list campaigns with status filter: {}", e);
-            AppError::Internal
-        })?
+            .bind(&user.id)
+            .bind(status)
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to list campaigns with status filter: {}", e);
+                AppError::Internal
+            })?
     } else {
         let query = format!(
             r#"{CAMPAIGN_RECORD_SELECT_ALIASED}
@@ -188,13 +188,13 @@ pub async fn list_campaigns(
                ORDER BY c.created_at DESC"#
         );
         sqlx::query_as(&query)
-        .bind(&user.id)
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to list campaigns: {}", e);
-            AppError::Internal
-        })?
+            .bind(&user.id)
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to list campaigns: {}", e);
+                AppError::Internal
+            })?
     };
 
     Ok(json_ok("Campaigns retrieved", campaigns))
@@ -604,13 +604,13 @@ pub async fn list_custom_conversions(
 
     let query = format!("{CUSTOM_CONVERSION_SELECT} WHERE campaign_id = ? ORDER BY created_at ASC");
     let records: Vec<CustomConversionRecord> = sqlx::query_as(&query)
-    .bind(&campaign_id)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to list custom conversions: {}", e);
-        AppError::Internal
-    })?;
+        .bind(&campaign_id)
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to list custom conversions: {}", e);
+            AppError::Internal
+        })?;
 
     Ok(json_ok("Custom conversions retrieved", records))
 }

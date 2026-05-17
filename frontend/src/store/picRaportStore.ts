@@ -20,10 +20,24 @@ interface SubmitRaportItem {
 
 interface PicRaportStore {
   evidence: PicRaportEvidence[];
+  evidenceTotal: number;
+  evidencePage: number;
+  evidenceLimit: number;
   divisions: JobdeskPosition[];
   isLoading: boolean;
   error: string | null;
-  fetchEvidence: (params?: { tanggal?: string; karyawanId?: string; status?: string; limit?: number }) => Promise<void>;
+  fetchEvidence: (params?: {
+    tanggal?: string;
+    tanggalFrom?: string;
+    tanggalTo?: string;
+    karyawanId?: string;
+    cabang?: string;
+    divisi?: string;
+    status?: string;
+    q?: string;
+    page?: number;
+    limit?: number;
+  }) => Promise<void>;
   fetchDivisions: () => Promise<void>;
   submitRaport: (payload: { tanggal: string; cabang: string; divisi: string; items: SubmitRaportItem[] }) => Promise<void>;
   reviewEvidence: (id: string, payload: ReviewPayload) => Promise<void>;
@@ -56,7 +70,7 @@ const mapApiEvidence = (item: any): PicRaportEvidence => ({
   id: String(item.id),
   employeeId: String(item.employeeId || item.employee_id || ''),
   employeeName: String(item.employeeName || item.employee_name || ''),
-  cabang: String(item.cabang || 'Manado'),
+  cabang: String(item.cabang || 'Cabang belum diatur'),
   divisiId: String(item.divisiId || item.divisi_id || 'umum'),
   divisiName: String(item.divisiName || item.divisi_name || item.divisiId || item.divisi_id || 'Umum'),
   tanggal: String(item.tanggal),
@@ -98,6 +112,9 @@ export const usePicRaportStore = create<PicRaportStore>()(
   persist(
     (set, get) => ({
       evidence: [],
+      evidenceTotal: 0,
+      evidencePage: 1,
+      evidenceLimit: 100,
       divisions: jobdeskPositions,
       isLoading: false,
       error: null,
@@ -105,14 +122,26 @@ export const usePicRaportStore = create<PicRaportStore>()(
         set({ isLoading: true, error: null });
         const query = new URLSearchParams();
         if (params?.tanggal) query.set('tanggal', params.tanggal);
+        if (params?.tanggalFrom) query.set('tanggal_from', params.tanggalFrom);
+        if (params?.tanggalTo) query.set('tanggal_to', params.tanggalTo);
         if (params?.karyawanId) query.set('karyawan_id', params.karyawanId);
+        if (params?.cabang) query.set('cabang', params.cabang);
+        if (params?.divisi) query.set('divisi', params.divisi);
         if (params?.status) query.set('status', params.status);
+        if (params?.q) query.set('q', params.q);
+        if (params?.page) query.set('page', String(params.page));
         query.set('limit', String(params?.limit || 500));
         try {
           const response = await apiFetch(`/api/raport-harian?${query.toString()}`);
           if (!response.ok) throw new Error(await readApiError(response, 'Gagal memuat raport.'));
           const payload = await response.json();
-          set({ evidence: (payload.data?.items || []).map(mapApiEvidence), isLoading: false });
+          set({
+            evidence: (payload.data?.items || []).map(mapApiEvidence),
+            evidenceTotal: Number(payload.data?.total || 0),
+            evidencePage: Number(payload.data?.page || params?.page || 1),
+            evidenceLimit: Number(payload.data?.limit || params?.limit || 500),
+            isLoading: false,
+          });
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Gagal memuat raport.',
@@ -141,7 +170,7 @@ export const usePicRaportStore = create<PicRaportStore>()(
           body: JSON.stringify(payload),
         });
         if (!response.ok) throw new Error(await readApiError(response, 'Gagal menyimpan raport.'));
-        await get().fetchEvidence({ tanggal: payload.tanggal, limit: 500 });
+        await get().fetchEvidence({ tanggal: payload.tanggal, limit: 2000 });
       },
       reviewEvidence: async (id, payload) => {
         const response = await apiFetch(`/api/raport-harian/${encodeURIComponent(id)}/review`, {

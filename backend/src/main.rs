@@ -1,10 +1,10 @@
 use axum::body::Body;
-use axum::extract::DefaultBodyLimit;
-use axum::http::{HeaderValue, Method, Request, StatusCode};
+use axum::extract::{ConnectInfo, DefaultBodyLimit};
+use axum::http::{HeaderName, HeaderValue, Method, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
 use dotenvy::dotenv;
-use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions};
+use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -12,11 +12,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
-    services::ServeDir,
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 use tracing_subscriber::EnvFilter;
+use uuid::Uuid;
 
 use tridjaya_backend::{cleanup::CleanupManager, routes, seed::seed_database, state::AppState};
 
@@ -35,6 +35,44 @@ fn is_valid_pixel_encryption_key(value: &str) -> bool {
     trimmed.len() == 64 && trimmed.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
+fn is_local_database_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost")
+        || matches!(host, "127.0.0.1" | "::1")
+        || host
+            .parse::<std::net::IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false)
+}
+
+fn enforce_database_tls_policy(options: &MySqlConnectOptions) {
+    if !is_production_runtime() || is_local_database_host(options.get_host()) {
+        return;
+    }
+
+    let insecure_override = std::env::var("ALLOW_INSECURE_DATABASE_TLS")
+        .map(|value| value.eq_ignore_ascii_case("true") || value == "1")
+        .unwrap_or(false);
+
+    if matches!(
+        options.get_ssl_mode(),
+        MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
+    ) {
+        return;
+    }
+
+    if insecure_override {
+        tracing::warn!(
+            "ALLOW_INSECURE_DATABASE_TLS=true; remote production MySQL is not using verified TLS"
+        );
+        return;
+    }
+
+    tracing::error!(
+        "FATAL: remote production MySQL requires DATABASE_URL ssl-mode=VERIFY_CA or VERIFY_IDENTITY"
+    );
+    panic!("remote production MySQL requires verified TLS");
+}
+
 /// Middleware to block public access to /uploads/private/ directory
 async fn block_private_uploads(request: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     let path = request.uri().path();
@@ -42,6 +80,107 @@ async fn block_private_uploads(request: Request<Body>, next: Next) -> Result<Res
         return Err(StatusCode::FORBIDDEN);
     }
     Ok(next.run(request).await)
+}
+
+/// Stash the TCP peer address as the `x-tridjaya-peer-ip` request header so
+/// downstream handlers can read it via the regular `HeaderMap` even when no
+/// reverse proxy is in front of the backend. This is the fallback used by
+/// `extract_client_ip` whenever `TRUST_PROXY_HEADERS=false`.
+///
+/// Without this middleware all IP-based rate limits silently no-op when the
+/// backend is deployed without a proxy, which makes brute-force login,
+/// catalog scraping, and agent-registration spam trivial.
+async fn inject_peer_ip(mut request: Request<Body>, next: Next) -> Response {
+    if let Some(ConnectInfo(addr)) = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .cloned()
+    {
+        if let Ok(value) = HeaderValue::from_str(&addr.ip().to_string()) {
+            request
+                .headers_mut()
+                .insert(HeaderName::from_static("x-tridjaya-peer-ip"), value);
+        }
+    }
+    next.run(request).await
+}
+
+async fn add_request_id(request: Request<Body>, next: Next) -> Response {
+    let request_id = request
+        .headers()
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    let mut request = request;
+    request.extensions_mut().insert(request_id.clone());
+
+    let mut response = next.run(request).await;
+    if let Ok(value) = HeaderValue::from_str(&request_id) {
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static("x-request-id"), value);
+    }
+
+    response
+}
+
+async fn add_security_headers(request: Request<Body>, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+
+    headers.insert(
+        HeaderName::from_static("x-content-type-options"),
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        HeaderName::from_static("x-frame-options"),
+        HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        HeaderName::from_static("referrer-policy"),
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    headers.insert(
+        HeaderName::from_static("permissions-policy"),
+        HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+    );
+    // Two CSP profiles:
+    //
+    // * Default (backwards-compatible): permits inline scripts / styles because
+    //   the legacy admin dashboard still ships a few inline handlers. Use only
+    //   when staging the strict variant first.
+    // * Strict (opt-in via `STRICT_CSP=true`): drops `'unsafe-inline'` for both
+    //   script-src and style-src and tightens `connect-src` to `'self'`. This
+    //   removes the main XSS-escalation foothold but requires the Vite build
+    //   to emit no inline scripts/styles. Toggle it after smoke-testing the
+    //   production bundle.
+    let strict_csp_enabled = std::env::var("STRICT_CSP")
+        .map(|value| value.eq_ignore_ascii_case("true") || value == "1")
+        .unwrap_or(false);
+
+    let csp_value = if strict_csp_enabled {
+        "default-src 'self'; img-src 'self' data: blob: https:; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    } else {
+        "default-src 'self'; img-src 'self' data: blob: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http: https: ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    };
+
+    headers.insert(
+        HeaderName::from_static("content-security-policy"),
+        HeaderValue::from_static(csp_value),
+    );
+
+    if is_production_runtime() {
+        headers.insert(
+            HeaderName::from_static("strict-transport-security"),
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        );
+    }
+
+    response
 }
 
 async fn restore_wa_sessions(state: AppState) {
@@ -151,7 +290,9 @@ async fn restore_wa_sessions(state: AppState) {
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    if !is_production_runtime() {
+        dotenv().ok();
+    }
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -177,6 +318,7 @@ async fn main() {
             e
         })
         .expect("Invalid MySQL DATABASE_URL");
+    enforce_database_tls_policy(&mysql_options);
 
     let pool = MySqlPoolOptions::new()
         .max_connections(mysql_pool_max_connections)
@@ -267,10 +409,26 @@ async fn main() {
 
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,http://localhost:5176,http://127.0.0.1:5176,http://localhost:5177,http://127.0.0.1:5177,http://localhost:5178,http://127.0.0.1:5178".to_string()
     });
-    let origins: Vec<HeaderValue> = origin_list
+    let mut origins: Vec<HeaderValue> = Vec::new();
+    for origin in origin_list
         .split(',')
-        .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
-        .collect();
+        .map(str::trim)
+        .filter(|origin| !origin.is_empty())
+    {
+        if origin == "*" || origin.contains('*') {
+            tracing::error!("FATAL: ALLOWED_ORIGINS must not contain wildcard origins when credentials are enabled");
+            panic!("ALLOWED_ORIGINS must not contain wildcard origins");
+        }
+        if !(origin.starts_with("http://") || origin.starts_with("https://")) {
+            tracing::error!("FATAL: invalid CORS origin in ALLOWED_ORIGINS: {}", origin);
+            panic!("ALLOWED_ORIGINS contains an invalid origin");
+        }
+        let header = HeaderValue::from_str(origin).unwrap_or_else(|e| {
+            tracing::error!("FATAL: invalid CORS origin {}: {}", origin, e);
+            panic!("ALLOWED_ORIGINS contains an invalid origin");
+        });
+        origins.push(header);
+    }
     if is_production_runtime() && origins.is_empty() {
         tracing::error!("FATAL: ALLOWED_ORIGINS is empty or contains invalid URLs!");
         panic!("ALLOWED_ORIGINS is empty or invalid in production");
@@ -451,8 +609,13 @@ async fn main() {
     });
 
     let app = routes::router(state.clone())
-        .nest_service("/uploads", ServeDir::new("uploads"))
         .layer(axum::middleware::from_fn(block_private_uploads))
+        .layer(axum::middleware::from_fn(add_security_headers))
+        .layer(axum::middleware::from_fn(add_request_id))
+        // Must come BEFORE handlers so `extract_client_ip` can read the peer IP
+        // from headers regardless of TRUST_PROXY_HEADERS. Placed last in the
+        // tower chain so it runs first on the request side.
+        .layer(axum::middleware::from_fn(inject_peer_ip))
         // Default body limit: 1MB for most endpoints
         .layer(DefaultBodyLimit::max(1 * 1024 * 1024))
         .layer(TimeoutLayer::with_status_code(
@@ -497,8 +660,13 @@ async fn main() {
         }
     };
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal)
-        .await
-        .expect("server error");
+    // Use `into_make_service_with_connect_info` so each request carries the
+    // peer SocketAddr in its extensions; `inject_peer_ip` reads it.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal)
+    .await
+    .expect("server error");
 }

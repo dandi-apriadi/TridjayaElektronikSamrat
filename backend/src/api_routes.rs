@@ -143,11 +143,19 @@ async fn verify_api_token(
         }
     }
 
-    // Update last_used_at timestamp
-    let _ = sqlx::query("UPDATE wa_api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .bind(&token_record.id)
-        .execute(&state.pool)
-        .await;
+    // Track token use without making the API request wait on a non-critical write.
+    let pool = state.pool.clone();
+    let token_id = token_record.id.clone();
+    tokio::spawn(async move {
+        if let Err(e) =
+            sqlx::query("UPDATE wa_api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?")
+                .bind(&token_id)
+                .execute(&pool)
+                .await
+        {
+            tracing::warn!("Failed updating API token last_used_at: {}", e);
+        }
+    });
 
     tracing::info!(
         "API token verified: {} (user: {})",

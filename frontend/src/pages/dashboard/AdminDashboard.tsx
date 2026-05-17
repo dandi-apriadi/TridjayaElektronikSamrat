@@ -37,6 +37,7 @@ import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { useProductStore } from '../../store/useProductStore';
 import { useUserStore } from '../../store/useUserStore';
 import { usePersistedState } from '../../hooks/usePersistedState';
+import { isAdminSalesRole } from '../../utils/roles';
 
 const formatRelativeTime = (isoDate: string): string => {
   const value = new Date(isoDate).getTime();
@@ -116,7 +117,7 @@ const AdminDashboard: React.FC = () => {
 
   const pendingPayouts = claims.filter((claim) => claim.status === 'pending' || claim.status === 'processing');
   const completedClaims = claims.filter((claim) => claim.status === 'completed').length;
-  const activeSales = users.filter((u) => u.role === 'sales' && u.is_active).length;
+  const activeSales = users.filter((u) => isAdminSalesRole(u.role) && u.is_active).length;
 
   const topAgents = useMemo(() => {
     const summary = new Map<string, { name: string; city: string; sales: number; pending: number }>();
@@ -254,7 +255,7 @@ const AdminDashboard: React.FC = () => {
       label: 'Tim Sales Aktif',
       value: activeSales.toLocaleString('id-ID'),
       change: '+manage',
-      sub: `${users.filter(u => u.role === 'sales').length} total sales`,
+      sub: `${users.filter(u => isAdminSalesRole(u.role)).length} total admin-sales`,
       icon: Megaphone,
       color: 'text-secondary',
       bg: 'bg-secondary/10',

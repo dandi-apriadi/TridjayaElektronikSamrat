@@ -33,61 +33,55 @@ import Pagination from '../../components/ui/Pagination';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import {
   jobdeskPositions,
-  employeeRaports,
-  cabangRaportSummary,
-  overallRaportPersentase,
-  posisiRaportSummary,
 } from '../../data/ownerRaportData';
-import { buildEmployeeMonthlyReport, reportDateFormatter } from '../../utils/ownerRaportMonthly';
+import {
+  buildEmployeeMonthlyReportFromEvidence,
+  buildRaportTrendFromEvidence,
+  reportDateFormatter,
+  type RaportTrendMode,
+} from '../../utils/ownerRaportMonthly';
 import {
   getReportingWindowLabel,
   isWithinReportingWindow,
   useJobdeskReportSettingsStore,
 } from '../../store/jobdeskReportSettingsStore';
+import { useCabangStore } from '../../store/useCabangStore';
 import { buildPicEmployeeSummaries, toDateKey } from '../../data/picRaportData';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
 
 type StatusFilter = 'all' | 'excellent' | 'on-track' | 'at-risk';
 type SortKey = 'lowest' | 'highest' | 'name' | 'branch' | 'position';
-type TrendMode = 'hari' | 'minggu' | 'bulan';
+type TrendMode = RaportTrendMode;
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
 
 const itemsPerPage = 10;
 const branchChartColors = ['#2563eb', '#0891b2', '#16a34a', '#ca8a04', '#dc2626'];
-const hourlyRaportData = [
-  { jam: '08:00', raport: 18, selesai: 28 },
-  { jam: '09:00', raport: 26, selesai: 44 },
-  { jam: '10:00', raport: 34, selesai: 63 },
-  { jam: '11:00', raport: 43, selesai: 85 },
-  { jam: '12:00', raport: 48, selesai: 96 },
-  { jam: '13:00', raport: 55, selesai: 114 },
-  { jam: '14:00', raport: 63, selesai: 132 },
-  { jam: '15:00', raport: 69, selesai: 151 },
-  { jam: '16:00', raport: 74, selesai: 166 },
-  { jam: '17:00', raport: 78, selesai: 178 },
-  { jam: '18:00', raport: 81, selesai: 186 },
-  { jam: '19:00', raport: 83, selesai: 191 },
-];
-const weeklyRaportData = [
-  { hari: 'Senin', raport: 72, selesai: 168 },
-  { hari: 'Selasa', raport: 76, selesai: 179 },
-  { hari: 'Rabu', raport: 71, selesai: 164 },
-  { hari: 'Kamis', raport: 79, selesai: 186 },
-  { hari: 'Jumat', raport: 83, selesai: 194 },
-  { hari: 'Sabtu', raport: 68, selesai: 151 },
-  { hari: 'Minggu', raport: 54, selesai: 96 },
-];
-const monthlyRaportData = Array.from({ length: 31 }, (_, index) => {
-  const date = index + 1;
-  const raport = 58 + ((index * 7) % 31);
-  return {
-    tanggal: `${date}`,
-    raport: Math.min(92, raport),
-    selesai: 122 + ((index * 11) % 78),
-  };
+
+const getMonthRange = (date: Date) => ({
+  from: toDateKey(new Date(date.getFullYear(), date.getMonth(), 1)),
+  to: toDateKey(new Date(date.getFullYear(), date.getMonth() + 1, 0)),
 });
+
+const getTrendRange = (mode: TrendMode, dateKey: string) => {
+  const selectedDate = new Date(`${dateKey}T00:00:00`);
+  if (Number.isNaN(selectedDate.getTime())) {
+    return getMonthRange(new Date());
+  }
+  if (mode === 'hari') {
+    return { from: dateKey, to: dateKey };
+  }
+  if (mode === 'minggu') {
+    const start = new Date(selectedDate);
+    start.setDate(selectedDate.getDate() - selectedDate.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { from: toDateKey(start), to: toDateKey(end) };
+  }
+  return getMonthRange(selectedDate);
+};
 
 
 function getStatus(persentase: number) {
@@ -124,6 +118,8 @@ const OwnerRaportPage: React.FC = () => {
   const evidence = usePicRaportStore((state) => state.evidence);
   const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
   const raportError = usePicRaportStore((state) => state.error);
+  const cabangList = useCabangStore((state) => state.cabang);
+  const fetchCabang = useCabangStore((state) => state.fetchCabang);
   const reportStartTime = useJobdeskReportSettingsStore((state) => state.startTime);
   const reportEndTime = useJobdeskReportSettingsStore((state) => state.endTime);
   const reportUpdatedAt = useJobdeskReportSettingsStore((state) => state.updatedAt);
@@ -149,10 +145,12 @@ const OwnerRaportPage: React.FC = () => {
   const [draftStartTime, setDraftStartTime] = useState(reportSettings.startTime);
   const [draftEndTime, setDraftEndTime] = useState(reportSettings.endTime);
   const [saveWindowMessage, setSaveWindowMessage] = useState('');
+  const cabangLookup = useMemo(() => createCabangLookup(cabangList), [cabangList]);
+  const getBranchDisplay = (value: string) => getCabangDisplay(value, cabangLookup);
 
   const liveEmployeeRaports = useMemo(() => {
     const summaries = buildPicEmployeeSummaries(evidence);
-    if (summaries.length === 0) return employeeRaports;
+    if (summaries.length === 0) return [];
 
     return summaries.map((employee) => {
       const totalEvidence = employee.pendingEvidence + employee.approvedEvidence + employee.rejectedEvidence;
@@ -172,7 +170,7 @@ const OwnerRaportPage: React.FC = () => {
   }, [evidence]);
 
   const liveCabangSummary = useMemo(() => {
-    if (evidence.length === 0) return cabangRaportSummary;
+    if (evidence.length === 0) return [];
     const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
     liveEmployeeRaports.forEach((employee) => {
       const current = grouped.get(employee.cabang) || { totalKaryawan: 0, totalPersentase: 0 };
@@ -188,7 +186,7 @@ const OwnerRaportPage: React.FC = () => {
   }, [evidence.length, liveEmployeeRaports]);
 
   const livePosisiSummary = useMemo(() => {
-    if (evidence.length === 0) return posisiRaportSummary;
+    if (evidence.length === 0) return [];
     const grouped = new Map<string, { totalKaryawan: number; totalPersentase: number }>();
     liveEmployeeRaports.forEach((employee) => {
       const current = grouped.get(employee.posisi) || { totalKaryawan: 0, totalPersentase: 0 };
@@ -207,13 +205,18 @@ const OwnerRaportPage: React.FC = () => {
     () =>
       evidence.length > 0 && liveEmployeeRaports.length > 0
         ? Math.round(liveEmployeeRaports.reduce((sum, employee) => sum + employee.persentase, 0) / liveEmployeeRaports.length)
-        : overallRaportPersentase,
+        : 0,
     [evidence.length, liveEmployeeRaports]
   );
 
   const branchChartData = useMemo(
-    () => [...liveCabangSummary].sort((a, b) => b.rataPersentase - a.rataPersentase),
-    [liveCabangSummary]
+    () => [...liveCabangSummary]
+      .map((item) => {
+        const branch = getBranchDisplay(item.cabang);
+        return { ...item, cabangLabel: branch.label, cabangDetail: branch.detail };
+      })
+      .sort((a, b) => b.rataPersentase - a.rataPersentase),
+    [cabangLookup, liveCabangSummary]
   );
 
   const posisiChartData = useMemo(
@@ -236,8 +239,8 @@ const OwnerRaportPage: React.FC = () => {
   );
 
   const cabangNames = useMemo(
-    () => [...new Set(liveEmployeeRaports.map((employee) => employee.cabang))].sort((a, b) => a.localeCompare(b, 'id')),
-    [liveEmployeeRaports]
+    () => [...new Set(liveEmployeeRaports.map((employee) => employee.cabang))].sort((a, b) => getBranchDisplay(a).label.localeCompare(getBranchDisplay(b).label, 'id')),
+    [cabangLookup, liveEmployeeRaports]
   );
 
   const posisiNames = useMemo(
@@ -261,7 +264,7 @@ const OwnerRaportPage: React.FC = () => {
         const status = getStatus(employee.persentase);
         const matchesSearch =
           searchValue.length === 0 ||
-          `${employee.nama} ${employee.posisi} ${employee.cabang}`.toLowerCase().includes(searchValue);
+          `${employee.nama} ${employee.posisi} ${employee.cabang} ${getBranchDisplay(employee.cabang).searchText}`.toLowerCase().includes(searchValue);
         const matchesCabang = filterCabang === 'all' || employee.cabang === filterCabang;
         const matchesPosisi = filterPosisi === 'all' || employee.posisi === filterPosisi;
         const matchesStatus = filterStatus === 'all' || status.key === filterStatus;
@@ -271,11 +274,11 @@ const OwnerRaportPage: React.FC = () => {
       .sort((a, b) => {
         if (sortKey === 'highest') return b.persentase - a.persentase || a.nama.localeCompare(b.nama, 'id');
         if (sortKey === 'name') return a.nama.localeCompare(b.nama, 'id');
-        if (sortKey === 'branch') return a.cabang.localeCompare(b.cabang, 'id') || a.nama.localeCompare(b.nama, 'id');
+        if (sortKey === 'branch') return getBranchDisplay(a.cabang).label.localeCompare(getBranchDisplay(b.cabang).label, 'id') || a.nama.localeCompare(b.nama, 'id');
         if (sortKey === 'position') return a.posisi.localeCompare(b.posisi, 'id') || a.nama.localeCompare(b.nama, 'id');
         return a.persentase - b.persentase || a.nama.localeCompare(b.nama, 'id');
       });
-  }, [filterCabang, filterPosisi, filterStatus, search, sortKey]);
+  }, [cabangLookup, filterCabang, filterPosisi, filterStatus, liveEmployeeRaports, search, sortKey]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
   const pageStart = (currentPage - 1) * itemsPerPage;
@@ -301,11 +304,14 @@ const OwnerRaportPage: React.FC = () => {
   );
   const totalCompleted = liveEmployeeRaports.reduce((sum, employee) => sum + employee.selesai, 0);
   const totalJobdesk = liveEmployeeRaports.reduce((sum, employee) => sum + employee.totalJobdesk, 0);
-  const raportTrendData = trendMode === 'hari'
-    ? hourlyRaportData.map((item) => ({ label: item.jam, raport: item.raport, selesai: item.selesai }))
-    : trendMode === 'minggu'
-      ? weeklyRaportData.map((item) => ({ label: item.hari, raport: item.raport, selesai: item.selesai }))
-      : monthlyRaportData.map((item) => ({ label: item.tanggal, raport: item.raport, selesai: item.selesai }));
+  const trendRange = useMemo(
+    () => getTrendRange(trendMode, selectedTrendDate),
+    [selectedTrendDate, trendMode]
+  );
+  const raportTrendData = useMemo(
+    () => buildRaportTrendFromEvidence(evidence, trendMode, selectedTrendDate),
+    [evidence, selectedTrendDate, trendMode]
+  );
   const hasFilters =
     search.trim() !== '' ||
     filterCabang !== 'all' ||
@@ -318,9 +324,13 @@ const OwnerRaportPage: React.FC = () => {
   }, [filterCabang, filterPosisi, filterStatus, liveEmployeeRaports, search, sortKey]);
 
   useEffect(() => {
+    fetchCabang();
+  }, [fetchCabang]);
+
+  useEffect(() => {
     fetchReportingWindow();
-    fetchEvidence({ limit: 500 });
-  }, [fetchEvidence, fetchReportingWindow]);
+    fetchEvidence({ tanggalFrom: trendRange.from, tanggalTo: trendRange.to, limit: 2000 });
+  }, [fetchEvidence, fetchReportingWindow, trendRange.from, trendRange.to]);
 
   useEffect(() => {
     setDraftStartTime(reportSettings.startTime);
@@ -484,7 +494,7 @@ const OwnerRaportPage: React.FC = () => {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Cabang Terbaik</div>
-              <div className="font-display text-title-lg font-bold text-on-surface">{bestBranch?.cabang ?? '-'}</div>
+              <div className="font-display text-title-lg font-bold text-on-surface">{bestBranch?.cabangLabel ?? '-'}</div>
             </div>
             <div className="rounded-lg bg-green-400/10 p-2.5 text-green-400">
               <TrendingUp className="h-5 w-5" />
@@ -503,7 +513,7 @@ const OwnerRaportPage: React.FC = () => {
               <AlertTriangle className="h-5 w-5" />
             </div>
           </div>
-          <div className="mt-2 text-label-xs text-on-surface-variant">Cabang terendah: {lowestBranch?.cabang ?? '-'} ({lowestBranch?.rataPersentase ?? 0}%)</div>
+          <div className="mt-2 text-label-xs text-on-surface-variant">Cabang terendah: {lowestBranch?.cabangLabel ?? '-'} ({lowestBranch?.rataPersentase ?? 0}%)</div>
         </motion.div>
       </div>
 
@@ -607,7 +617,7 @@ const OwnerRaportPage: React.FC = () => {
                 />
                 <YAxis
                   type="category"
-                  dataKey="cabang"
+                  dataKey="cabangLabel"
                   width={112}
                   stroke="rgba(51,65,85,0.84)"
                   fontSize={12}
@@ -702,7 +712,7 @@ const OwnerRaportPage: React.FC = () => {
             </div>
             <select value={filterCabang} onChange={(event) => setFilterCabang(event.target.value)} className="h-10 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20">
               <option value="all">Cabang: Semua</option>
-              {cabangNames.map((branch) => <option key={branch} value={branch}>Cabang: {branch}</option>)}
+              {cabangNames.map((branch) => <option key={branch} value={branch}>Cabang: {getBranchDisplay(branch).filterLabel}</option>)}
             </select>
             <SearchableSelect
               value={filterPosisi}
@@ -754,7 +764,11 @@ const OwnerRaportPage: React.FC = () => {
             <tbody>
               {paginatedEmployees.map((employee) => {
                 const status = getStatus(employee.persentase);
-                const monthlyReport = buildEmployeeMonthlyReport(employee);
+                const branch = getBranchDisplay(employee.cabang);
+                const monthlyReport = buildEmployeeMonthlyReportFromEvidence(
+                  employee,
+                  evidence.filter((item) => item.employeeId === employee.id)
+                );
                 const scoreStatus = getStatus(monthlyReport.rataNilai);
                 return (
                   <tr key={employee.id} className="border-b border-outline-variant/10 transition-colors hover:bg-surface-high/30">
@@ -764,10 +778,13 @@ const OwnerRaportPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-body-sm text-on-surface-variant">{employee.posisi}</td>
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1.5 rounded-md bg-surface-high px-2 py-1 text-label-xs font-bold text-on-surface-variant">
-                        <Building2 className="h-3.5 w-3.5" />
-                        {employee.cabang}
-                      </span>
+                      <div className="inline-flex max-w-[18rem] items-start gap-2 rounded-md bg-surface-high px-2 py-1.5">
+                        <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                        <div className="min-w-0">
+                          <div className="truncate text-label-xs font-bold text-on-surface">{branch.label}</div>
+                          <div className="truncate text-[11px] font-medium text-on-surface-variant">{branch.detail}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">

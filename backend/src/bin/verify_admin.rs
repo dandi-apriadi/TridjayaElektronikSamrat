@@ -12,7 +12,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let admins = [("admin@gmail.com", "adm-001")];
-    let default_avatar = "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin";
 
     for (email, id) in admins {
         println!("Verifying and resetting password for account: {}", email);
@@ -29,17 +28,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .bind(id)
                 .bind(email)
                 .bind(&hash)
-                .bind(default_avatar)
+                .bind("")
                 .execute(&pool)
                 .await?;
         } else {
             println!(
-                "Account {} found. Updating password, verification, and avatar...",
+                "Account {} found. Updating password and verification status...",
                 email
             );
             sqlx::query("UPDATE users SET is_active = 1, is_verified = 1, role = 'Admin', password_hash = ?, avatar = ? WHERE email = ?")
                 .bind(&hash)
-                .bind(default_avatar)
+                .bind("")
                 .bind(email)
                 .execute(&pool)
                 .await?;

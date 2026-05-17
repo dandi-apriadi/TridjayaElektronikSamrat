@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admin_id = "admin-test-001";
     sqlx::query(
         "INSERT IGNORE INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) 
-         VALUES (?, 'admin.test@tridjaya.com', 'Admin Test', 'admin', '$argon2id$v=19$m=19456,t=2,p=1$test$test', 'default.png', 1, 1)"
+         VALUES (?, 'admin.test@tridjaya.com', 'Admin Test', 'admin', '$argon2id$v=19$m=19456,t=2,p=1$test$test', '', 1, 1)"
     )
     .bind(admin_id)
     .execute(&pool)
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let agent_id = "agent-test-001";
     sqlx::query(
         "INSERT IGNORE INTO users (id, email, name, role, password_hash, avatar, is_active, is_verified) 
-         VALUES (?, 'agent.test@tridjaya.com', 'Agent Test', 'agent', '$argon2id$v=19$m=19456,t=2,p=1$test$test', 'default.png', 1, 1)"
+         VALUES (?, 'agent.test@tridjaya.com', 'Agent Test', 'agent', '$argon2id$v=19$m=19456,t=2,p=1$test$test', '', 1, 1)"
     )
     .bind(agent_id)
     .execute(&pool)
