@@ -84,7 +84,7 @@ export type AgentLeadInput = z.infer<typeof agentLeadSchema>;
 export const adminUserSchema = z.object({
   email: z.string().trim().email('Email tidak valid').max(100, 'Email maksimal 100 karakter'),
   name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(100, 'Nama maksimal 100 karakter'),
-  role: z.enum(['admin', 'operator', 'sales', 'agent']),
+  role: z.enum(['admin', 'operator', 'sales', 'agent', 'owner', 'pic_raport', 'karyawan']),
   password: z.string().min(8, 'Password minimal 8 karakter').max(50, 'Password maksimal 50 karakter').optional(),
   avatar: z.string().trim().optional(),
   is_active: z.boolean().optional(),

@@ -1048,7 +1048,15 @@ async fn update_auth_profile(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+        &[
+            Role::Admin,
+            Role::Agent,
+            Role::Operator,
+            Role::Sales,
+            Role::Owner,
+            Role::PicRaport,
+            Role::Karyawan,
+        ],
     )
     .await?;
 
@@ -1095,7 +1103,15 @@ async fn change_auth_password(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Agent, Role::Operator, Role::Sales],
+        &[
+            Role::Admin,
+            Role::Agent,
+            Role::Operator,
+            Role::Sales,
+            Role::Owner,
+            Role::PicRaport,
+            Role::Karyawan,
+        ],
     )
     .await?;
 
@@ -1257,6 +1273,8 @@ struct UserCreateRequest {
     role: String,
     /// Jabatan (title) — only used when role = "sales". Stored separately from role.
     jabatan: Option<String>,
+    /// Divisi — only used when role = "karyawan". Determines jobdesk and prospek target.
+    divisi: Option<String>,
     password: String,
     avatar: Option<String>,
     bank_account: Option<String>,
@@ -1272,6 +1290,8 @@ struct UserUpdateRequest {
     role: Option<String>,
     /// Jabatan (title) — only used when role = "sales". Stored separately from role.
     jabatan: Option<String>,
+    /// Divisi — only used when role = "karyawan".
+    divisi: Option<String>,
     password: Option<String>,
     avatar: Option<String>,
     bank_account: Option<String>,
@@ -1553,6 +1573,9 @@ fn normalize_role(value: &str) -> Option<String> {
             | "agent"
             | "sales"
             | "operator"
+            | "owner"
+            | "pic_raport"
+            | "karyawan"
             | "editor"
             | "wa_admin"
             | "wa_operator"
@@ -1678,7 +1701,7 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
         errors.push("name wajib diisi".to_string());
     }
     if normalize_role(&payload.role).is_none() {
-        errors.push("role harus salah satu dari: admin, agent, sales, operator, editor, wa_admin, wa_operator, super_admin".to_string());
+        errors.push("role harus salah satu dari: admin, agent, sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
@@ -1690,6 +1713,14 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
             .is_none_or(|value| value.trim().is_empty())
     {
         errors.push("whatsapp wajib diisi untuk role sales".to_string());
+    }
+    if payload.role.trim().eq_ignore_ascii_case("karyawan")
+        && payload
+            .divisi
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        errors.push("divisi wajib diisi untuk role karyawan".to_string());
     }
     if payload
         .whatsapp
@@ -1727,7 +1758,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         .as_ref()
         .is_some_and(|value| normalize_role(value).is_none())
     {
-        errors.push("role harus salah satu dari: admin, agent, sales, operator, editor, wa_admin, wa_operator, super_admin".to_string());
+        errors.push("role harus salah satu dari: admin, agent, sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
     }
     if payload
         .password
@@ -2133,15 +2164,21 @@ async fn create_user(
     } else {
         String::new()
     };
+    let divisi = if role == "karyawan" {
+        payload.divisi.as_deref().unwrap_or("").trim().to_string()
+    } else {
+        String::new()
+    };
 
     sqlx::query(
-        "INSERT INTO users (id, email, name, role, jabatan, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (id, email, name, role, jabatan, divisi, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(payload.email.trim())
     .bind(payload.name.trim())
     .bind(&role)
     .bind(&jabatan)
+    .bind(&divisi)
     .bind(password_hash)
     .bind(payload.avatar.unwrap_or_else(|| "".to_string()))
     .bind(payload.bank_account.unwrap_or_else(|| "".to_string()))
@@ -2206,8 +2243,8 @@ async fn update_user(
     );
     validate_user_update(&payload)?;
 
-    let current = sqlx::query_as::<_, (String, String, String, String, String, String, String, String, String, bool, bool)>(
-        "SELECT email, name, role, jabatan, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
+    let current = sqlx::query_as::<_, (String, String, String, String, String, String, String, String, String, String, bool, bool)>(
+        "SELECT email, name, role, jabatan, divisi, password_hash, avatar, bank_account, whatsapp, referral_slug, is_active, is_verified FROM users WHERE id = ? LIMIT 1",
     )
     .bind(&id)
     .fetch_optional(&state.pool)
@@ -2223,6 +2260,7 @@ async fn update_user(
         current_name,
         current_role,
         current_jabatan,
+        current_divisi,
         current_password_hash,
         current_avatar,
         current_bank_account,
@@ -2254,6 +2292,16 @@ async fn update_user(
     } else {
         String::new()
     };
+    let next_divisi = if next_role == "karyawan" {
+        payload
+            .divisi
+            .as_deref()
+            .unwrap_or(&current_divisi)
+            .trim()
+            .to_string()
+    } else {
+        String::new()
+    };
     let next_password_hash = payload
         .password
         .as_deref()
@@ -2275,6 +2323,11 @@ async fn update_user(
             errors: vec!["whatsapp wajib diisi untuk role sales".to_string()],
         });
     }
+    if next_role == "karyawan" && next_divisi.trim().is_empty() {
+        return Err(AppError::Validation {
+            errors: vec!["divisi wajib diisi untuk role karyawan".to_string()],
+        });
+    }
 
     let should_invalidate_sessions = next_role != current_role
         || next_password_hash != current_password_hash
@@ -2282,12 +2335,13 @@ async fn update_user(
         || next_is_verified != current_is_verified;
 
     sqlx::query(
-        "UPDATE users SET email = ?, name = ?, role = ?, jabatan = ?, password_hash = ?, avatar = ?, bank_account = ?, whatsapp = ?, referral_slug = ?, is_active = ?, is_verified = ? WHERE id = ?",
+        "UPDATE users SET email = ?, name = ?, role = ?, jabatan = ?, divisi = ?, password_hash = ?, avatar = ?, bank_account = ?, whatsapp = ?, referral_slug = ?, is_active = ?, is_verified = ? WHERE id = ?",
     )
     .bind(next_email.trim())
     .bind(next_name.trim())
     .bind(&next_role)
     .bind(&next_jabatan)
+    .bind(&next_divisi)
     .bind(next_password_hash)
     .bind(next_avatar)
     .bind(next_bank_account)
@@ -8584,7 +8638,15 @@ async fn list_notifications(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+        &[
+            Role::Admin,
+            Role::Operator,
+            Role::Agent,
+            Role::Sales,
+            Role::Owner,
+            Role::PicRaport,
+            Role::Karyawan,
+        ],
     )
     .await?;
 
@@ -8623,7 +8685,15 @@ async fn get_notifications_unread_count(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Operator, Role::Agent, Role::Sales],
+        &[
+            Role::Admin,
+            Role::Operator,
+            Role::Agent,
+            Role::Sales,
+            Role::Owner,
+            Role::PicRaport,
+            Role::Karyawan,
+        ],
     )
     .await?;
 

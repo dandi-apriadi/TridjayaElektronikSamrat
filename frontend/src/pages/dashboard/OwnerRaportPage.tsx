@@ -1,0 +1,739 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  AlertTriangle,
+  BriefcaseBusiness,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  ClipboardCheck,
+  Eye,
+  Search,
+  SlidersHorizontal,
+  TrendingUp,
+  Users,
+  X,
+} from 'lucide-react';
+import Pagination from '../../components/ui/Pagination';
+import SearchableSelect from '../../components/ui/SearchableSelect';
+import {
+  jobdeskPositions,
+  employeeRaports,
+  cabangRaportSummary,
+  overallRaportPersentase,
+  posisiRaportSummary,
+} from '../../data/ownerRaportData';
+import { buildEmployeeMonthlyReport, reportDateFormatter } from '../../utils/ownerRaportMonthly';
+import {
+  getReportingWindowLabel,
+  isWithinReportingWindow,
+  useJobdeskReportSettingsStore,
+} from '../../store/jobdeskReportSettingsStore';
+
+type StatusFilter = 'all' | 'excellent' | 'on-track' | 'at-risk';
+type SortKey = 'lowest' | 'highest' | 'name' | 'branch' | 'position';
+type TrendMode = 'hari' | 'minggu' | 'bulan';
+
+const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
+const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
+
+const itemsPerPage = 10;
+const branchChartColors = ['#2563eb', '#0891b2', '#16a34a', '#ca8a04', '#dc2626'];
+const hourlyRaportData = [
+  { jam: '08:00', raport: 18, selesai: 28 },
+  { jam: '09:00', raport: 26, selesai: 44 },
+  { jam: '10:00', raport: 34, selesai: 63 },
+  { jam: '11:00', raport: 43, selesai: 85 },
+  { jam: '12:00', raport: 48, selesai: 96 },
+  { jam: '13:00', raport: 55, selesai: 114 },
+  { jam: '14:00', raport: 63, selesai: 132 },
+  { jam: '15:00', raport: 69, selesai: 151 },
+  { jam: '16:00', raport: 74, selesai: 166 },
+  { jam: '17:00', raport: 78, selesai: 178 },
+  { jam: '18:00', raport: 81, selesai: 186 },
+  { jam: '19:00', raport: 83, selesai: 191 },
+];
+const weeklyRaportData = [
+  { hari: 'Senin', raport: 72, selesai: 168 },
+  { hari: 'Selasa', raport: 76, selesai: 179 },
+  { hari: 'Rabu', raport: 71, selesai: 164 },
+  { hari: 'Kamis', raport: 79, selesai: 186 },
+  { hari: 'Jumat', raport: 83, selesai: 194 },
+  { hari: 'Sabtu', raport: 68, selesai: 151 },
+  { hari: 'Minggu', raport: 54, selesai: 96 },
+];
+const monthlyRaportData = Array.from({ length: 31 }, (_, index) => {
+  const date = index + 1;
+  const raport = 58 + ((index * 7) % 31);
+  return {
+    tanggal: `${date}`,
+    raport: Math.min(92, raport),
+    selesai: 122 + ((index * 11) % 78),
+  };
+});
+
+
+function getStatus(persentase: number) {
+  if (persentase >= 80) {
+    return {
+      key: 'excellent' as const,
+      label: 'Prima',
+      textClass: 'text-green-400',
+      bgClass: 'bg-green-400/10',
+      barClass: 'bg-green-400',
+    };
+  }
+
+  if (persentase >= 50) {
+    return {
+      key: 'on-track' as const,
+      label: 'Pantau',
+      textClass: 'text-yellow-400',
+      bgClass: 'bg-yellow-400/10',
+      barClass: 'bg-yellow-400',
+    };
+  }
+
+  return {
+    key: 'at-risk' as const,
+    label: 'Prioritas',
+    textClass: 'text-red-400',
+    bgClass: 'bg-red-400/10',
+    barClass: 'bg-red-400',
+  };
+}
+
+const OwnerRaportPage: React.FC = () => {
+  const reportStartTime = useJobdeskReportSettingsStore((state) => state.startTime);
+  const reportEndTime = useJobdeskReportSettingsStore((state) => state.endTime);
+  const reportUpdatedAt = useJobdeskReportSettingsStore((state) => state.updatedAt);
+  const setReportingWindow = useJobdeskReportSettingsStore((state) => state.setReportingWindow);
+  const reportSettings = useMemo(
+    () => ({
+      startTime: reportStartTime,
+      endTime: reportEndTime,
+      updatedAt: reportUpdatedAt,
+    }),
+    [reportEndTime, reportStartTime, reportUpdatedAt]
+  );
+  const [filterCabang, setFilterCabang] = useState('all');
+  const [filterPosisi, setFilterPosisi] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('lowest');
+  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [trendMode, setTrendMode] = useState<TrendMode>('hari');
+  const [selectedTrendDate, setSelectedTrendDate] = useState(new Date().toISOString().split('T')[0]);
+  const [draftStartTime, setDraftStartTime] = useState(reportSettings.startTime);
+  const [draftEndTime, setDraftEndTime] = useState(reportSettings.endTime);
+  const [saveWindowMessage, setSaveWindowMessage] = useState('');
+
+  const branchChartData = useMemo(
+    () => [...cabangRaportSummary].sort((a, b) => b.rataPersentase - a.rataPersentase),
+    []
+  );
+
+  const posisiChartData = useMemo(
+    () => jobdeskPositions
+      .map((position) => {
+        const summary = posisiRaportSummary.find((item) => item.posisi === position.posisi);
+        return {
+          posisi: position.posisi,
+          totalKaryawan: summary?.totalKaryawan ?? 0,
+          rataPersentase: summary?.rataPersentase ?? 0,
+          totalJobdesk: position.jobdesks.length,
+        };
+      })
+      .sort((a, b) => {
+        if (a.totalKaryawan === 0 && b.totalKaryawan > 0) return 1;
+        if (a.totalKaryawan > 0 && b.totalKaryawan === 0) return -1;
+        return a.rataPersentase - b.rataPersentase || a.posisi.localeCompare(b.posisi, 'id');
+      }),
+    []
+  );
+
+  const cabangNames = useMemo(
+    () => [...new Set(employeeRaports.map((employee) => employee.cabang))].sort((a, b) => a.localeCompare(b, 'id')),
+    []
+  );
+
+  const posisiNames = useMemo(
+    () => [...new Set(jobdeskPositions.map((position) => position.posisi))].sort((a, b) => a.localeCompare(b, 'id')),
+    []
+  );
+
+  const divisiOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Divisi: Semua' },
+      ...posisiNames.map((position) => ({ value: position, label: `Divisi: ${position}` })),
+    ],
+    [posisiNames]
+  );
+
+  const filteredEmployees = useMemo(() => {
+    const searchValue = search.trim().toLowerCase();
+
+    return employeeRaports
+      .filter((employee) => {
+        const status = getStatus(employee.persentase);
+        const matchesSearch =
+          searchValue.length === 0 ||
+          `${employee.nama} ${employee.posisi} ${employee.cabang}`.toLowerCase().includes(searchValue);
+        const matchesCabang = filterCabang === 'all' || employee.cabang === filterCabang;
+        const matchesPosisi = filterPosisi === 'all' || employee.posisi === filterPosisi;
+        const matchesStatus = filterStatus === 'all' || status.key === filterStatus;
+
+        return matchesSearch && matchesCabang && matchesPosisi && matchesStatus;
+      })
+      .sort((a, b) => {
+        if (sortKey === 'highest') return b.persentase - a.persentase || a.nama.localeCompare(b.nama, 'id');
+        if (sortKey === 'name') return a.nama.localeCompare(b.nama, 'id');
+        if (sortKey === 'branch') return a.cabang.localeCompare(b.cabang, 'id') || a.nama.localeCompare(b.nama, 'id');
+        if (sortKey === 'position') return a.posisi.localeCompare(b.posisi, 'id') || a.nama.localeCompare(b.nama, 'id');
+        return a.persentase - b.persentase || a.nama.localeCompare(b.nama, 'id');
+      });
+  }, [filterCabang, filterPosisi, filterStatus, search, sortKey]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
+  const pageStart = (currentPage - 1) * itemsPerPage;
+  const paginatedEmployees = filteredEmployees.slice(pageStart, pageStart + itemsPerPage);
+  const reportDateLabel = reportDateFormatter.format(new Date());
+
+  const statusCounts = useMemo(() => {
+    return employeeRaports.reduce(
+      (counts, employee) => {
+        const status = getStatus(employee.persentase).key;
+        counts[status] += 1;
+        return counts;
+      },
+      { excellent: 0, 'on-track': 0, 'at-risk': 0 }
+    );
+  }, []);
+
+  const bestBranch = branchChartData[0];
+  const lowestBranch = branchChartData[branchChartData.length - 1];
+  const branchDomainStart = Math.max(
+    0,
+    Math.floor((lowestBranch?.rataPersentase ?? 0) / 10) * 10 - 10
+  );
+  const totalCompleted = employeeRaports.reduce((sum, employee) => sum + employee.selesai, 0);
+  const totalJobdesk = employeeRaports.reduce((sum, employee) => sum + employee.totalJobdesk, 0);
+  const raportTrendData = trendMode === 'hari'
+    ? hourlyRaportData.map((item) => ({ label: item.jam, raport: item.raport, selesai: item.selesai }))
+    : trendMode === 'minggu'
+      ? weeklyRaportData.map((item) => ({ label: item.hari, raport: item.raport, selesai: item.selesai }))
+      : monthlyRaportData.map((item) => ({ label: item.tanggal, raport: item.raport, selesai: item.selesai }));
+  const hasFilters =
+    search.trim() !== '' ||
+    filterCabang !== 'all' ||
+    filterPosisi !== 'all' ||
+    filterStatus !== 'all' ||
+    sortKey !== 'lowest';
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCabang, filterPosisi, filterStatus, search, sortKey]);
+
+  useEffect(() => {
+    setDraftStartTime(reportSettings.startTime);
+    setDraftEndTime(reportSettings.endTime);
+  }, [reportSettings.endTime, reportSettings.startTime]);
+
+  const resetFilters = () => {
+    setSearch('');
+    setFilterCabang('all');
+    setFilterPosisi('all');
+    setFilterStatus('all');
+    setSortKey('lowest');
+  };
+
+  const showAutoSaveNotification = () => {
+    setSaveWindowMessage('Jam pelaporan otomatis tersimpan.');
+    window.setTimeout(() => setSaveWindowMessage(''), 2400);
+  };
+
+  const handleReportingTimeChange = (field: 'start' | 'end', value: string) => {
+    const nextStartTime = field === 'start' ? value : draftStartTime;
+    const nextEndTime = field === 'end' ? value : draftEndTime;
+
+    if (field === 'start') {
+      setDraftStartTime(value);
+    } else {
+      setDraftEndTime(value);
+    }
+
+    setReportingWindow({
+      startTime: nextStartTime,
+      endTime: nextEndTime,
+    });
+    showAutoSaveNotification();
+  };
+
+  const reportWindowOpen = isWithinReportingWindow(reportSettings);
+
+  return (
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+      <motion.div variants={itemVariants} className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-label-xs font-bold uppercase tracking-widest text-primary">Owner Control</p>
+          <h1 className="mt-1 font-display text-headline-sm font-bold text-on-surface">Raport Jobdesk Harian</h1>
+          <p className="mt-1 text-body-sm text-on-surface-variant">
+            Pantau penyelesaian jobdesk harian seluruh karyawan, cabang yang butuh perhatian, dan posisi yang perlu follow up.
+          </p>
+        </div>
+        <div className="rounded-xl border border-outline-variant/10 bg-surface-high px-4 py-3">
+          <div className="text-label-xs font-semibold uppercase tracking-widest text-on-surface-variant">Hari ini</div>
+          <div className="mt-1 text-title-sm font-bold text-on-surface">
+            {new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date())}
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.section variants={itemVariants} className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-5 shadow-sm">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-label-xs font-bold uppercase tracking-widest text-primary">
+              <Clock3 className="h-3.5 w-3.5" />
+              Pengaturan waktu pelaporan
+            </div>
+            <h2 className="text-title-lg font-black text-on-surface">Owner mengatur jam mulai dan tutup raport.</h2>
+            <p className="mt-2 text-body-sm text-on-surface-variant">
+              Karyawan hanya bisa mengisi checklist dan upload bukti di antara jam mulai dan jam tutup yang ditentukan.
+            </p>
+          </div>
+          <div className={`rounded-2xl border px-4 py-3 ${reportWindowOpen ? 'border-secondary/20 bg-secondary/10' : 'border-error/20 bg-error/10'}`}>
+            <p className="text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Status sekarang</p>
+            <p className={`mt-1 text-title-sm font-black ${reportWindowOpen ? 'text-secondary' : 'text-error'}`}>
+              {reportWindowOpen ? 'Sedang dibuka' : 'Sedang ditutup'}
+            </p>
+            <p className="mt-1 text-label-sm text-on-surface-variant">{getReportingWindowLabel(reportSettings)}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:max-w-md">
+          <label className="space-y-1.5">
+            <span className="text-label-sm font-bold text-on-surface-variant">Jam mulai</span>
+            <input
+              type="time"
+              value={draftStartTime}
+              onChange={(event) => handleReportingTimeChange('start', event.target.value)}
+              className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md font-bold text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-label-sm font-bold text-on-surface-variant">Jam tutup</span>
+            <input
+              type="time"
+              value={draftEndTime}
+              onChange={(event) => handleReportingTimeChange('end', event.target.value)}
+              className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md font-bold text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
+            />
+          </label>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-1 text-label-sm text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
+          <span>Jam aktif saat ini: <strong className="text-on-surface">{getReportingWindowLabel(reportSettings)}</strong></span>
+          {reportSettings.updatedAt && (
+            <span>Update terakhir: {new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(reportSettings.updatedAt))}</span>
+          )}
+        </div>
+        {saveWindowMessage && (
+          <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-secondary/20 bg-secondary/10 px-4 py-3 text-body-sm font-bold text-secondary">
+            <CheckCircle2 className="h-4 w-4" />
+            {saveWindowMessage}
+          </div>
+        )}
+      </motion.section>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Rata-rata Raport</div>
+              <div className={`font-display text-headline-sm font-bold ${getStatus(overallRaportPersentase).textClass}`}>{overallRaportPersentase}%</div>
+            </div>
+            <div className="rounded-lg bg-primary/10 p-2.5 text-primary">
+              <ClipboardCheck className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-high">
+            <div className={`h-full rounded-full ${getStatus(overallRaportPersentase).barClass}`} style={{ width: `${overallRaportPersentase}%` }} />
+          </div>
+          <div className="mt-2 text-label-xs text-on-surface-variant">{totalCompleted} dari {totalJobdesk} jobdesk selesai</div>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Karyawan Dipantau</div>
+              <div className="font-display text-headline-sm font-bold text-on-surface">{employeeRaports.length}</div>
+            </div>
+            <div className="rounded-lg bg-secondary/10 p-2.5 text-secondary">
+              <Users className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-label-xs text-on-surface-variant">Aktif di {cabangNames.length} cabang dan {posisiNames.length} posisi</div>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Cabang Terbaik</div>
+              <div className="font-display text-title-lg font-bold text-on-surface">{bestBranch?.cabang ?? '-'}</div>
+            </div>
+            <div className="rounded-lg bg-green-400/10 p-2.5 text-green-400">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-label-xs text-on-surface-variant">Rata-rata {bestBranch?.rataPersentase ?? 0}% dari {bestBranch?.totalKaryawan ?? 0} karyawan</div>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Butuh Follow Up</div>
+              <div className="font-display text-headline-sm font-bold text-red-400">{statusCounts['at-risk']}</div>
+            </div>
+            <div className="rounded-lg bg-red-400/10 p-2.5 text-red-400">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-label-xs text-on-surface-variant">Cabang terendah: {lowestBranch?.cabang ?? '-'} ({lowestBranch?.rataPersentase ?? 0}%)</div>
+        </motion.div>
+      </div>
+
+      <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h3 className="font-display text-title-md font-bold text-on-surface">Grafik Tren Raport</h3>
+            <p className="mt-1 text-label-xs text-on-surface-variant">Pergerakan rata-rata raport dan jumlah jobdesk selesai berdasarkan periode</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {trendMode === 'hari' && (
+              <input
+                type="date"
+                value={selectedTrendDate}
+                onChange={(event) => setSelectedTrendDate(event.target.value)}
+                className="h-10 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+              />
+            )}
+            <div className="flex rounded-lg bg-surface-high p-1">
+              {(['hari', 'minggu', 'bulan'] as TrendMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setTrendMode(mode)}
+                  className={`h-8 rounded-md px-3 text-label-sm font-bold capitalize transition ${trendMode === mode ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="h-[340px] w-full">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+            <AreaChart data={raportTrendData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="raportTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28} />
+                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                </linearGradient>
+                <linearGradient id="completedTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#16a34a" stopOpacity={0.22} />
+                  <stop offset="95%" stopColor="#16a34a" stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="4 4" stroke="rgba(100,116,139,0.18)" vertical={false} />
+              <XAxis dataKey="label" stroke="rgba(71,85,105,0.72)" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="left" domain={[0, 100]} stroke="rgba(37,99,235,0.72)" fontSize={11} tickFormatter={(value: number) => `${value}%`} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="right" orientation="right" stroke="rgba(22,163,74,0.72)" fontSize={11} tickLine={false} axisLine={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: 'rgba(22, 27, 34, 0.96)', border: '1px solid rgba(148,163,184,0.18)', borderRadius: '8px', color: '#e5eefc' }}
+                formatter={(value, name) => [name === 'raport' ? `${value ?? 0}%` : `${value ?? 0} jobdesk`, name === 'raport' ? 'Rata-rata raport' : 'Jobdesk selesai']}
+                labelFormatter={(label) => trendMode === 'hari' ? `Jam ${label}` : trendMode === 'minggu' ? `${label}` : `Tanggal ${label}`}
+              />
+              <Area yAxisId="left" type="monotone" dataKey="raport" stroke="#2563eb" strokeWidth={2.5} fill="url(#raportTrendGradient)" dot={{ r: 2.5, fill: '#2563eb', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              <Area yAxisId="right" type="monotone" dataKey="selesai" stroke="#16a34a" strokeWidth={2.5} fill="url(#completedTrendGradient)" dot={{ r: 2.5, fill: '#16a34a', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-outline-variant/10 bg-surface-high/40 p-3">
+            <div className="text-label-xs text-on-surface-variant">Rata-rata periode</div>
+            <div className="mt-1 text-title-sm font-bold text-primary">
+              {Math.round(raportTrendData.reduce((sum, item) => sum + item.raport, 0) / raportTrendData.length)}%
+            </div>
+          </div>
+          <div className="rounded-lg border border-outline-variant/10 bg-surface-high/40 p-3">
+            <div className="text-label-xs text-on-surface-variant">Jobdesk selesai</div>
+            <div className="mt-1 text-title-sm font-bold text-green-500">
+              {raportTrendData.reduce((sum, item) => sum + item.selesai, 0).toLocaleString('id-ID')}
+            </div>
+          </div>
+          <div className="rounded-lg border border-outline-variant/10 bg-surface-high/40 p-3">
+            <div className="text-label-xs text-on-surface-variant">Mode laporan</div>
+            <div className="mt-1 text-title-sm font-bold capitalize text-on-surface">{trendMode}</div>
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_0.8fr] gap-6">
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
+          <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="font-display text-title-md font-bold text-on-surface">Rata-rata Raport Per Cabang</h3>
+              <p className="text-label-xs text-on-surface-variant mt-1">Urutan cabang dari pencapaian tertinggi ke terendah</p>
+            </div>
+            <span className="rounded-lg bg-surface-high px-3 py-1.5 text-label-xs font-bold text-on-surface-variant">{branchChartData.length} cabang</span>
+          </div>
+          <div className="h-[460px] w-full">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+              <BarChart layout="vertical" data={branchChartData} margin={{ top: 4, right: 44, left: 8, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="4 4" stroke="rgba(100,116,139,0.18)" horizontal={false} />
+                <XAxis
+                  type="number"
+                  domain={[branchDomainStart, 100]}
+                  stroke="rgba(71,85,105,0.72)"
+                  fontSize={11}
+                  tickFormatter={(value: number) => `${value}%`}
+                  tickLine={false}
+                  axisLine={{ stroke: 'rgba(100,116,139,0.24)' }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="cabang"
+                  width={112}
+                  stroke="rgba(51,65,85,0.84)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'rgba(22, 27, 34, 0.96)', border: '1px solid rgba(148,163,184,0.18)', borderRadius: '8px', color: '#e5eefc' }}
+                  formatter={(value) => [`${value ?? 0}%`, 'Rata-rata']}
+                />
+                <Bar dataKey="rataPersentase" radius={[0, 7, 7, 0]} barSize={18} background={{ fill: 'rgba(100,116,139,0.08)', radius: 7 }}>
+                  {branchChartData.map((entry, index) => (
+                    <Cell
+                      key={entry.cabang}
+                      fill={branchChartColors[Math.min(index, branchChartColors.length - 1)]}
+                    />
+                  ))}
+                  <LabelList
+                    dataKey="rataPersentase"
+                    position="right"
+                    formatter={(value) => `${value ?? 0}%`}
+                    fill="rgba(15,23,42,0.78)"
+                    fontSize={11}
+                    fontWeight={700}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
+          <h3 className="font-display text-title-md font-bold text-on-surface">Prioritas Semua Divisi</h3>
+          <p className="mt-1 text-label-xs text-on-surface-variant">Diambil dari seluruh master divisi, termasuk yang belum memiliki data karyawan</p>
+          <div className="mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+            {posisiChartData.map((item) => {
+              const status = getStatus(item.rataPersentase);
+              const hasEmployees = item.totalKaryawan > 0;
+              return (
+                <div key={item.posisi} className="rounded-lg border border-outline-variant/10 bg-surface-high/40 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-body-sm font-bold text-on-surface">{item.posisi}</div>
+                      <div className="text-label-xs text-on-surface-variant">{item.totalKaryawan} karyawan, {item.totalJobdesk} jobdesk</div>
+                    </div>
+                    {hasEmployees ? (
+                      <span className={`rounded-md px-2 py-1 text-label-xs font-bold ${status.bgClass} ${status.textClass}`}>{item.rataPersentase}%</span>
+                    ) : (
+                      <span className="rounded-md bg-surface px-2 py-1 text-label-xs font-bold text-on-surface-variant">Belum ada data</span>
+                    )}
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-surface">
+                    <div className={`h-full rounded-full ${hasEmployees ? status.barClass : 'bg-outline-variant/30'}`} style={{ width: `${hasEmployees ? item.rataPersentase : 0}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      </div>
+
+      <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <h3 className="font-display text-title-md font-bold text-on-surface">Detail Raport Karyawan</h3>
+            <p className="mt-1 text-label-xs text-on-surface-variant">Menampilkan {filteredEmployees.length} dari {employeeRaports.length} karyawan.</p>
+            <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 px-3 py-1.5 text-label-xs font-bold text-primary">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Tanggal report: {reportDateLabel}
+            </div>
+          </div>
+          <div className="rounded-lg border border-outline-variant/10 bg-surface-high px-3 py-2 text-label-xs text-on-surface-variant">
+            Baris <span className="font-bold text-on-surface">{filteredEmployees.length === 0 ? 0 : pageStart + 1}</span> - <span className="font-bold text-on-surface">{Math.min(pageStart + itemsPerPage, filteredEmployees.length)}</span> dari <span className="font-bold text-on-surface">{filteredEmployees.length}</span>
+          </div>
+        </div>
+
+        <div className="mb-4 rounded-xl border border-outline-variant/10 bg-surface-high/40 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-primary" />
+            <span className="text-label-sm font-bold text-on-surface">Filter Raport</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+            <div className="relative md:col-span-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari nama, cabang, divisi..."
+                className="h-10 w-full rounded-lg border border-outline-variant/20 bg-surface px-9 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <select value={filterCabang} onChange={(event) => setFilterCabang(event.target.value)} className="h-10 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20">
+              <option value="all">Cabang: Semua</option>
+              {cabangNames.map((branch) => <option key={branch} value={branch}>Cabang: {branch}</option>)}
+            </select>
+            <SearchableSelect
+              value={filterPosisi}
+              onChange={setFilterPosisi}
+              options={divisiOptions}
+              placeholder="Divisi: Semua"
+              searchPlaceholder="Cari divisi..."
+              className="h-10"
+            />
+            <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value as StatusFilter)} className="h-10 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20">
+              <option value="all">Status: Semua</option>
+              <option value="excellent">Status: Prima</option>
+              <option value="on-track">Status: Pantau</option>
+              <option value="at-risk">Status: Prioritas</option>
+            </select>
+            <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-10 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20">
+              <option value="lowest">Urutkan: Terendah</option>
+              <option value="highest">Urutkan: Tertinggi</option>
+              <option value="name">Urutkan: Nama</option>
+              <option value="branch">Urutkan: Cabang</option>
+              <option value="position">Urutkan: Divisi</option>
+            </select>
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={!hasFilters}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm font-bold text-on-surface-variant transition hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <X className="h-4 w-4" />
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1080px]">
+            <thead>
+              <tr className="border-b border-outline-variant/10">
+                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Karyawan</th>
+                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Divisi</th>
+                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Cabang</th>
+                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Nilai</th>
+                <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Progress</th>
+                <th className="text-center text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Selesai</th>
+                <th className="text-center text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Status</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedEmployees.map((employee) => {
+                const status = getStatus(employee.persentase);
+                const monthlyReport = buildEmployeeMonthlyReport(employee);
+                const scoreStatus = getStatus(monthlyReport.rataNilai);
+                return (
+                  <tr key={employee.id} className="border-b border-outline-variant/10 transition-colors hover:bg-surface-high/30">
+                    <td className="py-3 px-4">
+                      <div className="text-body-sm font-bold text-on-surface">{employee.nama}</div>
+                      <div className="text-label-xs text-on-surface-variant">ID {employee.id.toUpperCase()}</div>
+                    </td>
+                    <td className="py-3 px-4 text-body-sm text-on-surface-variant">{employee.posisi}</td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-surface-high px-2 py-1 text-label-xs font-bold text-on-surface-variant">
+                        <Building2 className="h-3.5 w-3.5" />
+                        {employee.cabang}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-title-sm font-black ${scoreStatus.textClass}`}>{monthlyReport.rataNilai}</span>
+                        <span className="text-label-xs font-semibold text-on-surface-variant">/ 100</span>
+                      </div>
+                      <div className="text-label-xs text-on-surface-variant">Rata-rata bulan ini</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-32 overflow-hidden rounded-full bg-surface-high">
+                          <div className={`h-full rounded-full ${status.barClass}`} style={{ width: `${employee.persentase}%` }} />
+                        </div>
+                        <span className={`text-label-sm font-bold ${status.textClass}`}>{employee.persentase}%</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-center text-body-sm font-semibold text-on-surface">{employee.selesai}/{employee.totalJobdesk}</td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-label-xs font-bold ${status.bgClass} ${status.textClass}`}>
+                        {status.key === 'excellent' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <BriefcaseBusiness className="h-3.5 w-3.5" />}
+                        {status.label}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <Link
+                        to={`/dashboard/owner/raport/${employee.id}`}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-label-sm font-bold text-primary transition hover:bg-primary hover:text-on-primary"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Detail
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredEmployees.length === 0 && (
+          <div className="rounded-xl border border-outline-variant/10 bg-surface-high/40 py-10 text-center">
+            <p className="text-body-sm font-semibold text-on-surface">Tidak ada raport yang cocok</p>
+            <p className="mt-1 text-label-xs text-on-surface-variant">Ubah kombinasi filter untuk melihat data lain.</p>
+          </div>
+        )}
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          className="mt-2 border-t border-outline-variant/10"
+        />
+      </motion.div>
+
+    </motion.div>
+  );
+};
+
+export default OwnerRaportPage;

@@ -25,11 +25,17 @@ import {
   UserCheck,
   Send,
   FileText,
+  FileCheck2,
   ExternalLink,
   TrendingUp,
   Handshake,
   Briefcase,
   Images,
+  Award,
+  Building2,
+  CalendarDays,
+  ClipboardList,
+  Database,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
@@ -38,6 +44,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { useUIPreferenceStore } from '../../store/useUIPreferenceStore';
 import { useDashboardNotificationsStore } from '../../store/useDashboardNotificationsStore';
 import { toast } from '../../store/useNotificationStore';
+import { canAccessDashboardPath, getDashboardHomeByRole } from '../../utils/dashboardAccess';
 import logoPng from '../../assets/images/logo.webp';
 
 const DashboardLayout: React.FC = () => {
@@ -100,6 +107,19 @@ const DashboardLayout: React.FC = () => {
     };
   }, [user?.id, fetchUnreadCount, clearDashboardNotifications]);
 
+  React.useEffect(() => {
+    if (!user?.role) return;
+
+    const path = location.pathname;
+    const redirectTo = canAccessDashboardPath(user.role, path)
+      ? null
+      : getDashboardHomeByRole(user.role);
+
+    if (redirectTo && redirectTo !== path) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [location.pathname, navigate, user?.role]);
+
   const handleLogout = () => {
     clearDashboardNotifications();
     logout();
@@ -153,6 +173,8 @@ const DashboardLayout: React.FC = () => {
         { label: 'Keuangan', icon: Wallet, path: '/dashboard/admin/finance' },
         { label: 'User & Akses', icon: Shield, path: '/dashboard/admin/users' },
         { label: 'Sales Management', icon: Share2, path: '/dashboard/admin/sales' },
+        { label: 'Cabang Management', icon: Building2, path: '/dashboard/admin/cabang' },
+        { label: 'Pengaturan Akun', icon: Shield, path: '/dashboard/settings' },
       ]
     }
   ], []);
@@ -179,7 +201,7 @@ const DashboardLayout: React.FC = () => {
       items: [
         { label: 'Komisi & Penarikan', icon: Wallet, path: '/dashboard/agent/earnings' },
         { label: 'Support', icon: Headphones, path: '/dashboard/agent/support' },
-        { label: 'Pengaturan', icon: Shield, path: '/dashboard/agent/settings' },
+        { label: 'Pengaturan', icon: Shield, path: '/dashboard/settings' },
       ]
     }
   ], []);
@@ -211,7 +233,7 @@ const DashboardLayout: React.FC = () => {
     {
       title: 'Akun & Bantuan',
       items: [
-        { label: 'Pengaturan', icon: Shield, path: '/dashboard/sales/settings' },
+        { label: 'Pengaturan', icon: Shield, path: '/dashboard/settings' },
         { label: 'Support', icon: Headphones, path: '/dashboard/sales/support' },
       ]
     }
@@ -245,9 +267,76 @@ const DashboardLayout: React.FC = () => {
         { label: 'Pixel Tester', icon: FlaskConical, path: '/dashboard/admin/pixel-tester' },
       ]
     },
+    {
+      title: 'Akun',
+      items: [
+        { label: 'Pengaturan Akun', icon: Shield, path: '/dashboard/settings' },
+      ]
+    },
+  ], []);
+
+  const ownerSections = React.useMemo(() => [
+    {
+      title: 'Dashboard',
+      items: [
+        { label: 'Overview', icon: LayoutDashboard, path: '/dashboard/owner' },
+      ]
+    },
+    {
+      title: 'Monitoring',
+      items: [
+        { label: 'Prospek & Closing', icon: Users, path: '/dashboard/owner/prospek' },
+        { label: 'Raport Jobdesk', icon: BookOpen, path: '/dashboard/owner/raport' },
+        { label: 'Omset Per Cabang', icon: BarChart3, path: '/dashboard/owner/omset-cabang' },
+        { label: 'Omset Realtime', icon: TrendingUp, path: '/dashboard/owner/omset-realtime' },
+        { label: 'Target vs Actual', icon: BarChart2, path: '/dashboard/owner/target-actual' },
+        { label: 'Top 10 Sales', icon: Trophy, path: '/dashboard/owner/top-sales' },
+        { label: 'Top 10 Non-Sales', icon: Award, path: '/dashboard/owner/top-nonsales' },
+      ]
+    },
+    {
+      title: 'Akun',
+      items: [
+        { label: 'Pengaturan Akun', icon: Shield, path: '/dashboard/settings' },
+      ]
+    },
+  ], []);
+
+  const picRaportSections = React.useMemo(() => [
+    {
+      title: 'PIC Raport',
+      items: [
+        { label: 'Review Hari Ini', icon: FileCheck2, path: '/dashboard/pic-raport' },
+        { label: 'History Upload', icon: CalendarDays, path: '/dashboard/pic-raport/history' },
+        { label: 'Master Jobdesk', icon: ClipboardList, path: '/dashboard/pic-raport/master' },
+        { label: 'Pengaturan Akun', icon: Shield, path: '/dashboard/settings' },
+      ]
+    },
+  ], []);
+
+  const karyawanSections = React.useMemo(() => [
+    {
+      title: 'Dashboard',
+      items: [
+        { label: 'Overview', icon: LayoutDashboard, path: '/dashboard/karyawan' },
+      ]
+    },
+    {
+      title: 'Aktivitas',
+      items: [
+        { label: 'Submit Prospek', icon: Send, path: '/dashboard/karyawan/prospek' },
+        { label: 'Database Prospek', icon: Database, path: '/dashboard/karyawan/prospek/database' },
+        { label: 'Raport Harian', icon: BookOpen, path: '/dashboard/karyawan/raport' },
+        { label: 'History Raport', icon: CalendarDays, path: '/dashboard/karyawan/raport/history' },
+        { label: 'Pengaturan Akun', icon: Shield, path: '/dashboard/settings' },
+      ]
+    },
   ], []);
 
   const navSections = user?.role === 'admin' ? adminSections
+    : user?.role === 'owner' ? ownerSections
+    : user?.role === 'pic_raport' ? picRaportSections
+    : user?.role === 'karyawan' ? karyawanSections
     : user?.role === 'operator' ? operatorSections
     : user?.role === 'sales' ? salesSections
     : agentSections;
@@ -264,6 +353,16 @@ const DashboardLayout: React.FC = () => {
         ...(user?.role === 'operator' ? [{ label: 'WA Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns', color: 'text-secondary' }] : []),
         ...(user?.role === 'operator' ? [{ label: 'Pixel', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns', color: 'text-tertiary' }] : []),
       ]
+    : user?.role === 'owner'
+    ? []
+    : user?.role === 'pic_raport'
+    ? [
+        { label: 'Review', icon: FileCheck2, path: '/dashboard/pic-raport', color: 'text-primary' },
+        { label: 'History', icon: CalendarDays, path: '/dashboard/pic-raport/history', color: 'text-secondary' },
+        { label: 'Master', icon: ClipboardList, path: '/dashboard/pic-raport/master', color: 'text-tertiary' },
+      ]
+    : user?.role === 'karyawan'
+    ? []
     : [
         { label: 'Knowledge', icon: BookOpen, path: user?.role === 'sales' ? '/dashboard/sales/knowledge' : '/dashboard/agent/knowledge', color: 'text-primary' },
         { label: 'Prospek', icon: TrendingUp, path: user?.role === 'sales' ? '/dashboard/sales/push-prospek' : '/dashboard/agent/push-prospek', color: 'text-secondary' },
@@ -276,7 +375,14 @@ const DashboardLayout: React.FC = () => {
     ? '/dashboard/admin/notifications'
     : user?.role === 'sales'
       ? '/dashboard/sales/notifications'
+      : user?.role === 'pic_raport'
+        ? '/dashboard/pic-raport'
+        : user?.role === 'karyawan'
+          ? '/dashboard/karyawan'
       : '/dashboard/agent/notifications';
+
+  const avatarUrl = user?.avatar?.trim();
+  const avatarInitial = (user?.name?.trim() || user?.email?.trim() || '?').charAt(0).toUpperCase();
 
   // Removed auto-expand effect to respect user's persistent choices
 
@@ -507,8 +613,14 @@ const DashboardLayout: React.FC = () => {
                 <div className="font-body text-body-sm font-bold text-on-surface truncate max-w-[120px]">{user?.name}</div>
                 <div className="font-body text-label-sm text-primary uppercase tracking-widest">{user?.role}</div>
               </div>
-              <div className="w-10 h-10 rounded-lg overflow-hidden border border-outline-variant/30 flex-shrink-0">
-                <img src={user?.avatar} alt={user?.name} className="w-full h-full object-cover" />
+              <div className="w-10 h-10 rounded-lg overflow-hidden border border-outline-variant/30 flex-shrink-0 bg-primary/10 text-primary">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={user?.name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="grid h-full w-full place-items-center text-label-md font-black">
+                    {avatarInitial}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -527,14 +639,12 @@ const DashboardLayout: React.FC = () => {
                     Demi keamanan, atur password baru Anda di halaman pengaturan akun.
                   </p>
                 </div>
-                {user.role === 'agent' && (
-                  <Link
-                    to="/dashboard/agent/settings?force=password"
-                    className="text-label-md font-bold text-amber-400 hover:text-amber-300 whitespace-nowrap"
-                  >
-                    Ganti sekarang
-                  </Link>
-                )}
+                <Link
+                  to="/dashboard/settings?force=password"
+                  className="text-label-md font-bold text-amber-400 hover:text-amber-300 whitespace-nowrap"
+                >
+                  Ganti sekarang
+                </Link>
               </div>
             </div>
           )}

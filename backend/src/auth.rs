@@ -29,6 +29,10 @@ pub enum Role {
     Agent,
     Sales,
     Operator,
+    Owner,
+    #[serde(rename = "pic_raport")]
+    PicRaport,
+    Karyawan,
 }
 
 impl Display for Role {
@@ -38,6 +42,9 @@ impl Display for Role {
             Self::Agent => write!(f, "agent"),
             Self::Sales => write!(f, "sales"),
             Self::Operator => write!(f, "operator"),
+            Self::Owner => write!(f, "owner"),
+            Self::PicRaport => write!(f, "pic_raport"),
+            Self::Karyawan => write!(f, "karyawan"),
         }
     }
 }
@@ -50,6 +57,9 @@ impl FromStr for Role {
             "agent" => Ok(Self::Agent),
             "sales" => Ok(Self::Sales),
             "operator" => Ok(Self::Operator),
+            "owner" => Ok(Self::Owner),
+            "pic_raport" | "pic-raport" | "pic raport" => Ok(Self::PicRaport),
+            "karyawan" => Ok(Self::Karyawan),
             _ => Err(()),
         }
     }
@@ -57,15 +67,15 @@ impl FromStr for Role {
 
 impl Role {
     pub fn can_manage_wa(&self) -> bool {
-        matches!(self, Self::Admin | Self::Operator)
+        matches!(self, Self::Admin | Self::Operator | Self::Owner)
     }
 
     pub fn can_operate_wa(&self) -> bool {
-        matches!(self, Self::Admin | Self::Operator)
+        matches!(self, Self::Admin | Self::Operator | Self::Owner)
     }
 
     pub fn can_manage_pixels(&self) -> bool {
-        matches!(self, Self::Admin | Self::Operator)
+        matches!(self, Self::Admin | Self::Operator | Self::Owner)
     }
 }
 

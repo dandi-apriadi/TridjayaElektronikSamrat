@@ -16,8 +16,14 @@ import { useBlogStore } from '../../store/useBlogStore';
 import { useUserStore } from '../../store/useUserStore';
 import { useAdminNetworkStore } from '../../store/useAdminNetworkStore';
 import { buildReferralLink } from '../../utils/apiClient';
+import { jobdeskPositions } from '../../data/ownerRaportData';
 
 type FormType = 'catalog' | 'promo' | 'content' | 'user';
+
+const isValidWhatsapp = (value: string) => {
+  const digitCount = value.replace(/\D/g, '').length;
+  return digitCount >= 9 && digitCount <= 16;
+};
 
 const AdminFormPage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,8 +35,8 @@ const AdminFormPage: React.FC = () => {
   const [type, setType] = useState<FormType>('catalog');
   const isEdit = !!id;
   const { products, fetchProducts, updateProduct, createProduct } = useProductStore();
-  const { promos, fetchPromos } = usePromoStore();
-  const { posts, fetchPosts } = useBlogStore();
+  const { fetchPromos } = usePromoStore();
+  const { fetchPosts } = useBlogStore();
   const { users, fetchUsers, createUser, updateUser, resendVerification, verifyUser } = useUserStore();
   const { agents, fetchAgents, leads: adminLeads, fetchLeads, agentPerformance, fetchAgentPerformance } = useAdminNetworkStore();
   
@@ -57,8 +63,8 @@ const AdminFormPage: React.FC = () => {
   }, [fetchPosts, fetchProducts, fetchPromos, fetchUsers, type]);
   const [activeTab, setActiveTab] = useState<string>('details');
   const [isSaving, setIsSaving] = useState(false);
-  const [specs, setSpecs] = useState([{ key: 'Motor Power', value: '500W' }, { key: 'Top Speed', value: '45 km/h' }]);
-  const [colors, setColors] = useState(['Red', 'Blue', 'Black']);
+  const [specs, setSpecs] = useState<Array<{ key: string; value: string }>>([]);
+  const [colors, setColors] = useState<string[]>([]);
   const [newColor, setNewColor] = useState('');
   const [name, setName] = useState('');
   
@@ -71,8 +77,9 @@ const AdminFormPage: React.FC = () => {
   const [subcategory, setSubcategory] = useState('');
 
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'admin' | 'editor' | 'operator' | 'sales' | 'agent' | 'wa_admin' | 'wa_operator' | 'super_admin'>('sales');
+  const [role, setRole] = useState<'admin' | 'editor' | 'operator' | 'sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan' | 'wa_admin' | 'wa_operator' | 'super_admin'>('sales');
   const [jabatan, setJabatan] = useState<'sales' | 'kepala_cabang' | 'supervisor' | 'koordinator'>('sales');
+  const [divisi, setDivisi] = useState('');
   const [password, setPassword] = useState('');
   const [avatar, setAvatar] = useState('');
   const [bankAccount, setBankAccount] = useState('');
@@ -97,46 +104,29 @@ const AdminFormPage: React.FC = () => {
   }, [agents, id, type]);
 
   const insightData = useMemo(() => {
+    if (!(type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role))) {
+      return [];
+    }
+
     const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
     const today = new Date();
-    
+
     return Array.from({ length: 7 }).map((_, i) => {
       const d = new Date();
       d.setDate(today.getDate() - (6 - i));
       const day = days[d.getDay()];
       const dateStr = d.toISOString().split('T')[0];
-      
-      const age = 6 - i;
-      const productCount = products.length;
-      const promoCount = promos.length;
-      const postCount = posts.length;
-      const userCount = users.length;
+      const perf = agentPerformance.find((entry) => entry.date === dateStr);
 
-      if (type === 'catalog') {
-        return { day, views: productCount * 20 + age * 8, clicks: products.filter((item) => item.stock === 'available').length * 10 + age * 5 };
-      }
-
-      if (type === 'promo') {
-        return { day, views: promoCount * 18 + age * 6, clicks: promos.filter((item) => item.variant === 'hero').length * 12 + age * 4 };
-      }
-
-      if (type === 'content') {
-        return { day, views: postCount * 15 + age * 7, clicks: posts.filter((item) => item.featured).length * 11 + age * 3 };
-      }
-
-      // For users/agents, try to show real lead activity if it's an agent
-      if (type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role)) {
-        const perf = agentPerformance.find(p => p.date === dateStr);
-        return { 
-          day, 
-          views: perf ? perf.activity : 0, 
-          clicks: perf ? perf.leads : 0 
-        };
-      }
-
-      return { day, views: userCount * 12 + age * 5, clicks: users.filter((item) => item.is_active).length * 8 + age * 2 };
+      return {
+        day,
+        views: perf ? perf.activity : 0,
+        clicks: perf ? perf.leads : 0,
+      };
     });
-  }, [posts, products, promos, type, users, currentUser, adminLeads, id, agentPerformance]);
+  }, [agentPerformance, currentUser?.role, type]);
+
+  const hasLiveInsights = insightData.length > 0;
 
   useEffect(() => {
     if (type === 'catalog') {
@@ -151,7 +141,7 @@ const AdminFormPage: React.FC = () => {
         setColors(currentProduct.colors || []);
         
         const specsArr = Object.entries(currentProduct.specs || {}).map(([key, value]) => ({ key, value }));
-        setSpecs(specsArr.length > 0 ? specsArr : [{ key: 'Motor Power', value: '500W' }]);
+        setSpecs(specsArr);
       } else {
         setName('');
         setImage('');
@@ -160,8 +150,8 @@ const AdminFormPage: React.FC = () => {
         setSubcategory('');
         setPrice('');
         setDpMin('');
-        setColors(['Red', 'Blue', 'Black']);
-        setSpecs([{ key: 'Motor Power', value: '500W' }, { key: 'Top Speed', value: '45 km/h' }]);
+        setColors([]);
+        setSpecs([]);
       }
       return;
     }
@@ -173,6 +163,7 @@ const AdminFormPage: React.FC = () => {
       setEmail(currentUser.email || '');
       setRole((currentUser.role as any) || 'sales');
       setJabatan((currentUser.jabatan as any) || 'sales');
+      setDivisi((currentUser as any).divisi || '');
       setAvatar(currentUser.avatar || '');
       setBankAccount(currentUser.bank_account || '');
       setWhatsapp(currentUser.whatsapp || '');
@@ -201,6 +192,7 @@ const AdminFormPage: React.FC = () => {
       setAccountStatus('active');
       setPassword('');
       setWhatsapp('');
+      setDivisi(roleParam === 'karyawan' ? (params.get('divisi') || '') : '');
       setCity('');
       setProvince('');
       setIsVerified(false);
@@ -268,12 +260,22 @@ const AdminFormPage: React.FC = () => {
         if (!name.trim() || !email.trim()) {
           throw new Error('Nama dan email wajib diisi.');
         }
+        if (role === 'karyawan' && !divisi.trim()) {
+          throw new Error('Divisi wajib dipilih untuk role karyawan.');
+        }
+        if (role === 'sales' && !whatsapp.trim()) {
+          throw new Error('WhatsApp wajib diisi untuk role sales.');
+        }
+        if (whatsapp.trim() && !isValidWhatsapp(whatsapp)) {
+          throw new Error('WhatsApp tidak valid. Gunakan 9 sampai 16 digit angka.');
+        }
 
         const userPayload = {
           email: email.trim(),
           name: name.trim(),
           role,
           jabatan: role === 'sales' ? jabatan : undefined,
+          divisi: role === 'karyawan' ? divisi : undefined,
           avatar: avatar.trim(),
           bankAccount: bankAccount.trim(),
           whatsapp: whatsapp.trim(),
@@ -289,7 +291,7 @@ const AdminFormPage: React.FC = () => {
 
           const success = await updateUser(id, updatePayload);
           if (!success) {
-            throw new Error('Gagal memperbarui user.');
+            throw new Error(useUserStore.getState().error || 'Gagal memperbarui user.');
           }
         } else {
           if (password.trim().length < 8) {
@@ -301,7 +303,7 @@ const AdminFormPage: React.FC = () => {
             password: password.trim(),
           });
           if (!success) {
-            throw new Error('Gagal membuat user baru.');
+            throw new Error(useUserStore.getState().error || 'Gagal membuat user baru.');
           }
         }
 
@@ -416,12 +418,12 @@ const AdminFormPage: React.FC = () => {
             ) : (
               <>
                 <div>
-                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Total Views</div>
-                  <div className="font-display font-bold text-title-md text-primary">1,280</div>
+                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Status Insight</div>
+                  <div className="font-display font-bold text-title-md text-primary">Live Only</div>
                 </div>
                 <div>
-                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Interactions</div>
-                  <div className="font-display font-bold text-title-md text-secondary">A+ Score</div>
+                  <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Ketersediaan</div>
+                  <div className="font-display font-bold text-title-md text-secondary">Belum Ada Data</div>
                 </div>
               </>
             )}
@@ -765,6 +767,9 @@ const AdminFormPage: React.FC = () => {
                   <option value="operator">Operator</option>
                   <option value="sales">Sales</option>
                   <option value="agent">Agent</option>
+                  <option value="owner">Owner</option>
+                  <option value="pic_raport">PIC Raport</option>
+                  <option value="karyawan">Karyawan</option>
                   <option value="wa_admin">WA Admin</option>
                   <option value="wa_operator">WA Operator</option>
                   <option value="super_admin">Super Admin</option>
@@ -786,6 +791,23 @@ const AdminFormPage: React.FC = () => {
                     <option value="kepala_cabang">Kepala Cabang</option>
                   </select>
                   <p className="text-label-xs text-on-surface-variant">Hanya sebagai title tampilan, tidak mempengaruhi akses sistem.</p>
+                </div>
+              )}
+
+              {role === 'karyawan' && (
+                <div className="space-y-1.5">
+                  <label className="text-label-sm text-on-surface-variant font-semibold">Divisi *</label>
+                  <select
+                    value={divisi}
+                    onChange={(event) => setDivisi(event.target.value)}
+                    className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
+                  >
+                    <option value="">-- Pilih Divisi --</option>
+                    {jobdeskPositions.map((position) => (
+                      <option key={position.id} value={position.id}>{position.posisi}</option>
+                    ))}
+                  </select>
+                  <p className="text-label-xs text-on-surface-variant">Menentukan jobdesk harian dan target prospek karyawan.</p>
                 </div>
               )}
 
@@ -962,56 +984,69 @@ const AdminFormPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="relative h-[300px] w-full min-h-[300px]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
-                <AreaChart data={insightData}>
-                  <defs>
-                    <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8FF5FF" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#8FF5FF" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#A2F31F" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#A2F31F" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
-                  <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF' }} />
-                  <Area type="monotone" dataKey="views" stroke="#8FF5FF" strokeWidth={2} fillOpacity={1} fill="url(#colorViews)" name={type === 'user' && currentUser?.role === 'agent' ? 'Aktivitas' : 'Views'} />
-                  <Area type="monotone" dataKey="clicks" stroke="#A2F31F" strokeWidth={2} fillOpacity={1} fill="url(#colorClicks)" name={type === 'user' && currentUser?.role === 'agent' ? 'Leads' : 'Interactions'} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 mt-6">
-                <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Activity className="w-4 h-4 text-primary" />
-                    <div className="text-label-sm font-semibold text-on-surface">
-                      {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) ? 'Total Leads (7d)' : 'Total Views'}
-                    </div>
-                  </div>
-                  <div className="font-display font-bold text-headline-sm text-on-surface">
-                    {insightData.reduce((sum, row) => sum + row.clicks, 0).toLocaleString('id-ID')}
-                  </div>
+            {hasLiveInsights ? (
+              <>
+                <div className="relative h-[300px] w-full min-h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                    <AreaChart data={insightData}>
+                      <defs>
+                        <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8FF5FF" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#8FF5FF" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#A2F31F" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#A2F31F" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
+                      <XAxis dataKey="day" stroke="#ADAAAA" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#484847', borderRadius: '10px', color: '#FFF' }} />
+                      <Area type="monotone" dataKey="views" stroke="#8FF5FF" strokeWidth={2} fillOpacity={1} fill="url(#colorViews)" name="Aktivitas" />
+                      <Area type="monotone" dataKey="clicks" stroke="#A2F31F" strokeWidth={2} fillOpacity={1} fill="url(#colorClicks)" name="Leads" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Megaphone className="w-4 h-4 text-secondary" />
-                    <div className="text-label-sm font-semibold text-on-surface">
-                      {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) ? 'Success Rate' : 'Conversion Rate'}
+                
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                    <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Activity className="w-4 h-4 text-primary" />
+                        <div className="text-label-sm font-semibold text-on-surface">
+                          Total Leads (7d)
+                        </div>
+                      </div>
+                      <div className="font-display font-bold text-headline-sm text-on-surface">
+                        {insightData.reduce((sum, row) => sum + row.clicks, 0).toLocaleString('id-ID')}
+                      </div>
                     </div>
-                  </div>
-                  <div className="font-display font-bold text-headline-sm text-on-surface">
-                    {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) 
-                      ? `${Math.round(((agentDetails?.totalSales || 0) / Math.max(1, adminLeads.filter(l => l.agentId === id).length)) * 100)}%`
-                      : `${Math.round((insightData.reduce((sum, row) => sum + row.clicks, 0) / Math.max(1, insightData.reduce((sum, row) => sum + row.views, 0))) * 100)}%`
-                    }
-                  </div>
+                    <div className="p-4 rounded-xl bg-surface-high border border-outline-variant/10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Megaphone className="w-4 h-4 text-secondary" />
+                        <div className="text-label-sm font-semibold text-on-surface">
+                          Success Rate
+                        </div>
+                      </div>
+                      <div className="font-display font-bold text-headline-sm text-on-surface">
+                        {`${Math.round(((agentDetails?.totalSales || 0) / Math.max(1, adminLeads.filter(l => l.agentId === id).length)) * 100)}%`}
+                      </div>
+                    </div>
+                 </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-outline-variant/10 bg-surface-high/40 p-6 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-high text-on-surface-variant">
+                  <BarChart3 className="w-5 h-5" />
                 </div>
-             </div>
+                <h4 className="font-display text-title-sm font-bold text-on-surface">
+                  Belum Ada Insight Live
+                </h4>
+                <p className="mt-2 text-body-sm text-on-surface-variant">
+                  Halaman ini tidak lagi menampilkan metrik sintetis. Insight performa akan muncul setelah sumber analytics atau aktivitas backend tersedia untuk record ini.
+                </p>
+              </div>
+            )}
 
              {/* Agent specific leads summary */}
              {type === 'user' && currentUser?.role && ['agent', 'sales'].includes(currentUser.role) && (

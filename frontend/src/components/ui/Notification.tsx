@@ -129,9 +129,9 @@ const Toast: React.FC<{ notification: NotificationItem }> = ({ notification }) =
       <div className="p-4 flex items-start gap-3">
         <div className="mt-0.5 shrink-0">{style.icon}</div>
         <div className="flex-1 min-w-0">
-          <div className="font-display font-bold text-white text-sm leading-snug">{notification.message}</div>
+          <div className="font-display font-bold text-on-surface text-sm leading-snug">{notification.message}</div>
           {notification.description && (
-            <div className="font-body text-white/60 text-xs mt-1 leading-relaxed">{notification.description}</div>
+            <div className="font-body text-on-surface-variant text-xs mt-1 leading-relaxed">{notification.description}</div>
           )}
         </div>
         <button
@@ -139,7 +139,7 @@ const Toast: React.FC<{ notification: NotificationItem }> = ({ notification }) =
             e.stopPropagation();
             handleDismiss();
           }}
-          className="text-white/40 hover:text-white transition-colors shrink-0 mt-0.5"
+          className="text-on-surface-variant/70 hover:text-on-surface transition-colors shrink-0 mt-0.5"
           aria-label="Tutup notifikasi"
         >
           <X className="w-4 h-4" />

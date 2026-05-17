@@ -481,6 +481,13 @@ pub async fn seed_database(pool: &MySqlPool) -> Result<(), Box<dyn std::error::E
         ),
         ("sls-001", "sales@gmail.com", "Sales Tridjaya", "sales"),
         ("age-001", "agent@gmail.com", "Agent Tridjaya", "agent"),
+        ("own-001", "owner@gmail.com", "Owner Tridjaya", "owner"),
+        (
+            "pic-001",
+            "pic.raport@gmail.com",
+            "PIC Raport Tridjaya",
+            "pic_raport",
+        ),
     ];
 
     let password_hash = hash_password("123");

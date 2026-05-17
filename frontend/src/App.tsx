@@ -20,6 +20,7 @@ import { useProductStore } from './store/useProductStore';
 import { usePromoStore } from './store/usePromoStore';
 import { useBlogStore } from './store/useBlogStore';
 import { usePartnerStore } from './store/usePartnerStore';
+import { getDashboardHomeByRole } from './utils/dashboardAccess';
 import { saveReferralCode } from './utils/referralSession';
 
 const CatalogPage = lazy(() => import('./pages/CatalogPage'));
@@ -41,6 +42,25 @@ const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
 const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
 const AdminDashboard = lazy(() => import('./pages/dashboard/AdminDashboard'));
 const AgentDashboard = lazy(() => import('./pages/dashboard/AgentDashboard'));
+const OwnerDashboard = lazy(() => import('./pages/dashboard/OwnerDashboard'));
+const OwnerProspekPage = lazy(() => import('./pages/dashboard/OwnerProspekPage'));
+const OwnerOmsetCabangPage = lazy(() => import('./pages/dashboard/OwnerOmsetCabangPage'));
+const OwnerOmsetRealtimePage = lazy(() => import('./pages/dashboard/OwnerOmsetRealtimePage'));
+const OwnerTargetActualPage = lazy(() => import('./pages/dashboard/OwnerTargetActualPage'));
+const OwnerTopSalesPage = lazy(() => import('./pages/dashboard/OwnerTopSalesPage'));
+const OwnerTopNonSalesPage = lazy(() => import('./pages/dashboard/OwnerTopNonSalesPage'));
+const OwnerRaportPage = lazy(() => import('./pages/dashboard/OwnerRaportPage'));
+const OwnerRaportEmployeeDetailPage = lazy(() => import('./pages/dashboard/OwnerRaportEmployeeDetailPage'));
+const PicRaportDashboardPage = lazy(() => import('./pages/dashboard/PicRaportDashboardPage'));
+const PicRaportMasterPage = lazy(() => import('./pages/dashboard/PicRaportMasterPage'));
+const PicRaportHistoryPage = lazy(() => import('./pages/dashboard/PicRaportHistoryPage'));
+const PicRaportEmployeeDetailPage = lazy(() => import('./pages/dashboard/PicRaportEmployeeDetailPage'));
+const KaryawanDashboard = lazy(() => import('./pages/dashboard/KaryawanDashboard'));
+const KaryawanProspekPage = lazy(() => import('./pages/dashboard/KaryawanProspekPage'));
+const KaryawanProspekDatabasePage = lazy(() => import('./pages/dashboard/KaryawanProspekDatabasePage'));
+const KaryawanRaportPage = lazy(() => import('./pages/dashboard/KaryawanRaportPage'));
+const KaryawanRaportHistoryPage = lazy(() => import('./pages/dashboard/KaryawanRaportHistoryPage'));
+const AdminCabangPage = lazy(() => import('./pages/dashboard/AdminCabangPage'));
 const AdminAgentsPage = lazy(() => import('./pages/dashboard/AdminAgentsPage'));
 const AdminCatalogPage = lazy(() => import('./pages/dashboard/AdminCatalogPage'));
 const AdminPromoPage = lazy(() => import('./pages/dashboard/AdminPromoPage'));
@@ -62,7 +82,7 @@ const AdminArticleFormPage = lazy(() => import('./pages/dashboard/AdminArticleFo
 const AgentPushProspekPage = lazy(() => import('./pages/dashboard/AgentPushProspekPage'));
 const AdminLeaderboardPage = lazy(() => import('./pages/dashboard/AdminLeaderboardPage'));
 const AgentLeaderboardPage = lazy(() => import('./pages/dashboard/AgentLeaderboardPage'));
-const AgentSettingsPage = lazy(() => import('./pages/dashboard/AgentSettingsPage'));
+const AccountSettingsPage = lazy(() => import('./pages/dashboard/AccountSettingsPage'));
 const AdminSupportTicketsPage = lazy(() => import('./pages/dashboard/AdminSupportTicketsPage'));
 const AdminLeadsPage = lazy(() => import('./pages/dashboard/AdminLeadsPage'));
 const AdminPartnersPage = lazy(() => import('./pages/dashboard/AdminPartnersPage'));
@@ -119,7 +139,7 @@ const RoleGuard: React.FC<{ children: React.ReactElement; roles: string[] }> = (
   if (isInitializing) return <RouteLoading />;
  
   if (!user?.role || !roles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDashboardHomeByRole(user?.role)} replace />;
   }
  
   return children;
@@ -128,12 +148,17 @@ const RoleGuard: React.FC<{ children: React.ReactElement; roles: string[] }> = (
 // Dashboard Root (Redirects based on role)
 const DashboardRoot = () => {
   const { user } = useAuthStore();
-  const role = user?.role;
+  return <Navigate to={getDashboardHomeByRole(user?.role)} replace />;
+};
 
-  if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
-  if (role === 'operator') return <Navigate to="/dashboard/admin/wa/campaigns" replace />;
-  if (role === 'sales') return <Navigate to="/dashboard/sales" replace />;
-  return <Navigate to="/dashboard/agent" replace />;
+const DashboardAliasRedirect: React.FC<{ adminPath: string }> = ({ adminPath }) => {
+  const { user } = useAuthStore();
+
+  if (user?.role !== 'admin') {
+    return <Navigate to={getDashboardHomeByRole(user?.role)} replace />;
+  }
+
+  return <Navigate to={adminPath} replace />;
 };
 
 // Scroll to top and track telemetry on route change
@@ -284,6 +309,14 @@ const App: React.FC = () => {
             element={
               <RoleGuard roles={["admin"]}>
                 {lazyPage(SalesReferralPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="admin/cabang"
+            element={
+              <RoleGuard roles={["admin"]}>
+                {lazyPage(AdminCabangPage)}
               </RoleGuard>
             }
           />
@@ -561,6 +594,38 @@ const App: React.FC = () => {
           />
 
 
+          {/* Owner Routes */}
+          <Route
+            path="owner"
+            element={
+              <RoleGuard roles={["owner"]}>
+                {lazyPage(OwnerDashboard)}
+              </RoleGuard>
+            }
+          />
+          <Route path="owner/prospek" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerProspekPage)}</RoleGuard>} />
+          <Route path="owner/omset-cabang" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerOmsetCabangPage)}</RoleGuard>} />
+          <Route path="owner/omset-realtime" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerOmsetRealtimePage)}</RoleGuard>} />
+          <Route path="owner/target-actual" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerTargetActualPage)}</RoleGuard>} />
+          <Route path="owner/top-sales" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerTopSalesPage)}</RoleGuard>} />
+          <Route path="owner/top-nonsales" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerTopNonSalesPage)}</RoleGuard>} />
+          <Route path="owner/raport" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerRaportPage)}</RoleGuard>} />
+          <Route path="owner/raport/:employeeId" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerRaportEmployeeDetailPage)}</RoleGuard>} />
+
+          {/* PIC Raport Routes */}
+          <Route path="pic-raport" element={<RoleGuard roles={["pic_raport"]}>{lazyPage(PicRaportDashboardPage)}</RoleGuard>} />
+          <Route path="pic-raport/master" element={<RoleGuard roles={["pic_raport"]}>{lazyPage(PicRaportMasterPage)}</RoleGuard>} />
+          <Route path="pic-raport/history" element={<RoleGuard roles={["pic_raport"]}>{lazyPage(PicRaportHistoryPage)}</RoleGuard>} />
+          <Route path="pic-raport/karyawan/:employeeId" element={<RoleGuard roles={["pic_raport"]}>{lazyPage(PicRaportEmployeeDetailPage)}</RoleGuard>} />
+
+          {/* Karyawan Routes */}
+          <Route path="karyawan" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanDashboard)}</RoleGuard>} />
+          <Route path="karyawan/prospek" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanProspekPage)}</RoleGuard>} />
+          <Route path="karyawan/prospek/database" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanProspekDatabasePage)}</RoleGuard>} />
+          <Route path="karyawan/raport" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanRaportPage)}</RoleGuard>} />
+          <Route path="karyawan/raport/history" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanRaportHistoryPage)}</RoleGuard>} />
+          <Route path="settings" element={<RoleGuard roles={["admin", "operator", "sales", "agent", "owner", "pic_raport", "karyawan"]}>{lazyPage(AccountSettingsPage)}</RoleGuard>} />
+
           <Route
             path="agent"
             element={
@@ -681,7 +746,7 @@ const App: React.FC = () => {
             path="sales/settings"
             element={
               <RoleGuard roles={["sales"]}>
-                {lazyPage(AgentSettingsPage)}
+                {lazyPage(AccountSettingsPage)}
               </RoleGuard>
             }
           />
@@ -697,7 +762,7 @@ const App: React.FC = () => {
             path="agent/settings"
             element={
               <RoleGuard roles={["agent"]}>
-                {lazyPage(AgentSettingsPage)}
+                {lazyPage(AccountSettingsPage)}
               </RoleGuard>
             }
           />
@@ -718,10 +783,10 @@ const App: React.FC = () => {
             }
           />
 
-          <Route path="agen" element={<Navigate to="/dashboard/admin/agents" replace />} />
-          <Route path="katalog" element={<Navigate to="/dashboard/admin/catalog" replace />} />
-          <Route path="promo" element={<Navigate to="/dashboard/admin/promo" replace />} />
-          <Route path="telemetri" element={<Navigate to="/dashboard/admin/telemetry" replace />} />
+          <Route path="agen" element={<DashboardAliasRedirect adminPath="/dashboard/admin/agents" />} />
+          <Route path="katalog" element={<DashboardAliasRedirect adminPath="/dashboard/admin/catalog" />} />
+          <Route path="promo" element={<DashboardAliasRedirect adminPath="/dashboard/admin/promo" />} />
+          <Route path="telemetri" element={<DashboardAliasRedirect adminPath="/dashboard/admin/telemetry" />} />
           {/* Fallback internal routes */}
           <Route path="*" element={<DashboardRoot />} />
         </Route>

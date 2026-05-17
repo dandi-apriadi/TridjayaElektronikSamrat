@@ -20,6 +20,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/verify-email': `Verifikasi Email — ${SITE}`,
   // Dashboard — Admin
   '/dashboard': `Dashboard — ${SITE}`,
+  '/dashboard/settings': `Pengaturan Akun — ${SITE}`,
   '/dashboard/admin': `Admin — ${SITE}`,
   '/dashboard/admin/agents': `Manajemen Agen — ${SITE}`,
   '/dashboard/admin/agents/directory': `Direktori Agen — ${SITE}`,
@@ -64,6 +65,16 @@ const ROUTE_TITLES: Record<string, string> = {
   '/dashboard/sales/support': `Support — ${SITE}`,
   '/dashboard/sales/settings': `Pengaturan — ${SITE}`,
   '/dashboard/sales/notifications': `Notifikasi — ${SITE}`,
+  // Dashboard — PIC Raport
+  '/dashboard/pic-raport': `PIC Raport — ${SITE}`,
+  '/dashboard/pic-raport/history': `History Raport — ${SITE}`,
+  '/dashboard/pic-raport/master': `Master Jobdesk — ${SITE}`,
+  // Dashboard — Karyawan
+  '/dashboard/karyawan': `Dashboard Karyawan — ${SITE}`,
+  '/dashboard/karyawan/prospek': `Submit Prospek — ${SITE}`,
+  '/dashboard/karyawan/prospek/database': `Database Prospek — ${SITE}`,
+  '/dashboard/karyawan/raport': `Raport Harian — ${SITE}`,
+  '/dashboard/karyawan/raport/history': `History Raport — ${SITE}`,
 };
 
 export function usePageTitle() {
@@ -107,6 +118,10 @@ export function usePageTitle() {
     }
     if (pathname.match(/^\/dashboard\/admin\/wa\/campaign\//)) {
       document.title = `Detail Campaign WA — ${SITE}`;
+      return;
+    }
+    if (pathname.match(/^\/dashboard\/pic-raport\/karyawan\//)) {
+      document.title = `Detail Karyawan — ${SITE}`;
       return;
     }
 

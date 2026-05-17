@@ -8,8 +8,8 @@ use tokio::sync::RwLock;
 
 const MAX_AUDIT_LOG_ENTRIES: usize = 1_000;
 pub const MYSQL_DATETIME_FORMAT: &str = "%Y-%m-%d %H:%i:%s";
-pub const USER_RECORD_SELECT: &str = "SELECT id, email, name, role, password_hash, jabatan, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
-pub const USER_PUBLIC_SELECT: &str = "SELECT id, email, name, role, jabatan, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
+pub const USER_RECORD_SELECT: &str = "SELECT id, email, name, role, password_hash, jabatan, divisi, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
+pub const USER_PUBLIC_SELECT: &str = "SELECT id, email, name, role, jabatan, divisi, avatar, bank_account, whatsapp, referral_slug, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at, DATE_FORMAT(last_login, '%Y-%m-%d %H:%i:%s') AS last_login, is_active, is_verified, must_change_password FROM users";
 
 #[derive(Clone)]
 pub struct AppState {
@@ -286,6 +286,11 @@ pub struct UserPublic {
     /// Only meaningful for users with role = "sales".
     #[sqlx(default)]
     pub jabatan: String,
+    /// Divisi karyawan — menentukan jobdesk dan target prospek.
+    /// Examples: "sales_elektronik", "driver", "admin_spk", "kasir", etc.
+    /// Only meaningful for users with role = "karyawan".
+    #[sqlx(default)]
+    pub divisi: String,
     pub avatar: String,
     pub bank_account: String,
     pub whatsapp: String,
@@ -311,6 +316,8 @@ pub struct UserRecord {
     pub password_hash: String,
     #[sqlx(default)]
     pub jabatan: String,
+    #[sqlx(default)]
+    pub divisi: String,
     pub avatar: String,
     pub bank_account: String,
     pub whatsapp: String,
@@ -331,6 +338,7 @@ impl UserRecord {
             name: self.name.clone(),
             role: self.role.to_lowercase(),
             jabatan: self.jabatan.clone(),
+            divisi: self.divisi.clone(),
             avatar: self.avatar.clone(),
             bank_account: self.bank_account.clone(),
             whatsapp: self.whatsapp.clone(),

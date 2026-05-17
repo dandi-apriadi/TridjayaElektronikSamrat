@@ -4,6 +4,20 @@ import { API_BASE_URL, apiFetch } from '../utils/apiClient';
 
 const API_ENDPOINT = API_BASE_URL;
 
+interface ApiErrorPayload {
+  message?: string;
+  detail?: string | null;
+  errors?: string[];
+}
+
+async function getApiErrorMessage(response: Response, fallback: string): Promise<string> {
+  const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;
+  if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+    return payload.errors.filter(Boolean).join(', ');
+  }
+  return payload?.detail || payload?.message || fallback;
+}
+
 export interface AdminUser {
   id: string;
   email: string;
@@ -14,6 +28,8 @@ export interface AdminUser {
    *  Values: "kepala_cabang" | "supervisor" | "koordinator" | "sales"
    */
   jabatan?: string;
+  /** Divisi karyawan. Menentukan jobdesk harian dan target prospek. */
+  divisi?: string;
   avatar: string;
   bank_account?: string;
   whatsapp?: string;
@@ -34,6 +50,7 @@ interface UserStoreState {
     name: string;
     role: string;
     jabatan?: string;
+    divisi?: string;
     password: string;
     avatar?: string;
     bankAccount?: string;
@@ -45,6 +62,7 @@ interface UserStoreState {
     name: string;
     role: string;
     jabatan: string;
+    divisi: string;
     password: string;
     avatar: string;
     bankAccount: string;
@@ -95,7 +113,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new Error('Gagal membuat user baru');
+        throw new Error(await getApiErrorMessage(response, 'Gagal membuat user baru'));
       }
 
       await useUserStore.getState().fetchUsers(true);
@@ -114,7 +132,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new Error('Gagal memperbarui user');
+        throw new Error(await getApiErrorMessage(response, 'Gagal memperbarui user'));
       }
 
       await useUserStore.getState().fetchUsers(true);

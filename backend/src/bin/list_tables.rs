@@ -14,6 +14,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tables: Vec<(String,)> = sqlx::query_as("SHOW TABLES").fetch_all(&pool).await?;
 
     for (table,) in tables {
+        if table == "_sqlx_migrations" {
+            continue;
+        }
+
         println!("Table: {}", table);
         let columns: Vec<(String, String, String, String, Option<String>, String)> =
             sqlx::query_as(&format!("SHOW COLUMNS FROM `{}`", table.replace('`', "``")))
