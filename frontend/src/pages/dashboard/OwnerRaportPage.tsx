@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import {
   AlertTriangle,
+  BadgeDollarSign,
   BriefcaseBusiness,
   Building2,
   CalendarDays,
@@ -49,6 +50,7 @@ import { useCabangStore } from '../../store/useCabangStore';
 import { buildPicEmployeeSummaries, toDateKey } from '../../data/picRaportData';
 import { usePicRaportStore } from '../../store/picRaportStore';
 import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
+import { calculateRaportFineTotal, formatRupiah } from '../../utils/denda';
 
 type StatusFilter = 'all' | 'excellent' | 'on-track' | 'at-risk';
 type SortKey = 'lowest' | 'highest' | 'name' | 'branch' | 'position';
@@ -207,6 +209,33 @@ const OwnerRaportPage: React.FC = () => {
         ? Math.round(liveEmployeeRaports.reduce((sum, employee) => sum + employee.persentase, 0) / liveEmployeeRaports.length)
         : 0,
     [evidence.length, liveEmployeeRaports]
+  );
+  const monthlyReportsByEmployee = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof buildEmployeeMonthlyReportFromEvidence>>();
+    liveEmployeeRaports.forEach((employee) => {
+      map.set(
+        employee.id,
+        buildEmployeeMonthlyReportFromEvidence(
+          employee,
+          evidence.filter((item) => item.employeeId === employee.id)
+        )
+      );
+    });
+    return map;
+  }, [evidence, liveEmployeeRaports]);
+  const raportFineByEmployee = useMemo(() => {
+    const map = new Map<string, number>();
+    monthlyReportsByEmployee.forEach((report, employeeId) => {
+      map.set(
+        employeeId,
+        calculateRaportFineTotal(report.history.map((item) => ({ score: item.nilai, hasScore: item.selesai > 0 })))
+      );
+    });
+    return map;
+  }, [monthlyReportsByEmployee]);
+  const totalRaportFine = useMemo(
+    () => [...raportFineByEmployee.values()].reduce((sum, fine) => sum + fine, 0),
+    [raportFineByEmployee]
   );
 
   const branchChartData = useMemo(
@@ -460,7 +489,7 @@ const OwnerRaportPage: React.FC = () => {
         )}
       </motion.section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -514,6 +543,19 @@ const OwnerRaportPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-2 text-label-xs text-on-surface-variant">Cabang terendah: {lowestBranch?.cabangLabel ?? '-'} ({lowestBranch?.rataPersentase ?? 0}%)</div>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="glass-card rounded-xl p-5 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">Denda Jobdesk</div>
+              <div className={`font-display text-title-lg font-bold ${totalRaportFine > 0 ? 'text-red-400' : 'text-green-400'}`}>{formatRupiah(totalRaportFine)}</div>
+            </div>
+            <div className={`rounded-lg p-2.5 ${totalRaportFine > 0 ? 'bg-red-400/10 text-red-400' : 'bg-green-400/10 text-green-400'}`}>
+              <BadgeDollarSign className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-label-xs text-on-surface-variant">Rp100.000 per hari saat nilai total di bawah 80</div>
         </motion.div>
       </div>
 
@@ -748,7 +790,7 @@ const OwnerRaportPage: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px]">
+          <table className="w-full min-w-[1180px]">
             <thead>
               <tr className="border-b border-outline-variant/10">
                 <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Karyawan</th>
@@ -758,6 +800,7 @@ const OwnerRaportPage: React.FC = () => {
                 <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Progress</th>
                 <th className="text-center text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Selesai</th>
                 <th className="text-center text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Status</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Denda</th>
                 <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-3 px-4">Aksi</th>
               </tr>
             </thead>
@@ -765,11 +808,9 @@ const OwnerRaportPage: React.FC = () => {
               {paginatedEmployees.map((employee) => {
                 const status = getStatus(employee.persentase);
                 const branch = getBranchDisplay(employee.cabang);
-                const monthlyReport = buildEmployeeMonthlyReportFromEvidence(
-                  employee,
-                  evidence.filter((item) => item.employeeId === employee.id)
-                );
+                const monthlyReport = monthlyReportsByEmployee.get(employee.id) || buildEmployeeMonthlyReportFromEvidence(employee, []);
                 const scoreStatus = getStatus(monthlyReport.rataNilai);
+                const employeeFine = raportFineByEmployee.get(employee.id) || 0;
                 return (
                   <tr key={employee.id} className="border-b border-outline-variant/10 transition-colors hover:bg-surface-high/30">
                     <td className="py-3 px-4">
@@ -807,6 +848,10 @@ const OwnerRaportPage: React.FC = () => {
                         {status.key === 'excellent' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <BriefcaseBusiness className="h-3.5 w-3.5" />}
                         {status.label}
                       </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className={`text-body-sm font-black ${employeeFine > 0 ? 'text-red-400' : 'text-green-400'}`}>{formatRupiah(employeeFine)}</div>
+                      <div className="text-[11px] font-semibold text-on-surface-variant">bulan ini</div>
                     </td>
                     <td className="py-3 px-4 text-right">
                       <Link

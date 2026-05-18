@@ -188,7 +188,7 @@ const AgencyRegistrationPage: React.FC = () => {
               <div className="space-y-6">
                 {[
                   { icon: TrendingUp, title: 'Komisi Menarik & Bonus', desc: 'Dapatkan bagi hasil yang kompetitif dan bonus target bulanan bagi agen berprestasi.' },
-                  { icon: Handshake, title: 'Dukungan Marketing', desc: 'Kami sediakan banner, brosur, materi sosial media, dan support iklan digital.' },
+                  { icon: Handshake, title: 'Dukungan Marketing', desc: 'Kami sediakan banner, brosur, materi sosial media, dan panduan iklan digital.' },
                   { icon: Shield, title: 'Proteksi Wilayah', desc: 'Satu agen per wilayah untuk memastikan ekosistem bisnis yang sehat dan eksklusif.' },
                   { icon: Zap, title: 'Produk Inovatif', desc: 'Akses penuh ke semua brand motor listrik terbaru: Goda, Winfly, dan Nuv.' },
                 ].map((benefit, i) => (

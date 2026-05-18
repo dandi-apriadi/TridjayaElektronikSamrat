@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, Clock3, MessageCircle, Phone, Plus, Send, Sparkles, Target, UserRound } from 'lucide-react';
+import { BadgeDollarSign, CheckCircle, Clock3, MessageCircle, Phone, Plus, Send, Sparkles, Target, UserRound } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import {
   formatProspekDateKey,
@@ -10,7 +10,8 @@ import {
   useKaryawanProspekStore,
 } from '../../store/karyawanProspekStore';
 import type { ProspekStatus } from '../../store/karyawanProspekStore';
-import { isSalesTargetKategori } from '../../utils/roles';
+import { calculateProspekDailyFine, formatRupiah } from '../../utils/denda';
+import { isAdminSalesRole, isSalesTargetKategori } from '../../utils/roles';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -24,9 +25,12 @@ const KaryawanProspekPage: React.FC = () => {
   const addProspek = useKaryawanProspekStore((s) => s.addProspek);
   const fetchProspek = useKaryawanProspekStore((s) => s.fetchProspek);
   const prospekError = useKaryawanProspekStore((s) => s.error);
-  const divisi = user?.divisi || '';
-  const cabang = getUserCabang(user);
-  const isSales = isSalesTargetKategori(user?.jabatan, divisi);
+  const isAdminSales = isAdminSalesRole(user?.role);
+  const isAgent = user?.role === 'agent';
+  const isOperator = user?.role === 'operator';
+  const divisi = user?.divisi || (isAdminSales ? 'Admin Sales' : isAgent ? 'Agen' : isOperator ? 'Operator' : '');
+  const cabang = getUserCabang(user) || (isAdminSales ? 'Admin Sales' : isAgent ? 'Agen' : isOperator ? 'Operator' : '');
+  const isSales = isAdminSales || isAgent || isSalesTargetKategori(user?.jabatan, divisi);
   const targetProspek = isSales ? 20 : 5;
   const employeeId = user?.id || 'emp-local';
   const todayKey = useMemo(() => formatProspekDateKey(new Date()), []);
@@ -50,6 +54,7 @@ const KaryawanProspekPage: React.FC = () => {
   );
 
   const progress = Math.min(Math.round((prospekList.length / targetProspek) * 100), 100);
+  const dendaProspekHariIni = calculateProspekDailyFine(prospekList.length, targetProspek);
   const dealCount = useMemo(() => prospekList.filter((p) => p.statusProspek === 'deal').length, [prospekList]);
   const followUpCount = useMemo(() => prospekList.filter((p) => p.statusProspek === 'fu_ulang' || p.statusProspek === 'tanya_tanya').length, [prospekList]);
 
@@ -57,12 +62,12 @@ const KaryawanProspekPage: React.FC = () => {
     e.preventDefault();
     if (!namaProspek.trim() || !noWhatsapp.trim() || !minatBarang.trim()) return;
     if (!cabang.trim()) {
-      setSuccessMsg('Cabang karyawan belum diatur. Hubungi admin untuk set cabang akun.');
+      setSuccessMsg('Cabang akun belum diatur. Hubungi admin untuk set cabang akun.');
       return;
     }
     const activeDivisi = divisi.trim();
     if (!activeDivisi) {
-      setSuccessMsg('Divisi karyawan belum diatur. Hubungi admin untuk set divisi akun.');
+      setSuccessMsg('Divisi akun belum diatur. Hubungi admin untuk set divisi akun.');
       return;
     }
 
@@ -76,7 +81,7 @@ const KaryawanProspekPage: React.FC = () => {
     try {
       await addProspek({
         karyawanId: employeeId,
-        karyawanName: user?.name || 'Karyawan Tridjaya',
+        karyawanName: user?.name || (isAdminSales ? 'Admin Sales Tridjaya' : isAgent ? 'Agen Tridjaya' : isOperator ? 'Operator Tridjaya' : 'Karyawan Tridjaya'),
         cabang,
         divisi: activeDivisi,
         namaProspek: namaProspek.toUpperCase(),
@@ -127,6 +132,15 @@ const KaryawanProspekPage: React.FC = () => {
               <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
             </div>
             <p className="mt-2 text-label-sm text-on-surface-variant">{progress}% target harian terkumpul</p>
+            <div className={`mt-3 rounded-xl px-3 py-2 ${dendaProspekHariIni > 0 ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'}`}>
+              <div className="flex items-center gap-2 text-label-sm font-bold">
+                <BadgeDollarSign className="h-4 w-4" />
+                Denda hari ini: {formatRupiah(dendaProspekHariIni)}
+              </div>
+              <p className="mt-1 text-label-xs text-on-surface-variant">
+                {dendaProspekHariIni > 0 ? 'Akan hilang jika target harian tercapai.' : 'Target harian sudah aman.'}
+              </p>
+            </div>
           </div>
         </div>
       </motion.section>

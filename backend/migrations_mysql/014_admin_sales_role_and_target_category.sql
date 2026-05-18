@@ -1,19 +1,3 @@
-UPDATE users
-SET role = 'admin-sales'
-WHERE LOWER(REPLACE(role, '_', '-')) = 'sales';
-
-DELETE FROM role_settings
-WHERE role = 'sales'
-  AND EXISTS (
-      SELECT 1 FROM (SELECT role FROM role_settings WHERE role = 'admin-sales') AS existing_admin_sales
-  );
-
-UPDATE role_settings
-SET role = 'admin-sales',
-    label = 'Admin Sales',
-    description = 'Akses admin-sales untuk prospek, referral, knowledge, dan jadwal pengiriman.'
-WHERE role = 'sales';
-
 INSERT INTO role_settings (role, label, level, dashboard_path, description, is_active)
 SELECT 'admin-sales', 'Admin Sales', 50, '/dashboard/sales',
        'Akses admin-sales untuk prospek, referral, knowledge, dan jadwal pengiriman.', TRUE

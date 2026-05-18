@@ -91,6 +91,8 @@ impl CacheManager {
 
             let mut activity = self.activity.write().await;
             let mut total_activity = 0;
+            let stale_before = Utc::now() - chrono::Duration::hours(24);
+            activity.retain(|_, (last_access, count)| *last_access >= stale_before || *count > 0);
 
             for (key, (_, count)) in activity.iter() {
                 total_activity += count;

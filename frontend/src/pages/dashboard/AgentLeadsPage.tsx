@@ -73,10 +73,10 @@ const AgentLeadsPage: React.FC = () => {
             </p>
           </div>
           <Link
-            to="/dashboard/agent/push"
+            to="/dashboard/agent/prospek"
             className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors w-fit"
           >
-            <Plus className="w-4 h-4" /> Push Prospek Baru
+            <Plus className="w-4 h-4" /> Submit Prospek Baru
           </Link>
         </div>
       </motion.div>
@@ -220,8 +220,8 @@ const AgentLeadsPage: React.FC = () => {
           <div className="text-label-sm text-on-surface-variant">
             <strong className="text-on-surface">{filtered.length}</strong> dari {leads.length} leads
           </div>
-          <Link to="/dashboard/agent/push" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
-            Push Prospek Baru <ArrowUpRight className="w-3.5 h-3.5" />
+          <Link to="/dashboard/agent/prospek" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
+            Submit Prospek Baru <ArrowUpRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </motion.div>

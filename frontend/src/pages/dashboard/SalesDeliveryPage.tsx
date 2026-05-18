@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CalendarDays, CheckCircle2, Copy, Package, Send, Shield, Truck, User } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
@@ -36,7 +36,7 @@ const SalesDeliveryPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<DeliveryScheduleItem[]>([]);
 
-  const title = useMemo(() => (user?.role === 'admin' ? 'Sales Management' : 'Jadwal Pengiriman'), [user?.role]);
+  const title = 'Jadwal Pengiriman';
 
   const loadSchedules = async () => {
     setIsLoading(true);

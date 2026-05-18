@@ -20,8 +20,9 @@ import {
   Users,
   Video,
 } from 'lucide-react';
-import { buildPicDaySummaries, buildPicEmployeeSummaries, todayKey, type PicRaportEvidence, type PicRaportReviewStatus } from '../../data/picRaportData';
+import { buildPicDaySummaries, buildPicEmployeeSummaries, getEvidenceUrls, todayKey, type PicRaportEvidence, type PicRaportReviewStatus } from '../../data/picRaportData';
 import Pagination from '../../components/ui/Pagination';
+import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
 import { usePicRaportStore } from '../../store/picRaportStore';
 
@@ -72,6 +73,12 @@ const PicRaportDashboardPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewMessage, setReviewMessage] = useState('');
+  const [preview, setPreview] = useState<{
+    images: PreviewImage[];
+    initialIndex: number;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
   const debouncedSearch = useDebounce(search, 250);
 
   const todayEvidence = useMemo(
@@ -89,15 +96,22 @@ const PicRaportDashboardPage: React.FC = () => {
 
   const filteredEvidence = useMemo(() => {
     const searchValue = debouncedSearch.trim().toLowerCase();
-    return todayEvidence.filter((item) => {
-      const matchesSearch =
-        !searchValue ||
-        `${item.employeeName} ${item.cabang} ${item.divisiName} ${item.jobdeskText}`.toLowerCase().includes(searchValue);
-      const matchesBranch = branch === 'all' || item.cabang === branch;
-      const matchesDivision = division === 'all' || item.divisiId === division;
-      const matchesStatus = status === 'all' || item.reviewStatus === status;
-      return matchesSearch && matchesBranch && matchesDivision && matchesStatus;
-    });
+    return todayEvidence
+      .filter((item) => {
+        const matchesSearch =
+          !searchValue ||
+          `${item.employeeName} ${item.cabang} ${item.divisiName} ${item.jobdeskText}`.toLowerCase().includes(searchValue);
+        const matchesBranch = branch === 'all' || item.cabang === branch;
+        const matchesDivision = division === 'all' || item.divisiId === division;
+        const matchesStatus = status === 'all' || item.reviewStatus === status;
+        return matchesSearch && matchesBranch && matchesDivision && matchesStatus;
+      })
+      .sort(
+        (a, b) =>
+          a.employeeName.localeCompare(b.employeeName, 'id') ||
+          a.jobdeskIndex - b.jobdeskIndex ||
+          b.submittedAt.localeCompare(a.submittedAt)
+      );
   }, [branch, debouncedSearch, division, status, todayEvidence]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEvidence.length / REVIEW_PAGE_SIZE));
@@ -348,11 +362,12 @@ const PicRaportDashboardPage: React.FC = () => {
                       <span>|</span>
                       {item.divisiName}
                     </div>
-                    <p className="mt-2 line-clamp-2 text-body-sm font-semibold text-on-surface">{item.jobdeskText}</p>
+                    <p className="mt-2 text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Jobdesk {item.jobdeskIndex + 1}</p>
+                    <p className="mt-1 line-clamp-2 text-body-sm font-semibold text-on-surface">{item.jobdeskText}</p>
                   </div>
                   <div className="flex items-center gap-2 text-label-xs font-bold text-on-surface-variant lg:justify-end">
                     <EvidenceIcon className="h-4 w-4" />
-                    {item.mode === 'none' ? 'Tanpa bukti' : item.mode === 'video' ? 'Video' : 'Gambar'}
+                    {item.mode === 'none' ? 'Tanpa bukti' : item.mode === 'video' ? 'Video' : `${item.evidenceUrls?.length || 1} gambar`}
                   </div>
                   <div className="flex items-center gap-2 text-label-xs font-bold text-on-surface-variant lg:justify-end">
                     <TimerReset className="h-4 w-4" />
@@ -410,8 +425,32 @@ const PicRaportDashboardPage: React.FC = () => {
                   </div>
 
                   <div className="overflow-hidden rounded-lg border border-outline-variant/15 bg-surface-high/35">
-                    {selectedEvidence.mode === 'image' && selectedEvidence.evidenceUrl ? (
-                      <img src={selectedEvidence.evidenceUrl} alt={selectedEvidence.jobdeskText} loading="lazy" decoding="async" className="h-56 w-full object-cover" />
+                    {selectedEvidence.mode === 'image' && getEvidenceUrls(selectedEvidence).length > 0 ? (
+                      <div className="grid gap-2 p-2">
+                        {getEvidenceUrls(selectedEvidence).map((url, index, urls) => (
+                          <button
+                            key={`${url}-${index}`}
+                            type="button"
+                            onClick={() => setPreview({
+                              images: urls.map((src, imageIndex) => ({
+                                src,
+                                alt: `${selectedEvidence.jobdeskText} ${imageIndex + 1}`,
+                                caption: `Gambar ${imageIndex + 1} dari ${selectedEvidence.employeeName}`,
+                              })),
+                              initialIndex: index,
+                              title: `Bukti ${selectedEvidence.employeeName}`,
+                              subtitle: selectedEvidence.jobdeskText,
+                            })}
+                            className="block rounded-md border border-outline-variant/10 bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          >
+                            <img src={url} alt={`${selectedEvidence.jobdeskText} ${index + 1}`} loading="lazy" decoding="async" className="max-h-72 w-full object-contain" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : selectedEvidence.mode === 'video' && getEvidenceUrls(selectedEvidence)[0] ? (
+                      <div className="p-2">
+                        <video src={getEvidenceUrls(selectedEvidence)[0]} className="max-h-72 w-full rounded-md bg-surface object-contain" controls />
+                      </div>
                     ) : (
                       <div className="grid h-56 place-items-center px-6 text-center">
                         <div>
@@ -503,6 +542,15 @@ const PicRaportDashboardPage: React.FC = () => {
           </div>
         </motion.aside>
       </section>
+      {preview && (
+        <ImagePreviewModal
+          images={preview.images}
+          initialIndex={preview.initialIndex}
+          title={preview.title}
+          subtitle={preview.subtitle}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </motion.div>
   );
 };

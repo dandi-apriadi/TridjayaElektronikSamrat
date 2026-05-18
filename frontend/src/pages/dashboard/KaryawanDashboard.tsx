@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowRight,
   BadgeCheck,
+  BadgeDollarSign,
   BookOpen,
   Building2,
   CalendarDays,
@@ -23,6 +24,7 @@ import { todayKey } from '../../data/picRaportData';
 import { useAuthStore } from '../../store/authStore';
 import { formatProspekDateKey, useKaryawanProspekStore } from '../../store/karyawanProspekStore';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { calculateJobdeskScoreFine, calculateProspekDailyFine, formatRupiah } from '../../utils/denda';
 import { isSalesTargetKategori } from '../../utils/roles';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
@@ -41,6 +43,12 @@ const getPositionMatch = (divisi: string, positions: ReturnType<typeof usePicRap
 const getUserCabang = (user: ReturnType<typeof useAuthStore.getState>['user']) =>
   user?.cabangName || user?.cabang_name || user?.cabangId || user?.cabang_id || '';
 
+const getMonthStartKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+
+const formatShortDate = (dateKey: string) =>
+  new Date(`${dateKey}T12:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+
 const KaryawanDashboard: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const divisions = usePicRaportStore((state) => state.divisions);
@@ -53,13 +61,16 @@ const KaryawanDashboard: React.FC = () => {
   const cabang = getUserCabang(user);
   const position = getPositionMatch(divisi, divisions);
   const userName = user?.name?.trim().toLowerCase();
-  const todayProspekKey = useMemo(() => formatProspekDateKey(new Date()), []);
+  const currentDate = useMemo(() => new Date(), []);
+  const todayProspekKey = useMemo(() => formatProspekDateKey(currentDate), [currentDate]);
+  const monthStartKey = useMemo(() => getMonthStartKey(currentDate), [currentDate]);
+  const elapsedMonthDays = currentDate.getDate();
 
   useEffect(() => {
-    fetchProspek({ tanggal: todayProspekKey, limit: 500 });
+    fetchProspek({ dateFrom: monthStartKey, dateTo: todayProspekKey, limit: 500 });
     fetchEvidence({ tanggal: todayKey, limit: 2000 });
     fetchDivisions();
-  }, [fetchDivisions, fetchEvidence, fetchProspek, todayProspekKey]);
+  }, [fetchDivisions, fetchEvidence, fetchProspek, monthStartKey, todayProspekKey]);
 
   const todayEvidence = useMemo(
     () =>
@@ -78,6 +89,7 @@ const KaryawanDashboard: React.FC = () => {
   const averageScore = scoredToday.length
     ? Math.round(scoredToday.reduce((sum, item) => sum + (item.reviewStatus === 'rejected' ? 0 : item.score || 0), 0) / scoredToday.length)
     : 0;
+  const dendaJobdeskHariIni = calculateJobdeskScoreFine(averageScore, scoredToday.length > 0);
   const jobdeskCount = position?.jobdesks.length || 0;
   const ratedJobdeskCount = new Set(scoredToday.map((item) => item.jobdeskIndex)).size;
   const raportProgress = jobdeskCount > 0 ? Math.round((ratedJobdeskCount / jobdeskCount) * 100) : 0;
@@ -92,8 +104,36 @@ const KaryawanDashboard: React.FC = () => {
     [prospek, todayProspekKey, user?.id, userName]
   );
   const targetProspek = isSales ? 20 : 5;
+  const prospekBulanIni = useMemo(
+    () =>
+      prospek.filter(
+        (item) =>
+          item.tanggal >= monthStartKey &&
+          item.tanggal <= todayProspekKey &&
+          (item.karyawanId === user?.id || (userName && item.karyawanName.toLowerCase() === userName))
+      ),
+    [monthStartKey, prospek, todayProspekKey, user?.id, userName]
+  );
   const prospekProgress = Math.min(Math.round((prospekHariIni / targetProspek) * 100), 100);
   const targetGap = Math.max(targetProspek - prospekHariIni, 0);
+  const targetProspekBulanan = targetProspek * elapsedMonthDays;
+  const prospekBulananProgress = targetProspekBulanan > 0 ? Math.min(Math.round((prospekBulanIni.length / targetProspekBulanan) * 100), 100) : 0;
+  const targetBulananGap = Math.max(targetProspekBulanan - prospekBulanIni.length, 0);
+  const prospekDailyRows = useMemo(() => {
+    const rows = Array.from({ length: elapsedMonthDays }, (_, index) => {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), index + 1);
+      const tanggal = formatProspekDateKey(date);
+      const total = prospekBulanIni.filter((item) => item.tanggal === tanggal).length;
+      const gap = Math.max(targetProspek - total, 0);
+      const percent = targetProspek > 0 ? Math.round((total / targetProspek) * 100) : 0;
+      const fine = calculateProspekDailyFine(total, targetProspek);
+      return { tanggal, total, gap, percent, fine };
+    });
+    return rows.reverse();
+  }, [currentDate, elapsedMonthDays, prospekBulanIni, targetProspek]);
+  const dendaProspekBulanIni = useMemo(() => prospekDailyRows.reduce((sum, row) => sum + row.fine, 0), [prospekDailyRows]);
+  const hariDendaProspek = useMemo(() => prospekDailyRows.filter((row) => row.fine > 0).length, [prospekDailyRows]);
+  const totalEstimasiDenda = dendaProspekBulanIni + dendaJobdeskHariIni;
   const dateLabel = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const initials = (user?.name || 'Karyawan')
     .split(' ')
@@ -149,6 +189,24 @@ const KaryawanDashboard: React.FC = () => {
       tone: 'text-primary',
       bg: 'bg-primary/10',
       progress: prospekProgress,
+    },
+    {
+      label: 'Prospek Bulan Ini',
+      value: `${prospekBulanIni.length}/${targetProspekBulanan}`,
+      helper: targetBulananGap > 0 ? `${targetBulananGap} prospek tertinggal` : 'Target berjalan tercapai',
+      icon: CalendarDays,
+      tone: prospekBulananProgress >= 100 ? 'text-secondary' : 'text-primary',
+      bg: prospekBulananProgress >= 100 ? 'bg-secondary/10' : 'bg-primary/10',
+      progress: prospekBulananProgress,
+    },
+    {
+      label: 'Estimasi Denda',
+      value: formatRupiah(totalEstimasiDenda),
+      helper: `${formatRupiah(dendaProspekBulanIni)} prospek, ${formatRupiah(dendaJobdeskHariIni)} jobdesk`,
+      icon: BadgeDollarSign,
+      tone: totalEstimasiDenda > 0 ? 'text-error' : 'text-secondary',
+      bg: totalEstimasiDenda > 0 ? 'bg-error/10' : 'bg-secondary/10',
+      progress: totalEstimasiDenda > 0 ? 100 : 0,
     },
   ];
 
@@ -213,7 +271,7 @@ const KaryawanDashboard: React.FC = () => {
         </div>
       </motion.section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -287,6 +345,71 @@ const KaryawanDashboard: React.FC = () => {
           )}
         </motion.div>
       </section>
+
+      <motion.section variants={itemVariants} className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-5 shadow-sm">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-title-md font-black text-on-surface">Target prospek bulan ini</h2>
+            <p className="text-body-sm text-on-surface-variant">
+              Periode {formatShortDate(monthStartKey)} sampai {formatShortDate(todayProspekKey)}, target berjalan {targetProspek} prospek per hari.
+            </p>
+          </div>
+          <span className={`rounded-lg px-3 py-2 text-label-sm font-black ${targetBulananGap === 0 ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}`}>
+            {prospekBulananProgress}% tercapai
+          </span>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
+          <div className="rounded-2xl border border-outline-variant/15 bg-surface-high/45 p-4">
+            <p className="text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Bulan berjalan</p>
+            <p className="mt-2 text-headline-sm font-black text-on-surface">
+              {prospekBulanIni.length}/{targetProspekBulanan}
+            </p>
+            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-surface">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${prospekBulananProgress}%` }} />
+            </div>
+            <p className="mt-3 text-body-sm font-medium text-on-surface-variant">
+              {targetBulananGap > 0 ? `Masih kurang ${targetBulananGap} prospek untuk mengejar target berjalan.` : 'Target berjalan sudah aman.'}
+            </p>
+            <div className={`mt-4 rounded-xl px-3 py-2 ${dendaProspekBulanIni > 0 ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'}`}>
+              <p className="text-label-xs font-bold uppercase tracking-widest">Denda prospek</p>
+              <p className="mt-1 text-title-sm font-black">{formatRupiah(dendaProspekBulanIni)}</p>
+              <p className="mt-1 text-label-xs text-on-surface-variant">{hariDendaProspek} hari gagal target bulan ini</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-outline-variant/15">
+            <table className="w-full min-w-[640px]">
+              <thead className="bg-surface-high/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Tanggal</th>
+                  <th className="px-4 py-3 text-right text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Prospek</th>
+                  <th className="px-4 py-3 text-right text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Target</th>
+                  <th className="px-4 py-3 text-right text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Kurang</th>
+                  <th className="px-4 py-3 text-right text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Denda</th>
+                  <th className="px-4 py-3 text-right text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {prospekDailyRows.map((row) => (
+                  <tr key={row.tanggal} className="border-t border-outline-variant/10">
+                    <td className="px-4 py-3 text-body-sm font-bold text-on-surface">{formatShortDate(row.tanggal)}</td>
+                    <td className="px-4 py-3 text-right text-body-sm font-bold text-on-surface">{row.total}</td>
+                    <td className="px-4 py-3 text-right text-body-sm text-on-surface-variant">{targetProspek}</td>
+                    <td className="px-4 py-3 text-right text-body-sm text-on-surface-variant">{row.gap}</td>
+                    <td className={`px-4 py-3 text-right text-body-sm font-bold ${row.fine > 0 ? 'text-error' : 'text-secondary'}`}>{formatRupiah(row.fine)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`rounded-lg px-2.5 py-1 text-label-xs font-black ${row.gap === 0 ? 'bg-secondary/10 text-secondary' : 'bg-error/10 text-error'}`}>
+                        {row.gap === 0 ? 'Tercapai' : `${row.percent}%`}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </motion.section>
 
       <motion.section variants={itemVariants} className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-5 shadow-sm">
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">

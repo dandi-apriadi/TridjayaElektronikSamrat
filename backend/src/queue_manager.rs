@@ -2,8 +2,6 @@ use crate::redis_manager::{Priority, QueueMessage, QueueMetrics, RedisManager};
 use redis::RedisResult;
 use sqlx::MySqlPool;
 use std::collections::HashSet;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -80,17 +78,14 @@ pub struct CampaignRecord {
 /// and use RedisManager for the underlying queue implementation.
 #[derive(Clone)]
 pub struct QueueManager {
-    redis: Arc<Mutex<RedisManager>>,
+    redis: RedisManager,
     pool: MySqlPool,
 }
 
 impl QueueManager {
     /// Create a new QueueManager
     pub fn new(redis: RedisManager, pool: MySqlPool) -> Self {
-        Self {
-            redis: Arc::new(Mutex::new(redis)),
-            pool,
-        }
+        Self { redis, pool }
     }
 
     /// Enqueue all pending recipients for a campaign
@@ -135,81 +130,88 @@ impl QueueManager {
             _ => Priority::Normal,
         };
 
-        // Fetch all pending recipients
-        let recipients: Vec<RecipientRecord> = sqlx::query_as(
-            "SELECT id, campaign_id, phone, variables_json, status 
-             FROM wa_recipients 
-             WHERE campaign_id = ? AND status = 'pending'
-             ORDER BY created_at ASC",
-        )
-        .bind(campaign_id)
-        .fetch_all(&self.pool)
-        .await?;
-
-        if recipients.is_empty() {
-            warn!("No pending recipients found for campaign {}", campaign_id);
-            return Ok(0);
-        }
-
-        info!(
-            "Found {} pending recipients for campaign {}",
-            recipients.len(),
-            campaign_id
-        );
-
-        // Round-robin account assignment
+        let batch_size = std::env::var("WA_ENQUEUE_BATCH_SIZE")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(1_000)
+            .min(5_000);
         let mut enqueued_count = 0;
-        let mut redis = self.redis.lock().await;
+        let mut scanned_count = 0usize;
+        let mut redis = self.redis.clone();
         let queued_ids: HashSet<String> = redis
             .queued_recipient_ids_for_campaign(campaign_id)
             .await
             .unwrap_or_default();
 
-        for (idx, recipient) in recipients.iter().enumerate() {
-            if queued_ids.contains(&recipient.id) {
-                debug!(
-                    "Skipping recipient {} for campaign {} because it is already queued",
-                    recipient.id, campaign_id
-                );
-                continue;
+        loop {
+            let recipients: Vec<RecipientRecord> = sqlx::query_as(
+                "SELECT id, campaign_id, phone, variables_json, status
+                 FROM wa_recipients
+                 WHERE campaign_id = ? AND status = 'pending'
+                 ORDER BY created_at ASC
+                 LIMIT ? OFFSET ?",
+            )
+            .bind(campaign_id)
+            .bind(batch_size as i64)
+            .bind(scanned_count as i64)
+            .fetch_all(&self.pool)
+            .await?;
+
+            if recipients.is_empty() {
+                break;
             }
 
-            let account_id = &account_ids[idx % account_ids.len()];
-
-            let message = QueueMessage {
-                message_id: Uuid::new_v4().to_string(),
-                campaign_id: campaign_id.to_string(),
-                recipient_id: recipient.id.clone(),
-                account_id: account_id.clone(),
-                phone: recipient.phone.clone(),
-                message_text: config.message_template.clone(),
-                media_url: config
-                    .media_config
-                    .as_ref()
-                    .and_then(|m| m.media_url.clone()),
-                retry_count: 0,
-                enqueued_at: chrono::Utc::now().timestamp(),
-            };
-
-            match redis.enqueue(message, priority).await {
-                Ok(_) => {
-                    enqueued_count += 1;
+            let batch_offset = scanned_count;
+            for (idx, recipient) in recipients.iter().enumerate() {
+                if queued_ids.contains(&recipient.id) {
                     debug!(
-                        "Enqueued recipient {} to account {} with priority {:?}",
-                        recipient.id, account_id, priority
+                        "Skipping recipient {} for campaign {} because it is already queued",
+                        recipient.id, campaign_id
                     );
+                    continue;
                 }
-                Err(e) => {
-                    error!("Failed to enqueue recipient {}: {}", recipient.id, e);
+
+                let account_id = &account_ids[(batch_offset + idx) % account_ids.len()];
+
+                let message = QueueMessage {
+                    message_id: Uuid::new_v4().to_string(),
+                    campaign_id: campaign_id.to_string(),
+                    recipient_id: recipient.id.clone(),
+                    account_id: account_id.clone(),
+                    phone: recipient.phone.clone(),
+                    message_text: config.message_template.clone(),
+                    media_url: config
+                        .media_config
+                        .as_ref()
+                        .and_then(|m| m.media_url.clone()),
+                    retry_count: 0,
+                    enqueued_at: chrono::Utc::now().timestamp(),
+                };
+
+                match redis.enqueue(message, priority).await {
+                    Ok(_) => {
+                        enqueued_count += 1;
+                        debug!(
+                            "Enqueued recipient {} to account {} with priority {:?}",
+                            recipient.id, account_id, priority
+                        );
+                    }
+                    Err(e) => {
+                        error!("Failed to enqueue recipient {}: {}", recipient.id, e);
+                    }
                 }
+            }
+            scanned_count += recipients.len();
+
+            if recipients.len() < batch_size as usize {
+                break;
             }
         }
 
         info!(
-            "Successfully enqueued {}/{} recipients for campaign {}",
-            enqueued_count,
-            recipients.len(),
-            campaign_id
+            "Successfully enqueued {} recipients for campaign {} after scanning {} pending rows",
+            enqueued_count, campaign_id, scanned_count
         );
 
         Ok(enqueued_count)
@@ -285,7 +287,7 @@ impl QueueManager {
             enqueued_at: chrono::Utc::now().timestamp(),
         };
 
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.enqueue(message, priority).await?;
 
         info!(
@@ -307,7 +309,7 @@ impl QueueManager {
         priority: Priority,
         batch_size: usize,
     ) -> RedisResult<Vec<QueueMessage>> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.dequeue_batch(account_id, priority, batch_size).await
     }
 
@@ -319,7 +321,7 @@ impl QueueManager {
         priority: Priority,
         batch_size: usize,
     ) -> RedisResult<Vec<QueueMessage>> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.dequeue_batch_any(priority, batch_size).await
     }
 
@@ -334,7 +336,7 @@ impl QueueManager {
         message: QueueMessage,
         priority: Priority,
     ) -> RedisResult<bool> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.requeue_with_retry(message, priority).await
     }
 
@@ -345,7 +347,7 @@ impl QueueManager {
     /// Should be called periodically (e.g., every 10 seconds) to check for
     /// messages that are ready to retry after their backoff delay.
     pub async fn process_retry_queue(&self) -> RedisResult<usize> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.process_retry_queue().await
     }
 
@@ -357,7 +359,7 @@ impl QueueManager {
         account_id: &str,
         priority: Priority,
     ) -> RedisResult<usize> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.get_queue_depth(account_id, priority).await
     }
 
@@ -365,7 +367,7 @@ impl QueueManager {
     ///
     /// **Validates: Requirements 2.7**
     pub async fn get_total_queue_depth(&self, account_id: &str) -> RedisResult<usize> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.get_total_queue_depth(account_id).await
     }
 
@@ -373,7 +375,7 @@ impl QueueManager {
     ///
     /// **Validates: Requirements 2.7, 2.8**
     pub async fn get_queue_metrics(&self) -> RedisResult<QueueMetrics> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.get_queue_metrics().await
     }
 
@@ -381,7 +383,7 @@ impl QueueManager {
     ///
     /// **Validates: Requirements 2.7**
     pub async fn update_metrics(&self, processing_rate: f64, error_rate: f64) -> RedisResult<()> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.update_metrics(processing_rate, error_rate).await
     }
 
@@ -391,7 +393,7 @@ impl QueueManager {
     ///
     /// Returns true if total queue depth exceeds 10,000 messages.
     pub async fn should_trigger_backpressure(&self) -> RedisResult<bool> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.should_trigger_backpressure().await
     }
 
@@ -468,7 +470,7 @@ impl QueueManager {
     /// Health check - verify Redis connection and database
     pub async fn health_check(&self) -> Result<bool, Box<dyn std::error::Error>> {
         // Check Redis
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         let redis_ok = redis.health_check().await?;
 
         // Check database
@@ -479,19 +481,19 @@ impl QueueManager {
 
     /// Clear all queues for an account (useful for testing/cleanup)
     pub async fn clear_account_queues(&self, account_id: &str) -> RedisResult<()> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.clear_account_queues(account_id).await
     }
 
     pub async fn remove_campaign_messages(&self, campaign_id: &str) -> RedisResult<usize> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.remove_campaign_messages(campaign_id).await
     }
 
     /// Get queue depth for a specific campaign (across all queues and priorities)
     /// Useful for verification after pause/remove operations
     pub async fn get_campaign_queue_depth(&self, campaign_id: &str) -> RedisResult<usize> {
-        let mut redis = self.redis.lock().await;
+        let mut redis = self.redis.clone();
         redis.get_campaign_queue_depth(campaign_id).await
     }
 }

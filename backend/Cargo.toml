@@ -64,6 +64,10 @@ path = "src/bin/reset_karyawan_scope.rs"
 required-features = ["dev-tools"]
 
 [[bin]]
+name = "seed_prospek_simulasi"
+path = "src/bin/seed_prospek_simulasi.rs"
+
+[[bin]]
 name = "reset_cabang_data"
 path = "src/bin/reset_cabang_data.rs"
 

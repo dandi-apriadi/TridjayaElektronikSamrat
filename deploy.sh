@@ -62,30 +62,17 @@ EnvironmentFile=${APP_DIR}/backend/.env
 ExecStart=${APP_DIR}/backend/target/release/tridjaya-backend
 Restart=always
 RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat > /etc/systemd/system/tridjaya-frontend.service <<EOF
-[Unit]
-Description=Tridjaya Frontend Preview Server
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=${APP_DIR}/frontend
-ExecStart=/usr/bin/npm run preview -- --host 127.0.0.1 --port 5173
-Restart=always
-RestartSec=5
+LimitNOFILE=65535
+TasksMax=4096
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable tridjaya-backend tridjaya-frontend
-systemctl restart tridjaya-backend tridjaya-frontend
+systemctl enable tridjaya-backend
+systemctl restart tridjaya-backend
+systemctl disable --now tridjaya-frontend 2>/dev/null || true
 
 echo "[7/7] Installing nginx reverse proxy..."
 cat > /etc/nginx/sites-available/${DOMAIN} <<EOF
@@ -95,10 +82,20 @@ server {
     server_name ${DOMAIN} www.${DOMAIN};
 
     client_max_body_size 25m;
+    keepalive_timeout 20s;
+    send_timeout 30s;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript image/svg+xml;
 
     location /api/ {
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -108,19 +105,25 @@ server {
     location /uploads/ {
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    location /assets/ {
+        root ${APP_DIR}/frontend/dist;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files \$uri =404;
+    }
+
     location / {
-        proxy_pass http://127.0.0.1:5173;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        root ${APP_DIR}/frontend/dist;
+        try_files \$uri \$uri/ /index.html;
     }
 }
 EOF
@@ -134,6 +137,6 @@ echo "Backend health:"
 curl -fsS http://127.0.0.1:8081/health || true
 echo
 echo "Frontend:"
-curl -fsSI http://127.0.0.1:5173 | head -3 || true
+curl -fsSI http://127.0.0.1 | head -3 || true
 
 echo "Native deploy finished."

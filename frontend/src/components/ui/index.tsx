@@ -1,5 +1,7 @@
 import React from 'react';
 export * from './PartnerLogos';
+export { default as ImagePreviewModal } from './ImagePreviewModal';
+export type { PreviewImage } from './ImagePreviewModal';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Zap, Clock, Share2, Star } from 'lucide-react';
@@ -30,7 +32,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, is
   const minInstallment = useMinInstallment(product);
   const publicPrice = getPublicPrice(product);
   const { user: loggedInUser } = useAuthStore();
-  const salesReferralSlug = isAdminSalesRole(loggedInUser?.role) ? loggedInUser.referral_slug?.trim() : null;
+  const salesReferralSlug = isAdminSalesRole(loggedInUser?.role) ? loggedInUser?.referral_slug?.trim() : null;
   
   // By default show images, unless explicitly told to be compact (Lite Mode)
   const effectiveShowImages = isCompact !== undefined ? !isCompact : true;

@@ -17,8 +17,6 @@ import {
   Sun,
   Moon,
   MessageCircle,
-  Share2,
-  Headphones,
   BookOpen,
   Wallet,
   Shield,
@@ -155,7 +153,6 @@ const DashboardLayout: React.FC = () => {
         { label: 'WhatsApp Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns' },
         { label: 'Pixel Campaigns', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns' },
         { label: 'Pixel Tester', icon: FlaskConical, path: '/dashboard/admin/pixel-tester' },
-        { label: 'Support Ticket', icon: Headphones, path: '/dashboard/admin/support' },
       ]
     },
     {
@@ -174,7 +171,6 @@ const DashboardLayout: React.FC = () => {
       items: [
         { label: 'Keuangan', icon: Wallet, path: '/dashboard/admin/finance' },
         { label: 'User & Akses', icon: Shield, path: '/dashboard/admin/users' },
-        { label: 'Sales Management', icon: Share2, path: '/dashboard/admin/sales' },
         { label: 'Cabang Management', icon: Building2, path: '/dashboard/admin/cabang' },
         { label: 'Pengaturan Akun', icon: Shield, path: '/dashboard/settings' },
       ]
@@ -194,15 +190,15 @@ const DashboardLayout: React.FC = () => {
       items: [
         { label: 'Product Knowledge', icon: BookOpen, path: '/dashboard/agent/knowledge' },
         { label: 'Pipeline Prospek', icon: Users, path: '/dashboard/agent/leads' },
-        { label: 'Push Prospek', icon: Send, path: '/dashboard/agent/push-prospek' },
+        { label: 'Submit Prospek', icon: Send, path: '/dashboard/agent/prospek' },
+        { label: 'Database Prospek', icon: Database, path: '/dashboard/agent/prospek/database' },
         { label: 'Pixel Analytics', icon: BarChart3, path: '/dashboard/agent/pixel-analytics' },
       ]
     },
     {
-      title: 'Akun & Bantuan',
+      title: 'Akun',
       items: [
         { label: 'Komisi & Penarikan', icon: Wallet, path: '/dashboard/agent/earnings' },
-        { label: 'Support', icon: Headphones, path: '/dashboard/agent/support' },
         { label: 'Pengaturan', icon: Shield, path: '/dashboard/settings' },
       ]
     }
@@ -220,7 +216,8 @@ const DashboardLayout: React.FC = () => {
       title: 'Operasional',
       items: [
         { label: 'Jadwal Pengiriman', icon: Send, path: '/dashboard/sales/delivery' },
-        { label: 'Pengiriman Prospek', icon: TrendingUp, path: '/dashboard/sales/push-prospek' },
+        { label: 'Submit Prospek', icon: TrendingUp, path: '/dashboard/sales/prospek' },
+        { label: 'Database Prospek', icon: Database, path: '/dashboard/sales/prospek/database' },
         { label: 'Pixel Analytics', icon: BarChart3, path: '/dashboard/sales/pixel-analytics' },
       ]
     },
@@ -233,10 +230,9 @@ const DashboardLayout: React.FC = () => {
       ]
     },
     {
-      title: 'Akun & Bantuan',
+      title: 'Akun',
       items: [
         { label: 'Pengaturan', icon: Shield, path: '/dashboard/settings' },
-        { label: 'Support', icon: Headphones, path: '/dashboard/sales/support' },
       ]
     }
   ], []);
@@ -267,6 +263,13 @@ const DashboardLayout: React.FC = () => {
         { label: 'Campaigns', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns' },
         { label: 'Pixel Analytics', icon: TrendingUp, path: '/dashboard/admin/pixel-analytics' },
         { label: 'Pixel Tester', icon: FlaskConical, path: '/dashboard/admin/pixel-tester' },
+      ]
+    },
+    {
+      title: 'Prospek',
+      items: [
+        { label: 'Submit Prospek', icon: Send, path: '/dashboard/operator/prospek' },
+        { label: 'Database Prospek', icon: Database, path: '/dashboard/operator/prospek/database' },
       ]
     },
     {
@@ -354,6 +357,7 @@ const DashboardLayout: React.FC = () => {
         ...(user?.role === 'admin' ? [{ label: 'Finance', icon: Wallet, path: '/dashboard/admin/finance', color: 'text-tertiary' }] : []),
         ...(user?.role === 'operator' ? [{ label: 'WA Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns', color: 'text-secondary' }] : []),
         ...(user?.role === 'operator' ? [{ label: 'Pixel', icon: BarChart2, path: '/dashboard/admin/pixel-campaigns', color: 'text-tertiary' }] : []),
+        ...(user?.role === 'operator' ? [{ label: 'Prospek', icon: TrendingUp, path: '/dashboard/operator/prospek', color: 'text-primary' }] : []),
       ]
     : user?.role === 'owner'
     ? []
@@ -367,7 +371,7 @@ const DashboardLayout: React.FC = () => {
     ? []
     : [
         { label: 'Knowledge', icon: BookOpen, path: isAdminSales ? '/dashboard/sales/knowledge' : '/dashboard/agent/knowledge', color: 'text-primary' },
-        { label: 'Prospek', icon: TrendingUp, path: isAdminSales ? '/dashboard/sales/push-prospek' : '/dashboard/agent/push-prospek', color: 'text-secondary' },
+        { label: 'Prospek', icon: TrendingUp, path: isAdminSales ? '/dashboard/sales/prospek' : '/dashboard/agent/prospek', color: 'text-secondary' },
         ...(isAdminSales ? [{ label: 'WA Blast', icon: MessageCircle, path: '/dashboard/admin/wa/campaigns', color: 'text-tertiary' }] : []),
       ];
 

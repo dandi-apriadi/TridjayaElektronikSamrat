@@ -310,7 +310,7 @@ async fn main() {
         .ok()
         .and_then(|value| value.parse::<u32>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(50);
+        .unwrap_or(25);
 
     let mysql_options = MySqlConnectOptions::from_str(&database_url)
         .map_err(|e| {
@@ -332,16 +332,29 @@ async fn main() {
         })
         .expect("Failed to connect to MySQL. Check DATABASE_URL and database availability.");
 
-    // Run Migrations
-    tracing::info!("Running database migrations...");
-    sqlx::migrate!("./migrations_mysql")
-        .run(&pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Migration error: {}", e);
-            e
+    let skip_db_migrations = std::env::var("SKIP_DB_MIGRATIONS")
+        .map(|value| {
+            matches!(
+                value.trim().to_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
         })
-        .expect("Failed to run migrations");
+        .unwrap_or(false);
+
+    if skip_db_migrations {
+        tracing::warn!("Skipping database migrations because SKIP_DB_MIGRATIONS is enabled");
+    } else {
+        // Run Migrations
+        tracing::info!("Running database migrations...");
+        sqlx::migrate!("./migrations_mysql")
+            .run(&pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Migration error: {}", e);
+                e
+            })
+            .expect("Failed to run migrations");
+    }
 
     // Seed Data
     if let Err(e) = seed_database(&pool).await {
@@ -625,7 +638,7 @@ async fn main() {
                     .ok()
                     .and_then(|value| value.parse::<u64>().ok())
                     .filter(|value| *value > 0)
-                    .unwrap_or(60),
+                    .unwrap_or(30),
             ),
         ))
         .layer(cors)

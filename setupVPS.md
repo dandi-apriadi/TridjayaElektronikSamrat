@@ -51,6 +51,11 @@ COOKIE_SECURE=true
 TRUST_PROXY_HEADERS=true
 PIXEL_ENCRYPTION_KEY=isi_64_hex_chars
 REDIS_URL=redis://127.0.0.1:6379
+MYSQL_MAX_CONNECTIONS=25
+REQUEST_TIMEOUT_SECS=30
+PUBLIC_READ_MAX_PER_MINUTE=120
+TELEMETRY_ANALYTICS_WINDOW_DAYS=30
+WA_ENQUEUE_BATCH_SIZE=1000
 ```
 
 Frontend:
@@ -73,11 +78,10 @@ APP_DIR=/var/www/tridjaya DOMAIN=tridjaya.com ./deploy.sh
 ## 6. Cek Service
 
 ```bash
-systemctl status tridjaya-backend tridjaya-frontend
+systemctl status tridjaya-backend
 journalctl -u tridjaya-backend -n 120 --no-pager
-journalctl -u tridjaya-frontend -n 120 --no-pager
 curl -s http://127.0.0.1:8081/health
-curl -I http://127.0.0.1:5173
+curl -I http://127.0.0.1
 ```
 
 ## 7. SSL

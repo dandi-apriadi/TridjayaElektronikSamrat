@@ -28,6 +28,25 @@ async fn count_query(pool: &sqlx::MySqlPool, query: &str) -> Result<i64, sqlx::E
     sqlx::query_scalar(query).fetch_one(pool).await
 }
 
+async fn column_exists(
+    pool: &sqlx::MySqlPool,
+    table_name: &str,
+    column_name: &str,
+) -> Result<bool, sqlx::Error> {
+    let exists: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = ?
+           AND COLUMN_NAME = ?",
+    )
+    .bind(table_name)
+    .bind(column_name)
+    .fetch_one(pool)
+    .await?;
+    Ok(exists > 0)
+}
+
 async fn ensure_cabang_schema(pool: &sqlx::MySqlPool) -> Result<(), sqlx::Error> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS cabang (
@@ -36,8 +55,6 @@ async fn ensure_cabang_schema(pool: &sqlx::MySqlPool) -> Result<(), sqlx::Error>
             alamat TEXT NOT NULL,
             kota VARCHAR(255) NOT NULL DEFAULT '',
             telepon VARCHAR(64) NOT NULL DEFAULT '',
-            koordinator_id VARCHAR(64) NULL,
-            koordinator_nama VARCHAR(255) NOT NULL DEFAULT '',
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -47,6 +64,18 @@ async fn ensure_cabang_schema(pool: &sqlx::MySqlPool) -> Result<(), sqlx::Error>
     )
     .execute(pool)
     .await?;
+
+    if column_exists(pool, "cabang", "koordinator_id").await? {
+        sqlx::query("ALTER TABLE cabang DROP COLUMN koordinator_id")
+            .execute(pool)
+            .await?;
+    }
+
+    if column_exists(pool, "cabang", "koordinator_nama").await? {
+        sqlx::query("ALTER TABLE cabang DROP COLUMN koordinator_nama")
+            .execute(pool)
+            .await?;
+    }
 
     let has_cabang_id: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)

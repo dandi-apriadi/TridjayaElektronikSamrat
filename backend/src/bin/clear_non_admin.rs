@@ -40,7 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "reward_claims",
         "leads",
         "agent_registrations",
-        "support_tickets",
         "telemetry_events",
         "notifications",
     ];

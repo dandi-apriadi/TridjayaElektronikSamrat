@@ -21,8 +21,8 @@ interface CabangStoreState {
   isLoading: boolean;
   error: string | null;
   fetchCabang: (force?: boolean) => Promise<void>;
-  createCabang: (data: Partial<Pick<CabangItem, 'nama' | 'alamat' | 'kota' | 'telepon' | 'koordinatorNama' | 'isActive'>>) => Promise<boolean>;
-  updateCabang: (id: string, data: Partial<Pick<CabangItem, 'nama' | 'alamat' | 'kota' | 'telepon' | 'koordinatorNama' | 'isActive'>>) => Promise<boolean>;
+  createCabang: (data: Partial<Pick<CabangItem, 'nama' | 'alamat' | 'kota' | 'telepon' | 'isActive'>>) => Promise<boolean>;
+  updateCabang: (id: string, data: Partial<Pick<CabangItem, 'nama' | 'alamat' | 'kota' | 'telepon' | 'isActive'>>) => Promise<boolean>;
   deleteCabang: (id: string) => Promise<boolean>;
 }
 

@@ -41,7 +41,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "telemetry_whatsapp_clicks",
         "telemetry_pixel_events",
         "agent_registrations",
-        "support_tickets",
         "password_reset_tokens",
         "catalogs",
         "articles",

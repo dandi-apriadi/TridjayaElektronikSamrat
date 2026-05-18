@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Ban,
+  BadgeDollarSign,
   Building2,
   CalendarDays,
   Clock3,
@@ -13,8 +14,11 @@ import {
   UserRound,
   Video,
 } from 'lucide-react';
-import { buildPicEmployeeSummaries, todayKey, toDateKey, type PicRaportEvidence } from '../../data/picRaportData';
+import { buildPicEmployeeSummaries, getEvidenceUrls, sortEvidenceByJobdeskNumber, todayKey, toDateKey, type PicRaportEvidence } from '../../data/picRaportData';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
+import PicEvidenceReviewControls from '../../components/dashboard/PicEvidenceReviewControls';
+import { calculateRaportFineTotal, formatRupiah, summarizeRaportScore } from '../../utils/denda';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1 } };
 const itemVariants = { hidden: { y: 10, opacity: 0 }, visible: { y: 0, opacity: 1 } };
@@ -55,6 +59,12 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
   const employee = useMemo(() => buildPicEmployeeSummaries(evidence).find((item) => item.id === employeeId), [employeeId, evidence]);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [visibleLimit, setVisibleLimit] = useState(EMPLOYEE_DETAIL_BATCH_SIZE);
+  const [preview, setPreview] = useState<{
+    images: PreviewImage[];
+    initialIndex: number;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -117,7 +127,8 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
     );
   }
 
-  const selectedItems = byDate.get(selectedDate) || [];
+  const selectedItems = sortEvidenceByJobdeskNumber(byDate.get(selectedDate) || []);
+  const selectedRaportSummary = summarizeRaportScore(selectedItems);
   const visibleSelectedItems = selectedItems.slice(0, visibleLimit);
   const currentDate = new Date();
   const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -135,6 +146,12 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
   const completionRate = employeeEvidence.length
     ? Math.round(((displayEmployee.approvedEvidence + displayEmployee.rejectedEvidence) / employeeEvidence.length) * 100)
     : 0;
+  const monthlyRaportFine = calculateRaportFineTotal(
+    [...byDate.values()].map((items) => {
+      const summary = summarizeRaportScore(items);
+      return { score: summary.score, hasScore: summary.scoredCount > 0 };
+    })
+  );
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-5">
@@ -166,7 +183,7 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
                 <span className="pb-1 text-label-sm font-bold text-on-surface-variant">{completionRate}% sudah diputuskan</span>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
+            <div className="grid grid-cols-4 gap-2 sm:min-w-[460px]">
               <div className="rounded-lg bg-surface-high/60 px-3 py-2">
                 <p className="text-label-xs font-bold text-on-surface-variant">Disetujui</p>
                 <p className="text-title-md font-black text-secondary">{displayEmployee.approvedEvidence}</p>
@@ -178,6 +195,10 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
               <div className="rounded-lg bg-surface-high/60 px-3 py-2">
                 <p className="text-label-xs font-bold text-on-surface-variant">Ditolak</p>
                 <p className="text-title-md font-black text-error">{displayEmployee.rejectedEvidence}</p>
+              </div>
+              <div className="rounded-lg bg-surface-high/60 px-3 py-2">
+                <p className="text-label-xs font-bold text-on-surface-variant">Denda</p>
+                <p className={`text-title-sm font-black ${monthlyRaportFine > 0 ? 'text-error' : 'text-secondary'}`}>{formatRupiah(monthlyRaportFine)}</p>
               </div>
             </div>
           </div>
@@ -271,9 +292,24 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
             </div>
             <FileCheck2 className="h-5 w-5 text-primary" />
           </div>
+          <div className={`mx-4 mt-4 rounded-xl px-3 py-2 ${selectedRaportSummary.fine > 0 ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'}`}>
+            <div className="flex items-center gap-2 text-label-sm font-bold">
+              <BadgeDollarSign className="h-4 w-4" />
+              Denda tanggal ini: {formatRupiah(selectedRaportSummary.fine)}
+            </div>
+            <p className="mt-1 text-label-xs text-on-surface-variant">
+              {selectedRaportSummary.scoredCount > 0 ? `Nilai total ${selectedRaportSummary.score}/100` : 'Menunggu nilai PIC'}
+            </p>
+          </div>
           <div className="max-h-[620px] space-y-2 overflow-y-auto p-4">
             {visibleSelectedItems.map((item) => {
               const EvidenceIcon = item.mode === 'video' ? Video : item.mode === 'image' ? ImageIcon : Ban;
+              const imageUrls = getEvidenceUrls(item);
+              const previewImages = imageUrls.map((src, index) => ({
+                src,
+                alt: `${item.jobdeskText} ${index + 1}`,
+                caption: `Gambar ${index + 1} dari ${item.employeeName}`,
+              }));
               return (
                 <article key={item.id} className="rounded-lg border border-outline-variant/15 bg-surface-high/35 p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -281,13 +317,14 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-label-xs font-bold ${statusStyle(item.reviewStatus)}`}>
                         {statusLabel(item.reviewStatus)}
                       </span>
-                      <p className="mt-3 text-body-sm font-bold text-on-surface">{item.jobdeskText}</p>
+                      <p className="mt-3 text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Jobdesk {item.jobdeskIndex + 1}</p>
+                      <p className="mt-1 text-body-sm font-bold text-on-surface">{item.jobdeskText}</p>
                       {item.employeeNote && <p className="mt-1 text-label-sm text-on-surface-variant">{item.employeeNote}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="inline-flex items-center gap-2 rounded-lg bg-surface px-2.5 py-1.5 text-label-xs font-bold text-on-surface-variant">
                         <EvidenceIcon className="h-3.5 w-3.5" />
-                        {item.mode === 'none' ? 'Tanpa bukti' : item.mode === 'video' ? 'Video' : 'Gambar'}
+                        {item.mode === 'none' ? 'Tanpa bukti' : item.mode === 'video' ? 'Video' : `${item.evidenceUrls?.length || 1} gambar`}
                       </span>
                       <span className="rounded-lg bg-surface px-2.5 py-1.5 text-label-xs font-black text-on-surface">{typeof item.score === 'number' ? `${item.score}/100` : '-'}</span>
                     </div>
@@ -297,6 +334,31 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
                       {item.reviewerComment}
                     </div>
                   )}
+                  {item.mode === 'image' && imageUrls.length > 0 && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {imageUrls.slice(0, 6).map((url, index) => (
+                        <button
+                          key={`${url}-${index}`}
+                          type="button"
+                          onClick={() => setPreview({
+                            images: previewImages,
+                            initialIndex: index,
+                            title: `Bukti ${item.employeeName}`,
+                            subtitle: item.jobdeskText,
+                          })}
+                          className="rounded-lg border border-outline-variant/15 bg-surface p-1 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        >
+                          <img src={url} alt={`${item.jobdeskText} ${index + 1}`} className="h-24 w-full rounded-md object-contain" loading="lazy" decoding="async" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {item.mode === 'video' && imageUrls[0] && (
+                    <div className="mt-3 rounded-lg border border-outline-variant/15 bg-surface p-2">
+                      <video src={imageUrls[0]} className="max-h-72 w-full rounded-md bg-surface-high object-contain" controls />
+                    </div>
+                  )}
+                  <PicEvidenceReviewControls item={item} />
                 </article>
               );
             })}
@@ -344,6 +406,15 @@ const PicRaportEmployeeDetailPage: React.FC = () => {
           )}
         </div>
       </motion.section>
+      {preview && (
+        <ImagePreviewModal
+          images={preview.images}
+          initialIndex={preview.initialIndex}
+          title={preview.title}
+          subtitle={preview.subtitle}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </motion.div>
   );
 };

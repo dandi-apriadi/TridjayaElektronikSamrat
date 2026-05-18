@@ -358,7 +358,7 @@ impl UserRecord {
             id: self.id.clone(),
             email: self.email.clone(),
             name: self.name.clone(),
-            role: self.role.to_lowercase(),
+            role: normalize_public_role(&self.role),
             jabatan: self.jabatan.clone(),
             divisi: self.divisi.clone(),
             cabang_id: self.cabang_id.clone(),
@@ -374,6 +374,14 @@ impl UserRecord {
             must_change_password: self.must_change_password,
         }
     }
+}
+
+fn normalize_public_role(value: &str) -> String {
+    let role = value.trim().to_lowercase().replace(' ', "_");
+    if matches!(role.as_str(), "admin-sales" | "admin_sales" | "sales") {
+        return "admin-sales".to_string();
+    }
+    role.replace('-', "_")
 }
 
 #[derive(Clone)]

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Ban,
+  BadgeDollarSign,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -12,7 +13,9 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { usePicRaportStore } from '../../store/picRaportStore';
-import { toDateKey } from '../../data/picRaportData';
+import { sortEvidenceByJobdeskNumber, toDateKey } from '../../data/picRaportData';
+import RaportEvidencePreview from '../../components/dashboard/RaportEvidencePreview';
+import { calculateRaportFineTotal, formatRupiah, summarizeRaportScore } from '../../utils/denda';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -75,7 +78,21 @@ const KaryawanRaportHistoryPage: React.FC = () => {
   const currentDate = new Date();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-  const selectedItems = historyByDay.get(selectedDate) || [];
+  const selectedItems = useMemo(
+    () => sortEvidenceByJobdeskNumber(historyByDay.get(selectedDate) || []),
+    [historyByDay, selectedDate]
+  );
+  const selectedRaportScore = useMemo(() => summarizeRaportScore(selectedItems), [selectedItems]);
+  const monthlyRaportFine = useMemo(
+    () =>
+      calculateRaportFineTotal(
+        [...historyByDay.values()].map((items) => {
+          const summary = summarizeRaportScore(items);
+          return { score: summary.score, hasScore: summary.scoredCount > 0 };
+        })
+      ),
+    [historyByDay]
+  );
   const calendarCells = [
     ...Array.from({ length: firstDayOfMonth.getDay() }, (_, index) => ({ key: `blank-${index}`, day: null as number | null, keyDate: '' })),
     ...Array.from({ length: daysInMonth }, (_, index) => {
@@ -120,12 +137,13 @@ const KaryawanRaportHistoryPage: React.FC = () => {
         </div>
       </motion.section>
 
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           { label: 'Total Bukti', value: employeeHistory.length, helper: 'Semua upload yang tercatat', icon: FileCheck2, tone: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Disetujui', value: totalApproved, helper: 'Sudah divalidasi PIC', icon: CheckCircle2, tone: 'text-secondary', bg: 'bg-secondary/10' },
           { label: 'Menunggu', value: totalPending, helper: 'Belum dinilai PIC', icon: Clock3, tone: 'text-yellow-500', bg: 'bg-yellow-500/10' },
           { label: 'Rata-rata Nilai', value: averageScore || '-', helper: totalRejected > 0 ? `${totalRejected} bukti ditolak` : 'Tidak ada bukti ditolak', icon: MessageSquareText, tone: totalRejected > 0 ? 'text-error' : 'text-on-surface', bg: totalRejected > 0 ? 'bg-error/10' : 'bg-surface-high' },
+          { label: 'Denda Jobdesk', value: formatRupiah(monthlyRaportFine), helper: monthlyRaportFine > 0 ? 'Akumulasi nilai harian di bawah 80' : 'Tidak ada denda tercatat', icon: BadgeDollarSign, tone: monthlyRaportFine > 0 ? 'text-error' : 'text-secondary', bg: monthlyRaportFine > 0 ? 'bg-error/10' : 'bg-secondary/10' },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -212,6 +230,13 @@ const KaryawanRaportHistoryPage: React.FC = () => {
               {new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${selectedDate}T00:00:00`))}
             </h3>
             <p className="mt-1 text-body-sm text-on-surface-variant">{selectedItems.length} bukti tercatat pada tanggal ini.</p>
+            <div className={`mt-3 rounded-xl px-3 py-2 ${selectedRaportScore.fine > 0 ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'}`}>
+              <p className="text-label-xs font-bold uppercase tracking-widest">Denda tanggal ini</p>
+              <p className="mt-1 text-title-sm font-black">{formatRupiah(selectedRaportScore.fine)}</p>
+              <p className="mt-1 text-label-xs text-on-surface-variant">
+                {selectedRaportScore.scoredCount > 0 ? `Nilai total ${selectedRaportScore.score}/100` : 'Menunggu nilai PIC'}
+              </p>
+            </div>
             <div className="mt-4 space-y-3">
               {selectedItems.map((item) => {
                 const meta = statusMeta[item.reviewStatus];
@@ -225,8 +250,18 @@ const KaryawanRaportHistoryPage: React.FC = () => {
                       </span>
                       <span className="text-label-xs font-bold text-on-surface-variant">{typeof item.score === 'number' ? `${item.score}/100` : 'Belum dinilai'}</span>
                     </div>
-                    <p className="text-body-sm font-semibold text-on-surface">{item.jobdeskText}</p>
-                    <p className="mt-1 text-label-sm text-on-surface-variant">{item.mode === 'none' ? 'Bukti ditandai Tidak Ada' : item.mode === 'video' ? 'Bukti berupa video' : 'Bukti berupa gambar'}</p>
+                    <p className="text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Jobdesk {item.jobdeskIndex + 1}</p>
+                    <p className="mt-1 text-body-sm font-semibold text-on-surface">{item.jobdeskText}</p>
+                    <p className="mt-1 text-label-sm text-on-surface-variant">
+                      {item.mode === 'none'
+                        ? 'Bukti ditandai Tidak Ada'
+                        : item.mode === 'video'
+                          ? 'Bukti berupa video'
+                          : `Bukti berupa ${item.evidenceUrls?.length || 1} gambar`}
+                    </p>
+                    <div className="mt-3">
+                      <RaportEvidencePreview item={item} compact maxItems={4} />
+                    </div>
                     {item.reviewerComment && <p className="mt-2 rounded-lg bg-surface-high px-3 py-2 text-label-sm text-on-surface-variant">{item.reviewerComment}</p>}
                   </div>
                 );

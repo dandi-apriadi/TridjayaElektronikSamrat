@@ -79,7 +79,7 @@ interface KaryawanProspekState {
   prospek: KaryawanProspekEntry[];
   isLoading: boolean;
   error: string | null;
-  fetchProspek: (params?: { tanggal?: string; karyawanId?: string; limit?: number }) => Promise<void>;
+  fetchProspek: (params?: { tanggal?: string; dateFrom?: string; dateTo?: string; karyawanId?: string; limit?: number }) => Promise<void>;
   addProspek: (entry: Omit<KaryawanProspekEntry, 'id'>) => Promise<void>;
   updateProspek: (id: string, updates: Partial<Omit<KaryawanProspekEntry, 'id' | 'karyawanId' | 'karyawanName' | 'tanggal' | 'createdAt'>>) => Promise<void>;
   deleteProspek: (id: string) => Promise<void>;
@@ -116,6 +116,8 @@ export const useKaryawanProspekStore = create<KaryawanProspekState>()((set, get)
     set({ isLoading: true, error: null });
     const query = new URLSearchParams();
     if (params?.tanggal) query.set('tanggal', params.tanggal);
+    if (params?.dateFrom) query.set('date_from', params.dateFrom);
+    if (params?.dateTo) query.set('date_to', params.dateTo);
     if (params?.karyawanId) query.set('karyawan_id', params.karyawanId);
     query.set('limit', String(params?.limit || 500));
 

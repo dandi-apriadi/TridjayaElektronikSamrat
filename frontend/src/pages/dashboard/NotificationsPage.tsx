@@ -45,7 +45,7 @@ function formatRelativeTime(isoDate?: string): string {
 }
 
 function resolveLevel(type: string): NotificationLevel {
-  if (type.includes('registration') || type.includes('claim') || type.includes('support_ticket')) {
+  if (type.includes('registration') || type.includes('claim')) {
     return 'critical';
   }
   if (type.includes('updated') || type.includes('completed')) {

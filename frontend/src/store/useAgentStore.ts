@@ -49,22 +49,12 @@ export interface LeaderboardAgent {
   joinedAt?: string;
 }
 
-export interface SupportTicket {
-  id: string;
-  subject: string;
-  message: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'open' | 'in_progress' | 'resolved';
-  createdAt?: string;
-}
-
 interface AgentState {
   leads: Lead[];
   claims: RewardClaim[];
   stats: AgentStats | null;
   rewardTiers: RewardTier[];
   leaderboard: LeaderboardAgent[];
-  supportTickets: SupportTicket[];
   isLoading: boolean;
   error: string | null;
 
@@ -77,9 +67,6 @@ interface AgentState {
   fetchRewardTiers: () => Promise<void>;
 
   fetchLeaderboard: () => Promise<void>;
-
-  fetchSupportTickets: () => Promise<void>;
-  createSupportTicket: (subject: string, message: string, priority?: SupportTicket['priority']) => Promise<boolean>;
   
   fetchClaims: () => Promise<void>;
   createClaim: (tierId: string, rewardName: string) => Promise<boolean>;
@@ -93,7 +80,6 @@ export const useAgentStore = create<AgentState>((set) => ({
   stats: null,
   rewardTiers: [],
   leaderboard: [],
-  supportTickets: [],
   isLoading: false,
   error: null,
 
@@ -192,42 +178,6 @@ export const useAgentStore = create<AgentState>((set) => ({
       set({ leaderboard: data.data.items || [] });
     } catch (error) {
       console.error(error);
-    }
-  },
-
-  fetchSupportTickets: async () => {
-    try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ENDPOINT}/agent/support-tickets`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Failed to fetch support tickets');
-      const data = await res.json();
-      set({ supportTickets: data.data.items || [] });
-    } catch (error: any) {
-      set({ error: error.message ?? 'Failed to fetch support tickets' });
-    }
-  },
-
-  createSupportTicket: async (subject: string, message: string, priority: SupportTicket['priority'] = 'medium') => {
-    set({ isLoading: true, error: null });
-    try {
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(`${API_ENDPOINT}/agent/support-tickets`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ subject, message, priority })
-      });
-      if (!res.ok) throw new Error('Failed to create support ticket');
-      await useAgentStore.getState().fetchSupportTickets();
-      set({ isLoading: false });
-      return true;
-    } catch (error: any) {
-      set({ error: error.message ?? 'Failed to create support ticket', isLoading: false });
-      return false;
     }
   },
 

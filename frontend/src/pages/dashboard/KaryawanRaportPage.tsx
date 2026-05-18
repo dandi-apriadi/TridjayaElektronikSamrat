@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   Ban,
+  BadgeDollarSign,
   CalendarDays,
   CheckCircle,
   Circle,
@@ -27,6 +28,8 @@ import {
 } from '../../store/jobdeskReportSettingsStore';
 import { usePicRaportStore } from '../../store/picRaportStore';
 import { apiFetch } from '../../utils/apiClient';
+import { calculateJobdeskScoreFine, formatRupiah } from '../../utils/denda';
+import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -35,20 +38,138 @@ const getUserCabang = (user: ReturnType<typeof useAuthStore.getState>['user']) =
   user?.cabangName || user?.cabang_name || user?.cabangId || user?.cabang_id || '';
 
 type EvidenceMode = 'unset' | 'none' | 'image' | 'video';
+type EvidenceSaveStatus = 'idle' | 'compressing' | 'uploading' | 'saving' | 'saved' | 'error';
+
+interface EvidenceAsset {
+  id: string;
+  file: File;
+  previewUrl: string;
+  originalName: string;
+  originalSize: number;
+  compressedSize: number;
+  compressionLabel: string;
+}
 
 interface JobdeskEvidence {
   mode: EvidenceMode;
-  file?: File;
-  previewUrl?: string;
+  files?: EvidenceAsset[];
+  existingUrls?: string[];
+  uploadedUrls?: string[];
   error?: string;
+  saveStatus?: EvidenceSaveStatus;
+  saveMessage?: string;
+  savedAt?: string;
 }
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_IMAGE_INPUT_SIZE = 25 * 1024 * 1024;
+const MAX_IMAGE_FILES = 6;
+const IMAGE_MAX_SIDE = 2400;
+const IMAGE_TARGET_SIZE = 1.4 * 1024 * 1024;
+const IMAGE_HARD_LIMIT = 4.5 * 1024 * 1024;
+const IMAGE_MIN_QUALITY = 0.82;
 const MAX_VIDEO_SIZE = 30 * 1024 * 1024;
 
 const formatFileSize = (bytes: number) => {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(Math.round(bytes / 1024), 1)} KB`;
+};
+
+const replaceExtension = (name: string, extension: string) => {
+  const cleanName = name.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'bukti';
+  return `${cleanName}.${extension}`;
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality: number) =>
+  new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Browser gagal memproses gambar.'));
+        return;
+      }
+      resolve(blob);
+    }, type, quality);
+  });
+
+const renderBitmapToCanvas = (bitmap: ImageBitmap, maxSide: number) => {
+  const longestSide = Math.max(bitmap.width, bitmap.height);
+  const scale = Math.min(1, maxSide / longestSide);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+
+  const context = canvas.getContext('2d', { alpha: false });
+  if (!context) throw new Error('Browser tidak mendukung kompresi gambar.');
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.fillStyle = '#f7f7f4';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas;
+};
+
+const compressImageOnClient = async (file: File) => {
+  if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar.');
+  if (file.size > MAX_IMAGE_INPUT_SIZE) {
+    throw new Error(`Ukuran gambar maksimal ${formatFileSize(MAX_IMAGE_INPUT_SIZE)} sebelum kompresi.`);
+  }
+
+  const bitmap = await createImageBitmap(file);
+  try {
+    const attempts: Blob[] = [];
+    const mimeType = 'image/webp';
+    const sideAttempts = [IMAGE_MAX_SIDE, 2100, 1800];
+
+    for (const maxSide of sideAttempts) {
+      const canvas = renderBitmapToCanvas(bitmap, maxSide);
+      let low = IMAGE_MIN_QUALITY;
+      let high = 0.92;
+      let best = await canvasToBlob(canvas, mimeType, high);
+      attempts.push(best);
+
+      for (let step = 0; step < 5; step += 1) {
+        const quality = (low + high) / 2;
+        const blob = await canvasToBlob(canvas, mimeType, quality);
+        attempts.push(blob);
+
+        if (blob.size > IMAGE_TARGET_SIZE) {
+          high = quality;
+        } else {
+          best = blob;
+          low = quality;
+        }
+      }
+
+      if (best.size <= IMAGE_TARGET_SIZE || best.size <= IMAGE_HARD_LIMIT) break;
+    }
+
+    const underTarget = attempts
+      .filter((blob) => blob.size <= IMAGE_TARGET_SIZE)
+      .sort((a, b) => b.size - a.size)[0];
+    const underHardLimit = attempts
+      .filter((blob) => blob.size <= IMAGE_HARD_LIMIT)
+      .sort((a, b) => b.size - a.size)[0];
+    const selected = underTarget || underHardLimit || attempts.sort((a, b) => a.size - b.size)[0];
+    const keepOriginal = file.size <= IMAGE_HARD_LIMIT && selected.size >= file.size;
+    const finalBlob = keepOriginal ? file : selected;
+    const extension = finalBlob.type.includes('webp') ? 'webp' : file.name.split('.').pop() || 'jpg';
+    const compressedFile = finalBlob instanceof File
+      ? finalBlob
+      : new File([finalBlob], replaceExtension(file.name, extension), {
+          type: finalBlob.type || 'image/webp',
+          lastModified: Date.now(),
+        });
+
+    return {
+      file: compressedFile,
+      originalSize: file.size,
+      compressedSize: compressedFile.size,
+      compressionLabel: keepOriginal
+        ? 'File sudah ringan, tidak dikompres ulang'
+        : `${formatFileSize(file.size)} ke ${formatFileSize(compressedFile.size)}`,
+    };
+  } finally {
+    bitmap.close();
+  }
 };
 
 const getPositionMatch = (divisi: string, positions: ReturnType<typeof usePicRaportStore.getState>['divisions']) => {
@@ -149,6 +270,12 @@ const KaryawanRaportPage: React.FC = () => {
   });
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [preview, setPreview] = useState<{
+    images: PreviewImage[];
+    initialIndex: number;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchEvidence({ tanggal: todayKey, limit: 2000 });
@@ -163,6 +290,58 @@ const KaryawanRaportPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (jobdesks.length === 0) return;
+
+    setEvidenceByJobdesk((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      const busyStatuses: Array<EvidenceSaveStatus | undefined> = ['compressing', 'uploading', 'saving'];
+
+      jobdesks.forEach((_, idx) => {
+        const current = next[idx];
+        const serverEvidence = todayEvidenceByJobdesk.get(idx);
+
+        if (!serverEvidence) {
+          if (!current) {
+            next[idx] = { mode: 'unset' };
+            changed = true;
+          }
+          return;
+        }
+
+        if (current?.files?.length || busyStatuses.includes(current?.saveStatus) || current?.error) {
+          return;
+        }
+
+        const existingUrls = serverEvidence.evidenceUrls?.length
+          ? serverEvidence.evidenceUrls
+          : serverEvidence.evidenceUrl
+            ? [serverEvidence.evidenceUrl]
+            : [];
+        const nextEvidence: JobdeskEvidence = {
+          mode: serverEvidence.mode,
+          existingUrls,
+          uploadedUrls: existingUrls,
+          saveStatus: current?.saveStatus === 'saved' ? 'saved' : undefined,
+          saveMessage: current?.saveStatus === 'saved' ? current.saveMessage : undefined,
+          savedAt: current?.savedAt,
+        };
+
+        if (
+          current?.mode !== nextEvidence.mode ||
+          (current?.existingUrls || []).join('|') !== existingUrls.join('|') ||
+          (current?.uploadedUrls || []).join('|') !== existingUrls.join('|')
+        ) {
+          next[idx] = nextEvidence;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [jobdesks, todayEvidenceByJobdesk]);
+
   const totalCount = jobdesks.length;
   const evidenceCount = Object.values(evidenceByJobdesk).filter((evidence) => evidence.mode !== 'unset' && !evidence.error).length;
   const scoredTodayItems = todayReviewedEvidence.filter((item) => typeof item.score === 'number');
@@ -172,14 +351,112 @@ const KaryawanRaportPage: React.FC = () => {
   const averageTodayScore = scoredTodayItems.length
     ? Math.round(scoredTodayItems.reduce((sum, item) => sum + (item.score || 0), 0) / scoredTodayItems.length)
     : 0;
+  const dendaJobdeskHariIni = calculateJobdeskScoreFine(averageTodayScore, scoredTodayItems.length > 0);
   const persentase = totalCount > 0 ? Math.round((scoredJobdeskCount / totalCount) * 100) : 0;
   const evidencePercentage = totalCount > 0 ? Math.round((evidenceCount / totalCount) * 100) : 0;
   const canSubmitReport = isWithinReportingWindow(reportSettings);
 
-  const revokePreviewUrl = (url?: string) => {
-    if (!url) return;
-    URL.revokeObjectURL(url);
-    previewUrlsRef.current.delete(url);
+  const revokeEvidenceFiles = (files?: EvidenceAsset[]) => {
+    files?.forEach((asset) => {
+      URL.revokeObjectURL(asset.previewUrl);
+      previewUrlsRef.current.delete(asset.previewUrl);
+    });
+  };
+
+  const setEvidenceStatus = (idx: number, saveStatus: EvidenceSaveStatus, saveMessage?: string) => {
+    setEvidenceByJobdesk((prev) => ({
+      ...prev,
+      [idx]: {
+        ...(prev[idx] || { mode: 'unset' }),
+        saveStatus,
+        saveMessage,
+        savedAt: saveStatus === 'saved' ? new Date().toISOString() : prev[idx]?.savedAt,
+      },
+    }));
+  };
+
+  const getActiveDivisi = () => user?.divisi?.trim() || position?.posisi || position?.id || '';
+
+  const buildEmployeeNote = (evidence: JobdeskEvidence) => {
+    if (evidence.mode === 'none') return 'Bukti ditandai tidak ada oleh karyawan.';
+    const files = evidence.files || [];
+    if (evidence.mode === 'image') {
+      if (files.length === 0 && evidence.existingUrls?.length) {
+        return `Bukti gambar tersimpan dipertahankan (${evidence.existingUrls.length} gambar).`;
+      }
+      return files
+        .map((asset, index) => `Gambar ${index + 1}: ${asset.originalName} (${asset.compressionLabel})`)
+        .join('\n');
+    }
+    return files[0]?.originalName || (evidence.existingUrls?.[0] ? 'Bukti video tersimpan dipertahankan.' : '');
+  };
+
+  const saveJobdeskEvidence = async (idx: number, evidence: JobdeskEvidence) => {
+    if (!canSubmitReport) return;
+    if (!cabang.trim()) {
+      setEvidenceStatus(idx, 'error', 'Cabang karyawan belum diatur. Hubungi admin.');
+      return;
+    }
+    const activeDivisi = getActiveDivisi();
+    if (!activeDivisi) {
+      setEvidenceStatus(idx, 'error', 'Divisi karyawan belum diatur. Hubungi admin.');
+      return;
+    }
+
+    try {
+      const files = evidence.files || [];
+      let evidenceUrl = '';
+
+      if (evidence.mode === 'image') {
+        let urls = files.length > 0 ? evidence.uploadedUrls : evidence.uploadedUrls || evidence.existingUrls;
+        if (files.length > 0 && (!urls || urls.length !== files.length)) {
+          setEvidenceStatus(idx, 'uploading', `Mengupload ${files.length} gambar...`);
+          urls = [];
+          for (const asset of files) {
+            urls.push(await uploadEvidenceFile(asset.file));
+          }
+          const uploadedUrls = urls;
+          setEvidenceByJobdesk((prev) => ({
+            ...prev,
+            [idx]: { ...(prev[idx] || evidence), uploadedUrls },
+          }));
+        }
+        if (!urls || urls.length === 0) throw new Error('Pilih minimal satu gambar.');
+        evidenceUrl = JSON.stringify(urls);
+      } else if (evidence.mode === 'video') {
+        let urls = files[0] ? evidence.uploadedUrls : evidence.uploadedUrls || evidence.existingUrls;
+        if (files[0] && (!urls || urls.length === 0)) {
+          setEvidenceStatus(idx, 'uploading', 'Mengupload video...');
+          urls = [await uploadEvidenceFile(files[0].file)];
+          const uploadedUrls = urls;
+          setEvidenceByJobdesk((prev) => ({
+            ...prev,
+            [idx]: { ...(prev[idx] || evidence), uploadedUrls },
+          }));
+        }
+        if (!urls || urls.length === 0) throw new Error('Pilih video bukti.');
+        evidenceUrl = urls[0];
+      }
+
+      setEvidenceStatus(idx, 'saving', 'Menyimpan raport...');
+      await submitRaport({
+        tanggal: todayKey,
+        cabang,
+        divisi: activeDivisi,
+        items: [
+          {
+            jobdeskIndex: idx,
+            jobdeskText: jobdesks[idx] || `Jobdesk ${idx + 1}`,
+            mode: evidence.mode === 'unset' ? 'none' : evidence.mode,
+            evidenceUrl,
+            employeeNote: buildEmployeeNote(evidence),
+          },
+        ],
+      });
+      setEvidenceStatus(idx, 'saved', 'Tersimpan otomatis.');
+    } catch (error) {
+      setEvidenceStatus(idx, 'error', error instanceof Error ? error.message : 'Gagal autosave bukti.');
+    }
   };
 
   const setEvidenceMode = (idx: number, mode: EvidenceMode) => {
@@ -187,43 +464,111 @@ const KaryawanRaportPage: React.FC = () => {
 
     setEvidenceByJobdesk((prev) => {
       const current = prev[idx];
-      revokePreviewUrl(current?.previewUrl);
-      return { ...prev, [idx]: { mode } };
+      revokeEvidenceFiles(current?.files);
+      return { ...prev, [idx]: { mode, saveStatus: mode === 'none' ? 'saving' : 'idle' } };
     });
+
+    if (mode === 'none') {
+      void saveJobdeskEvidence(idx, { mode: 'none' });
+    }
   };
 
-  const handleFileChange = (idx: number, mode: 'image' | 'video', file?: File) => {
+  const handleFileChange = async (idx: number, mode: 'image' | 'video', fileList?: FileList | null) => {
     if (!canSubmitReport) return;
-    if (!file) return;
+    const selectedFiles = Array.from(fileList || []);
+    if (selectedFiles.length === 0) return;
 
     const isImage = mode === 'image';
-    const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-    const validType = isImage ? file.type.startsWith('image/') : file.type.startsWith('video/');
-    const maxLabel = isImage ? '5 MB' : '30 MB';
+    const maxSize = isImage ? MAX_IMAGE_INPUT_SIZE : MAX_VIDEO_SIZE;
+    const maxLabel = isImage ? formatFileSize(MAX_IMAGE_INPUT_SIZE) : '30 MB';
 
-    if (!validType) {
+    if (isImage && selectedFiles.length > MAX_IMAGE_FILES) {
       setEvidenceByJobdesk((prev) => {
-        revokePreviewUrl(prev[idx]?.previewUrl);
-        return { ...prev, [idx]: { mode, error: `File harus berupa ${isImage ? 'gambar' : 'video'}.` } };
+        revokeEvidenceFiles(prev[idx]?.files);
+        return { ...prev, [idx]: { mode, error: `Maksimal ${MAX_IMAGE_FILES} gambar per jobdesk.`, saveStatus: 'error' } };
       });
       return;
     }
 
-    if (file.size > maxSize) {
+    if (!isImage && selectedFiles.length > 1) {
       setEvidenceByJobdesk((prev) => {
-        revokePreviewUrl(prev[idx]?.previewUrl);
-        return { ...prev, [idx]: { mode, error: `Ukuran maksimal ${maxLabel}. File ini ${formatFileSize(file.size)}.` } };
+        revokeEvidenceFiles(prev[idx]?.files);
+        return { ...prev, [idx]: { mode, error: 'Video hanya bisa satu file per jobdesk.', saveStatus: 'error' } };
       });
       return;
     }
 
-    const previewUrl = URL.createObjectURL(file);
-    previewUrlsRef.current.add(previewUrl);
+    const invalidType = selectedFiles.find((file) => (isImage ? !file.type.startsWith('image/') : !file.type.startsWith('video/')));
+    if (invalidType) {
+      setEvidenceByJobdesk((prev) => {
+        revokeEvidenceFiles(prev[idx]?.files);
+        return { ...prev, [idx]: { mode, error: `File harus berupa ${isImage ? 'gambar' : 'video'}.`, saveStatus: 'error' } };
+      });
+      return;
+    }
+
+    const oversizedFile = selectedFiles.find((file) => file.size > maxSize);
+    if (oversizedFile) {
+      setEvidenceByJobdesk((prev) => {
+        revokeEvidenceFiles(prev[idx]?.files);
+        return { ...prev, [idx]: { mode, error: `Ukuran maksimal ${maxLabel}. ${oversizedFile.name}: ${formatFileSize(oversizedFile.size)}.`, saveStatus: 'error' } };
+      });
+      return;
+    }
+
     setEvidenceByJobdesk((prev) => {
-      const current = prev[idx];
-      revokePreviewUrl(current?.previewUrl);
-      return { ...prev, [idx]: { mode, file, previewUrl } };
+      revokeEvidenceFiles(prev[idx]?.files);
+      return { ...prev, [idx]: { mode, saveStatus: isImage ? 'compressing' : 'uploading', saveMessage: isImage ? 'Mengompres gambar di perangkat...' : 'Menyiapkan upload video...' } };
     });
+
+    try {
+      const assets: EvidenceAsset[] = [];
+      for (const file of selectedFiles) {
+        const result = isImage
+          ? await compressImageOnClient(file)
+          : {
+              file,
+              originalSize: file.size,
+              compressedSize: file.size,
+              compressionLabel: 'Video tidak dikompres di browser',
+            };
+        const previewUrl = URL.createObjectURL(result.file);
+        previewUrlsRef.current.add(previewUrl);
+        assets.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          file: result.file,
+          previewUrl,
+          originalName: file.name,
+          originalSize: result.originalSize,
+          compressedSize: result.compressedSize,
+          compressionLabel: result.compressionLabel,
+        });
+      }
+
+      const nextEvidence: JobdeskEvidence = {
+        mode,
+        files: assets,
+        saveStatus: 'uploading',
+        saveMessage: mode === 'image' ? `Mengupload ${assets.length} gambar terkompresi...` : 'Mengupload video...',
+      };
+      setEvidenceByJobdesk((prev) => {
+        revokeEvidenceFiles(prev[idx]?.files);
+        return { ...prev, [idx]: nextEvidence };
+      });
+      void saveJobdeskEvidence(idx, nextEvidence);
+    } catch (error) {
+      setEvidenceByJobdesk((prev) => {
+        revokeEvidenceFiles(prev[idx]?.files);
+        return {
+          ...prev,
+          [idx]: {
+            mode,
+            error: error instanceof Error ? error.message : 'Gagal memproses file bukti.',
+            saveStatus: 'error',
+          },
+        };
+      });
+    }
   };
 
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
@@ -247,18 +592,12 @@ const KaryawanRaportPage: React.FC = () => {
 
   const handleSaveRaport = async () => {
     if (!canSubmitReport || saving) return;
-    const items = Object.entries(evidenceByJobdesk)
+    const entries = Object.entries(evidenceByJobdesk)
       .filter(([, evidence]) => evidence.mode !== 'unset' && !evidence.error)
-      .map(([index, evidence]) => ({
-        jobdeskIndex: Number(index),
-        jobdeskText: jobdesks[Number(index)] || `Jobdesk ${Number(index) + 1}`,
-        mode: evidence.mode === 'unset' ? 'none' : evidence.mode,
-        evidenceUrl: evidence.previewUrl,
-        employeeNote: evidence.mode === 'none' ? 'Bukti ditandai tidak ada oleh karyawan.' : evidence.file?.name || '',
-      }));
+      .map(([index, evidence]) => [Number(index), evidence] as const);
 
-    if (items.length === 0) {
-      setSaveMessage('Pilih minimal satu bukti jobdesk sebelum menyimpan.');
+    if (entries.length === 0) {
+      setSaveMessage('Pilih minimal satu bukti jobdesk. Sistem akan menyimpan otomatis.');
       return;
     }
     if (!cabang.trim()) {
@@ -268,25 +607,16 @@ const KaryawanRaportPage: React.FC = () => {
 
     setSaving(true);
     try {
-      const activeDivisi = user?.divisi?.trim() || position?.posisi || position?.id || '';
+      const activeDivisi = getActiveDivisi();
       if (!activeDivisi) {
         setSaveMessage('Divisi karyawan belum diatur. Hubungi admin untuk set divisi akun.');
         setSaving(false);
         return;
       }
-      const uploadedItems = [];
-      for (const item of items) {
-        const evidence = evidenceByJobdesk[item.jobdeskIndex];
-        const evidenceUrl = evidence?.file ? await uploadEvidenceFile(evidence.file) : item.evidenceUrl;
-        uploadedItems.push({ ...item, evidenceUrl });
+      for (const [index, evidence] of entries) {
+        await saveJobdeskEvidence(index, evidence);
       }
-      await submitRaport({
-        tanggal: todayKey,
-        cabang,
-        divisi: activeDivisi,
-        items: uploadedItems,
-      });
-      setSaveMessage('Raport berhasil dikirim dan menunggu review PIC.');
+      setSaveMessage('Semua bukti terisi sudah disinkronkan.');
     } catch (error) {
       setSaveMessage(error instanceof Error ? error.message : 'Raport gagal disimpan.');
     } finally {
@@ -339,12 +669,13 @@ const KaryawanRaportPage: React.FC = () => {
         </motion.div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           { label: 'Jobdesk Dinilai', value: `${scoredJobdeskCount}/${totalCount}`, helper: `${persentase}% sudah diberi nilai PIC`, icon: ClipboardList, tone: 'text-primary', bg: 'bg-primary/10', bar: persentase },
           { label: 'Bukti Terisi', value: `${evidenceCount}/${totalCount}`, helper: `${evidencePercentage}% bukti lengkap`, icon: Paperclip, tone: 'text-secondary', bg: 'bg-secondary/10', bar: evidencePercentage },
           { label: 'Rata-rata Nilai', value: averageTodayScore ? `${averageTodayScore}/100` : '-', helper: scoredTodayItems.length ? `${scoredTodayItems.length} jobdesk sudah dinilai PIC` : 'Belum ada nilai PIC hari ini', icon: Star, tone: averageTodayScore ? 'text-yellow-500' : 'text-on-surface-variant', bg: averageTodayScore ? 'bg-yellow-500/10' : 'bg-surface-high', bar: averageTodayScore },
-          { label: 'Batas Upload', value: '5MB / 30MB', helper: 'Gambar / Video per jobdesk', icon: UploadCloud, tone: 'text-tertiary', bg: 'bg-tertiary/10', bar: 100 },
+          { label: 'Denda Jobdesk', value: formatRupiah(dendaJobdeskHariIni), helper: scoredTodayItems.length ? (dendaJobdeskHariIni > 0 ? 'Nilai total di bawah 80' : 'Nilai total aman') : 'Menunggu nilai PIC', icon: BadgeDollarSign, tone: dendaJobdeskHariIni > 0 ? 'text-error' : 'text-secondary', bg: dendaJobdeskHariIni > 0 ? 'bg-error/10' : 'bg-secondary/10', bar: dendaJobdeskHariIni > 0 ? 100 : 0 },
+          { label: 'Batas Upload', value: '25MB / 30MB', helper: 'Gambar mentah / Video per jobdesk', icon: UploadCloud, tone: 'text-tertiary', bg: 'bg-tertiary/10', bar: 100 },
         ].map((stat) => {
           const Icon = stat.icon;
           return (
@@ -370,7 +701,7 @@ const KaryawanRaportPage: React.FC = () => {
           <div>
             <h2 className="text-title-lg font-black text-on-surface">Jobdesk {position?.posisi || 'Umum'}</h2>
             <p className="text-body-sm text-on-surface-variant">
-              Upload bukti sesuai kondisi lapangan. Centang jobdesk aktif otomatis setelah PIC memberi nilai.
+              Upload bukti sesuai kondisi lapangan. Setiap pilihan akan dikompres di perangkat dan tersimpan otomatis.
             </p>
           </div>
           <button
@@ -380,7 +711,7 @@ const KaryawanRaportPage: React.FC = () => {
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-body-sm font-bold text-on-primary shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
-            {saving ? 'Menyimpan...' : 'Simpan Raport'}
+            {saving ? 'Menyinkronkan...' : 'Sinkronkan Ulang'}
           </button>
         </div>
 
@@ -408,6 +739,41 @@ const KaryawanRaportPage: React.FC = () => {
               : typeof reviewedEvidence?.score === 'number'
                 ? `${reviewedEvidence.score}/100`
                 : 'Belum dinilai';
+            const files = evidence.files || [];
+            const existingUrls = evidence.existingUrls?.length
+              ? evidence.existingUrls
+              : reviewedEvidence?.evidenceUrls?.length
+                ? reviewedEvidence.evidenceUrls
+                : reviewedEvidence?.evidenceUrl
+                  ? [reviewedEvidence.evidenceUrl]
+                  : [];
+            const selectedFileImages: PreviewImage[] = files
+              .filter(() => evidence.mode === 'image')
+              .map((asset, assetIndex) => ({
+                src: asset.previewUrl,
+                alt: `Bukti ${job} ${assetIndex + 1}`,
+                caption: `${asset.originalName} (${asset.compressionLabel})`,
+              }));
+            const storedImages: PreviewImage[] = existingUrls.map((url, assetIndex) => ({
+              src: url,
+              alt: `Bukti tersimpan ${job} ${assetIndex + 1}`,
+              caption: `Gambar ${assetIndex + 1} dari jobdesk ${idx + 1}`,
+            }));
+            const saveStatusLabel: Record<EvidenceSaveStatus, string> = {
+              idle: 'Belum tersimpan',
+              compressing: 'Mengompres',
+              uploading: 'Mengupload',
+              saving: 'Menyimpan',
+              saved: 'Tersimpan',
+              error: 'Gagal',
+            };
+            const saveStatusClass = evidence.saveStatus === 'saved'
+              ? 'bg-secondary/10 text-secondary'
+              : evidence.saveStatus === 'error'
+                ? 'bg-error/10 text-error'
+                : evidence.saveStatus === 'compressing' || evidence.saveStatus === 'uploading' || evidence.saveStatus === 'saving'
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-surface text-on-surface-variant';
             return (
               <article key={`${position?.id}-${idx}`} className={`rounded-3xl border p-4 transition ${isDone ? 'border-secondary/20 bg-secondary/5' : 'border-outline-variant/20 bg-surface-high/35'}`}>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -446,12 +812,12 @@ const KaryawanRaportPage: React.FC = () => {
                       <span className="inline-flex items-center gap-2"><Ban className="h-4 w-4" /> Tidak Ada</span>
                     </button>
                     <label className={`rounded-2xl border px-3 py-2 text-label-sm font-bold transition ${canSubmitReport ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${evidence.mode === 'image' ? 'border-primary/30 bg-primary/10 text-primary' : 'border-outline-variant/20 bg-surface text-on-surface-variant hover:border-primary/30'}`}>
-                      <span className="inline-flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Gambar</span>
-                      <input type="file" accept="image/*" disabled={!canSubmitReport} className="hidden" onChange={(event) => handleFileChange(idx, 'image', event.target.files?.[0])} />
+                      <span className="inline-flex items-center gap-2"><ImageIcon className="h-4 w-4" /> {existingUrls.length && evidence.mode === 'image' ? 'Ganti Gambar' : 'Gambar'}</span>
+                      <input type="file" accept="image/*" multiple disabled={!canSubmitReport} className="hidden" onChange={(event) => handleFileChange(idx, 'image', event.target.files)} />
                     </label>
                     <label className={`rounded-2xl border px-3 py-2 text-label-sm font-bold transition ${canSubmitReport ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${evidence.mode === 'video' ? 'border-secondary/30 bg-secondary/10 text-secondary' : 'border-outline-variant/20 bg-surface text-on-surface-variant hover:border-secondary/30'}`}>
-                      <span className="inline-flex items-center gap-2"><Video className="h-4 w-4" /> Video</span>
-                      <input type="file" accept="video/*" disabled={!canSubmitReport} className="hidden" onChange={(event) => handleFileChange(idx, 'video', event.target.files?.[0])} />
+                      <span className="inline-flex items-center gap-2"><Video className="h-4 w-4" /> {existingUrls.length && evidence.mode === 'video' ? 'Ganti Video' : 'Video'}</span>
+                      <input type="file" accept="video/*" disabled={!canSubmitReport} className="hidden" onChange={(event) => handleFileChange(idx, 'video', event.target.files)} />
                     </label>
                   </div>
                 </div>
@@ -466,8 +832,17 @@ const KaryawanRaportPage: React.FC = () => {
                   </div>
                 )}
 
-                {(evidence.file || evidence.error || evidence.mode === 'none') && (
+                {(files.length > 0 || existingUrls.length > 0 || evidence.error || evidence.mode === 'none' || evidence.saveStatus) && (
                   <div className="mt-4 rounded-2xl border border-outline-variant/15 bg-surface p-3">
+                    {evidence.saveStatus && (
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-label-xs font-bold ${saveStatusClass}`}>
+                          {saveStatusLabel[evidence.saveStatus]}
+                        </span>
+                        {evidence.saveMessage && <span className="text-label-xs font-semibold text-on-surface-variant">{evidence.saveMessage}</span>}
+                      </div>
+                    )}
+
                     {evidence.error && (
                       <div className="flex items-center gap-2 text-body-sm font-semibold text-error">
                         <AlertCircle className="h-4 w-4" />
@@ -482,22 +857,72 @@ const KaryawanRaportPage: React.FC = () => {
                       </div>
                     )}
 
-                    {evidence.file && evidence.previewUrl && evidence.mode === 'image' && (
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <img src={evidence.previewUrl} alt={`Bukti ${job}`} className="h-24 w-32 rounded-xl border border-outline-variant/20 object-cover" />
-                        <div>
-                          <p className="text-body-sm font-bold text-on-surface">{evidence.file.name}</p>
-                          <p className="text-label-sm text-on-surface-variant">Gambar, {formatFileSize(evidence.file.size)} dari maksimal 5 MB</p>
+                    {files.length > 0 && evidence.mode === 'image' && (
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {files.map((asset, assetIndex) => (
+                          <div key={asset.id} className="rounded-xl border border-outline-variant/15 bg-surface-high/35 p-2">
+                            <button
+                              type="button"
+                              onClick={() => setPreview({
+                                images: selectedFileImages,
+                                initialIndex: assetIndex,
+                                title: `Bukti jobdesk ${idx + 1}`,
+                                subtitle: job,
+                              })}
+                              className="block w-full rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            >
+                              <img src={asset.previewUrl} alt={`Bukti ${job} ${assetIndex + 1}`} className="h-28 w-full rounded-lg border border-outline-variant/20 object-cover transition hover:opacity-90" />
+                            </button>
+                            <p className="mt-2 truncate text-label-sm font-bold text-on-surface">{asset.originalName}</p>
+                            <p className="text-[11px] font-semibold text-on-surface-variant">{asset.compressionLabel}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {files.length === 0 && existingUrls.length > 0 && evidence.mode === 'image' && (
+                      <div>
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-label-sm font-bold text-on-surface">Bukti tersimpan</p>
+                          <p className="text-label-xs font-semibold text-on-surface-variant">Pilih Ganti Gambar untuk mengedit.</p>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {existingUrls.map((url, assetIndex) => (
+                            <button
+                              key={`${url}-${assetIndex}`}
+                              type="button"
+                              onClick={() => setPreview({
+                                images: storedImages,
+                                initialIndex: assetIndex,
+                                title: `Bukti tersimpan jobdesk ${idx + 1}`,
+                                subtitle: job,
+                              })}
+                              className="rounded-xl border border-outline-variant/15 bg-surface-high/35 p-2 text-left transition hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            >
+                              <img src={url} alt={`Bukti tersimpan ${job} ${assetIndex + 1}`} className="h-32 w-full rounded-lg border border-outline-variant/20 object-contain" />
+                              <p className="mt-2 text-[11px] font-semibold text-on-surface-variant">Gambar {assetIndex + 1}. Klik untuk perbesar.</p>
+                            </button>
+                          ))}
                         </div>
                       </div>
                     )}
 
-                    {evidence.file && evidence.previewUrl && evidence.mode === 'video' && (
+                    {files[0] && evidence.mode === 'video' && (
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                        <video src={evidence.previewUrl} className="h-28 w-44 rounded-xl border border-outline-variant/20 object-cover" controls muted />
+                        <video src={files[0].previewUrl} className="h-28 w-44 rounded-xl border border-outline-variant/20 object-cover" controls muted />
                         <div>
-                          <p className="text-body-sm font-bold text-on-surface">{evidence.file.name}</p>
-                          <p className="text-label-sm text-on-surface-variant">Video, {formatFileSize(evidence.file.size)} dari maksimal 30 MB</p>
+                          <p className="text-body-sm font-bold text-on-surface">{files[0].originalName}</p>
+                          <p className="text-label-sm text-on-surface-variant">Video, {formatFileSize(files[0].compressedSize)} dari maksimal 30 MB</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {!files[0] && existingUrls[0] && evidence.mode === 'video' && (
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                        <video src={existingUrls[0]} className="h-32 w-52 rounded-xl border border-outline-variant/20 object-cover" controls />
+                        <div>
+                          <p className="text-body-sm font-bold text-on-surface">Bukti video tersimpan</p>
+                          <p className="text-label-sm text-on-surface-variant">Pilih Ganti Video untuk mengedit bukti jobdesk ini.</p>
                         </div>
                       </div>
                     )}
@@ -508,6 +933,16 @@ const KaryawanRaportPage: React.FC = () => {
           })}
         </div>
       </motion.section>
+
+      {preview && (
+        <ImagePreviewModal
+          images={preview.images}
+          initialIndex={preview.initialIndex}
+          title={preview.title}
+          subtitle={preview.subtitle}
+          onClose={() => setPreview(null)}
+        />
+      )}
 
     </motion.div>
   );

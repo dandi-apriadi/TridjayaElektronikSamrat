@@ -12,6 +12,8 @@ import {
   AreaChart, Area,
 } from 'recharts';
 import { useAgentStore } from '../../store/useAgentStore';
+import { useAuthStore } from '../../store/authStore';
+import { isAdminSalesRole } from '../../utils/roles';
 
 const statusBadge: Record<string, string> = {
   'Follow Up': 'bg-primary/15 text-primary',
@@ -37,7 +39,15 @@ const iv = { hidden: { y: 16, opacity: 0 }, visible: { y: 0, opacity: 1, transit
 
 /* ─── Component ───────────────────────────────────────── */
 const AgentDashboard: React.FC = () => {
+  const user = useAuthStore((s) => s.user);
   const { leads, claims, stats, rewardTiers, fetchLeads, fetchClaims, fetchStats, fetchRewardTiers } = useAgentStore();
+  const isSalesDashboard = isAdminSalesRole(user?.role);
+  const basePath = isSalesDashboard ? '/dashboard/sales' : '/dashboard/agent';
+  const prospekPath = `${basePath}/prospek`;
+  const prospekDatabasePath = `${basePath}/prospek/database`;
+  const knowledgePath = `${basePath}/knowledge`;
+  const pipelinePath = isSalesDashboard ? prospekDatabasePath : '/dashboard/agent/leads';
+  const rewardPath = isSalesDashboard ? '/dashboard/sales/delivery' : '/dashboard/agent/earnings';
 
   useEffect(() => {
     fetchLeads();
@@ -130,10 +140,10 @@ const AgentDashboard: React.FC = () => {
   }, [claims, leads]);
 
   const kpis = [
-    { label: 'Poin Agen',  value: `${stats?.points ?? 0}`, change: `Tier ${stats?.currentTier ?? 'Unranked'}`, up: true, icon: DollarSign, color: 'text-primary',   bg: 'bg-primary/10',   href: '/dashboard/agent/earnings' },
-    { label: 'Penjualan Sukses',  value: `${stats?.salesCount ?? 0} Unit`,   change: `${closedWon} closed won`,     up: true, icon: Target,     color: 'text-secondary', bg: 'bg-secondary/10', href: '/dashboard/agent/leads' },
-    { label: 'Prospek Aktif',     value: `${activeLeads}`,        change: `${leads.length} total lead`,     up: true, icon: Users,      color: 'text-tertiary',  bg: 'bg-tertiary/10',  href: '/dashboard/agent/leads' },
-    { label: 'Konversi Lead',     value: `${conversionRate}%`,     change: `claim ${claims.length}`,  up: true, icon: TrendingUp, color: 'text-primary',   bg: 'bg-primary/10',   href: '/dashboard/agent/knowledge' },
+    { label: isSalesDashboard ? 'Kontrol Sales' : 'Poin Agen',  value: `${stats?.points ?? 0}`, change: `Tier ${stats?.currentTier ?? 'Unranked'}`, up: true, icon: DollarSign, color: 'text-primary',   bg: 'bg-primary/10',   href: rewardPath },
+    { label: 'Penjualan Sukses',  value: `${stats?.salesCount ?? 0} Unit`,   change: `${closedWon} closed won`,     up: true, icon: Target,     color: 'text-secondary', bg: 'bg-secondary/10', href: pipelinePath },
+    { label: 'Prospek Aktif',     value: `${activeLeads}`,        change: `${leads.length} total lead`,     up: true, icon: Users,      color: 'text-tertiary',  bg: 'bg-tertiary/10',  href: pipelinePath },
+    { label: 'Konversi Lead',     value: `${conversionRate}%`,     change: `claim ${claims.length}`,  up: true, icon: TrendingUp, color: 'text-primary',   bg: 'bg-primary/10',   href: knowledgePath },
   ];
 
   return (
@@ -158,16 +168,16 @@ const AgentDashboard: React.FC = () => {
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             <Link
-              to="/dashboard/agent/push"
+              to={prospekPath}
               className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"
             >
-              <Send className="w-4 h-4" /> Push Prospek
+              <Send className="w-4 h-4" /> Submit Prospek
             </Link>
             <Link
-              to="/dashboard/agent/earnings"
+              to={rewardPath}
               className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors"
             >
-              <Wallet className="w-4 h-4" /> Tarik Saldo
+              <Wallet className="w-4 h-4" /> {isSalesDashboard ? 'Jadwal Kirim' : 'Tarik Saldo'}
             </Link>
           </div>
         </div>
@@ -278,7 +288,7 @@ const AgentDashboard: React.FC = () => {
               <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
               <h3 className="font-display text-title-md font-bold text-on-surface">Hot Leads</h3>
             </div>
-            <Link to="/dashboard/agent/leads" className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
+            <Link to={pipelinePath} className="text-label-sm text-primary font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
               Semua <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -303,7 +313,7 @@ const AgentDashboard: React.FC = () => {
                       className="p-2 rounded-lg bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25 transition-colors" title="WhatsApp">
                       <MessageCircle className="w-4 h-4" />
                     </a>
-                    <Link to="/dashboard/agent/leads"
+                    <Link to={pipelinePath}
                       className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Lihat Produk">
                       <ExternalLink className="w-4 h-4" />
                     </Link>
@@ -315,9 +325,9 @@ const AgentDashboard: React.FC = () => {
               <div className="py-8 text-center text-on-surface-variant text-body-sm">Belum ada lead aktif.</div>
             )}
           </div>
-          <Link to="/dashboard/agent/push"
+          <Link to={prospekPath}
             className="mt-4 w-full py-3 rounded-xl border border-dashed border-outline-variant/30 flex items-center justify-center gap-2 text-label-sm font-bold text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all">
-            <Send className="w-4 h-4" /> Push Prospek Baru
+            <Send className="w-4 h-4" /> Submit Prospek Baru
           </Link>
         </motion.div>
 
@@ -328,9 +338,9 @@ const AgentDashboard: React.FC = () => {
             <h4 className="font-display text-title-sm font-bold text-on-surface mb-4">Quick Actions</h4>
             <div className="space-y-2">
               {[
-                { label: 'Product Knowledge', href: '/dashboard/agent/knowledge', icon: BookOpen, color: 'text-primary' },
-                { label: 'Push Prospek Baru',  href: '/dashboard/agent/push',      icon: Send,     color: 'text-secondary' },
-                { label: 'Tarik Komisi',         href: '/dashboard/agent/earnings',  icon: Wallet,   color: 'text-primary' },
+                { label: 'Product Knowledge', href: knowledgePath, icon: BookOpen, color: 'text-primary' },
+                { label: 'Submit Prospek Baru', href: prospekPath, icon: Send, color: 'text-secondary' },
+                { label: isSalesDashboard ? 'Database Prospek' : 'Tarik Komisi', href: isSalesDashboard ? prospekDatabasePath : rewardPath, icon: Wallet, color: 'text-primary' },
               ].map((a) => (
                 <Link key={a.href} to={a.href}
                   className="w-full flex items-center justify-between p-2.5 rounded-lg hover:bg-surface-high transition-colors group border border-transparent hover:border-outline-variant/10">

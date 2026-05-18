@@ -259,7 +259,7 @@ const AdminDashboard: React.FC = () => {
       icon: Megaphone,
       color: 'text-secondary',
       bg: 'bg-secondary/10',
-      href: '/dashboard/admin/sales',
+      href: '/dashboard/admin/users',
     },
   ];
 

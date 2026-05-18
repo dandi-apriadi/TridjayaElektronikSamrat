@@ -121,8 +121,6 @@ export interface CabangItem {
   alamat: string;
   kota: string;
   telepon: string;
-  koordinatorId?: string | null;
-  koordinatorNama: string;
   isActive: boolean;
   jumlahKaryawan: number;
   createdAt?: string | null;

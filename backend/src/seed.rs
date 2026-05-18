@@ -407,7 +407,7 @@ pub async fn seed_database(pool: &MySqlPool) -> Result<(), Box<dyn std::error::E
                 10000,
                 "trophy",
                 "#fbbf24",
-                "[\"Premium support\", \"Custom profile badge\"]",
+                "[\"Custom profile badge\", \"Priority reward review\"]",
                 1200000,
             ),
             (

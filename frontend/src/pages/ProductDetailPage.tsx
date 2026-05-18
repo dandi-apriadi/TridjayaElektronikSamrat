@@ -36,7 +36,7 @@ const ProductDetailPage: React.FC = () => {
   const [referralLabel, setReferralLabel] = useState('kami');
 
   const { user: loggedInUser } = useAuthStore();
-  const salesReferralSlug = isAdminSalesRole(loggedInUser?.role) ? loggedInUser.referral_slug?.trim() : null;
+  const salesReferralSlug = isAdminSalesRole(loggedInUser?.role) ? loggedInUser?.referral_slug?.trim() : null;
 
   // Ensure products are loaded — handles direct URL access (page refresh / shared link)
   useEffect(() => {

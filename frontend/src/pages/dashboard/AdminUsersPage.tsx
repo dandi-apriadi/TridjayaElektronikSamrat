@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ShieldCheck, UserCog, Search, Plus,
   CheckCircle2, XCircle, Clock, Shield,
-  Users, Lock, Unlock, Eye, EyeOff,
+  Users, Lock, Unlock,
   AlertTriangle, ArrowUpRight, Filter, Megaphone, Trash2, Building2
 } from 'lucide-react';
 import { useUserStore } from '../../store/useUserStore';
@@ -18,12 +18,10 @@ const roleConfig: Record<string, { cls: string; label: string; icon: React.React
   admin:    { cls: 'bg-primary/15 text-primary',   label: 'Admin',    icon: <ShieldCheck className="w-3 h-3" /> },
   agent:    { cls: 'bg-secondary/15 text-secondary', label: 'Agent',  icon: <Users className="w-3 h-3" /> },
   'admin-sales': { cls: 'bg-tertiary/15 text-tertiary', label: 'Admin Sales', icon: <UserCog className="w-3 h-3" /> },
-  sales:    { cls: 'bg-tertiary/15 text-tertiary', label: 'Admin Sales', icon: <UserCog className="w-3 h-3" /> },
   operator: { cls: 'bg-tertiary/15 text-tertiary', label: 'Operator', icon: <UserCog className="w-3 h-3" /> },
   karyawan: { cls: 'bg-secondary/15 text-secondary', label: 'Karyawan', icon: <Building2 className="w-3 h-3" /> },
   pic_raport: { cls: 'bg-primary/15 text-primary', label: 'PIC Raport', icon: <Shield className="w-3 h-3" /> },
   owner: { cls: 'bg-primary/15 text-primary', label: 'Owner', icon: <ShieldCheck className="w-3 h-3" /> },
-  super_admin: { cls: 'bg-primary/15 text-primary', label: 'Super Admin', icon: <ShieldCheck className="w-3 h-3" /> },
 };
 
 const statusConfig: Record<string, { cls: string; dot: string }> = {
@@ -31,13 +29,6 @@ const statusConfig: Record<string, { cls: string; dot: string }> = {
   Suspended: { cls: 'bg-error/15 text-error',         dot: 'bg-error' },
   Pending:   { cls: 'bg-tertiary/15 text-tertiary',   dot: 'bg-tertiary' },
 };
-
-const permissions = [
-  { role: 'Admin',    perms: ['Dashboard Overview', 'Kelola Agen', 'Kelola Katalog', 'Kelola Promo', 'Kelola Konten', 'Keuangan & Payout', 'User & Akses', 'Telemetri'] },
-  { role: 'Agent',    perms: ['Command Center', 'Product Knowledge', 'Pipeline Prospek', 'Push Prospek', 'Referral & Link', 'Komisi & Earning'] },
-  { role: 'Admin Sales', perms: ['Product Knowledge', 'Jadwal Pengiriman', 'Referral & Share Link', 'WA Blast'] },
-  { role: 'Operator', perms: ['WA Blast', 'Akun WA pribadi', 'Kelola Katalog', 'Kelola Konten', 'Pixel Campaign'] },
-];
 
 const roleFilters = [
   { label: 'Semua', value: 'Semua' },
@@ -71,7 +62,6 @@ const AdminUsersPage: React.FC = () => {
   const [search, setSearch]           = usePersistedState('adminUsers:search', '');
   const [roleFilter, setRoleFilter]   = usePersistedState('adminUsers:roleFilter', 'Semua');
   const [statusFilter, setStatusFilter] = usePersistedState('adminUsers:statusFilter', 'Semua');
-  const [showPerms, setShowPerms]       = usePersistedState('adminUsers:showPerms', false);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
@@ -217,14 +207,6 @@ const AdminUsersPage: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowPerms(!showPerms)}
-              className="px-4 py-2.5 rounded-lg bg-surface-high text-on-surface-variant font-semibold text-label-sm inline-flex items-center gap-2 hover:text-on-surface transition-colors"
-            >
-              {showPerms ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {showPerms ? 'Sembunyikan' : 'Lihat'} Permissions
-            </button>
             <Link
               to="/dashboard/admin/users/new"
               className="px-4 py-2.5 rounded-lg bg-primary/15 text-primary font-semibold text-label-sm inline-flex items-center gap-2 hover:bg-primary/25 transition-colors"
@@ -251,37 +233,6 @@ const AdminUsersPage: React.FC = () => {
           </motion.div>
         ))}
       </div>
-
-      {/* Permissions Matrix (Collapsible) */}
-      {showPerms && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="glass-card rounded-xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
-          <div className="flex items-center gap-2 mb-5">
-            <Lock className="w-5 h-5 text-secondary" />
-            <h3 className="font-display text-title-md font-bold text-on-surface">Permission Matrix</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {permissions.map((p) => {
-              const rc = roleConfig[normalizeAccessRole(p.role.toLowerCase())];
-              return (
-                <div key={p.role} className="p-4 rounded-xl bg-surface-low border border-outline-variant/10">
-                  <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-label-sm font-bold mb-3 ${rc.cls}`}>
-                    {rc.icon}{p.role}
-                  </div>
-                  <ul className="space-y-1.5">
-                    {p.perms.map((perm) => (
-                      <li key={perm} className="flex items-center gap-2 text-body-sm text-on-surface">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-secondary flex-shrink-0" />{perm}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
 
       {/* Users Table */}
       <motion.div variants={iv} className="glass-card rounded-xl p-6 relative overflow-hidden">

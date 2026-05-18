@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Edit2, Loader2, MapPin, Plus, Trash2, User, X } from 'lucide-react';
+import { Building2, Edit2, Loader2, MapPin, Plus, Trash2, X } from 'lucide-react';
 import { useCabangStore } from '../../store/useCabangStore';
 import type { CabangItem } from '../../types';
 
@@ -12,7 +12,6 @@ type CabangFormState = {
   alamat: string;
   kota: string;
   telepon: string;
-  koordinatorNama: string;
   isActive: boolean;
 };
 
@@ -21,7 +20,6 @@ const emptyForm: CabangFormState = {
   alamat: '',
   kota: '',
   telepon: '',
-  koordinatorNama: '',
   isActive: true,
 };
 
@@ -59,7 +57,6 @@ const AdminCabangPage: React.FC = () => {
       alamat: cabang.alamat,
       kota: cabang.kota,
       telepon: cabang.telepon,
-      koordinatorNama: cabang.koordinatorNama,
       isActive: cabang.isActive,
     });
     setShowForm(true);
@@ -80,7 +77,6 @@ const AdminCabangPage: React.FC = () => {
       alamat: formData.alamat.trim(),
       kota: formData.kota.trim(),
       telepon: formData.telepon.trim(),
-      koordinatorNama: formData.koordinatorNama.trim(),
       isActive: formData.isActive,
     };
 
@@ -175,23 +171,13 @@ const AdminCabangPage: React.FC = () => {
               />
             </label>
 
-            <label className="space-y-1.5">
+            <label className="space-y-1.5 sm:col-span-2">
               <span className="text-label-sm font-semibold text-on-surface-variant">Telepon</span>
               <input
                 value={formData.telepon}
                 onChange={(event) => setFormData((current) => ({ ...current, telepon: event.target.value }))}
                 className="w-full rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 text-body-md outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
                 placeholder="0431-123456"
-              />
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-label-sm font-semibold text-on-surface-variant">Koordinator</span>
-              <input
-                value={formData.koordinatorNama}
-                onChange={(event) => setFormData((current) => ({ ...current, koordinatorNama: event.target.value }))}
-                className="w-full rounded-xl border border-outline-variant/20 bg-surface px-4 py-3 text-body-md outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
-                placeholder="Nama koordinator"
               />
             </label>
 
@@ -254,7 +240,6 @@ const AdminCabangPage: React.FC = () => {
               <tr className="border-b border-outline-variant/10">
                 <th className="px-4 py-3 text-left text-label-xs uppercase tracking-widest text-on-surface-variant">Cabang</th>
                 <th className="px-4 py-3 text-left text-label-xs uppercase tracking-widest text-on-surface-variant">Alamat</th>
-                <th className="px-4 py-3 text-left text-label-xs uppercase tracking-widest text-on-surface-variant">Koordinator</th>
                 <th className="px-4 py-3 text-center text-label-xs uppercase tracking-widest text-on-surface-variant">Karyawan</th>
                 <th className="px-4 py-3 text-center text-label-xs uppercase tracking-widest text-on-surface-variant">Status</th>
                 <th className="px-4 py-3 text-center text-label-xs uppercase tracking-widest text-on-surface-variant">Aksi</th>
@@ -263,13 +248,13 @@ const AdminCabangPage: React.FC = () => {
             <tbody>
               {isLoading && cabangList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-14 text-center text-body-sm text-on-surface-variant">
+                  <td colSpan={5} className="px-4 py-14 text-center text-body-sm text-on-surface-variant">
                     Memuat data cabang...
                   </td>
                 </tr>
               ) : cabangList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-14 text-center">
+                  <td colSpan={5} className="px-4 py-14 text-center">
                     <div className="text-body-sm font-semibold text-on-surface">Belum ada data cabang</div>
                     <div className="mt-1 text-label-sm text-on-surface-variant">Input cabang dari awal akan langsung tersimpan ke backend.</div>
                   </td>
@@ -290,12 +275,6 @@ const AdminCabangPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-body-sm text-on-surface-variant">{cab.alamat || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5 text-on-surface-variant" />
-                        <span className="text-body-sm text-on-surface">{cab.koordinatorNama || '-'}</span>
-                      </div>
-                    </td>
                     <td className="px-4 py-3 text-center text-body-sm font-semibold text-on-surface tabular-nums">{cab.jumlahKaryawan}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-label-xs font-semibold ${cab.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>

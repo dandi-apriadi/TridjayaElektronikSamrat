@@ -53,7 +53,8 @@ impl Display for Role {
 impl FromStr for Role {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
+        let role = s.trim().to_lowercase().replace(' ', "_");
+        match role.as_str() {
             "admin" => Ok(Self::Admin),
             "agent" => Ok(Self::Agent),
             "admin-sales" | "admin_sales" | "sales" => Ok(Self::AdminSales),
@@ -139,6 +140,24 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
+pub async fn hash_password_blocking(password: String) -> Result<String, AppError> {
+    tokio::task::spawn_blocking(move || hash_password(&password))
+        .await
+        .map_err(|e| {
+            tracing::error!("Password hash task failed: {}", e);
+            AppError::Internal
+        })
+}
+
+pub async fn verify_password_blocking(password: String, hash: String) -> Result<bool, AppError> {
+    tokio::task::spawn_blocking(move || verify_password(&password, &hash))
+        .await
+        .map_err(|e| {
+            tracing::error!("Password verify task failed: {}", e);
+            AppError::Internal
+        })
+}
+
 /// Lazily-computed dummy Argon2 hash used to keep `verify_password` timing
 /// constant when the user record is not found. Without this, an attacker can
 /// distinguish "email not registered" from "email registered + wrong password"
@@ -183,21 +202,24 @@ pub async fn login_with_request_ctx(
 
     tracing::info!("Login attempt for email: {}", email_log);
     let query = format!("{USER_RECORD_SELECT} WHERE LOWER(u.email) = ?");
-    let user: UserRecord = sqlx::query_as(&query)
+    let user: UserRecord = match sqlx::query_as(&query)
         .bind(&email)
         .fetch_optional(&state.pool)
         .await
         .map_err(|e| {
             tracing::error!("DB error during login: {}", e);
             AppError::Internal
-        })?
-        .ok_or_else(|| {
+        })? {
+        Some(user) => user,
+        None => {
             tracing::warn!("Login failed: user not found for email '{}'", email_log);
             // Run a dummy verify to keep the response time roughly constant and
             // close the user-enumeration timing oracle (see Quick Win #2).
-            let _ = verify_password(&password, dummy_password_hash());
-            AppError::LoginInvalidCredentials
-        })?;
+            let _ = verify_password_blocking(password.clone(), dummy_password_hash().to_string())
+                .await?;
+            return Err(AppError::LoginInvalidCredentials);
+        }
+    };
 
     tracing::debug!(
         "User record retrieved: email={}, is_active={}, is_verified={}",
@@ -210,7 +232,7 @@ pub async fn login_with_request_ctx(
     // attackers cannot enumerate registered emails via different status codes
     // (Quick Win #2). Status / verification errors are only surfaced after the
     // caller has already proven they know the password.
-    if !verify_password(&password, &user.password_hash) {
+    if !verify_password_blocking(password.clone(), user.password_hash.clone()).await? {
         tracing::warn!("Login failed: incorrect password for email '{}'", email_log);
         return Err(AppError::LoginInvalidCredentials);
     }

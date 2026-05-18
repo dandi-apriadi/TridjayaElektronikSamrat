@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Users, Target, BarChart3, Trophy, Search, SlidersHorizontal, X } from 'lucide-react';
+import { BadgeDollarSign, Users, Target, BarChart3, Trophy, Search, SlidersHorizontal, X, Eye, CalendarDays } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
 import { useCabangStore } from '../../store/useCabangStore';
 import { apiFetch } from '../../utils/apiClient';
 import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
+import { DENDA_PER_HARI, calculateProspekDailyFine, formatRupiah } from '../../utils/denda';
 import { normalizeTargetKategori } from '../../utils/roles';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
@@ -21,10 +22,17 @@ type EmployeeProspekRow = {
   prospekHariIni: number;
   target: number;
   persentase: number;
+  prospekBulanIni: number;
+  targetBulanan: number;
+  persentaseBulanan: number;
+  sisaTargetBulanan: number;
+  hariDendaProspek: number;
+  dendaProspek: number;
 };
 
 type AchievementFilter = 'Semua' | 'Tercapai' | 'Belum Tercapai';
 type EmployeeSortKey = 'rank' | 'nama' | 'cabang' | 'prospek_desc' | 'prospek_asc' | 'persentase_desc' | 'persentase_asc';
+type PeriodMode = 'day' | 'month' | 'custom';
 
 type ProspekActivityRow = {
   id: string;
@@ -32,16 +40,106 @@ type ProspekActivityRow = {
   karyawanName: string;
   divisi: string;
   targetKategori?: string;
+  namaProspek: string;
+  noWhatsapp: string;
+  minatBarang: string;
+  keteranganProspek: string;
   statusProspek: string;
+  keteranganFincoy: string;
   tanggal: string;
   createdAt: string;
 };
 
-const todayDateKey = () => new Date().toISOString().split('T')[0];
+type ProspekChartRow = {
+  label: string;
+  sales: number;
+  nonSales: number;
+  tanggal?: string;
+  jam?: string;
+};
+
+const toDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const todayDateKey = () => toDateKey(new Date());
+
+const monthStartKey = (dateKey: string) => `${dateKey.slice(0, 8)}01`;
+
+const formatShortDate = (dateKey: string) =>
+  new Date(`${dateKey}T12:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+
+const formatPeriodDate = (dateKey: string) =>
+  new Date(`${dateKey}T12:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+
+const monthLabels = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
+const getMonthEndKey = (monthKey: string) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  if (!year || !month) return todayDateKey();
+  return toDateKey(new Date(year, month, 0));
+};
+
+const countDaysInclusive = (from: string, to: string) => {
+  const fromDate = new Date(`${from}T12:00:00`);
+  const toDate = new Date(`${to}T12:00:00`);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 1;
+  return Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1);
+};
+
+const buildDateKeysInRange = (from: string, to: string) => {
+  const start = new Date(`${from}T12:00:00`);
+  const end = new Date(`${to}T12:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+
+  const keys: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    keys.push(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
+};
+
+const mapProspekActivity = (item: any): ProspekActivityRow => ({
+  id: String(item.id),
+  karyawanId: String(item.karyawanId || item.karyawan_id || ''),
+  karyawanName: String(item.karyawanName || item.karyawan_name || ''),
+  divisi: String(item.divisi || ''),
+  targetKategori: String(item.targetKategori || item.target_kategori || ''),
+  namaProspek: String(item.namaProspek || item.nama_prospek || ''),
+  noWhatsapp: String(item.noWhatsapp || item.no_whatsapp || ''),
+  minatBarang: String(item.minatBarang || item.minat_barang || ''),
+  keteranganProspek: String(item.keteranganProspek || item.keterangan_prospek || ''),
+  statusProspek: String(item.statusProspek || item.status_prospek || ''),
+  keteranganFincoy: String(item.keteranganFincoy || item.keterangan_fincoy || ''),
+  tanggal: String(item.tanggal || ''),
+  createdAt: String(item.createdAt || item.created_at || ''),
+});
 
 const OwnerProspekPage: React.FC = () => {
-  const [selectedDate, setSelectedDate] = useState(todayDateKey());
-  const [viewMode, setViewMode] = useState<'minggu' | 'bulan'>('minggu');
+  const today = todayDateKey();
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('day');
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
+  const [customFrom, setCustomFrom] = useState(monthStartKey(today));
+  const [customTo, setCustomTo] = useState(today);
   const [employeePage, setEmployeePage] = useState(1);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeBranchFilter, setEmployeeBranchFilter] = useState('Semua');
@@ -51,12 +149,92 @@ const OwnerProspekPage: React.FC = () => {
   const [employeeSort, setEmployeeSort] = useState<EmployeeSortKey>('rank');
   const [backendEmployeeProspek, setBackendEmployeeProspek] = useState<EmployeeProspekRow[]>([]);
   const [prospekActivity, setProspekActivity] = useState<ProspekActivityRow[]>([]);
+  const [detailEmployee, setDetailEmployee] = useState<EmployeeProspekRow | null>(null);
+  const [detailProspek, setDetailProspek] = useState<ProspekActivityRow[]>([]);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState('');
   const [isLoadingProspek, setIsLoadingProspek] = useState(false);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const cabangList = useCabangStore((state) => state.cabang);
   const fetchCabang = useCabangStore((state) => state.fetchCabang);
   const employeeItemsPerPage = 12;
-  const activeDate = selectedDate || todayDateKey();
-  const employeeRows = backendEmployeeProspek;
+  const periodRange = useMemo(() => {
+    if (periodMode === 'month') {
+      const from = `${selectedMonth}-01`;
+      const to = getMonthEndKey(selectedMonth);
+      const monthIndex = Math.max(0, Math.min(11, Number(selectedMonth.slice(5, 7)) - 1));
+      return {
+        from,
+        to,
+        label: `${monthLabels[monthIndex]} ${selectedMonth.slice(0, 4)}`,
+      };
+    }
+
+    if (periodMode === 'custom') {
+      const from = customFrom <= customTo ? customFrom : customTo;
+      const to = customFrom <= customTo ? customTo : customFrom;
+      return {
+        from,
+        to,
+        label: `${formatPeriodDate(from)} - ${formatPeriodDate(to)}`,
+      };
+    }
+
+    return {
+      from: selectedDate,
+      to: selectedDate,
+      label: formatPeriodDate(selectedDate),
+    };
+  }, [customFrom, customTo, periodMode, selectedDate, selectedMonth]);
+  const activeDate = periodRange.to;
+  const activeMonthStart = periodRange.from;
+  const periodDayCount = useMemo(() => countDaysInclusive(periodRange.from, periodRange.to), [periodRange.from, periodRange.to]);
+  const isSingleDayPeriod = periodRange.from === periodRange.to;
+  const selectedMonthYear = selectedMonth.slice(0, 4);
+  const selectedMonthNumber = selectedMonth.slice(5, 7);
+  const employeeRows = useMemo(() => {
+    const countsByEmployee = new Map<string, number>();
+    const countsByEmployeeDate = new Map<string, number>();
+    const dateKeys = buildDateKeysInRange(periodRange.from, periodRange.to);
+    prospekActivity.forEach((item) => {
+      const key = item.karyawanId || item.karyawanName.toLowerCase();
+      if (!key) return;
+      countsByEmployee.set(key, (countsByEmployee.get(key) || 0) + 1);
+      countsByEmployeeDate.set(`${key}|${item.tanggal}`, (countsByEmployeeDate.get(`${key}|${item.tanggal}`) || 0) + 1);
+    });
+
+    return backendEmployeeProspek
+      .map((row) => {
+        const employeeKey = row.employeeId || row.nama.toLowerCase();
+        const nameKey = row.nama.toLowerCase();
+        const dailyTarget = Math.max(row.target || (row.kategori === 'Sales' ? 20 : 5), 0);
+        const actual = isSingleDayPeriod
+          ? row.prospekHariIni
+          : countsByEmployee.get(employeeKey) ?? countsByEmployee.get(nameKey) ?? 0;
+        const periodTarget = isSingleDayPeriod ? dailyTarget : Math.max(dailyTarget * periodDayCount, 0);
+        const percent = periodTarget > 0 ? Math.round((actual / periodTarget) * 100) : 0;
+        const fineDays = dateKeys.filter((tanggal) => {
+          const dailyActual = isSingleDayPeriod
+            ? actual
+            : countsByEmployeeDate.get(`${employeeKey}|${tanggal}`) ?? countsByEmployeeDate.get(`${nameKey}|${tanggal}`) ?? 0;
+          return calculateProspekDailyFine(dailyActual, dailyTarget) > 0;
+        }).length;
+        return {
+          ...row,
+          prospekHariIni: actual,
+          target: periodTarget,
+          persentase: percent,
+          prospekBulanIni: actual,
+          targetBulanan: periodTarget,
+          persentaseBulanan: percent,
+          sisaTargetBulanan: Math.max(periodTarget - actual, 0),
+          hariDendaProspek: fineDays,
+          dendaProspek: fineDays * DENDA_PER_HARI,
+        };
+      })
+      .sort((a, b) => b.prospekHariIni - a.prospekHariIni || a.nama.localeCompare(b.nama, 'id'))
+      .map((row, index) => ({ ...row, rank: index + 1 }));
+  }, [backendEmployeeProspek, isSingleDayPeriod, periodDayCount, periodRange.from, periodRange.to, prospekActivity]);
   const cabangLookup = useMemo(() => createCabangLookup(cabangList), [cabangList]);
   const getBranchDisplay = (value: string) => getCabangDisplay(value, cabangLookup);
   const employeeBranchOptions = useMemo(
@@ -73,9 +251,14 @@ const OwnerProspekPage: React.FC = () => {
   const nonSalesRows = useMemo(() => employeeRows.filter((row) => row.kategori === 'Non-Sales'), [employeeRows]);
   const totalProspek = useMemo(() => employeeRows.reduce((sum, row) => sum + row.prospekHariIni, 0), [employeeRows]);
   const totalTarget = useMemo(() => employeeRows.reduce((sum, row) => sum + row.target, 0), [employeeRows]);
+  const totalProspekBulanan = useMemo(() => employeeRows.reduce((sum, row) => sum + row.prospekBulanIni, 0), [employeeRows]);
+  const totalTargetBulanan = useMemo(() => employeeRows.reduce((sum, row) => sum + row.targetBulanan, 0), [employeeRows]);
+  const monthlyAchievementPercent = totalTargetBulanan > 0 ? Math.round((totalProspekBulanan / totalTargetBulanan) * 100) : 0;
+  const monthlyTargetGap = Math.max(totalTargetBulanan - totalProspekBulanan, 0);
+  const totalDendaProspek = useMemo(() => employeeRows.reduce((sum, row) => sum + row.dendaProspek, 0), [employeeRows]);
+  const totalHariDendaProspek = useMemo(() => employeeRows.reduce((sum, row) => sum + row.hariDendaProspek, 0), [employeeRows]);
   const totalClosing = useMemo(() => prospekActivity.filter((row) => row.statusProspek === 'deal').length, [prospekActivity]);
   const conversionPercent = totalProspek > 0 ? Math.round((totalClosing / totalProspek) * 100) : 0;
-  const achievementPercent = totalTarget > 0 ? Math.round((totalProspek / totalTarget) * 100) : 0;
   const categoryByEmployee = useMemo(() => {
     const map = new Map<string, EmployeeProspekRow['kategori']>();
     employeeRows.forEach((row) => {
@@ -162,7 +345,12 @@ const OwnerProspekPage: React.FC = () => {
       setIsLoadingProspek(true);
       const query = new URLSearchParams();
       query.set('limit', '500');
-      if (selectedDate) query.set('tanggal', selectedDate);
+      if (isSingleDayPeriod) {
+        query.set('tanggal', periodRange.from);
+      } else {
+        query.set('date_from', periodRange.from);
+        query.set('date_to', periodRange.to);
+      }
 
       const [summaryResponse, activityResponse] = await Promise.all([
         apiFetch(`/api/prospek-harian/summary?tanggal=${encodeURIComponent(activeDate)}`),
@@ -182,6 +370,12 @@ const OwnerProspekPage: React.FC = () => {
           prospekHariIni: Number(item.prospekHariIni || item.prospek_hari_ini || 0),
           target: Number(item.target || 0),
           persentase: Number(item.persentase || 0),
+          prospekBulanIni: Number(item.prospekBulanIni || item.prospek_bulan_ini || 0),
+          targetBulanan: Number(item.targetBulanan || item.target_bulanan || 0),
+          persentaseBulanan: Number(item.persentaseBulanan || item.persentase_bulanan || 0),
+          sisaTargetBulanan: Number(item.sisaTargetBulanan || item.sisa_target_bulanan || 0),
+          hariDendaProspek: 0,
+          dendaProspek: 0,
         })));
       } else {
         setBackendEmployeeProspek([]);
@@ -189,16 +383,7 @@ const OwnerProspekPage: React.FC = () => {
 
       if (activityResponse.ok) {
         const activityPayload = await activityResponse.json();
-        setProspekActivity((activityPayload.data?.items || []).map((item: any) => ({
-          id: String(item.id),
-          karyawanId: String(item.karyawanId || item.karyawan_id || ''),
-          karyawanName: String(item.karyawanName || item.karyawan_name || ''),
-          divisi: String(item.divisi || ''),
-          targetKategori: String(item.targetKategori || item.target_kategori || ''),
-          statusProspek: String(item.statusProspek || item.status_prospek || ''),
-          tanggal: String(item.tanggal || ''),
-          createdAt: String(item.createdAt || item.created_at || ''),
-        })));
+        setProspekActivity((activityPayload.data?.items || []).map(mapProspekActivity));
       } else {
         setProspekActivity([]);
       }
@@ -214,7 +399,13 @@ const OwnerProspekPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [activeDate, selectedDate]);
+  }, [activeDate, isSingleDayPeriod, periodRange.from, periodRange.to]);
+
+  useEffect(() => {
+    setDetailEmployee(null);
+    setDetailProspek([]);
+    setDetailError('');
+  }, [periodRange.from, periodRange.to]);
 
   const resetEmployeeFilters = () => {
     setEmployeeSearch('');
@@ -224,8 +415,96 @@ const OwnerProspekPage: React.FC = () => {
     setEmployeeAchievementFilter('Semua');
     setEmployeeSort('rank');
   };
-  const hourlyData = useMemo(() => {
-    const rows = Array.from({ length: 24 }, (_, hour) => ({ jam: `${String(hour).padStart(2, '0')}:00`, sales: 0, nonSales: 0 }));
+
+  const openEmployeeDetail = async (row: EmployeeProspekRow) => {
+    setDetailEmployee(row);
+    setIsLoadingDetail(true);
+    setDetailError('');
+    setDetailProspek([]);
+    const query = new URLSearchParams();
+    if (row.employeeId.trim()) {
+      query.set('karyawan_id', row.employeeId);
+    }
+    query.set('limit', '500');
+    if (isSingleDayPeriod) {
+      query.set('tanggal', periodRange.from);
+    } else {
+      query.set('date_from', periodRange.from);
+      query.set('date_to', periodRange.to);
+    }
+
+    try {
+      const response = await apiFetch(`/api/prospek-harian?${query.toString()}`);
+      if (!response.ok) {
+        throw new Error('Detail prospek gagal dimuat.');
+      }
+      const payload = await response.json();
+      const items = (payload.data?.items || []).map(mapProspekActivity);
+      const employeeItems = row.employeeId.trim()
+        ? items
+        : items.filter((item: ProspekActivityRow) => item.karyawanName.toLowerCase() === row.nama.toLowerCase());
+      setDetailProspek(employeeItems);
+      if (employeeItems.length === 0 && row.prospekBulanIni > 0) {
+        setDetailError('Data ringkasan ada, tetapi daftar detail karyawan ini belum ditemukan dari API.');
+      }
+    } catch (error) {
+      setDetailProspek([]);
+      setDetailError(error instanceof Error ? error.message : 'Detail prospek gagal dimuat.');
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!detailEmployee) return;
+    window.requestAnimationFrame(() => {
+      detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [detailEmployee?.employeeId, detailEmployee?.nama]);
+
+  const closeEmployeeDetail = () => {
+    setDetailEmployee(null);
+    setDetailProspek([]);
+    setDetailError('');
+  };
+
+  const getDetailButtonLabel = (row: EmployeeProspekRow) => {
+    if (isLoadingDetail && detailEmployee?.employeeId === row.employeeId && detailEmployee?.nama === row.nama) return 'Memuat';
+    if (detailEmployee?.employeeId === row.employeeId && detailEmployee?.nama === row.nama) return 'Terbuka';
+    return 'Lihat';
+  };
+
+  const detailDateRows = useMemo(() => {
+    if (!detailEmployee) return [];
+    const fallbackDailyTarget = detailEmployee.kategori === 'Sales' ? 20 : 5;
+    const dailyTarget = Math.max(
+      1,
+      Math.round((detailEmployee.target || fallbackDailyTarget * periodDayCount) / Math.max(periodDayCount, 1))
+    );
+    const map = new Map<string, number>();
+    detailProspek.forEach((item) => {
+      map.set(item.tanggal, (map.get(item.tanggal) || 0) + 1);
+    });
+    return buildDateKeysInRange(periodRange.from, periodRange.to)
+      .sort((a, b) => b.localeCompare(a))
+      .map((tanggal) => {
+        const total = map.get(tanggal) || 0;
+        return {
+        tanggal,
+        total,
+        target: dailyTarget,
+        gap: Math.max(dailyTarget - total, 0),
+        fine: calculateProspekDailyFine(total, dailyTarget),
+        percent: dailyTarget > 0 ? Math.round((total / dailyTarget) * 100) : 0,
+      };
+      });
+  }, [detailEmployee, detailProspek, periodDayCount, periodRange.from, periodRange.to]);
+
+  const hourlyData = useMemo<ProspekChartRow[]>(() => {
+    const rows = Array.from({ length: 24 }, (_, hour) => {
+      const jam = `${String(hour).padStart(2, '0')}:00`;
+      return { jam, label: jam, sales: 0, nonSales: 0 };
+    });
     prospekActivity.forEach((row) => {
       if (row.tanggal !== activeDate) return;
       const hour = Number(row.createdAt.slice(11, 13));
@@ -236,35 +515,41 @@ const OwnerProspekPage: React.FC = () => {
     return rows;
   }, [activeDate, categoryByEmployee, prospekActivity]);
 
-  const weeklyData = useMemo(() => {
-    const labels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const rows = labels.map((hari) => ({ hari, sales: 0, nonSales: 0 }));
+  const dailyPeriodData = useMemo<ProspekChartRow[]>(() => {
+    const rows = buildDateKeysInRange(periodRange.from, periodRange.to).map((tanggal) => ({
+      tanggal,
+      label: formatShortDate(tanggal),
+      sales: 0,
+      nonSales: 0,
+    }));
+    const rowsByDate = new Map(rows.map((row) => [row.tanggal, row]));
     prospekActivity.forEach((row) => {
-      const date = new Date(`${row.tanggal}T12:00:00`);
-      if (Number.isNaN(date.getTime())) return;
-      const target = rows[date.getDay()];
+      const target = rowsByDate.get(row.tanggal);
+      if (!target) return;
       if (getActivityCategory(row) === 'Sales') target.sales += 1;
       else target.nonSales += 1;
     });
-    return [rows[1], rows[2], rows[3], rows[4], rows[5], rows[6], rows[0]];
-  }, [categoryByEmployee, prospekActivity]);
-
-  const monthlyData = useMemo(() => {
-    const rows = Array.from({ length: 31 }, (_, index) => ({ tanggal: `${index + 1}`, sales: 0, nonSales: 0 }));
-    prospekActivity.forEach((row) => {
-      const day = Number(row.tanggal.slice(8, 10));
-      if (!Number.isFinite(day) || day < 1 || day > 31) return;
-      if (getActivityCategory(row) === 'Sales') rows[day - 1].sales += 1;
-      else rows[day - 1].nonSales += 1;
-    });
     return rows;
-  }, [categoryByEmployee, prospekActivity]);
+  }, [categoryByEmployee, periodRange.from, periodRange.to, prospekActivity]);
+
+  const chartData = isSingleDayPeriod ? hourlyData : dailyPeriodData;
+  const chartXAxisKey = 'label';
+  const peakHour = useMemo<{ jam: string; total: number } | null>(() => {
+    if (!isSingleDayPeriod) return null;
+    return hourlyData.reduce(
+      (peak, row) => {
+        const total = row.sales + row.nonSales;
+        return total > peak.total ? { jam: row.jam || row.label, total } : peak;
+      },
+      { jam: '', total: 0 }
+    );
+  }, [hourlyData, isSingleDayPeriod]);
 
   const cards = [
     {
-      label: 'Prospek Masuk Hari Ini',
+      label: 'Prospek Masuk Periode',
       formattedValue: totalProspek.toLocaleString('id-ID'),
-      helper: isLoadingProspek ? 'Memuat data backend' : `${employeeRows.length} karyawan tercatat`,
+      helper: isLoadingProspek ? 'Memuat data aktual' : `${employeeRows.length} karyawan, ${periodRange.label}`,
       icon: Users,
       color: 'text-primary',
       bg: 'bg-primary/10',
@@ -289,13 +574,22 @@ const OwnerProspekPage: React.FC = () => {
       valueColor: 'text-on-surface',
     },
     {
-      label: 'Pencapaian Target',
-      formattedValue: `${achievementPercent}%`,
-      helper: `${totalProspek} / ${totalTarget} prospek`,
-      icon: Target,
-      color: 'text-primary',
-      bg: 'bg-primary/10',
-      valueColor: achievementPercent >= 100 ? 'text-secondary' : achievementPercent >= 70 ? 'text-yellow-400' : 'text-error',
+      label: 'Capaian Target Periode',
+      formattedValue: `${monthlyAchievementPercent}%`,
+      helper: `${totalProspekBulanan} prospek dari target ${totalTargetBulanan}, kurang ${monthlyTargetGap}`,
+      icon: CalendarDays,
+      color: 'text-secondary',
+      bg: 'bg-secondary/10',
+      valueColor: monthlyAchievementPercent >= 100 ? 'text-secondary' : monthlyAchievementPercent >= 70 ? 'text-yellow-400' : 'text-error',
+    },
+    {
+      label: 'Denda Prospek',
+      formattedValue: formatRupiah(totalDendaProspek),
+      helper: totalHariDendaProspek > 0 ? `${totalHariDendaProspek} hari gagal target` : 'Semua target harian aman',
+      icon: BadgeDollarSign,
+      color: totalDendaProspek > 0 ? 'text-error' : 'text-secondary',
+      bg: totalDendaProspek > 0 ? 'bg-error/10' : 'bg-secondary/10',
+      valueColor: totalDendaProspek > 0 ? 'text-error' : 'text-secondary',
     },
   ];
 
@@ -306,8 +600,109 @@ const OwnerProspekPage: React.FC = () => {
         <p className="text-body-sm text-on-surface-variant mt-1">Monitoring prospek masuk, closing, conversion rate, dan raport persentase</p>
       </motion.div>
 
+      <motion.div variants={itemVariants} className="glass-card rounded-xl p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <h2 className="font-display text-title-sm font-bold text-on-surface">Filter Periode Data</h2>
+            </div>
+            <p className="mt-1 text-label-sm text-on-surface-variant">
+              Periode aktif: <span className="font-bold text-on-surface">{periodRange.label}</span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <div className="flex w-full gap-1 rounded-lg bg-surface-high p-1 xl:w-auto">
+              {[
+                { mode: 'day' as const, label: 'Harian' },
+                { mode: 'month' as const, label: 'Bulanan' },
+                { mode: 'custom' as const, label: 'Custom' },
+              ].map((item) => (
+                <button
+                  key={item.mode}
+                  type="button"
+                  onClick={() => setPeriodMode(item.mode)}
+                  className={`h-9 flex-1 rounded-md px-3 text-label-sm font-bold transition-colors xl:flex-none ${
+                    periodMode === item.mode ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {periodMode === 'day' && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  className="h-10 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(today)}
+                  className="h-10 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm font-bold text-on-surface-variant transition hover:text-on-surface"
+                >
+                  Hari ini
+                </button>
+              </div>
+            )}
+
+            {periodMode === 'month' && (
+              <div className="grid grid-cols-[1fr_1.35fr] gap-2">
+                <input
+                  type="number"
+                  min="2020"
+                  max="2100"
+                  value={selectedMonthYear}
+                  onChange={(event) => {
+                    const year = event.target.value.replace(/\D/g, '').slice(0, 4) || today.slice(0, 4);
+                    setSelectedMonth(`${year}-${selectedMonthNumber}`);
+                  }}
+                  className="h-10 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                  aria-label="Tahun"
+                />
+                <select
+                  value={selectedMonthNumber}
+                  onChange={(event) => setSelectedMonth(`${selectedMonthYear}-${event.target.value}`)}
+                  className="h-10 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                  aria-label="Bulan"
+                >
+                  {monthLabels.map((label, index) => (
+                    <option key={label} value={String(index + 1).padStart(2, '0')}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {periodMode === 'custom' && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(event) => setCustomFrom(event.target.value)}
+                  className="h-10 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                  aria-label="Tanggal awal"
+                />
+                <span className="hidden text-label-xs font-bold uppercase tracking-widest text-on-surface-variant sm:block">sampai</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(event) => setCustomTo(event.target.value)}
+                  className="h-10 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-sm text-on-surface outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                  aria-label="Tanggal akhir"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         {cards.map((card) => {
           const Icon = card.icon;
 
@@ -316,9 +711,6 @@ const OwnerProspekPage: React.FC = () => {
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
               <div className="flex justify-between items-start mb-4">
                 <div className={`p-2.5 rounded-lg ${card.bg} ${card.color}`}><Icon className="w-5 h-5" /></div>
-                <div className="rounded-md bg-surface-high px-2 py-1 text-label-xs font-bold text-on-surface-variant">
-                  Backend
-                </div>
               </div>
               <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">{card.label}</div>
               <div className={`font-display text-headline-sm font-bold ${card.valueColor}`}>{card.formattedValue}</div>
@@ -334,22 +726,17 @@ const OwnerProspekPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="font-display text-title-md font-bold text-on-surface">Grafik Pengumpulan Prospek</h3>
-            <p className="text-label-xs text-on-surface-variant mt-1">Distribusi prospek masuk berdasarkan waktu</p>
+            <p className="text-label-xs text-on-surface-variant mt-1">
+              {isSingleDayPeriod ? 'Distribusi prospek per jam' : 'Distribusi prospek per tanggal'} untuk {periodRange.label}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            {selectedDate !== '' && (
-              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-3 py-1.5 bg-surface-high border border-outline-variant/20 rounded-lg text-label-xs text-on-surface outline-none focus:ring-2 focus:ring-primary/40" />
-            )}
-            <div className="flex gap-1 bg-surface-high rounded-lg p-1">
-              <button onClick={() => setSelectedDate(todayDateKey())} className={`px-3 py-1.5 rounded-md text-label-xs font-semibold transition-colors ${selectedDate !== '' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}>Hari</button>
-              <button onClick={() => setSelectedDate('')} className={`px-3 py-1.5 rounded-md text-label-xs font-semibold transition-colors ${selectedDate === '' && viewMode === 'minggu' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`} onClickCapture={() => setViewMode('minggu')}>Minggu</button>
-              <button onClick={() => { setSelectedDate(''); setViewMode('bulan'); }} className={`px-3 py-1.5 rounded-md text-label-xs font-semibold transition-colors ${selectedDate === '' && viewMode === 'bulan' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}>Bulan</button>
-            </div>
-          </div>
+          <span className="inline-flex h-9 items-center rounded-lg border border-outline-variant/10 bg-surface-high px-3 text-label-xs font-bold text-on-surface-variant">
+            {periodDayCount} hari
+          </span>
         </div>
         <div className="w-full h-[320px]">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
-            <AreaChart data={selectedDate !== '' ? hourlyData : viewMode === 'minggu' ? (weeklyData as any[]) : (monthlyData as any[])}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="gradS" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -361,7 +748,7 @@ const OwnerProspekPage: React.FC = () => {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-              <XAxis dataKey={selectedDate !== '' ? 'jam' : viewMode === 'minggu' ? 'hari' : 'tanggal'} stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
+              <XAxis dataKey={chartXAxisKey} stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
               <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={{ backgroundColor: 'rgba(30,30,46,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '12px' }} />
               <Legend wrapperStyle={{ fontSize: '12px' }} />
@@ -370,10 +757,10 @@ const OwnerProspekPage: React.FC = () => {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        {selectedDate !== '' && (
+        {isSingleDayPeriod && peakHour && peakHour.total > 0 && (
           <div className="mt-3 p-3 rounded-lg bg-surface-high/50 border border-white/5">
             <p className="text-label-xs text-on-surface-variant">
-              <span className="font-semibold text-primary">Peak hours:</span> Mayoritas prospek dikumpulkan antara <span className="font-bold text-on-surface">09:00 - 16:00</span>. Puncak di jam <span className="font-bold text-on-surface">15:00</span>.
+              <span className="font-semibold text-primary">Jam tertinggi:</span> prospek paling banyak masuk di <span className="font-bold text-on-surface">{peakHour.jam}</span> dengan <span className="font-bold text-on-surface">{peakHour.total}</span> prospek.
             </p>
           </div>
         )}
@@ -382,8 +769,10 @@ const OwnerProspekPage: React.FC = () => {
       {/* Persentase Prospek — Akumulasi Target */}
       <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
-        <h3 className="font-display text-title-md font-bold text-on-surface mb-4">Persentase Pencapaian Prospek Hari Ini</h3>
-        <p className="text-body-sm text-on-surface-variant mb-4">Target dihitung dari jumlah karyawan × target per kategori (Sales: 20/hari, Non-Sales: 5/hari)</p>
+        <h3 className="font-display text-title-md font-bold text-on-surface mb-4">Persentase Pencapaian Prospek Periode</h3>
+        <p className="text-body-sm text-on-surface-variant mb-4">
+          Target dihitung sesuai rentang {periodRange.label} ({periodDayCount} hari): Sales 20/hari, Non-Sales 5/hari.
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {/* Sales */}
@@ -400,7 +789,7 @@ const OwnerProspekPage: React.FC = () => {
                 <div className="w-full bg-surface rounded-full h-2 mt-2 overflow-hidden">
                   <div className={`h-full rounded-full ${persentaseSales >= 100 ? 'bg-secondary' : 'bg-error'}`} style={{ width: `${Math.min(persentaseSales, 100)}%` }} />
                 </div>
-                <div className="text-label-xs text-on-surface-variant mt-2">{actualSales} / {totalTargetSales} prospek (target {targetSalesPerOrang}/orang)</div>
+                <div className="text-label-xs text-on-surface-variant mt-2">{actualSales} / {totalTargetSales} prospek (target periode {targetSalesPerOrang}/orang)</div>
               </div>
             );
           })()}
@@ -418,7 +807,7 @@ const OwnerProspekPage: React.FC = () => {
                 <div className="w-full bg-surface rounded-full h-2 mt-2 overflow-hidden">
                   <div className={`h-full rounded-full ${persentaseNonSales >= 100 ? 'bg-secondary' : 'bg-error'}`} style={{ width: `${Math.min(persentaseNonSales, 100)}%` }} />
                 </div>
-                <div className="text-label-xs text-on-surface-variant mt-2">{actualNonSales} / {totalTargetNonSales} prospek (target {targetNonSalesPerOrang}/orang)</div>
+                <div className="text-label-xs text-on-surface-variant mt-2">{actualNonSales} / {totalTargetNonSales} prospek (target periode {targetNonSalesPerOrang}/orang)</div>
               </div>
             );
           })()}
@@ -437,6 +826,54 @@ const OwnerProspekPage: React.FC = () => {
               </div>
             );
           })()}
+        </div>
+      </motion.div>
+
+      <motion.div variants={itemVariants} className="glass-card rounded-xl p-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-display text-title-md font-bold text-on-surface">Target Prospek Periode</h3>
+            <p className="text-body-sm text-on-surface-variant">
+              Periode {formatShortDate(activeMonthStart)} sampai {formatShortDate(activeDate)}, target mengikuti rentang tanggal aktif.
+            </p>
+          </div>
+          <span className="rounded-lg border border-outline-variant/10 bg-surface-high px-3 py-2 text-label-xs font-bold text-on-surface-variant">
+            Kurang {monthlyTargetGap.toLocaleString('id-ID')} prospek
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            {
+              label: `Sales (${salesRows.length} orang)`,
+              actual: salesRows.reduce((sum, row) => sum + row.prospekBulanIni, 0),
+              target: salesRows.reduce((sum, row) => sum + row.targetBulanan, 0),
+            },
+            {
+              label: `Non-Sales (${nonSalesRows.length} orang)`,
+              actual: nonSalesRows.reduce((sum, row) => sum + row.prospekBulanIni, 0),
+              target: nonSalesRows.reduce((sum, row) => sum + row.targetBulanan, 0),
+            },
+            {
+              label: `Total (${employeeRows.length} karyawan)`,
+              actual: totalProspekBulanan,
+              target: totalTargetBulanan,
+            },
+          ].map((item) => {
+            const percent = item.target > 0 ? Math.round((item.actual / item.target) * 100) : 0;
+            return (
+              <div key={item.label} className="rounded-xl border border-white/5 bg-surface-high/50 p-4">
+                <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">{item.label}</div>
+                <div className={`font-display text-title-lg font-bold ${percent >= 100 ? 'text-secondary' : percent >= 70 ? 'text-yellow-400' : 'text-error'}`}>{percent}%</div>
+                <div className="w-full bg-surface rounded-full h-2 mt-2 overflow-hidden">
+                  <div className={`h-full rounded-full ${percent >= 100 ? 'bg-secondary' : percent >= 70 ? 'bg-yellow-400' : 'bg-error'}`} style={{ width: `${Math.min(percent, 100)}%` }} />
+                </div>
+                <div className="text-label-xs text-on-surface-variant mt-2">
+                  {item.actual.toLocaleString('id-ID')} / {item.target.toLocaleString('id-ID')} prospek
+                </div>
+              </div>
+            );
+          })}
         </div>
       </motion.div>
 
@@ -619,8 +1056,8 @@ const OwnerProspekPage: React.FC = () => {
               <option value="rank">Urutkan: Ranking</option>
               <option value="nama">Urutkan: Nama A-Z</option>
               <option value="cabang">Urutkan: Cabang A-Z</option>
-              <option value="prospek_desc">Urutkan: Prospek Tertinggi</option>
-              <option value="prospek_asc">Urutkan: Prospek Terendah</option>
+              <option value="prospek_desc">Urutkan: Prospek Periode Tertinggi</option>
+              <option value="prospek_asc">Urutkan: Prospek Periode Terendah</option>
               <option value="persentase_desc">Urutkan: Persentase Tertinggi</option>
               <option value="persentase_asc">Urutkan: Persentase Terendah</option>
             </select>
@@ -636,7 +1073,7 @@ const OwnerProspekPage: React.FC = () => {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px]">
+          <table className="w-full min-w-[1040px]">
             <thead>
               <tr className="border-b border-white/10">
                 <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3 w-14">#</th>
@@ -644,16 +1081,26 @@ const OwnerProspekPage: React.FC = () => {
                 <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Cabang</th>
                 <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Kategori</th>
                 <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Posisi</th>
-                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Prospek</th>
-                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Target</th>
-                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">%</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Prospek Periode</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Target Periode</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Kurang Target</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Denda</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Capaian</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Detail</th>
               </tr>
             </thead>
             <tbody>
               {paginatedEmployeeProspek.map((row) => {
                 const branch = getBranchDisplay(row.cabang);
+                const isDetailOpen = detailEmployee?.employeeId === row.employeeId && detailEmployee?.nama === row.nama;
+                const isDetailLoading = isLoadingDetail && isDetailOpen;
                 return (
-                <tr key={`${row.employeeId || row.nama}-${row.kategori}`} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <tr
+                  key={`${row.employeeId || row.nama}-${row.kategori}`}
+                  onClick={() => openEmployeeDetail(row)}
+                  className={`cursor-pointer border-b border-white/5 transition-colors hover:bg-primary/5 ${isDetailOpen ? 'bg-primary/10 ring-1 ring-inset ring-primary/20' : ''}`}
+                  aria-selected={isDetailOpen}
+                >
                   <td className="py-2.5 px-3 text-body-sm font-bold text-on-surface">{row.rank}</td>
                   <td className="py-2.5 px-3 text-body-sm font-medium text-on-surface">{row.nama}</td>
                   <td className="py-2.5 px-3">
@@ -667,11 +1114,30 @@ const OwnerProspekPage: React.FC = () => {
                   </td>
                   <td className="py-2.5 px-3 text-body-sm text-on-surface-variant">{row.posisi}</td>
                   <td className="py-2.5 px-3 text-body-sm text-on-surface text-right font-semibold">{row.prospekHariIni}</td>
-                  <td className="py-2.5 px-3 text-body-sm text-on-surface-variant text-right">{row.target}</td>
+                  <td className="py-2.5 px-3 text-body-sm text-on-surface-variant text-right">{row.targetBulanan}</td>
+                  <td className="py-2.5 px-3 text-body-sm text-on-surface-variant text-right">{row.sisaTargetBulanan}</td>
+                  <td className="py-2.5 px-3 text-right">
+                    <div className={`text-body-sm font-bold ${row.dendaProspek > 0 ? 'text-error' : 'text-secondary'}`}>{formatRupiah(row.dendaProspek)}</div>
+                    <div className="text-[11px] font-semibold text-on-surface-variant">{row.hariDendaProspek} hari</div>
+                  </td>
                   <td className="py-2.5 px-3 text-right">
                     <span className={`inline-block px-1.5 py-0.5 rounded text-label-xs font-bold ${row.persentase >= 100 ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
                       {row.persentase}%
                     </span>
+                  </td>
+                  <td className="py-2.5 px-3 text-right">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEmployeeDetail(row);
+                      }}
+                      disabled={isDetailLoading}
+                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-xs font-bold text-primary transition hover:border-primary/40 hover:bg-primary/10 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      {getDetailButtonLabel(row)}
+                    </button>
                   </td>
                 </tr>
                 );
@@ -679,6 +1145,100 @@ const OwnerProspekPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {detailEmployee && (
+          <div ref={detailPanelRef} className="mt-5 scroll-mt-28 rounded-xl border border-primary/20 bg-surface-high/35 p-4 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="font-display text-title-sm font-bold text-on-surface">Detail Prospek {detailEmployee.nama}</h4>
+                  <span className={`rounded-md px-2 py-1 text-label-xs font-bold ${detailEmployee.kategori === 'Sales' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>
+                    {detailEmployee.kategori}
+                  </span>
+                </div>
+                <p className="mt-1 text-label-xs text-on-surface-variant">
+                  Periode {periodRange.label}: {detailEmployee.prospekBulanIni} / {detailEmployee.targetBulanan} prospek, kurang {detailEmployee.sisaTargetBulanan}
+                </p>
+                <p className={`mt-1 text-label-xs font-bold ${detailEmployee.dendaProspek > 0 ? 'text-error' : 'text-secondary'}`}>
+                  Denda prospek: {formatRupiah(detailEmployee.dendaProspek)} ({detailEmployee.hariDendaProspek} hari gagal target)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEmployeeDetail}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-outline-variant/20 bg-surface px-3 text-label-sm font-bold text-on-surface-variant transition hover:text-on-surface"
+              >
+                <X className="h-4 w-4" />
+                Tutup
+              </button>
+            </div>
+
+            {isLoadingDetail ? (
+              <div className="rounded-lg border border-outline-variant/10 bg-surface/50 p-5 text-body-sm font-semibold text-on-surface-variant">
+                Memuat detail prospek...
+              </div>
+            ) : (
+              <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+                {detailError && (
+                  <div className="xl:col-span-2 rounded-lg border border-error/20 bg-error/10 px-4 py-3 text-body-sm font-semibold text-error">
+                    {detailError}
+                  </div>
+                )}
+                <div className="rounded-lg border border-outline-variant/10 bg-surface/55 p-3">
+                  <p className="mb-3 text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Rekap per tanggal</p>
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {detailDateRows.map((item) => (
+                      <div key={item.tanggal} className="rounded-lg bg-surface-high/70 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-label-sm font-bold text-on-surface">{formatShortDate(item.tanggal)}</span>
+                          <span className={`text-label-xs font-black ${item.gap === 0 ? 'text-secondary' : 'text-error'}`}>
+                            {item.total}/{item.target}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface">
+                          <div className={`h-full rounded-full ${item.gap === 0 ? 'bg-secondary' : 'bg-error'}`} style={{ width: `${Math.min(item.percent, 100)}%` }} />
+                        </div>
+                        <p className="mt-1 text-label-xs text-on-surface-variant">
+                          {item.gap > 0 ? `Kurang ${item.gap} prospek, denda ${formatRupiah(item.fine)}` : 'Target tanggal ini tercapai'}
+                        </p>
+                      </div>
+                    ))}
+                    {detailDateRows.length === 0 && (
+                      <p className="rounded-lg border border-dashed border-outline-variant/20 p-4 text-center text-label-sm text-on-surface-variant">
+                        Belum ada prospek yang tercatat.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-outline-variant/10 bg-surface/55 p-3">
+                  <p className="mb-3 text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Daftar prospek keseluruhan</p>
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {detailProspek.map((item) => (
+                      <article key={item.id} className="rounded-lg border border-outline-variant/10 bg-surface-high/70 p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate text-body-sm font-bold text-on-surface">{item.namaProspek}</p>
+                            <p className="mt-1 text-label-sm font-semibold text-on-surface-variant">{item.minatBarang || '-'}</p>
+                            <p className="mt-1 text-label-xs text-on-surface-variant">{item.keteranganProspek || 'Tanpa keterangan lapangan.'}</p>
+                          </div>
+                          <div className="shrink-0 text-left sm:text-right">
+                            <p className="text-label-xs font-bold text-on-surface">{formatShortDate(item.tanggal)} {item.createdAt}</p>
+                            <p className="mt-1 text-label-xs text-on-surface-variant">{item.statusProspek || '-'}</p>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                    {detailProspek.length === 0 && (
+                      <p className="rounded-lg border border-dashed border-outline-variant/20 p-4 text-center text-label-sm text-on-surface-variant">
+                        Tidak ada detail prospek untuk karyawan ini.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {filteredEmployeeProspek.length === 0 && (
           <div className="rounded-xl border border-outline-variant/10 bg-surface-high/40 py-10 text-center">
             <p className="text-body-sm font-semibold text-on-surface">Tidak ada data yang cocok</p>

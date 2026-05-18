@@ -18,7 +18,6 @@ struct CabangSeed<'a> {
     alamat: &'a str,
     kota: &'a str,
     telepon: &'a str,
-    koordinator_nama: &'a str,
 }
 
 #[tokio::main]
@@ -40,7 +39,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Sam Ratulangi No. 7, Wenang Utara, Kec. Wenang, Kota Manado, Sulawesi Utara 95111",
             kota: "Manado",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "bahu-manado",
@@ -48,7 +46,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Wolter Monginsidi, Bahu, Kec. Malalayang, Kota Manado, Sulawesi Utara",
             kota: "Manado",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "pagaden-subang",
@@ -56,7 +53,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Samping SPBU Pertamina, Jl. Subang Pamanukan, Pangsor, Kec. Pagaden, Kabupaten Subang, Jawa Barat 41252",
             kota: "Pagaden",
             telepon: "0813-2231-7994",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "soklat-subang",
@@ -64,7 +60,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Mayjend DI Panjaitan (Samping Pos Tridjaya Motor Soklat), Kel. Soklat, Subang, Jawa Barat",
             kota: "Subang",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "haurgeulis-indramayu",
@@ -72,7 +67,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Jenderal Sudirman, Cipancuh, Kec. Haurgeulis, Kabupaten Indramayu, Jawa Barat",
             kota: "Indramayu",
             telepon: "0812-9776-9307",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "cilacap-cilacap",
@@ -80,7 +74,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Mayjen Sutoyo, Komplek ex GIANT, Cilacap Tengah, Kab. Cilacap, Jawa Tengah",
             kota: "Cilacap",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "cikampek-karawang",
@@ -88,7 +81,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Ahmad Yani, Cikampek Selatan, Kec. Cikampek, Karawang, Jawa Barat 41373",
             kota: "Karawang",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "pamanukan-subang",
@@ -96,7 +88,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Ion Martasasmita No. 16, Rancasari, Kec. Pamanukan, Kabupaten Subang, Jawa Barat 41254",
             kota: "Subang",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "pabuaran-subang",
@@ -104,7 +95,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. KP Krajan Pabuaran No. 15, Pabuaran, Subang, Jawa Barat",
             kota: "Subang",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "purwadadi-subang",
@@ -112,7 +102,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Raya Purwadadi, Kabupaten Subang, Jawa Barat",
             kota: "Subang",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "patokbeusi-subang",
@@ -120,7 +109,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Desa Gempolsari, Kecamatan Patokbeusi, Kabupaten Subang, Jawa Barat",
             kota: "Subang",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "cibaduyut-bandung",
@@ -128,7 +116,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Cibaduyut Lama No. 10, Bandung, Jawa Barat",
             kota: "Bandung",
             telepon: "",
-            koordinator_nama: "",
         },
         CabangSeed {
             id: "cimalaka-sumedang",
@@ -136,7 +123,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             alamat: "Jl. Cimalaka, Kab. Sumedang, Jawa Barat",
             kota: "Sumedang",
             telepon: "",
-            koordinator_nama: "",
         },
     ];
 
@@ -145,15 +131,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for row in rows {
         sqlx::query(
-            "INSERT INTO cabang (id, nama, alamat, kota, telepon, koordinator_id, koordinator_nama, is_active)
-             VALUES (?, ?, ?, ?, ?, NULL, ?, 1)",
+            "INSERT INTO cabang (id, nama, alamat, kota, telepon, is_active)
+             VALUES (?, ?, ?, ?, ?, 1)",
         )
         .bind(row.id)
         .bind(row.nama)
         .bind(row.alamat)
         .bind(row.kota)
         .bind(row.telepon)
-        .bind(row.koordinator_nama)
         .execute(&mut *tx)
         .await?;
     }

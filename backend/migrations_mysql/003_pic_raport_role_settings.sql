@@ -14,7 +14,7 @@ INSERT INTO role_settings (role, label, level, dashboard_path, description, is_a
     ('owner', 'Owner', 20, '/dashboard/owner', 'Monitoring bisnis, performa cabang, omset, target, dan laporan strategis.', TRUE),
     ('pic_raport', 'PIC Raport', 30, '/dashboard/pic-raport', 'Menilai raport harian semua cabang, memberi komentar, menolak bukti jobdesk, dan mengelola master divisi/jobdesk.', TRUE),
     ('operator', 'Operator', 40, '/dashboard/admin/wa/campaigns', 'Operasional kampanye, WA blast, katalog, konten, dan pixel campaign.', TRUE),
-    ('sales', 'Sales', 50, '/dashboard/sales', 'Akses sales untuk prospek, referral, knowledge, dan jadwal pengiriman.', TRUE),
+    ('admin-sales', 'Admin Sales', 50, '/dashboard/sales', 'Akses admin-sales untuk prospek, referral, knowledge, dan jadwal pengiriman.', TRUE),
     ('karyawan', 'Karyawan', 60, '/dashboard/karyawan', 'Akses karyawan untuk prospek harian, raport harian, dan history raport.', TRUE),
     ('agent', 'Agent', 70, '/dashboard/agent', 'Akses agent untuk product knowledge, referral, prospek, dan komisi.', TRUE)
 ON DUPLICATE KEY UPDATE

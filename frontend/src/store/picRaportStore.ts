@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { type PicRaportEvidence, type PicRaportReviewStatus } from '../data/picRaportData';
 import { jobdeskPositions, type JobdeskPosition } from '../data/ownerRaportData';
+import { useAuthStore, type UserRole } from './authStore';
 import { apiFetch, getImageUrl } from '../utils/apiClient';
 
 interface ReviewPayload {
@@ -66,25 +67,46 @@ const readApiError = async (response: Response, fallback: string) => {
   return payload?.detail || payload?.message || fallback;
 };
 
-const mapApiEvidence = (item: any): PicRaportEvidence => ({
-  id: String(item.id),
-  employeeId: String(item.employeeId || item.employee_id || ''),
-  employeeName: String(item.employeeName || item.employee_name || ''),
-  cabang: String(item.cabang || 'Cabang belum diatur'),
-  divisiId: String(item.divisiId || item.divisi_id || 'umum'),
-  divisiName: String(item.divisiName || item.divisi_name || item.divisiId || item.divisi_id || 'Umum'),
-  tanggal: String(item.tanggal),
-  submittedAt: String(item.submittedAt || item.submitted_at || `${item.tanggal}T00:00:00`),
-  jobdeskIndex: Number(item.jobdeskIndex ?? item.jobdesk_index ?? 0),
-  jobdeskText: String(item.jobdeskText || item.jobdesk_text || ''),
-  mode: (item.mode || 'none') as PicRaportEvidence['mode'],
-  evidenceUrl: item.evidenceUrl || item.evidence_url ? getImageUrl(item.evidenceUrl || item.evidence_url) : undefined,
-  employeeNote: item.employeeNote || item.employee_note || undefined,
-  reviewStatus: (item.reviewStatus || item.review_status || 'pending') as PicRaportReviewStatus,
-  score: typeof item.score === 'number' ? item.score : item.score == null ? undefined : Number(item.score),
-  reviewerComment: item.reviewerComment || item.reviewer_comment || '',
-  reviewedAt: item.reviewedAt || item.reviewed_at || undefined,
-});
+const parseEvidenceUrls = (value: unknown) => {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  const raw = value.trim();
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+  } catch {
+    // Existing rows store a single URL string. Keep that format readable.
+  }
+
+  return [raw];
+};
+
+const mapApiEvidence = (item: any): PicRaportEvidence => {
+  const evidenceUrls = parseEvidenceUrls(item.evidenceUrl || item.evidence_url).map(getImageUrl);
+
+  return {
+    id: String(item.id),
+    employeeId: String(item.employeeId || item.employee_id || ''),
+    employeeName: String(item.employeeName || item.employee_name || ''),
+    cabang: String(item.cabang || 'Cabang belum diatur'),
+    divisiId: String(item.divisiId || item.divisi_id || 'umum'),
+    divisiName: String(item.divisiName || item.divisi_name || item.divisiId || item.divisi_id || 'Umum'),
+    tanggal: String(item.tanggal),
+    submittedAt: String(item.submittedAt || item.submitted_at || `${item.tanggal}T00:00:00`),
+    jobdeskIndex: Number(item.jobdeskIndex ?? item.jobdesk_index ?? 0),
+    jobdeskText: String(item.jobdeskText || item.jobdesk_text || ''),
+    mode: (item.mode || 'none') as PicRaportEvidence['mode'],
+    evidenceUrl: evidenceUrls[0],
+    evidenceUrls,
+    employeeNote: item.employeeNote || item.employee_note || undefined,
+    reviewStatus: (item.reviewStatus || item.review_status || 'pending') as PicRaportReviewStatus,
+    score: typeof item.score === 'number' ? item.score : item.score == null ? undefined : Number(item.score),
+    reviewerComment: item.reviewerComment || item.reviewer_comment || '',
+    reviewedAt: item.reviewedAt || item.reviewed_at || undefined,
+  };
+};
 
 const saveDivisions = async (divisions: JobdeskPosition[]) => {
   const response = await apiFetch('/api/jobdesk-divisions', {
@@ -93,6 +115,9 @@ const saveDivisions = async (divisions: JobdeskPosition[]) => {
   });
   if (!response.ok) throw new Error(await readApiError(response, 'Gagal menyimpan master jobdesk.'));
 };
+
+const canManageJobdeskDivisions = (role?: UserRole | null) =>
+  role === 'admin' || role === 'owner' || role === 'pic_raport';
 
 const persistDivisions = (divisions: JobdeskPosition[]) => {
   saveDivisions(divisions).catch((error) => {
@@ -158,7 +183,12 @@ export const usePicRaportStore = create<PicRaportStore>()(
           if (Array.isArray(divisions) && divisions.length > 0) {
             set({ divisions, error: null });
           } else {
-            await saveDivisions(get().divisions);
+            const fallbackDivisions = get().divisions.length > 0 ? get().divisions : jobdeskPositions;
+            set({ divisions: fallbackDivisions, error: null });
+
+            if (canManageJobdeskDivisions(useAuthStore.getState().user?.role)) {
+              await saveDivisions(fallbackDivisions);
+            }
           }
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Gagal memuat master jobdesk.' });

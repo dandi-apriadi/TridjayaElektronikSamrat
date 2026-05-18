@@ -5,6 +5,9 @@
 
 # Logs
 *.log
+logs/
+.codex-logs/
+storage/logs/
 
 # Build & Runtime
 target/
@@ -24,11 +27,13 @@ backend/login_test.json
 backend/server_pid.txt
 backup_images/
 security_reports/
+frontend/reports/
 
 # WhatsApp session data
 backend/sessions/
 backend/baileys-bridge/sessions/
 
 # Scratch / temp files
+scratch/
 scratch_head.csv
 *.rs.bak

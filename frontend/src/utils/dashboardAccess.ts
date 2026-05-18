@@ -26,13 +26,9 @@ const allowedPrefixesByRole: Record<UserRole, string[]> = {
     '/dashboard/admin/notifications',
     '/dashboard/admin/wa',
     '/dashboard/admin/pixel',
+    '/dashboard/operator/prospek',
   ],
   'admin-sales': [
-    '/dashboard/settings',
-    '/dashboard/sales',
-    '/dashboard/admin/wa',
-  ],
-  sales: [
     '/dashboard/settings',
     '/dashboard/sales',
     '/dashboard/admin/wa',

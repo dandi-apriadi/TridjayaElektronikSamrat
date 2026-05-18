@@ -50,19 +50,6 @@ export interface Agent {
   joinedAt: string;
 }
 
-export interface AdminSupportTicket {
-  id: string;
-  agentId: string;
-  agentName?: string;
-  agentEmail?: string;
-  subject: string;
-  message?: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'open' | 'in_progress' | 'resolved';
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface DailyPerformance {
   day: string;
   date: string;
@@ -74,7 +61,6 @@ interface AdminNetworkState {
   registrations: AgentRegistration[];
   claims: AdminClaim[];
   agents: Agent[];
-  supportTickets: AdminSupportTicket[];
   leads: any[];
   agentPerformance: DailyPerformance[];
   isLoading: boolean;
@@ -92,9 +78,6 @@ interface AdminNetworkState {
   fetchLeads: () => Promise<void>;
   updateLeadStatus: (id: string, status: string) => Promise<boolean>;
 
-  fetchSupportTickets: () => Promise<void>;
-  updateSupportTicketStatus: (id: string, status: AdminSupportTicket['status']) => Promise<boolean>;
-
   telemetryStats: TelemetryStats | null;
   fetchTelemetryStats: () => Promise<void>;
 }
@@ -103,7 +86,6 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
   registrations: [],
   claims: [],
   agents: [],
-  supportTickets: [],
   leads: [],
   agentPerformance: [],
   telemetryStats: null,
@@ -214,33 +196,6 @@ export const useAdminNetworkStore = create<AdminNetworkState>((set) => ({
       set({ agentPerformance: data.data.items || [], isLoading: false });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
-    }
-  },
-
-  fetchSupportTickets: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const res = await apiFetch('/api/admin/support-tickets');
-      if (!res.ok) throw new Error('Failed to fetch support tickets');
-      const payload = await res.json();
-      set({ supportTickets: payload.data.items ?? [], isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
-    }
-  },
-
-  updateSupportTicketStatus: async (id, status) => {
-    try {
-      const res = await apiFetch(`/api/admin/support-tickets/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status })
-      });
-      if (!res.ok) throw new Error('Failed to update support ticket status');
-      await useAdminNetworkStore.getState().fetchSupportTickets();
-      return true;
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
-      return false;
     }
   },
 

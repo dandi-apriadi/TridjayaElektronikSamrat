@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Award,
   BadgeCheck,
+  BadgeDollarSign,
   BriefcaseBusiness,
   Building2,
   CalendarDays,
@@ -28,6 +29,9 @@ import {
 import { usePicRaportStore } from '../../store/picRaportStore';
 import { useCabangStore } from '../../store/useCabangStore';
 import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
+import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
+import { getEvidenceUrls, sortEvidenceByJobdeskNumber } from '../../data/picRaportData';
+import { calculateJobdeskScoreFine, calculateRaportFineTotal, formatRupiah } from '../../utils/denda';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -112,6 +116,12 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
     : null;
   const currentDate = useMemo(() => new Date(), []);
   const [selectedDay, setSelectedDay] = React.useState(currentDate.getDate());
+  const [preview, setPreview] = React.useState<{
+    images: PreviewImage[];
+    initialIndex: number;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchCabang();
@@ -153,7 +163,11 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const reportByDay = new Map(report.history.map((item) => [new Date(item.tanggal).getDate(), item]));
   const selectedDailyReport = reportByDay.get(selectedDay);
+  const monthlyRaportFine = calculateRaportFineTotal(report.history.map((item) => ({ score: item.nilai, hasScore: item.selesai > 0 })));
+  const selectedRaportFine = calculateJobdeskScoreFine(selectedDailyReport?.nilai || 0, Boolean(selectedDailyReport && selectedDailyReport.selesai > 0));
   const selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay);
+  const selectedDateKey = toDateKey(selectedDate);
+  const selectedDayEvidence = sortEvidenceByJobdeskNumber(employeeEvidence.filter((item) => item.tanggal === selectedDateKey));
   const selectedStatus = selectedDailyReport ? getStatus(selectedDailyReport.nilai) : null;
   const reversedHistory = [...report.history].reverse();
   const totalCompletedThisMonth = report.history.reduce((sum, item) => sum + item.selesai, 0);
@@ -249,7 +263,7 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
               <TrendingUp className="h-6 w-6" />
             </div>
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl bg-surface-high/55 p-3">
               <p className="text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Selesai</p>
               <p className="mt-1 text-title-md font-black text-on-surface">{monthlyCompletionRate}%</p>
@@ -257,6 +271,10 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
             <div className="rounded-2xl bg-surface-high/55 p-3">
               <p className="text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Bukti valid</p>
               <p className="mt-1 text-title-md font-black text-on-surface">{evidenceRate}%</p>
+            </div>
+            <div className={`rounded-2xl p-3 ${monthlyRaportFine > 0 ? 'bg-error/10' : 'bg-secondary/10'}`}>
+              <p className="text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Denda</p>
+              <p className={`mt-1 text-title-md font-black ${monthlyRaportFine > 0 ? 'text-error' : 'text-secondary'}`}>{formatRupiah(monthlyRaportFine)}</p>
             </div>
           </div>
         </motion.div>
@@ -266,6 +284,7 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
             { label: 'Hari pelaporan', value: `${report.hariLapor} hari`, helper: 'Riwayat yang masuk bulan ini', icon: CalendarDays, tone: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Total bukti', value: `${report.totalBukti}`, helper: `${totalCompletedThisMonth} jobdesk selesai`, icon: ImageIcon, tone: 'text-secondary', bg: 'bg-secondary/10' },
             { label: 'Terlambat', value: `${report.hariTerlambat} hari`, helper: report.hariTerlambat > 0 ? 'Perlu cek alasan keterlambatan' : 'Tidak ada keterlambatan tercatat', icon: Timer, tone: report.hariTerlambat > 0 ? 'text-yellow-500' : 'text-secondary', bg: report.hariTerlambat > 0 ? 'bg-yellow-500/10' : 'bg-secondary/10' },
+            { label: 'Denda terpilih', value: formatRupiah(selectedRaportFine), helper: selectedDailyReport ? `Nilai ${selectedDailyReport.nilai}/100 pada ${shortDateFormatter.format(selectedDate)}` : 'Belum ada nilai pada tanggal ini', icon: BadgeDollarSign, tone: selectedRaportFine > 0 ? 'text-error' : 'text-secondary', bg: selectedRaportFine > 0 ? 'bg-error/10' : 'bg-secondary/10' },
             { label: 'Cabang', value: branch.label, helper: branch.detail || employee.posisi, icon: Building2, tone: 'text-on-surface', bg: 'bg-surface-high' },
           ].map((item) => {
             const Icon = item.icon;
@@ -503,6 +522,71 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
                   </div>
                   <p className="text-body-sm font-semibold text-on-surface">{selectedDailyReport.catatan}</p>
                 </div>
+
+                {selectedDayEvidence.length > 0 && (
+                  <div className="rounded-xl border border-outline-variant/15 bg-surface px-3 py-3">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-on-surface-variant">
+                        <ImageIcon className="h-4 w-4" />
+                        <p className="text-label-xs font-bold uppercase tracking-widest">Bukti per jobdesk</p>
+                      </div>
+                      <span className="text-[11px] font-bold text-on-surface-variant">Urut nomor jobdesk</span>
+                    </div>
+                    <div className="space-y-3">
+                      {selectedDayEvidence.map((item) => {
+                          const evidenceUrls = getEvidenceUrls(item);
+                          const previewImages = evidenceUrls.map((src, index) => ({
+                            src,
+                            alt: `${item.jobdeskText} ${index + 1}`,
+                            caption: `Gambar ${index + 1} dari ${item.jobdeskText}`,
+                          }));
+                          return (
+                            <article key={item.id} className="rounded-lg border border-outline-variant/10 bg-surface-high/35 p-3">
+                              <div className="mb-2 flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Jobdesk {item.jobdeskIndex + 1}</p>
+                                  <p className="mt-1 text-label-sm font-bold text-on-surface">{item.jobdeskText}</p>
+                                </div>
+                                <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-[11px] font-black text-on-surface">
+                                  {typeof item.score === 'number' ? `${item.score}/100` : '-'}
+                                </span>
+                              </div>
+
+                              {item.mode === 'image' && evidenceUrls.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {evidenceUrls.slice(0, 4).map((url, index) => (
+                                    <button
+                                      key={`${item.id}-${url}-${index}`}
+                                      type="button"
+                                      onClick={() => setPreview({
+                                        images: previewImages,
+                                        initialIndex: index,
+                                        title: `Bukti ${employee.nama}`,
+                                        subtitle: item.jobdeskText,
+                                      })}
+                                      className="rounded-lg border border-outline-variant/15 bg-surface p-1 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                    >
+                                      <img src={url} alt={`${item.jobdeskText} ${index + 1}`} className="h-24 w-full rounded-md object-contain" loading="lazy" decoding="async" />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              {item.mode === 'video' && evidenceUrls[0] && (
+                                <video src={evidenceUrls[0]} className="max-h-48 w-full rounded-lg border border-outline-variant/15 bg-surface object-contain" controls />
+                              )}
+
+                              {(item.mode === 'none' || evidenceUrls.length === 0) && (
+                                <p className="rounded-lg border border-dashed border-outline-variant/20 bg-surface px-3 py-2 text-label-sm font-semibold text-on-surface-variant">
+                                  {item.mode === 'none' ? 'Karyawan menandai tidak ada bukti.' : 'Bukti belum terlampir.'}
+                                </p>
+                              )}
+                            </article>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-outline-variant/25 bg-surface/60 p-4 text-center">
@@ -558,6 +642,15 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
             </table>
           </div>
       </motion.section>
+      {preview && (
+        <ImagePreviewModal
+          images={preview.images}
+          initialIndex={preview.initialIndex}
+          title={preview.title}
+          subtitle={preview.subtitle}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </motion.div>
   );
 };

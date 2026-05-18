@@ -16,6 +16,7 @@ export interface PicRaportEvidence {
   jobdeskText: string;
   mode: PicRaportEvidenceMode;
   evidenceUrl?: string;
+  evidenceUrls?: string[];
   employeeNote?: string;
   reviewStatus: PicRaportReviewStatus;
   score?: number;
@@ -39,6 +40,22 @@ export interface PicEmployeeSummary extends EmployeeRaport {
   averageScore: number;
   lastUploadAt?: string;
 }
+
+export const getEvidenceUrls = (item: Pick<PicRaportEvidence, 'evidenceUrl' | 'evidenceUrls'>) => {
+  if (item.evidenceUrls?.length) return item.evidenceUrls.filter(Boolean);
+  return item.evidenceUrl ? [item.evidenceUrl] : [];
+};
+
+export const compareEvidenceByJobdeskNumber = (
+  a: Pick<PicRaportEvidence, 'jobdeskIndex' | 'submittedAt' | 'employeeName'>,
+  b: Pick<PicRaportEvidence, 'jobdeskIndex' | 'submittedAt' | 'employeeName'>
+) =>
+  a.jobdeskIndex - b.jobdeskIndex ||
+  a.employeeName.localeCompare(b.employeeName, 'id') ||
+  b.submittedAt.localeCompare(a.submittedAt);
+
+export const sortEvidenceByJobdeskNumber = <T extends Pick<PicRaportEvidence, 'jobdeskIndex' | 'submittedAt' | 'employeeName'>>(items: T[]) =>
+  [...items].sort(compareEvidenceByJobdeskNumber);
 
 const branchUploadOffsets: Record<string, number> = {
   'Manado Pusat': 7,
@@ -304,7 +321,7 @@ export const buildPicEvidenceByDate = (evidence: PicRaportEvidence[]): Map<strin
   });
 
   byDate.forEach((items) => {
-    items.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+    items.sort(compareEvidenceByJobdeskNumber);
   });
 
   return byDate;
@@ -323,7 +340,7 @@ export const buildPicEvidenceByEmployeeDate = (evidence: PicRaportEvidence[]): M
 
   byEmployeeDate.forEach((employeeDates) => {
     employeeDates.forEach((items) => {
-      items.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      items.sort(compareEvidenceByJobdeskNumber);
     });
   });
 

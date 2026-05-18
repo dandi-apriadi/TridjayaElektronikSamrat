@@ -22,7 +22,7 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'operator' | 'admin-sales' | 'sales' | 'agent' | string;
+  role: 'admin' | 'operator' | 'admin-sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan' | string;
   /** Jabatan (title/position) — display only, does NOT affect system access.
    *  For admin-sales: title. For karyawan: target category ("sales" | "non_sales").
    */

@@ -15,9 +15,11 @@ import {
   Search,
   Video,
 } from 'lucide-react';
-import { buildPicDaySummaries, buildPicEvidenceByDate, todayKey, toDateKey, type PicRaportEvidence, type PicRaportReviewStatus } from '../../data/picRaportData';
+import { buildPicDaySummaries, buildPicEvidenceByDate, getEvidenceUrls, todayKey, toDateKey, type PicRaportEvidence, type PicRaportReviewStatus } from '../../data/picRaportData';
 import { useDebounce } from '../../hooks/useDebounce';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
+import PicEvidenceReviewControls from '../../components/dashboard/PicEvidenceReviewControls';
 
 type FilterStatus = 'all' | PicRaportReviewStatus;
 const HISTORY_BATCH_SIZE = 16;
@@ -45,7 +47,7 @@ const statusClass = (status: PicRaportEvidence['reviewStatus']) => {
 
 const evidenceLabel = (item: PicRaportEvidence) => {
   if (item.mode === 'video') return 'Video';
-  if (item.mode === 'image') return 'Gambar';
+  if (item.mode === 'image') return `${item.evidenceUrls?.length || 1} gambar`;
   return 'Tanpa bukti';
 };
 
@@ -59,6 +61,12 @@ const PicRaportHistoryPage: React.FC = () => {
   const [branch, setBranch] = useState('all');
   const [status, setStatus] = useState<FilterStatus>('all');
   const [visibleLimit, setVisibleLimit] = useState(HISTORY_BATCH_SIZE);
+  const [preview, setPreview] = useState<{
+    images: PreviewImage[];
+    initialIndex: number;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
   const debouncedSearch = useDebounce(search, 250);
 
   useEffect(() => {
@@ -235,6 +243,12 @@ const PicRaportHistoryPage: React.FC = () => {
           <div className="max-h-[680px] space-y-2 overflow-y-auto p-4">
             {visibleItems.map((item) => {
               const EvidenceIcon = item.mode === 'video' ? Video : item.mode === 'image' ? ImageIcon : Ban;
+              const imageUrls = getEvidenceUrls(item);
+              const previewImages = imageUrls.map((src, index) => ({
+                src,
+                alt: `${item.jobdeskText} ${index + 1}`,
+                caption: `Gambar ${index + 1} dari ${item.employeeName}`,
+              }));
               return (
                 <article key={item.id} className="rounded-lg border border-outline-variant/15 bg-surface-high/35 p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -249,7 +263,8 @@ const PicRaportHistoryPage: React.FC = () => {
                         <Building2 className="h-3.5 w-3.5" />
                         {item.cabang} | {item.divisiName} | {formatTime(item.submittedAt)}
                       </div>
-                      <p className="mt-3 text-body-sm font-semibold text-on-surface">{item.jobdeskText}</p>
+                      <p className="mt-3 text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Jobdesk {item.jobdeskIndex + 1}</p>
+                      <p className="mt-1 text-body-sm font-semibold text-on-surface">{item.jobdeskText}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="inline-flex items-center gap-2 rounded-lg bg-surface px-2.5 py-1.5 text-label-xs font-bold text-on-surface-variant">
@@ -266,6 +281,31 @@ const PicRaportHistoryPage: React.FC = () => {
                       {item.reviewerComment}
                     </div>
                   )}
+                  {item.mode === 'image' && imageUrls.length > 0 && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                      {imageUrls.slice(0, 8).map((url, index) => (
+                        <button
+                          key={`${url}-${index}`}
+                          type="button"
+                          onClick={() => setPreview({
+                            images: previewImages,
+                            initialIndex: index,
+                            title: `Bukti ${item.employeeName}`,
+                            subtitle: item.jobdeskText,
+                          })}
+                          className="rounded-lg border border-outline-variant/15 bg-surface p-1 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        >
+                          <img src={url} alt={`${item.jobdeskText} ${index + 1}`} className="h-24 w-full rounded-md object-contain" loading="lazy" decoding="async" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {item.mode === 'video' && imageUrls[0] && (
+                    <div className="mt-3 rounded-lg border border-outline-variant/15 bg-surface p-2">
+                      <video src={imageUrls[0]} className="max-h-72 w-full rounded-md bg-surface-high object-contain" controls />
+                    </div>
+                  )}
+                  <PicEvidenceReviewControls item={item} />
                 </article>
               );
             })}
@@ -290,6 +330,15 @@ const PicRaportHistoryPage: React.FC = () => {
           </div>
         </motion.div>
       </section>
+      {preview && (
+        <ImagePreviewModal
+          images={preview.images}
+          initialIndex={preview.initialIndex}
+          title={preview.title}
+          subtitle={preview.subtitle}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </motion.div>
   );
 };

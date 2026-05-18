@@ -27,10 +27,10 @@ const isValidWhatsapp = (value: string) => {
   return digitCount >= 9 && digitCount <= 16;
 };
 
-type AdminUserRole = 'admin' | 'editor' | 'operator' | 'admin-sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan' | 'wa_admin' | 'wa_operator' | 'super_admin';
+type AdminUserRole = 'admin' | 'operator' | 'admin-sales' | 'agent' | 'owner' | 'pic_raport' | 'karyawan';
 type UserJabatan = 'sales' | 'non_sales' | 'kepala_cabang' | 'supervisor' | 'koordinator';
 
-const formRoles: AdminUserRole[] = ['admin', 'editor', 'operator', 'admin-sales', 'agent', 'owner', 'pic_raport', 'karyawan', 'wa_admin', 'wa_operator', 'super_admin'];
+const formRoles: AdminUserRole[] = ['admin', 'operator', 'admin-sales', 'agent', 'owner', 'pic_raport', 'karyawan'];
 
 const normalizeFormRole = (value?: string | null): AdminUserRole => {
   const normalized = normalizeAccessRole(value);
@@ -817,16 +817,12 @@ const AdminFormPage: React.FC = () => {
                   className="w-full px-4 py-3 bg-surface-high border border-outline-variant/20 rounded-xl outline-none focus:ring-2 focus:ring-primary/40 font-body text-body-md transition-all appearance-none"
                 >
                   <option value="admin">Admin</option>
-                  <option value="editor">Editor</option>
                   <option value="operator">Operator</option>
                   <option value="admin-sales">Admin Sales</option>
                   <option value="agent">Agent</option>
                   <option value="owner">Owner</option>
                   <option value="pic_raport">PIC Raport</option>
                   <option value="karyawan">Karyawan</option>
-                  <option value="wa_admin">WA Admin</option>
-                  <option value="wa_operator">WA Operator</option>
-                  <option value="super_admin">Super Admin</option>
                 </select>
                 <p className="text-label-xs text-on-surface-variant">Menentukan dashboard dan fitur yang bisa diakses.</p>
               </div>

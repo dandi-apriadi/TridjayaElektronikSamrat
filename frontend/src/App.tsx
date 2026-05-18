@@ -70,7 +70,6 @@ const AdminUsersPage = lazy(() => import('./pages/dashboard/AdminUsersPage'));
 const AgentKnowledgePage = lazy(() => import('./pages/dashboard/AgentKnowledgePage'));
 const AgentLeadsPage = lazy(() => import('./pages/dashboard/AgentLeadsPage'));
 const AgentEarningsPage = lazy(() => import('./pages/dashboard/AgentEarningsPage'));
-const AgentSupportPage = lazy(() => import('./pages/dashboard/AgentSupportPage'));
 const AdminAgentDirectoryPage = lazy(() => import('./pages/dashboard/AdminAgentDirectoryPage'));
 const AdminFinancePage = lazy(() => import('./pages/dashboard/AdminFinancePage'));
 const AdminContentPage = lazy(() => import('./pages/dashboard/AdminContentPage'));
@@ -80,11 +79,9 @@ const AdminProductFormPage = lazy(() => import('./pages/dashboard/AdminProductFo
 const AdminProductBulkImportPage = lazy(() => import('./pages/dashboard/AdminProductBulkImportPage'));
 const AdminPromoFormPage = lazy(() => import('./pages/dashboard/AdminPromoFormPage'));
 const AdminArticleFormPage = lazy(() => import('./pages/dashboard/AdminArticleFormPage'));
-const AgentPushProspekPage = lazy(() => import('./pages/dashboard/AgentPushProspekPage'));
 const AdminLeaderboardPage = lazy(() => import('./pages/dashboard/AdminLeaderboardPage'));
 const AgentLeaderboardPage = lazy(() => import('./pages/dashboard/AgentLeaderboardPage'));
 const AccountSettingsPage = lazy(() => import('./pages/dashboard/AccountSettingsPage'));
-const AdminSupportTicketsPage = lazy(() => import('./pages/dashboard/AdminSupportTicketsPage'));
 const AdminLeadsPage = lazy(() => import('./pages/dashboard/AdminLeadsPage'));
 const AdminPartnersPage = lazy(() => import('./pages/dashboard/AdminPartnersPage'));
 const AdminProductCategoriesPage = lazy(() => import('./pages/dashboard/AdminProductCategoriesPage'));
@@ -96,8 +93,6 @@ const AdminWaCampaignDetailPage = lazy(() => import('./pages/dashboard/AdminWaCa
 const AdminWaAccountsPage = lazy(() => import('./pages/dashboard/AdminWaAccountsPage.tsx'));
 const AdminWaBlastContactsPage = lazy(() => import('./pages/dashboard/AdminWaBlastContactsPage'));
 const SalesDeliveryPage = lazy(() => import('./pages/dashboard/SalesDeliveryPage'));
-const SalesReferralPage = lazy(() => import('./pages/dashboard/SalesReferralPage'));
-const AdminSalesPage = lazy(() => import('./pages/dashboard/AdminSalesPage'));
 
 // Admin Pixel pages
 const AdminPixelCampaignsPage = lazy(() => import('./pages/dashboard/AdminPixelCampaignsPage'));
@@ -298,22 +293,6 @@ const App: React.FC = () => {
             }
           />
           <Route
-            path="admin/sales"
-            element={
-              <RoleGuard roles={["admin"]}>
-                {lazyPage(AdminSalesPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="admin/sales/referral"
-            element={
-              <RoleGuard roles={["admin"]}>
-                {lazyPage(SalesReferralPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
             path="admin/cabang"
             element={
               <RoleGuard roles={["admin"]}>
@@ -482,14 +461,6 @@ const App: React.FC = () => {
             }
           />
           <Route
-            path="admin/support"
-            element={
-              <RoleGuard roles={["admin"]}>
-                {lazyPage(AdminSupportTicketsPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
             path="admin/leads"
             element={
               <RoleGuard roles={["admin"]}>
@@ -625,6 +596,8 @@ const App: React.FC = () => {
           <Route path="karyawan/prospek/database" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanProspekDatabasePage)}</RoleGuard>} />
           <Route path="karyawan/raport" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanRaportPage)}</RoleGuard>} />
           <Route path="karyawan/raport/history" element={<RoleGuard roles={["karyawan"]}>{lazyPage(KaryawanRaportHistoryPage)}</RoleGuard>} />
+          <Route path="operator/prospek" element={<RoleGuard roles={["operator"]}>{lazyPage(KaryawanProspekPage)}</RoleGuard>} />
+          <Route path="operator/prospek/database" element={<RoleGuard roles={["operator"]}>{lazyPage(KaryawanProspekDatabasePage)}</RoleGuard>} />
           <Route path="settings" element={<RoleGuard roles={["admin", "operator", "admin-sales", "agent", "owner", "pic_raport", "karyawan"]}>{lazyPage(AccountSettingsPage)}</RoleGuard>} />
 
           <Route
@@ -685,29 +658,13 @@ const App: React.FC = () => {
           />
           <Route
             path="sales/referral"
-            element={<Navigate to="/dashboard/sales/push-prospek" replace />}
-          />
-          <Route
-            path="agent/support"
-            element={
-              <RoleGuard roles={["agent"]}>
-                {lazyPage(AgentSupportPage)}
-              </RoleGuard>
-            }
+            element={<Navigate to="/dashboard/sales/prospek" replace />}
           />
           <Route
             path="agent/pixel-analytics"
             element={
               <RoleGuard roles={["agent"]}>
                 {lazyPage(AgentPixelAnalyticsPage)}
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="sales/support"
-            element={
-              <RoleGuard roles={["admin-sales"]}>
-                {lazyPage(AgentSupportPage)}
               </RoleGuard>
             }
           />
@@ -721,25 +678,45 @@ const App: React.FC = () => {
           />
           <Route
             path="agent/push"
+            element={<Navigate to="/dashboard/agent/prospek" replace />}
+          />
+          <Route
+            path="agent/push-prospek"
+            element={<Navigate to="/dashboard/agent/prospek" replace />}
+          />
+          <Route
+            path="agent/prospek"
             element={
               <RoleGuard roles={["agent"]}>
-                {lazyPage(AgentPushProspekPage)}
+                {lazyPage(KaryawanProspekPage)}
               </RoleGuard>
             }
           />
           <Route
-            path="agent/push-prospek"
+            path="agent/prospek/database"
             element={
               <RoleGuard roles={["agent"]}>
-                {lazyPage(AgentPushProspekPage)}
+                {lazyPage(KaryawanProspekDatabasePage)}
               </RoleGuard>
             }
           />
           <Route
             path="sales/push-prospek"
+            element={<Navigate to="/dashboard/sales/prospek" replace />}
+          />
+          <Route
+            path="sales/prospek"
             element={
               <RoleGuard roles={["admin-sales"]}>
-                {lazyPage(AgentPushProspekPage)}
+                {lazyPage(KaryawanProspekPage)}
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="sales/prospek/database"
+            element={
+              <RoleGuard roles={["admin-sales"]}>
+                {lazyPage(KaryawanProspekDatabasePage)}
               </RoleGuard>
             }
           />

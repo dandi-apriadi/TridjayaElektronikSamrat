@@ -6,8 +6,8 @@ use crate::wa_gateway;
 use crate::wa_webhook_handlers;
 use crate::{
     auth::{
-        authorize, hash_password, login_with_request_ctx, logout_with_headers_ctx,
-        refresh_with_request_ctx, verify_password, LoginRequest, RefreshRequest, Role,
+        authorize, hash_password_blocking, login_with_request_ctx, logout_with_headers_ctx,
+        refresh_with_request_ctx, verify_password_blocking, LoginRequest, RefreshRequest, Role,
     },
     response::{json_created, json_ok, AppError},
     state::{
@@ -24,7 +24,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use chrono::{Duration, Local, NaiveDate, Timelike, Utc};
+use chrono::{Datelike, Duration, Local, NaiveDate, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -232,10 +232,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api/leads/{id}/status", patch(update_lead_status))
         .route("/api/agent/stats", get(get_agent_stats))
         .route("/api/agent/claims", get(list_claims).post(create_claim))
-        .route(
-            "/api/agent/support-tickets",
-            get(list_support_tickets).post(create_support_ticket),
-        )
         .route("/api/leaderboard", get(list_leaderboard))
         // agent-registrations POST is in upload_routes (20MB body limit)
         .route(
@@ -248,14 +244,6 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/admin/claims", get(list_all_claims))
         .route("/api/admin/claims/{id}/status", patch(update_claim_status))
-        .route(
-            "/api/admin/support-tickets",
-            get(list_admin_support_tickets),
-        )
-        .route(
-            "/api/admin/support-tickets/{id}/status",
-            patch(update_admin_support_ticket_status),
-        )
         .route("/api/admin/telemetry-stats", get(get_telemetry_stats))
         .route("/api/admin/agents", get(list_agents))
         .route(
@@ -414,8 +402,16 @@ const LOGIN_EMAIL_MAX_PER_MINUTE: usize = 5;
 const LOGIN_IP_MAX_PER_MINUTE: usize = 20;
 const LOGIN_IP_MAX_PER_10_MINUTES: usize = 100;
 const LOGIN_BLOCK_MINUTES: i64 = 15;
-const PUBLIC_READ_MAX_PER_MINUTE: usize = 30;
 const VERIFY_EMAIL_MAX_PER_MINUTE: usize = 5;
+
+fn public_read_max_per_minute() -> usize {
+    std::env::var("PUBLIC_READ_MAX_PER_MINUTE")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(120)
+        .min(10_000)
+}
 
 fn trust_proxy_headers_enabled() -> bool {
     std::env::var("TRUST_PROXY_HEADERS")
@@ -1062,7 +1058,7 @@ async fn reset_password(
         });
     }
 
-    let password_hash = hash_password(&payload.new_password);
+    let password_hash = hash_password_blocking(payload.new_password.clone()).await?;
 
     // Update password & invalidasi seluruh token reset milik user dalam satu
     // transaksi: kalau salah satu gagal, password tidak ikut berubah dan token
@@ -1280,13 +1276,13 @@ async fn change_auth_password(
             errors: vec!["Password baru minimal 8 karakter".to_string()],
         });
     }
-    if !verify_password(&payload.old_password, &user.password_hash) {
+    if !verify_password_blocking(payload.old_password.clone(), user.password_hash.clone()).await? {
         return Err(AppError::Validation {
             errors: vec!["Password lama tidak sesuai".to_string()],
         });
     }
 
-    let password_hash = hash_password(&payload.new_password);
+    let password_hash = hash_password_blocking(payload.new_password.clone()).await?;
     sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?")
         .bind(password_hash)
         .bind(&user.id)
@@ -1303,22 +1299,47 @@ async fn change_auth_password(
     ))
 }
 
+#[derive(Deserialize)]
+struct AdminPageQuery {
+    page: Option<u32>,
+    limit: Option<u32>,
+}
+
 async fn list_users(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(query): Query<AdminPageQuery>,
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
-    let users: Vec<UserPublic> = sqlx::query_as(USER_PUBLIC_SELECT)
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = clamp_page_limit(query.limit, 100, 500);
+    let offset = (page - 1) * limit;
+    let list_query = format!("{USER_PUBLIC_SELECT} ORDER BY u.created_at DESC LIMIT ? OFFSET ?");
+    let users: Vec<UserPublic> = sqlx::query_as(&list_query)
+        .bind(limit as i64)
+        .bind(offset as i64)
         .fetch_all(&state.pool)
         .await
         .map_err(|e| {
             tracing::error!("DB error in list_users: {}", e);
             AppError::Internal
         })?;
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error counting users: {}", e);
+            AppError::Internal
+        })?;
+    let total_pages = if total <= 0 {
+        1
+    } else {
+        ((total as u32) + limit - 1) / limit
+    };
 
     Ok(json_ok(
         format!("Users fetched by {}", user.email),
-        json!({ "items": users }),
+        json!({ "items": users, "page": page, "limit": limit, "total": total, "totalPages": total_pages }),
     ))
 }
 
@@ -1329,7 +1350,6 @@ struct CabangCreateRequest {
     alamat: Option<String>,
     kota: Option<String>,
     telepon: Option<String>,
-    koordinator_nama: Option<String>,
     is_active: Option<bool>,
 }
 
@@ -1340,7 +1360,6 @@ struct CabangUpdateRequest {
     alamat: Option<String>,
     kota: Option<String>,
     telepon: Option<String>,
-    koordinator_nama: Option<String>,
     is_active: Option<bool>,
 }
 
@@ -1352,8 +1371,6 @@ struct CabangRecord {
     alamat: String,
     kota: String,
     telepon: String,
-    koordinator_id: Option<String>,
-    koordinator_nama: String,
     is_active: bool,
     jumlah_karyawan: i64,
     created_at: Option<String>,
@@ -1414,13 +1431,13 @@ async fn list_cabang(
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin, Role::Owner]).await?;
     let items: Vec<CabangRecord> = sqlx::query_as(
-        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, \
                 CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
                 DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
                 DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
          FROM cabang c \
          LEFT JOIN users u ON u.cabang_id = c.id \
-         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, c.created_at, c.updated_at \
          ORDER BY c.nama ASC",
     )
     .fetch_all(&state.pool)
@@ -1446,11 +1463,6 @@ async fn create_cabang(
     let alamat = payload.alamat.unwrap_or_default().trim().to_string();
     let kota = payload.kota.unwrap_or_default().trim().to_string();
     let telepon = payload.telepon.unwrap_or_default().trim().to_string();
-    let koordinator_nama = payload
-        .koordinator_nama
-        .unwrap_or_default()
-        .trim()
-        .to_string();
     let is_active = payload.is_active.unwrap_or(true);
 
     let mut errors = Vec::new();
@@ -1467,14 +1479,13 @@ async fn create_cabang(
     let id = generate_unique_cabang_id(&state, &nama).await?;
 
     sqlx::query(
-        "INSERT INTO cabang (id, nama, alamat, kota, telepon, koordinator_id, koordinator_nama, is_active) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+        "INSERT INTO cabang (id, nama, alamat, kota, telepon, is_active) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&nama)
     .bind(&alamat)
     .bind(&kota)
     .bind(&telepon)
-    .bind(&koordinator_nama)
     .bind(is_active)
     .execute(&state.pool)
     .await
@@ -1484,14 +1495,14 @@ async fn create_cabang(
     })?;
 
     let item: CabangRecord = sqlx::query_as(
-        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, \
                 CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
                 DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
                 DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
          FROM cabang c \
          LEFT JOIN users u ON u.cabang_id = c.id \
          WHERE c.id = ? \
-         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, c.created_at, c.updated_at \
          LIMIT 1",
     )
     .bind(&id)
@@ -1517,14 +1528,14 @@ async fn update_cabang(
 ) -> Result<ResponseBody, AppError> {
     let user = authorize(&state, &headers, &[Role::Admin]).await?;
     let current: CabangRecord = sqlx::query_as(
-        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, \
                 CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
                 DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
                 DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
          FROM cabang c \
          LEFT JOIN users u ON u.cabang_id = c.id \
          WHERE c.id = ? \
-         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, c.created_at, c.updated_at \
          LIMIT 1",
     )
     .bind(&id)
@@ -1562,12 +1573,6 @@ async fn update_cabang(
         .map(str::trim)
         .unwrap_or(&current.telepon)
         .to_string();
-    let koordinator_nama = payload
-        .koordinator_nama
-        .as_deref()
-        .map(str::trim)
-        .unwrap_or(&current.koordinator_nama)
-        .to_string();
     let is_active = payload.is_active.unwrap_or(current.is_active);
 
     let mut errors = Vec::new();
@@ -1582,13 +1587,12 @@ async fn update_cabang(
     }
 
     sqlx::query(
-        "UPDATE cabang SET nama = ?, alamat = ?, kota = ?, telepon = ?, koordinator_id = NULL, koordinator_nama = ?, is_active = ? WHERE id = ?",
+        "UPDATE cabang SET nama = ?, alamat = ?, kota = ?, telepon = ?, is_active = ? WHERE id = ?",
     )
     .bind(&nama)
     .bind(&alamat)
     .bind(&kota)
     .bind(&telepon)
-    .bind(&koordinator_nama)
     .bind(is_active)
     .bind(&id)
     .execute(&state.pool)
@@ -1599,14 +1603,14 @@ async fn update_cabang(
     })?;
 
     let item: CabangRecord = sqlx::query_as(
-        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, \
+        "SELECT c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, \
                 CAST(COALESCE(COUNT(DISTINCT u.id), 0) AS SIGNED) AS jumlah_karyawan, \
                 DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at, \
                 DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at \
          FROM cabang c \
          LEFT JOIN users u ON u.cabang_id = c.id \
          WHERE c.id = ? \
-         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.koordinator_id, c.koordinator_nama, c.is_active, c.created_at, c.updated_at \
+         GROUP BY c.id, c.nama, c.alamat, c.kota, c.telepon, c.is_active, c.created_at, c.updated_at \
          LIMIT 1",
     )
     .bind(&id)
@@ -1895,20 +1899,6 @@ struct LeadStatusUpdateRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CreateSupportTicketRequest {
-    subject: String,
-    message: Option<String>,
-    priority: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct UpdateSupportTicketStatusRequest {
-    status: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct WaAccountCreateRequest {
     name: String,
     gateway_config: Option<Value>,
@@ -2088,26 +2078,14 @@ fn parse_json_value_or_default(text: Option<String>, default: Value) -> Value {
 }
 
 fn normalize_role(value: &str) -> Option<String> {
-    let role = value
-        .trim()
-        .to_lowercase()
-        .replace(" ", "_")
-        .replace("-", "_");
-    if role == "sales" || role == "admin_sales" {
+    let role = value.trim().to_lowercase().replace(" ", "_");
+    if matches!(role.as_str(), "admin-sales" | "admin_sales" | "sales") {
         return Some("admin-sales".to_string());
     }
+    let role = role.replace("-", "_");
     if matches!(
         role.as_str(),
-        "admin"
-            | "agent"
-            | "operator"
-            | "owner"
-            | "pic_raport"
-            | "karyawan"
-            | "editor"
-            | "wa_admin"
-            | "wa_operator"
-            | "super_admin"
+        "admin" | "agent" | "operator" | "owner" | "pic_raport" | "karyawan"
     ) {
         Some(role)
     } else {
@@ -2245,7 +2223,7 @@ fn validate_user_create(payload: &UserCreateRequest) -> Result<(), AppError> {
     }
     let normalized_role = normalize_role(&payload.role);
     if normalized_role.is_none() {
-        errors.push("role harus salah satu dari: admin, agent, admin-sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
+        errors.push("role harus salah satu dari: admin, agent, admin-sales, operator, owner, pic_raport, karyawan".to_string());
     }
     if payload.password.len() < 8 {
         errors.push("password minimal 8 karakter".to_string());
@@ -2310,7 +2288,7 @@ fn validate_user_update(payload: &UserUpdateRequest) -> Result<(), AppError> {
         .as_ref()
         .is_some_and(|value| normalize_role(value).is_none())
     {
-        errors.push("role harus salah satu dari: admin, agent, admin-sales, operator, owner, pic_raport, karyawan, editor, wa_admin, wa_operator, super_admin".to_string());
+        errors.push("role harus salah satu dari: admin, agent, admin-sales, operator, owner, pic_raport, karyawan".to_string());
     }
     if payload
         .password
@@ -2415,31 +2393,6 @@ fn lead_to_json(record: LeadRecord) -> Value {
 }
 
 #[derive(sqlx::FromRow)]
-struct SupportTicketRecord {
-    id: String,
-    agent_id: String,
-    subject: String,
-    message: Option<String>,
-    priority: String,
-    status: String,
-    created_at: Option<String>,
-}
-
-#[derive(sqlx::FromRow)]
-struct AdminSupportTicketRow {
-    id: String,
-    agent_id: String,
-    subject: String,
-    message: Option<String>,
-    priority: String,
-    status: String,
-    created_at: Option<String>,
-    updated_at: Option<String>,
-    agent_name: Option<String>,
-    agent_email: Option<String>,
-}
-
-#[derive(sqlx::FromRow)]
 struct NotificationRecord {
     id: String,
     recipient_user_id: String,
@@ -2457,50 +2410,6 @@ struct NotificationRecord {
 struct NotificationsQuery {
     page: Option<u32>,
     limit: Option<u32>,
-}
-
-fn support_ticket_to_json(record: SupportTicketRecord) -> Value {
-    json!({
-        "id": record.id,
-        "agentId": record.agent_id,
-        "subject": record.subject,
-        "message": record.message,
-        "priority": record.priority,
-        "status": record.status,
-        "createdAt": record.created_at,
-    })
-}
-
-fn normalize_ticket_priority(priority: Option<&str>) -> String {
-    match priority.unwrap_or("medium").trim().to_lowercase().as_str() {
-        "high" => "high".to_string(),
-        "low" => "low".to_string(),
-        _ => "medium".to_string(),
-    }
-}
-
-fn normalize_ticket_status(status: &str) -> Option<String> {
-    match status.trim().to_lowercase().as_str() {
-        "open" => Some("open".to_string()),
-        "in_progress" | "in-progress" | "processing" => Some("in_progress".to_string()),
-        "resolved" | "closed" | "done" => Some("resolved".to_string()),
-        _ => None,
-    }
-}
-
-fn admin_support_ticket_to_json(row: AdminSupportTicketRow) -> Value {
-    json!({
-        "id": row.id,
-        "agentId": row.agent_id,
-        "agentName": row.agent_name,
-        "agentEmail": row.agent_email,
-        "subject": row.subject,
-        "message": row.message,
-        "priority": row.priority,
-        "status": row.status,
-        "createdAt": row.created_at,
-        "updatedAt": row.updated_at,
-    })
 }
 
 fn notification_to_json(record: NotificationRecord) -> Value {
@@ -2646,10 +2555,25 @@ async fn generate_unique_sales_slug(
         .filter(|ch| ch.is_ascii_alphanumeric())
         .take(8)
         .collect::<String>();
-    let mut candidate = fallback.clone();
+    let suffix = if suffix.is_empty() {
+        uuid::Uuid::new_v4()
+            .simple()
+            .to_string()
+            .chars()
+            .take(8)
+            .collect::<String>()
+    } else {
+        suffix
+    };
 
-    for _ in 0..10 {
-        let exists = sqlx::query_scalar::<_, String>(
+    for attempt in 0..25 {
+        let candidate = match attempt {
+            0 => fallback.clone(),
+            1 => format!("{}-{}", fallback, suffix),
+            _ => format!("{}-{}-{}", fallback, suffix, attempt),
+        };
+
+        let user_exists = sqlx::query_scalar::<_, String>(
             "SELECT referral_slug FROM users WHERE referral_slug = ? AND id != ? LIMIT 1",
         )
         .bind(&candidate)
@@ -2661,14 +2585,29 @@ async fn generate_unique_sales_slug(
             AppError::Internal
         })?;
 
-        if exists.is_none() {
-            return Ok(candidate);
+        if user_exists.is_some() {
+            continue;
         }
 
-        candidate = format!("{}-{}", fallback, suffix);
+        let referral_exists = sqlx::query_scalar::<_, String>(
+            "SELECT slug FROM referrals WHERE slug = ? AND owner_user_id != ? LIMIT 1",
+        )
+        .bind(&candidate)
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking referral slug: {}", e);
+            AppError::Internal
+        })?;
+
+        if referral_exists.is_none() {
+            return Ok(candidate);
+        }
     }
 
-    Ok(format!("{}-{}", fallback, suffix))
+    let random = uuid::Uuid::new_v4().simple().to_string();
+    Ok(format!("{}-{}-{}", fallback, suffix, &random[..6]))
 }
 
 async fn sync_sales_referral(
@@ -2700,10 +2639,7 @@ async fn sync_sales_referral(
         .bind(user_id)
         .execute(&state.pool)
         .await
-        .map_err(|e| {
-            tracing::error!("DB error updating sales referral: {}", e);
-            AppError::Internal
-        })?;
+        .map_err(map_conflict_if_needed)?;
 
         if current_slug != slug {
             tracing::info!(
@@ -2725,10 +2661,7 @@ async fn sync_sales_referral(
         .bind(is_active)
         .execute(&state.pool)
         .await
-        .map_err(|e| {
-            tracing::error!("DB error inserting sales referral: {}", e);
-            AppError::Internal
-        })?;
+        .map_err(map_conflict_if_needed)?;
     }
 
     Ok(())
@@ -2752,7 +2685,7 @@ async fn create_user(
     let role = normalize_role(&payload.role).ok_or(AppError::Validation {
         errors: vec!["role tidak valid".to_string()],
     })?;
-    let password_hash = hash_password(&payload.password);
+    let password_hash = hash_password_blocking(payload.password.clone()).await?;
     let whatsapp = payload.whatsapp.unwrap_or_else(|| "".to_string());
     let jabatan = if role == "admin-sales" {
         payload
@@ -2939,11 +2872,11 @@ async fn update_user(
     } else {
         String::new()
     };
-    let next_password_hash = payload
-        .password
-        .as_deref()
-        .map(hash_password)
-        .unwrap_or_else(|| current_password_hash.clone());
+    let next_password_hash = if let Some(password) = payload.password.as_deref() {
+        hash_password_blocking(password.to_string()).await?
+    } else {
+        current_password_hash.clone()
+    };
     let next_bank_account = payload.bank_account.unwrap_or(current_bank_account);
     let next_whatsapp = payload.whatsapp.unwrap_or(current_whatsapp);
     let next_is_active = payload.is_active.unwrap_or(current_is_active);
@@ -3001,10 +2934,7 @@ async fn update_user(
 
     if next_role == "admin-sales" {
         sync_sales_referral(&state, &id, &next_name, &next_referral_slug, next_is_active).await?;
-    } else if current_role.eq_ignore_ascii_case("sales")
-        || current_role.eq_ignore_ascii_case("admin-sales")
-        || current_role.eq_ignore_ascii_case("admin_sales")
-    {
+    } else if current_role.eq_ignore_ascii_case("admin-sales") {
         sqlx::query("UPDATE referrals SET is_active = 0 WHERE owner_user_id = ?")
             .bind(&id)
             .execute(&state.pool)
@@ -3051,7 +2981,7 @@ async fn reset_user_password(
         })?
         .ok_or(AppError::NotFound)?;
 
-    let password_hash = hash_password(payload.password.trim());
+    let password_hash = hash_password_blocking(payload.password.trim().to_string()).await?;
     let result =
         sqlx::query("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?")
             .bind(password_hash)
@@ -5518,7 +5448,7 @@ async fn delete_user(
     //   - referrals (referrals migration)
     //   - sales_delivery_schedules (sales_features migration)
     // Tabel dengan ON DELETE CASCADE (otomatis terhapus):
-    //   - support_tickets, notifications, security_tokens (password_reset_tokens, email_verification_tokens)
+    //   - notifications, security_tokens (password_reset_tokens, email_verification_tokens)
     let mut tx = state.pool.begin().await.map_err(|e| {
         tracing::error!("DB error starting delete_user transaction: {}", e);
         AppError::Internal
@@ -6200,7 +6130,10 @@ async fn find_catalog_by_id_or_slug(
 
 fn map_conflict_if_needed(error: sqlx::Error) -> AppError {
     let msg = error.to_string();
-    if msg.contains("UNIQUE constraint failed") {
+    if msg.contains("UNIQUE constraint failed")
+        || msg.contains("Duplicate entry")
+        || msg.contains("1062")
+    {
         AppError::Conflict
     } else {
         tracing::error!("DB error: {}", msg);
@@ -6575,6 +6508,18 @@ struct CatalogListQuery {
     limit: Option<u32>,
 }
 
+fn telemetry_analytics_cutoff() -> String {
+    let days = std::env::var("TELEMETRY_ANALYTICS_WINDOW_DAYS")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(30)
+        .min(365);
+    (Utc::now() - Duration::days(days))
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string()
+}
+
 async fn list_catalogs(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -6584,7 +6529,7 @@ async fn list_catalogs(
         &state,
         &headers,
         "public_read:catalogs",
-        PUBLIC_READ_MAX_PER_MINUTE,
+        public_read_max_per_minute(),
         Duration::minutes(1),
     )
     .await?;
@@ -6629,6 +6574,7 @@ async fn list_catalogs(
         .iter()
         .map(|product| product.slug.clone())
         .collect::<Vec<_>>();
+    let analytics_cutoff = telemetry_analytics_cutoff();
     let analytics_rows = if product_slugs.is_empty() {
         Vec::new()
     } else {
@@ -6645,6 +6591,7 @@ async fn list_catalogs(
                 COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS conversions
              FROM telemetry_events
              WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IN ({})
+               AND created_at >= ?
              GROUP BY COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug')))",
             placeholders
         );
@@ -6652,6 +6599,7 @@ async fn list_catalogs(
         for slug in &product_slugs {
             query = query.bind(slug);
         }
+        query = query.bind(&analytics_cutoff);
         query.fetch_all(&state.pool).await.map_err(|e| {
             tracing::error!("DB error fetching catalog analytics: {}", e);
             AppError::Internal
@@ -6785,6 +6733,7 @@ async fn list_catalogs_paginated(
         Some("conversionRate") | Some("conversion") => "conversion_rate",
         _ => "views", // default
     };
+    let analytics_cutoff = telemetry_analytics_cutoff();
 
     // Build the main query with analytics joined in
     let main_query = format!(
@@ -6814,6 +6763,7 @@ async fn list_catalogs_paginated(
             FROM telemetry_events
             WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IS NOT NULL
               AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) <> ''
+              AND created_at >= ?
             GROUP BY COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug')))
         ) a ON a.product_slug = p.slug
         {where_clause}
@@ -6838,6 +6788,7 @@ async fn list_catalogs_paginated(
             FROM telemetry_events
             WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IS NOT NULL
               AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) <> ''
+              AND created_at >= ?
             GROUP BY COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug')))
         ) a ON a.product_slug = p.slug
         {where_clause}
@@ -6848,6 +6799,7 @@ async fn list_catalogs_paginated(
     let (main_result, count_result, markups_result) = tokio::join!(
         async {
             let mut q = sqlx::query(&main_query);
+            q = q.bind(&analytics_cutoff);
             for val in &bind_values {
                 q = q.bind(val);
             }
@@ -6855,6 +6807,7 @@ async fn list_catalogs_paginated(
         },
         async {
             let mut q = sqlx::query(&count_query);
+            q = q.bind(&analytics_cutoff);
             for val in &bind_values {
                 q = q.bind(val);
             }
@@ -6890,8 +6843,10 @@ async fn list_catalogs_paginated(
             CAST(COALESCE(SUM(CASE WHEN event_type = 'pixel_event' THEN 1 ELSE 0 END), 0) AS SIGNED) AS total_conversions
          FROM telemetry_events
          WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) IS NOT NULL
-           AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) <> ''"
+           AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.productSlug')), JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.slug'))) <> ''
+           AND created_at >= ?"
     )
+    .bind(&analytics_cutoff)
     .fetch_one(&state.pool)
     .await
     .ok();
@@ -8077,7 +8032,7 @@ async fn list_partners(
         &state,
         &headers,
         "public_read:partners",
-        PUBLIC_READ_MAX_PER_MINUTE,
+        public_read_max_per_minute(),
         Duration::minutes(1),
     )
     .await?;
@@ -8871,7 +8826,7 @@ async fn get_public_referral(
         &state,
         &headers,
         "public_read:referral",
-        PUBLIC_READ_MAX_PER_MINUTE,
+        public_read_max_per_minute(),
         Duration::minutes(1),
     )
     .await?;
@@ -9226,7 +9181,7 @@ async fn list_jobs(
         &state,
         &headers,
         "public_read:jobs",
-        PUBLIC_READ_MAX_PER_MINUTE,
+        public_read_max_per_minute(),
         Duration::minutes(1),
     )
     .await?;
@@ -9405,7 +9360,7 @@ async fn list_articles(
         &state,
         &headers,
         "public_read:articles",
-        PUBLIC_READ_MAX_PER_MINUTE,
+        public_read_max_per_minute(),
         Duration::minutes(1),
     )
     .await?;
@@ -9991,202 +9946,6 @@ async fn update_lead_status(
     Ok(json_ok(
         format!("Lead {} status updated", id),
         json!({ "item": lead_to_json(updated) }),
-    ))
-}
-
-async fn list_support_tickets(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Agent]).await?;
-
-    let rows = sqlx::query_as::<_, SupportTicketRecord>(
-        "SELECT id, agent_id, subject, message, priority, status, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM support_tickets WHERE agent_id = ? ORDER BY created_at DESC",
-    )
-    .bind(&user.id)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error listing support tickets: {}", e);
-        AppError::Internal
-    })?;
-
-    let items = rows
-        .into_iter()
-        .map(support_ticket_to_json)
-        .collect::<Vec<_>>();
-    Ok(json_ok(
-        "Support tickets fetched",
-        json!({ "items": items }),
-    ))
-}
-
-async fn create_support_ticket(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(payload): Json<CreateSupportTicketRequest>,
-) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Agent]).await?;
-
-    if payload.subject.trim().is_empty() {
-        return Err(AppError::Validation {
-            errors: vec!["Judul ticket wajib diisi".to_string()],
-        });
-    }
-
-    let id = uuid::Uuid::new_v4().to_string();
-    let priority = normalize_ticket_priority(payload.priority.as_deref());
-
-    sqlx::query(
-        "INSERT INTO support_tickets (id, agent_id, subject, message, priority, status) VALUES (?, ?, ?, ?, ?, 'open')",
-    )
-    .bind(&id)
-    .bind(&user.id)
-    .bind(payload.subject.trim())
-    .bind(payload.message.unwrap_or_default())
-    .bind(priority)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error creating support ticket: {}", e);
-        AppError::Internal
-    })?;
-
-    let created = sqlx::query_as::<_, SupportTicketRecord>(
-        "SELECT id, agent_id, subject, message, priority, status, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM support_tickets WHERE id = ? LIMIT 1",
-    )
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error fetching created support ticket: {}", e);
-        AppError::Internal
-    })?
-    .ok_or(AppError::Internal)?;
-
-    notify_all_admins(
-        &state,
-        "support_ticket_created",
-        "Ticket support baru",
-        Some(&format!(
-            "{} membuat ticket: {}",
-            user.name, created.subject
-        )),
-        Some("/dashboard/admin/support"),
-        Some(&created.id),
-    )
-    .await;
-
-    Ok(json_ok(
-        "Support ticket created",
-        json!({ "item": support_ticket_to_json(created) }),
-    ))
-}
-
-async fn list_admin_support_tickets(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
-
-    let rows = sqlx::query_as::<_, AdminSupportTicketRow>(
-        r#"
-        SELECT
-            t.id,
-            t.agent_id,
-            t.subject,
-            t.message,
-            t.priority,
-            t.status,
-            DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
-            DATE_FORMAT(t.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at,
-            u.name AS agent_name,
-            u.email AS agent_email
-        FROM support_tickets t
-        LEFT JOIN users u ON u.id = t.agent_id
-        ORDER BY
-            CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
-            t.created_at DESC
-        "#,
-    )
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error listing admin support tickets: {}", e);
-        AppError::Internal
-    })?;
-
-    let items = rows
-        .into_iter()
-        .map(admin_support_ticket_to_json)
-        .collect::<Vec<_>>();
-
-    Ok(json_ok(
-        "Admin support tickets fetched",
-        json!({ "items": items }),
-    ))
-}
-
-async fn update_admin_support_ticket_status(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Path(id): Path<String>,
-    Json(payload): Json<UpdateSupportTicketStatusRequest>,
-) -> Result<ResponseBody, AppError> {
-    let _user = authorize(&state, &headers, &[Role::Admin]).await?;
-
-    let status = normalize_ticket_status(&payload.status).ok_or(AppError::Validation {
-        errors: vec!["Status ticket tidak valid. Gunakan: open, in_progress, resolved".to_string()],
-    })?;
-
-    let result = sqlx::query(
-        "UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    )
-    .bind(status)
-    .bind(&id)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error updating support ticket status: {}", e);
-        AppError::Internal
-    })?;
-
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound);
-    }
-
-    let updated_ticket = sqlx::query_as::<_, SupportTicketRecord>(
-        "SELECT id, agent_id, subject, message, priority, status, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM support_tickets WHERE id = ? LIMIT 1",
-    )
-    .bind(&id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error fetching updated support ticket: {}", e);
-        AppError::Internal
-    })?
-    .ok_or(AppError::NotFound)?;
-
-    create_notification_for_user(
-        &state,
-        &updated_ticket.agent_id,
-        "support_ticket_updated",
-        "Update ticket support",
-        Some(&format!(
-            "Ticket '{}' berubah ke status {}",
-            updated_ticket.subject, updated_ticket.status
-        )),
-        Some(&format!(
-            "/dashboard/agent/support?id={}",
-            updated_ticket.id
-        )),
-        Some(&updated_ticket.id),
-    )
-    .await;
-
-    Ok(json_ok(
-        "Support ticket status updated",
-        json!({ "id": id, "updated": true }),
     ))
 }
 
@@ -10969,24 +10728,42 @@ async fn submit_agent_registration(
 async fn list_agent_registrations(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(query): Query<AdminPageQuery>,
 ) -> Result<ResponseBody, AppError> {
     let _user = authorize(&state, &headers, &[Role::Admin]).await?;
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = clamp_page_limit(query.limit, 100, 500);
+    let offset = (page - 1) * limit;
 
     let rows = sqlx::query_as::<_, AgentRegistrationRow>(
-        "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, DATE_FORMAT(submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at FROM agent_registrations ORDER BY submitted_at DESC"
+        "SELECT id, full_name, email, whatsapp, province, city, address, preferred_products, profile_photo, ktp_photo, status, DATE_FORMAT(submitted_at, '%Y-%m-%d %H:%i:%s') AS submitted_at FROM agent_registrations ORDER BY submitted_at DESC LIMIT ? OFFSET ?"
     )
+    .bind(limit as i64)
+    .bind(offset as i64)
     .fetch_all(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("DB error: {}", e);
         AppError::Internal
     })?;
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM agent_registrations")
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error counting agent registrations: {}", e);
+            AppError::Internal
+        })?;
+    let total_pages = if total <= 0 {
+        1
+    } else {
+        ((total as u32) + limit - 1) / limit
+    };
 
     tracing::info!("Fetched {} agent registrations", rows.len());
     let items: Vec<Value> = rows.into_iter().map(registration_to_json).collect();
     Ok(json_ok(
         "Agent registrations fetched",
-        json!({ "items": items }),
+        json!({ "items": items, "page": page, "limit": limit, "total": total, "totalPages": total_pages }),
     ))
 }
 
@@ -11041,10 +10818,19 @@ async fn update_agent_registration_status(
             // terverifikasi & belum punya token aktif, kita cuma reissue
             // tokennya — tapi password tidak di-reset karena admin tidak
             // bisa lagi mengirim password lama via email.
+            let new_agent_credentials = if user_exists.is_none() {
+                let user_id = uuid::Uuid::new_v4().to_string();
+                let temp_password = uuid::Uuid::new_v4().simple().to_string();
+                let password_hash = hash_password_blocking(temp_password.clone()).await?;
+                Some((user_id, temp_password, password_hash))
+            } else {
+                None
+            };
+
             let provision_result: Result<Option<(String, String)>, sqlx::Error> = async {
                 let mut tx = state.pool.begin().await?;
 
-                let (user_id, temp_password_for_email) = if let Some(_existing) = user_exists {
+                let (user_id, temp_password_for_email) = if user_exists.is_some() {
                     let row = sqlx::query_as::<_, (String, bool)>(
                         "SELECT id, is_verified FROM users WHERE email = ? LIMIT 1",
                     )
@@ -11074,9 +10860,8 @@ async fn update_agent_registration_status(
                     }
                     (user_id, String::new())
                 } else {
-                    let user_id = uuid::Uuid::new_v4().to_string();
-                    let temp_password = uuid::Uuid::new_v4().simple().to_string();
-                    let password_hash = hash_password(&temp_password);
+                    let (user_id, temp_password, password_hash) = new_agent_credentials
+                        .expect("new agent credentials are prepared when user does not exist");
 
                     sqlx::query(
                         "INSERT INTO users (id, email, name, role, password_hash, avatar, bank_account, is_active, is_verified, must_change_password) VALUES (?, ?, ?, 'agent', ?, ?, '', 1, 0, 1)"
@@ -12275,6 +12060,8 @@ async fn import_blast_contacts_to_campaign(
 #[derive(Debug, Deserialize)]
 struct ListProspekQuery {
     tanggal: Option<String>,
+    date_from: Option<String>,
+    date_to: Option<String>,
     karyawan_id: Option<String>,
     page: Option<u32>,
     limit: Option<u32>,
@@ -12304,6 +12091,7 @@ struct ProspekHarianPublic {
 #[serde(rename_all = "camelCase")]
 struct CreateProspekHarianPayload {
     cabang: Option<String>,
+    divisi: Option<String>,
     nama_prospek: String,
     no_whatsapp: String,
     minat_barang: String,
@@ -12338,6 +12126,10 @@ struct ProspekEmployeeSummary {
     prospek_hari_ini: i64,
     target: i64,
     persentase: i64,
+    prospek_bulan_ini: i64,
+    target_bulanan: i64,
+    persentase_bulanan: i64,
+    sisa_target_bulanan: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -12526,6 +12318,75 @@ async fn resolve_payload_or_user_cabang(
         })
 }
 
+fn is_self_service_prospek_role(role: &str) -> bool {
+    role == "karyawan"
+}
+
+fn default_prospek_cabang_for_role(role: &str) -> &'static str {
+    match role {
+        "agent" => "Agen",
+        "operator" => "Operator",
+        "admin-sales" => "Admin Sales",
+        _ => "Cabang belum diatur",
+    }
+}
+
+fn default_prospek_divisi_for_role(role: &str) -> &'static str {
+    match role {
+        "agent" => "Agen",
+        "operator" => "Operator",
+        "admin-sales" => "Admin Sales",
+        _ => "Karyawan",
+    }
+}
+
+async fn resolve_prospek_cabang(
+    state: &AppState,
+    user: &UserRecord,
+    payload_cabang: Option<String>,
+) -> Result<String, AppError> {
+    if user.role == "karyawan" {
+        return resolve_payload_or_user_cabang(state, user, payload_cabang).await;
+    }
+
+    if let Some(cabang) = payload_cabang
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(cabang.to_string());
+    }
+
+    Ok(resolve_user_cabang_name(state, user)
+        .await?
+        .unwrap_or_else(|| default_prospek_cabang_for_role(&user.role).to_string()))
+}
+
+fn resolve_prospek_divisi(
+    user: &UserRecord,
+    payload_divisi: Option<String>,
+) -> Result<String, AppError> {
+    if user.role == "karyawan" {
+        let divisi = user.divisi.trim().to_string();
+        if divisi.is_empty() {
+            return Err(AppError::Validation {
+                errors: vec![
+                    "Divisi karyawan belum diatur. Set divisi karyawan dulu sebelum submit prospek."
+                        .to_string(),
+                ],
+            });
+        }
+        return Ok(divisi);
+    }
+
+    Ok(payload_divisi
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| default_prospek_divisi_for_role(&user.role).to_string()))
+}
+
 async fn sync_prospek_to_lead(
     state: &AppState,
     id: &str,
@@ -12574,7 +12435,15 @@ async fn list_prospek_harian(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+        &[
+            Role::Admin,
+            Role::Owner,
+            Role::PicRaport,
+            Role::Karyawan,
+            Role::Agent,
+            Role::Operator,
+            Role::AdminSales,
+        ],
     )
     .await?;
     let page = query.page.unwrap_or(1).max(1);
@@ -12584,7 +12453,9 @@ async fn list_prospek_harian(
     let mut builder = sqlx::QueryBuilder::<sqlx::MySql>::new(
         "SELECT p.id, p.karyawan_id, COALESCE(NULLIF(p.karyawan_nama, ''), u.name, '') AS karyawan_name, \
          COALESCE(NULLIF(c.nama, ''), NULLIF(p.cabang, ''), NULLIF(u.cabang_id, ''), 'Cabang belum diatur') AS cabang, \
-         p.divisi, COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') AS target_kategori, \
+         p.divisi, CASE WHEN LOWER(TRIM(COALESCE(u.role, ''))) = 'karyawan' \
+         THEN COALESCE(NULLIF(u.jabatan, ''), NULLIF(p.target_kategori, ''), 'non_sales') \
+         ELSE COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') END AS target_kategori, \
          p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
          p.status_prospek, p.keterangan_fincoy, DATE_FORMAT(p.tanggal, '%Y-%m-%d') AS tanggal, \
          DATE_FORMAT(p.created_at, '%H:%i') AS created_at \
@@ -12594,7 +12465,7 @@ async fn list_prospek_harian(
          WHERE 1=1",
     );
 
-    if user.role == "karyawan" {
+    if is_self_service_prospek_role(&user.role) {
         builder.push(" AND p.karyawan_id = ");
         builder.push_bind(user.id.clone());
     } else if let Some(karyawan_id) = query
@@ -12615,6 +12486,26 @@ async fn list_prospek_harian(
     {
         builder.push(" AND p.tanggal = ");
         builder.push_bind(tanggal.to_string());
+    }
+
+    if let Some(date_from) = query
+        .date_from
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        builder.push(" AND p.tanggal >= ");
+        builder.push_bind(date_from.to_string());
+    }
+
+    if let Some(date_to) = query
+        .date_to
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        builder.push(" AND p.tanggal <= ");
+        builder.push_bind(date_to.to_string());
     }
 
     builder.push(" ORDER BY p.tanggal DESC, p.created_at DESC LIMIT ");
@@ -12642,7 +12533,17 @@ async fn create_prospek_harian(
     headers: HeaderMap,
     Json(payload): Json<CreateProspekHarianPayload>,
 ) -> Result<ResponseBody, AppError> {
-    let user = authorize(&state, &headers, &[Role::Karyawan]).await?;
+    let user = authorize(
+        &state,
+        &headers,
+        &[
+            Role::Karyawan,
+            Role::Agent,
+            Role::Operator,
+            Role::AdminSales,
+        ],
+    )
+    .await?;
     let nama_prospek = payload.nama_prospek.trim().to_uppercase();
     let no_whatsapp = normalize_local_whatsapp(&payload.no_whatsapp);
     let minat_barang = payload.minat_barang.trim().to_uppercase();
@@ -12677,18 +12578,14 @@ async fn create_prospek_harian(
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(current_date_key);
-    let cabang = resolve_payload_or_user_cabang(&state, &user, payload.cabang).await?;
-    let divisi = user.divisi.trim().to_string();
-    if divisi.is_empty() {
-        return Err(AppError::Validation {
-            errors: vec![
-                "Divisi karyawan belum diatur. Set divisi karyawan dulu sebelum submit prospek."
-                    .to_string(),
-            ],
-        });
-    }
+    let cabang = resolve_prospek_cabang(&state, &user, payload.cabang).await?;
+    let divisi = resolve_prospek_divisi(&user, payload.divisi)?;
     let id = uuid::Uuid::new_v4().to_string();
-    let target_kategori = normalize_target_kategori(Some(&user.jabatan));
+    let target_kategori = if matches!(user.role.as_str(), "agent" | "admin-sales") {
+        "sales".to_string()
+    } else {
+        normalize_target_kategori(Some(&user.jabatan))
+    };
     let keterangan_prospek = payload.keterangan_prospek.unwrap_or_default();
     let keterangan_fincoy = payload.keterangan_fincoy.unwrap_or_default();
 
@@ -12744,13 +12641,23 @@ async fn update_prospek_harian(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+        &[
+            Role::Admin,
+            Role::Owner,
+            Role::PicRaport,
+            Role::Karyawan,
+            Role::Agent,
+            Role::Operator,
+            Role::AdminSales,
+        ],
     )
     .await?;
     let current = sqlx::query_as::<_, ProspekHarianPublic>(
         "SELECT p.id, p.karyawan_id, COALESCE(NULLIF(p.karyawan_nama, ''), u.name, '') AS karyawan_name, \
          COALESCE(NULLIF(c.nama, ''), NULLIF(p.cabang, ''), NULLIF(u.cabang_id, ''), 'Cabang belum diatur') AS cabang, \
-         p.divisi, COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') AS target_kategori, \
+         p.divisi, CASE WHEN LOWER(TRIM(COALESCE(u.role, ''))) = 'karyawan' \
+         THEN COALESCE(NULLIF(u.jabatan, ''), NULLIF(p.target_kategori, ''), 'non_sales') \
+         ELSE COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') END AS target_kategori, \
          p.nama_prospek, p.no_whatsapp, p.minat_barang, p.keterangan_prospek, \
          p.status_prospek, p.keterangan_fincoy, DATE_FORMAT(p.tanggal, '%Y-%m-%d') AS tanggal, \
          DATE_FORMAT(p.created_at, '%H:%i') AS created_at \
@@ -12768,12 +12675,12 @@ async fn update_prospek_harian(
     })?
     .ok_or(AppError::NotFound)?;
 
-    if user.role == "karyawan" && current.karyawan_id != user.id {
+    if is_self_service_prospek_role(&user.role) && current.karyawan_id != user.id {
         return Err(AppError::Forbidden);
     }
 
     let cabang = payload.cabang.unwrap_or(current.cabang).trim().to_string();
-    let divisi = if user.role == "karyawan" {
+    let divisi = if is_self_service_prospek_role(&user.role) {
         current.divisi
     } else {
         payload.divisi.unwrap_or(current.divisi).trim().to_string()
@@ -12867,7 +12774,15 @@ async fn delete_prospek_harian(
     let user = authorize(
         &state,
         &headers,
-        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+        &[
+            Role::Admin,
+            Role::Owner,
+            Role::PicRaport,
+            Role::Karyawan,
+            Role::Agent,
+            Role::Operator,
+            Role::AdminSales,
+        ],
     )
     .await?;
     let owner_id = sqlx::query_scalar::<_, String>(
@@ -12882,7 +12797,7 @@ async fn delete_prospek_harian(
     })?
     .ok_or(AppError::NotFound)?;
 
-    if user.role == "karyawan" && owner_id != user.id {
+    if is_self_service_prospek_role(&user.role) && owner_id != user.id {
         return Err(AppError::Forbidden);
     }
 
@@ -12918,19 +12833,30 @@ async fn get_prospek_harian_summary(
         &[Role::Admin, Role::Owner, Role::PicRaport],
     )
     .await?;
-    let tanggal = query.tanggal.unwrap_or_else(current_date_key);
+    let tanggal = normalize_date_key(query.tanggal)?;
+    let selected_date =
+        NaiveDate::parse_from_str(&tanggal, "%Y-%m-%d").map_err(|_| AppError::Validation {
+            errors: vec!["tanggal harus memakai format YYYY-MM-DD".to_string()],
+        })?;
+    let month_start = NaiveDate::from_ymd_opt(selected_date.year(), selected_date.month(), 1)
+        .unwrap_or(selected_date)
+        .format("%Y-%m-%d")
+        .to_string();
+    let elapsed_days = selected_date.day() as i64;
 
-    let rows: Vec<(String, String, String, String, String, i64)> = sqlx::query_as(
-        "SELECT u.id, u.name, COALESCE(NULLIF(p.divisi, ''), NULLIF(u.divisi, ''), 'Karyawan') AS divisi, \
+    let rows: Vec<(String, String, String, String, String, i64, i64)> = sqlx::query_as(
+        "SELECT u.id, u.name, COALESCE(NULLIF(MAX(p.divisi), ''), NULLIF(u.divisi, ''), 'Karyawan') AS divisi, \
          COALESCE(NULLIF(c.nama, ''), NULLIF(MAX(p.cabang), ''), NULLIF(u.cabang_id, ''), 'Cabang belum diatur') AS cabang, \
-         COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales') AS target_kategori, COUNT(p.id) AS total \
+         COALESCE(NULLIF(u.jabatan, ''), 'non_sales') AS target_kategori, COUNT(p.id) AS total, COALESCE(MAX(pm.monthly_total), 0) AS monthly_total \
          FROM users u \
          LEFT JOIN prospek_harian p ON p.karyawan_id = u.id AND p.tanggal = ? \
+         LEFT JOIN (SELECT karyawan_id, COUNT(id) AS monthly_total FROM prospek_harian WHERE tanggal BETWEEN ? AND ? GROUP BY karyawan_id) pm ON pm.karyawan_id = u.id \
          LEFT JOIN cabang c ON c.id = u.cabang_id \
          WHERE LOWER(u.role) = 'karyawan' \
-         GROUP BY u.id, u.name, COALESCE(NULLIF(p.divisi, ''), NULLIF(u.divisi, ''), 'Karyawan'), \
-         COALESCE(NULLIF(p.target_kategori, ''), NULLIF(u.jabatan, ''), 'non_sales'), u.cabang_id, c.nama",
+         GROUP BY u.id, u.name, u.divisi, u.jabatan, u.cabang_id, c.nama",
     )
+    .bind(&tanggal)
+    .bind(&month_start)
     .bind(&tanggal)
     .fetch_all(&state.pool)
     .await
@@ -12942,13 +12868,22 @@ async fn get_prospek_harian_summary(
     let mut items = rows
         .into_iter()
         .map(
-            |(employee_id, nama, posisi, cabang, target_kategori, prospek_hari_ini)| {
+            |(
+                employee_id,
+                nama,
+                posisi,
+                cabang,
+                target_kategori,
+                prospek_hari_ini,
+                prospek_bulan_ini,
+            )| {
                 let target = if is_sales_target_marker(&target_kategori) {
                     20
                 } else {
                     5
                 };
                 let kategori = if target == 20 { "Sales" } else { "Non-Sales" };
+                let target_bulanan = target * elapsed_days;
                 ProspekEmployeeSummary {
                     rank: 0,
                     employee_id,
@@ -12963,6 +12898,14 @@ async fn get_prospek_harian_summary(
                     } else {
                         0
                     },
+                    prospek_bulan_ini,
+                    target_bulanan,
+                    persentase_bulanan: if target_bulanan > 0 {
+                        ((prospek_bulan_ini * 100) / target_bulanan).max(0)
+                    } else {
+                        0
+                    },
+                    sisa_target_bulanan: (target_bulanan - prospek_bulan_ini).max(0),
                 }
             },
         )

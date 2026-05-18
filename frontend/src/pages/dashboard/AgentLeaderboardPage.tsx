@@ -24,7 +24,7 @@ const rewardTierMeta: Record<string, { icon: typeof Medal; color: string; bgColo
     icon: Medal,
     color: 'text-slate-400',
     bgColor: 'bg-slate-400/10',
-    benefits: ['Komisi Extra 1%', 'Badge Profil Silver', 'Prioritas Support'],
+    benefits: ['Komisi Extra 1%', 'Badge Profil Silver', 'Akses Materi Promo'],
   },
   gold: {
     icon: Trophy,

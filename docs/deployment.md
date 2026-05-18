@@ -1,11 +1,11 @@
 # Deployment and Operations
 
-Deployment project ini memakai runtime native: backend Rust sebagai service systemd, frontend Vite preview/static server sebagai service systemd, MySQL sebagai database, Redis sebagai queue/cache, dan Nginx sebagai reverse proxy.
+Deployment project ini memakai runtime native: backend Rust sebagai service systemd, frontend Vite dibuild menjadi file statis, MySQL sebagai database, Redis sebagai queue/cache, dan Nginx sebagai reverse proxy sekaligus static file server.
 
 ## Layout Produksi
 
 - Backend Rust berjalan di `127.0.0.1:8081`.
-- Frontend berjalan di `127.0.0.1:5173`.
+- Frontend dilayani langsung dari `frontend/dist` oleh Nginx.
 - MySQL berjalan lokal atau di managed database.
 - Redis berjalan lokal atau di managed Redis.
 - Nginx menerima traffic publik dan meneruskan `/api/` serta `/uploads/` ke backend.
@@ -24,6 +24,11 @@ COOKIE_SECURE=true
 TRUST_PROXY_HEADERS=true
 PIXEL_ENCRYPTION_KEY=replace_with_64_hex_chars
 REDIS_URL=redis://127.0.0.1:6379
+MYSQL_MAX_CONNECTIONS=25
+REQUEST_TIMEOUT_SECS=30
+PUBLIC_READ_MAX_PER_MINUTE=120
+TELEMETRY_ANALYTICS_WINDOW_DAYS=30
+WA_ENQUEUE_BATCH_SIZE=1000
 ```
 
 Frontend membaca konfigurasi dari `frontend/.env`.
@@ -55,15 +60,13 @@ sudo APP_DIR=/var/www/tridjaya DOMAIN=tridjaya.com ./deploy.sh
 Service yang dibuat:
 
 - `tridjaya-backend`
-- `tridjaya-frontend`
 
 Perintah operasional:
 
 ```bash
-systemctl status tridjaya-backend tridjaya-frontend
+systemctl status tridjaya-backend
 journalctl -u tridjaya-backend -n 120 --no-pager
-journalctl -u tridjaya-frontend -n 120 --no-pager
-systemctl restart tridjaya-backend tridjaya-frontend
+systemctl restart tridjaya-backend
 ```
 
 ## Nginx
@@ -72,7 +75,7 @@ systemctl restart tridjaya-backend tridjaya-frontend
 
 - `/api/` -> `http://127.0.0.1:8081`
 - `/uploads/` -> `http://127.0.0.1:8081`
-- `/` -> `http://127.0.0.1:5173`
+- `/` -> `${APP_DIR}/frontend/dist`
 
 Setelah DNS aktif, pasang TLS:
 
@@ -115,6 +118,6 @@ Backup folder runtime:
 
 - Gunakan SSH key dan user deploy non-root.
 - Jangan commit `.env`.
-- Batasi akses publik ke port internal `8081`, `5173`, `3306`, dan `6379`.
+- Batasi akses publik ke port internal `8081`, `3306`, dan `6379`.
 - Review log backend dan Nginx secara berkala.
 - Uji restore backup secara rutin.

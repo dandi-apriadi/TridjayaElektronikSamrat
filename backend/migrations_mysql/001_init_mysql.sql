@@ -216,19 +216,6 @@ CREATE TABLE IF NOT EXISTS referrals (
     CONSTRAINT fk_referrals_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS support_tickets (
-    id VARCHAR(64) PRIMARY KEY,
-    agent_id VARCHAR(64) NOT NULL,
-    subject VARCHAR(255) NOT NULL,
-    message TEXT NULL,
-    priority VARCHAR(64) NOT NULL DEFAULT 'medium',
-    status VARCHAR(64) NOT NULL DEFAULT 'open',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_support_tickets_agent_created (agent_id, created_at DESC),
-    CONSTRAINT fk_support_tickets_agent FOREIGN KEY (agent_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS partners (
     id VARCHAR(64) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,

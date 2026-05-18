@@ -1,11 +1,13 @@
 export const ADMIN_SALES_ROLE = 'admin-sales';
 
 export const isAdminSalesRole = (role?: string | null) =>
-  role === ADMIN_SALES_ROLE || role === 'admin_sales' || role === 'sales';
+  normalizeAccessRole(role) === ADMIN_SALES_ROLE;
 
 export const normalizeAccessRole = (role?: string | null) => {
-  if (isAdminSalesRole(role)) return ADMIN_SALES_ROLE;
-  return role || '';
+  const normalized = (role || '').trim().toLowerCase().replace(/[\s_]+/g, '-');
+  if (normalized === 'admin-sales' || normalized === 'sales') return ADMIN_SALES_ROLE;
+  if (normalized === 'pic-raport') return 'pic_raport';
+  return normalized;
 };
 
 export const normalizeTargetKategori = (value?: string | null) => {
