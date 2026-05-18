@@ -21,6 +21,10 @@ export interface EmployeeMonthlyReport {
   history: EmployeeDailyReport[];
 }
 
+interface BuildEmployeeMonthlyReportOptions {
+  dailyJobdeskTarget?: number | ((items: PicRaportEvidence[], tanggal: string) => number);
+}
+
 export type RaportTrendMode = 'hari' | 'minggu' | 'bulan';
 
 export interface RaportTrendPoint {
@@ -203,17 +207,28 @@ export function buildEmployeeMonthlyReport(employee: EmployeeRaport): EmployeeMo
 
 export function buildEmployeeMonthlyReportFromEvidence(
   employee: EmployeeRaport,
-  evidence: PicRaportEvidence[]
+  evidence: PicRaportEvidence[],
+  options: BuildEmployeeMonthlyReportOptions = {}
 ): EmployeeMonthlyReport {
   if (evidence.length === 0) return emptyMonthlyReport(employee);
 
-  const today = new Date();
-  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  const monthlyEvidence = evidence.filter((item) => item.tanggal.startsWith(monthPrefix));
-  if (monthlyEvidence.length === 0) return emptyMonthlyReport(employee);
+  const resolveDailyJobdeskTotal = (items: PicRaportEvidence[], tanggal: string) => {
+    const configuredTarget =
+      typeof options.dailyJobdeskTarget === 'function'
+        ? options.dailyJobdeskTarget(items, tanggal)
+        : options.dailyJobdeskTarget;
+    const highestJobdeskIndex = items.reduce((max, item) => Math.max(max, item.jobdeskIndex), -1);
+
+    return Math.max(
+      items.length,
+      highestJobdeskIndex + 1,
+      Number.isFinite(configuredTarget) ? Number(configuredTarget) : 0,
+      1
+    );
+  };
 
   const byDate = new Map<string, PicRaportEvidence[]>();
-  monthlyEvidence.forEach((item) => {
+  evidence.forEach((item) => {
     byDate.set(item.tanggal, [...(byDate.get(item.tanggal) || []), item]);
   });
 
@@ -234,7 +249,7 @@ export function buildEmployeeMonthlyReportFromEvidence(
         tanggal: `${tanggal}T00:00:00`,
         nilai,
         selesai: reviewedItems.length,
-        totalJobdesk: Math.max(items.length, employee.totalJobdesk || 1),
+        totalJobdesk: resolveDailyJobdeskTotal(items, tanggal),
         bukti: items.filter((item) => item.mode !== 'none' && item.evidenceUrl).length,
         terlambat: false,
         catatan: comments[0] || (reviewedItems.length ? 'Raport sudah direview PIC.' : 'Raport menunggu review PIC.'),

@@ -22,10 +22,13 @@ BASE_URL=http://127.0.0.1:8081 THREADS=2 CONNECTIONS=1000 DURATION=60s ./scripts
 
 ```bash
 MYSQL_MAX_CONNECTIONS=25
+MYSQL_ACQUIRE_TIMEOUT_SECS=5
+MAX_IN_FLIGHT_REQUESTS=300
 REQUEST_TIMEOUT_SECS=30
 TELEMETRY_ANALYTICS_WINDOW_DAYS=30
 WA_ENQUEUE_BATCH_SIZE=1000
 ```
 
 Naikkan `MYSQL_MAX_CONNECTIONS` bertahap hanya jika CPU MySQL masih longgar dan latency pool terlihat antre. Untuk 2 vCPU, terlalu banyak koneksi aktif biasanya membuat latency lebih buruk.
-Saat benchmark dari satu mesin/IP, set sementara `PUBLIC_READ_MAX_PER_MINUTE=5000` agar endpoint public tidak didominasi respons `429`.
+`MAX_IN_FLIGHT_REQUESTS` adalah katup pengaman backend. Jika penuh, backend mengembalikan `503` cepat agar request tidak menumpuk sampai database atau RAM habis.
+Saat benchmark dari satu mesin/IP, set sementara `PUBLIC_READ_MAX_PER_MINUTE=5000` dan naikkan Nginx `api_per_ip` hanya untuk sesi benchmark agar hasil tidak didominasi respons `429`.

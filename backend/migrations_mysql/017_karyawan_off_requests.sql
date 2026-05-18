@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS off_requests (
+    id VARCHAR(64) PRIMARY KEY,
+    karyawan_id VARCHAR(64) NOT NULL,
+    karyawan_nama VARCHAR(255) NOT NULL DEFAULT '',
+    cabang VARCHAR(255) NOT NULL DEFAULT '',
+    divisi VARCHAR(255) NOT NULL DEFAULT '',
+    tanggal DATE NOT NULL,
+    alasan TEXT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    reviewer_id VARCHAR(64) NULL,
+    reviewer_nama VARCHAR(255) NULL,
+    reviewer_comment TEXT NULL,
+    reviewed_at DATETIME NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_off_requests_status (status, expires_at),
+    INDEX idx_off_requests_tanggal (tanggal),
+    INDEX idx_off_requests_karyawan (karyawan_id),
+    CONSTRAINT fk_off_requests_karyawan FOREIGN KEY (karyawan_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_off_requests_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);

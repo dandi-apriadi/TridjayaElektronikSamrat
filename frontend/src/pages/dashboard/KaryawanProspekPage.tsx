@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BadgeDollarSign, CheckCircle, Clock3, MessageCircle, Phone, Plus, Send, Sparkles, Target, UserRound } from 'lucide-react';
+import { BadgeDollarSign, CalendarOff, CheckCircle, Clock3, MessageCircle, Phone, Plus, Send, Sparkles, Target, UserRound } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import {
   formatProspekDateKey,
@@ -12,6 +12,7 @@ import {
 import type { ProspekStatus } from '../../store/karyawanProspekStore';
 import { calculateProspekDailyFine, formatRupiah } from '../../utils/denda';
 import { isAdminSalesRole, isSalesTargetKategori } from '../../utils/roles';
+import { useOffRequestStore } from '../../store/offRequestStore';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -25,6 +26,8 @@ const KaryawanProspekPage: React.FC = () => {
   const addProspek = useKaryawanProspekStore((s) => s.addProspek);
   const fetchProspek = useKaryawanProspekStore((s) => s.fetchProspek);
   const prospekError = useKaryawanProspekStore((s) => s.error);
+  const offRequests = useOffRequestStore((state) => state.requests);
+  const fetchOffRequests = useOffRequestStore((state) => state.fetchRequests);
   const isAdminSales = isAdminSalesRole(user?.role);
   const isAgent = user?.role === 'agent';
   const isOperator = user?.role === 'operator';
@@ -45,8 +48,9 @@ const KaryawanProspekPage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
-    fetchProspek({ limit: 500 });
-  }, [fetchProspek]);
+    fetchProspek({ tanggal: todayKey, limit: 500 });
+    fetchOffRequests({ tanggal: todayKey, limit: 50 });
+  }, [fetchOffRequests, fetchProspek, todayKey]);
 
   const prospekList = useMemo(
     () => allProspek.filter((item) => item.karyawanId === employeeId && item.tanggal === todayKey),
@@ -54,12 +58,17 @@ const KaryawanProspekPage: React.FC = () => {
   );
 
   const progress = Math.min(Math.round((prospekList.length / targetProspek) * 100), 100);
-  const dendaProspekHariIni = calculateProspekDailyFine(prospekList.length, targetProspek);
+  const approvedOffToday = offRequests.find((request) => request.karyawanId === employeeId && request.tanggal === todayKey && request.status === 'approved');
+  const dendaProspekHariIni = approvedOffToday ? 0 : calculateProspekDailyFine(prospekList.length, targetProspek);
   const dealCount = useMemo(() => prospekList.filter((p) => p.statusProspek === 'deal').length, [prospekList]);
   const followUpCount = useMemo(() => prospekList.filter((p) => p.statusProspek === 'fu_ulang' || p.statusProspek === 'tanya_tanya').length, [prospekList]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (approvedOffToday) {
+      setSuccessMsg('OFF hari ini sudah disetujui PIC. Prospek tidak wajib dikirim.');
+      return;
+    }
     if (!namaProspek.trim() || !noWhatsapp.trim() || !minatBarang.trim()) return;
     if (!cabang.trim()) {
       setSuccessMsg('Cabang akun belum diatur. Hubungi admin untuk set cabang akun.');
@@ -132,6 +141,15 @@ const KaryawanProspekPage: React.FC = () => {
               <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
             </div>
             <p className="mt-2 text-label-sm text-on-surface-variant">{progress}% target harian terkumpul</p>
+            {approvedOffToday && (
+              <div className="mt-3 rounded-xl bg-primary/10 px-3 py-2 text-primary">
+                <div className="flex items-center gap-2 text-label-sm font-bold">
+                  <CalendarOff className="h-4 w-4" />
+                  OFF disetujui PIC
+                </div>
+                <p className="mt-1 text-label-xs text-on-surface-variant">Prospek hari ini tidak wajib dan tidak dihitung denda.</p>
+              </div>
+            )}
             <div className={`mt-3 rounded-xl px-3 py-2 ${dendaProspekHariIni > 0 ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'}`}>
               <div className="flex items-center gap-2 text-label-sm font-bold">
                 <BadgeDollarSign className="h-4 w-4" />
@@ -195,17 +213,17 @@ const KaryawanProspekPage: React.FC = () => {
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-1.5">
                 <span className="text-label-sm font-bold text-on-surface-variant">Nama Prospek *</span>
-                <input type="text" value={namaProspek} onChange={(e) => setNamaProspek(e.target.value)} placeholder="NAMA LENGKAP" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md uppercase text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15" required />
+                <input type="text" value={namaProspek} onChange={(e) => setNamaProspek(e.target.value)} disabled={Boolean(approvedOffToday)} placeholder="NAMA LENGKAP" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md uppercase text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60" required />
               </label>
               <label className="space-y-1.5">
                 <span className="text-label-sm font-bold text-on-surface-variant">No WhatsApp *</span>
-                <input type="tel" value={noWhatsapp} onChange={(e) => setNoWhatsapp(normalizeWhatsapp(e.target.value))} placeholder="08xxxxxxxxxx" inputMode="numeric" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15" required />
+                <input type="tel" value={noWhatsapp} onChange={(e) => setNoWhatsapp(normalizeWhatsapp(e.target.value))} disabled={Boolean(approvedOffToday)} placeholder="08xxxxxxxxxx" inputMode="numeric" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60" required />
               </label>
             </div>
 
             <label className="block space-y-1.5">
               <span className="text-label-sm font-bold text-on-surface-variant">Minat Barang *</span>
-              <input type="text" value={minatBarang} onChange={(e) => setMinatBarang(e.target.value)} placeholder="TV LED 43 INCH, KULKAS 2 PINTU, SAIGE POLARIS" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md uppercase text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15" required />
+              <input type="text" value={minatBarang} onChange={(e) => setMinatBarang(e.target.value)} disabled={Boolean(approvedOffToday)} placeholder="TV LED 43 INCH, KULKAS 2 PINTU, SAIGE POLARIS" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md uppercase text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60" required />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -230,9 +248,9 @@ const KaryawanProspekPage: React.FC = () => {
               <textarea value={keteranganProspek} onChange={(e) => setKeteranganProspek(e.target.value)} placeholder="Contoh: minta dikirim brosur, mau datang sore, bandingkan cicilan." rows={3} className="w-full resize-none rounded-2xl border border-outline-variant/20 bg-surface-high px-4 py-3 text-body-md text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15" />
             </label>
 
-            <button type="submit" disabled={submitting} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-body-sm font-bold text-on-primary shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto">
+            <button type="submit" disabled={submitting || Boolean(approvedOffToday)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-body-sm font-bold text-on-primary shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto">
               <Send className="h-4 w-4" />
-              {submitting ? 'Mengirim...' : 'Kirim Prospek'}
+              {approvedOffToday ? 'OFF Disetujui' : submitting ? 'Mengirim...' : 'Kirim Prospek'}
             </button>
           </form>
         </motion.section>

@@ -24,6 +24,7 @@ import {
   Send,
   FileText,
   FileCheck2,
+  BadgeDollarSign,
   ExternalLink,
   TrendingUp,
   Handshake,
@@ -291,6 +292,7 @@ const DashboardLayout: React.FC = () => {
       title: 'Monitoring',
       items: [
         { label: 'Prospek & Closing', icon: Users, path: '/dashboard/owner/prospek' },
+        { label: 'Laporan Denda', icon: BadgeDollarSign, path: '/dashboard/owner/prospek/denda' },
         { label: 'Raport Jobdesk', icon: BookOpen, path: '/dashboard/owner/raport' },
         { label: 'Omset Per Cabang', icon: BarChart3, path: '/dashboard/owner/omset-cabang' },
         { label: 'Omset Realtime', icon: TrendingUp, path: '/dashboard/owner/omset-realtime' },

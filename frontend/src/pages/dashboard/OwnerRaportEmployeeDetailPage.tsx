@@ -31,11 +31,29 @@ import { useCabangStore } from '../../store/useCabangStore';
 import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
 import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
 import { getEvidenceUrls, sortEvidenceByJobdeskNumber } from '../../data/picRaportData';
+import { jobdeskPositions, type JobdeskPosition } from '../../data/ownerRaportData';
 import { calculateJobdeskScoreFine, calculateRaportFineTotal, formatRupiah } from '../../utils/denda';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
 const weekdayLabels = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+const normalizeDivisionKey = (value?: string) => (value || '').toLowerCase().trim();
+
+const getDailyJobdeskTarget = (positionName: string, divisions: JobdeskPosition[]) => {
+  const normalized = normalizeDivisionKey(positionName);
+  const candidates = divisions.length > 0 ? divisions : jobdeskPositions;
+  const matchedPosition = candidates.find((position) => {
+    const id = normalizeDivisionKey(position.id);
+    const name = normalizeDivisionKey(position.posisi);
+    return (
+      (id && (normalized === id || normalized.includes(id))) ||
+      (name && (normalized === name || normalized.includes(name)))
+    );
+  });
+
+  return matchedPosition?.jobdesks.length || 0;
+};
 
 const toDateKey = (date: Date) => {
   const year = date.getFullYear();
@@ -48,7 +66,7 @@ const getCurrentMonthRange = () => {
   const now = new Date();
   return {
     from: toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)),
-    to: toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    to: toDateKey(now),
   };
 };
 
@@ -92,6 +110,8 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
   const { employeeId } = useParams();
   const evidence = usePicRaportStore((state) => state.evidence);
   const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
+  const divisions = usePicRaportStore((state) => state.divisions);
+  const fetchDivisions = usePicRaportStore((state) => state.fetchDivisions);
   const isLoading = usePicRaportStore((state) => state.isLoading);
   const raportError = usePicRaportStore((state) => state.error);
   const cabangList = useCabangStore((state) => state.cabang);
@@ -114,6 +134,11 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
           : 0,
       }
     : null;
+  const employeePositionName = employeeEvidence[0]?.divisiName || employeeEvidence[0]?.divisiId || employee?.posisi || '';
+  const dailyJobdeskTarget = useMemo(
+    () => getDailyJobdeskTarget(employeePositionName, divisions),
+    [divisions, employeePositionName]
+  );
   const currentDate = useMemo(() => new Date(), []);
   const [selectedDay, setSelectedDay] = React.useState(currentDate.getDate());
   const [preview, setPreview] = React.useState<{
@@ -126,6 +151,10 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
   useEffect(() => {
     fetchCabang();
   }, [fetchCabang]);
+
+  useEffect(() => {
+    fetchDivisions();
+  }, [fetchDivisions]);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -154,15 +183,18 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
     );
   }
 
-  const report = buildEmployeeMonthlyReportFromEvidence(employee, employeeEvidence);
+  const report = buildEmployeeMonthlyReportFromEvidence(employee, employeeEvidence, { dailyJobdeskTarget });
   const branch = getCabangDisplay(employee.cabang, cabangLookup);
   const scoreStatus = getStatus(report.rataNilai);
-  const todayStatus = getStatus(employee.persentase);
   const reportDateLabel = reportDateFormatter.format(new Date());
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const reportByDay = new Map(report.history.map((item) => [new Date(item.tanggal).getDate(), item]));
   const selectedDailyReport = reportByDay.get(selectedDay);
+  const selectedCompletionRate = selectedDailyReport?.totalJobdesk
+    ? Math.round((selectedDailyReport.selesai / selectedDailyReport.totalJobdesk) * 100)
+    : 0;
+  const selectedCompletionStatus = getStatus(selectedCompletionRate);
   const monthlyRaportFine = calculateRaportFineTotal(report.history.map((item) => ({ score: item.nilai, hasScore: item.selesai > 0 })));
   const selectedRaportFine = calculateJobdeskScoreFine(selectedDailyReport?.nilai || 0, Boolean(selectedDailyReport && selectedDailyReport.selesai > 0));
   const selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay);
@@ -348,23 +380,25 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
         <motion.div variants={itemVariants} className="rounded-[1.75rem] border border-outline-variant/20 bg-surface p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-title-md font-black text-on-surface">Komposisi jobdesk hari ini</h2>
-              <p className="mt-1 text-body-sm text-on-surface-variant">Snapshot progress pada tanggal report aktif.</p>
+              <h2 className="text-title-md font-black text-on-surface">Komposisi jobdesk terpilih</h2>
+              <p className="mt-1 text-body-sm text-on-surface-variant">Snapshot progress pada tanggal yang sedang dibuka.</p>
             </div>
             <ClipboardCheck className="h-5 w-5 text-primary" />
           </div>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-high">
-              <div className={`h-full rounded-full ${todayStatus.barClass}`} style={{ width: `${employee.persentase}%` }} />
+              <div className={`h-full rounded-full ${selectedCompletionStatus.barClass}`} style={{ width: `${selectedCompletionRate}%` }} />
             </div>
-            <span className={`text-title-lg font-black ${todayStatus.textClass}`}>{employee.persentase}%</span>
+            <span className={`text-title-lg font-black ${selectedCompletionStatus.textClass}`}>{selectedCompletionRate}%</span>
           </div>
           <p className="mt-3 text-body-sm text-on-surface-variant">
-            {employee.selesai} dari {employee.totalJobdesk} jobdesk selesai pada tanggal report {reportDateLabel}.
+            {selectedDailyReport
+              ? `${selectedDailyReport.selesai} dari ${selectedDailyReport.totalJobdesk} target jobdesk harian pada ${shortDateFormatter.format(selectedDate)}.`
+              : `Belum ada laporan jobdesk pada ${shortDateFormatter.format(selectedDate)}.`}
           </p>
-          <div className={`mt-4 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-label-sm font-bold ${todayStatus.borderClass} ${todayStatus.bgClass} ${todayStatus.textClass}`}>
-            {todayStatus.key === 'excellent' ? <CheckCircle2 className="h-4 w-4" /> : <BriefcaseBusiness className="h-4 w-4" />}
-            Status hari ini: {todayStatus.label}
+          <div className={`mt-4 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-label-sm font-bold ${selectedCompletionStatus.borderClass} ${selectedCompletionStatus.bgClass} ${selectedCompletionStatus.textClass}`}>
+            {selectedCompletionStatus.key === 'excellent' ? <CheckCircle2 className="h-4 w-4" /> : <BriefcaseBusiness className="h-4 w-4" />}
+            Status tanggal: {selectedCompletionStatus.label}
           </div>
         </motion.div>
       </section>
@@ -493,7 +527,7 @@ const OwnerRaportEmployeeDetailPage: React.FC = () => {
                     <p className="text-title-sm font-black text-on-surface">
                       {selectedDailyReport.selesai}/{selectedDailyReport.totalJobdesk}
                     </p>
-                    <p className="text-label-xs text-on-surface-variant">jobdesk selesai</p>
+                    <p className="text-label-xs text-on-surface-variant">dari target harian</p>
                   </div>
                   <div className="rounded-xl bg-surface px-3 py-3">
                     <div className="mb-2 flex items-center gap-2 text-on-surface-variant">

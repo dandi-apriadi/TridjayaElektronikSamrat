@@ -11,27 +11,32 @@ const scorePresets = [70, 85, 100];
 
 const PicEvidenceReviewControls: React.FC<PicEvidenceReviewControlsProps> = ({ item }) => {
   const reviewEvidence = usePicRaportStore((state) => state.reviewEvidence);
-  const [score, setScore] = useState(String(item.score ?? 85));
+  const [score, setScore] = useState(typeof item.score === 'number' ? String(item.score) : '');
   const [comment, setComment] = useState(item.reviewerComment || '');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    setScore(String(item.score ?? 85));
+    setScore(typeof item.score === 'number' ? String(item.score) : '');
     setComment(item.reviewerComment || '');
     setMessage('');
   }, [item.id, item.score, item.reviewerComment]);
 
   const submitReview = async (status: PicRaportReviewStatus) => {
     if (busy) return;
-    const numericScore = Math.max(0, Math.min(100, Number(score) || 0));
+    const trimmedScore = score.trim();
+    const numericScore = Number(trimmedScore);
+    if (status === 'approved' && (trimmedScore === '' || !Number.isFinite(numericScore) || numericScore < 0 || numericScore > 100)) {
+      setMessage('Pilih preset nilai atau isi nilai manual 0-100 sebelum menyimpan.');
+      return;
+    }
     setBusy(true);
     setMessage('');
 
     try {
       await reviewEvidence(item.id, {
         status,
-        score: status === 'rejected' ? 0 : numericScore,
+        score: status === 'rejected' ? 0 : Math.round(numericScore),
         comment: comment.trim(),
       });
       setMessage(status === 'rejected' ? 'Bukti ditolak dan nilai dibuat 0.' : 'Nilai dan komentar tersimpan.');
@@ -74,9 +79,11 @@ const PicEvidenceReviewControls: React.FC<PicEvidenceReviewControlsProps> = ({ i
             max={100}
             value={score}
             onChange={(event) => setScore(event.target.value)}
+            placeholder="Pilih/isi"
             disabled={busy}
             className="h-10 w-full rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-body-sm font-bold text-on-surface outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
           />
+          <span className="text-[11px] font-semibold text-on-surface-variant">Tidak otomatis terisi.</span>
         </label>
 
         <label className="space-y-1.5">

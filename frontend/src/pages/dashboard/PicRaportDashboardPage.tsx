@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Ban,
   Building2,
+  CalendarOff,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -25,6 +26,7 @@ import Pagination from '../../components/ui/Pagination';
 import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
 import { usePicRaportStore } from '../../store/picRaportStore';
+import { useOffRequestStore } from '../../store/offRequestStore';
 
 type FilterStatus = 'all' | PicRaportReviewStatus;
 const REVIEW_PAGE_SIZE = 50;
@@ -63,16 +65,24 @@ const PicRaportDashboardPage: React.FC = () => {
   const fetchEvidence = usePicRaportStore((state) => state.fetchEvidence);
   const fetchDivisions = usePicRaportStore((state) => state.fetchDivisions);
   const raportError = usePicRaportStore((state) => state.error);
+  const offRequests = useOffRequestStore((state) => state.requests);
+  const fetchOffRequests = useOffRequestStore((state) => state.fetchRequests);
+  const reviewOffRequest = useOffRequestStore((state) => state.reviewRequest);
+  const offError = useOffRequestStore((state) => state.error);
   const [search, setSearch] = useState('');
   const [branch, setBranch] = useState('all');
   const [division, setDivision] = useState('all');
   const [status, setStatus] = useState<FilterStatus>('pending');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [score, setScore] = useState('85');
+  const [score, setScore] = useState('');
   const [comment, setComment] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewMessage, setReviewMessage] = useState('');
+  const [offDetailEmployeeId, setOffDetailEmployeeId] = useState<string | null>(null);
+  const [offReviewBusyId, setOffReviewBusyId] = useState<string | null>(null);
+  const [offReviewMessage, setOffReviewMessage] = useState('');
+  const [offReviewComment, setOffReviewComment] = useState('');
   const [preview, setPreview] = useState<{
     images: PreviewImage[];
     initialIndex: number;
@@ -89,7 +99,8 @@ const PicRaportDashboardPage: React.FC = () => {
   useEffect(() => {
     fetchEvidence({ tanggal: todayKey, limit: 2000 });
     fetchDivisions();
-  }, [fetchDivisions, fetchEvidence]);
+    fetchOffRequests({ limit: 200 });
+  }, [fetchDivisions, fetchEvidence, fetchOffRequests]);
   const employees = useMemo(() => buildPicEmployeeSummaries(evidence), [evidence]);
   const daySummary = useMemo(() => buildPicDaySummaries(evidence).find((item) => item.tanggal === todayKey), [evidence]);
   const branches = useMemo(() => [...new Set(todayEvidence.map((item) => item.cabang))].sort((a, b) => a.localeCompare(b, 'id')), [todayEvidence]);
@@ -131,7 +142,7 @@ const PicRaportDashboardPage: React.FC = () => {
   useEffect(() => {
     if (!selectedEvidence) return;
     setSelectedId(selectedEvidence.id);
-    setScore(String(selectedEvidence.score ?? 85));
+    setScore(typeof selectedEvidence.score === 'number' ? String(selectedEvidence.score) : '');
     setComment(selectedEvidence.reviewerComment || '');
   }, [selectedEvidence?.id]);
 
@@ -165,6 +176,19 @@ const PicRaportDashboardPage: React.FC = () => {
   );
   const { reviewedCount, pendingCount, rejectedCount } = reviewStats;
   const progress = todayEvidence.length ? Math.round((reviewedCount / todayEvidence.length) * 100) : 0;
+  const pendingOffRequests = useMemo(
+    () => offRequests.filter((request) => request.status === 'pending').sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [offRequests]
+  );
+  const selectedOffHistory = useMemo(
+    () =>
+      offDetailEmployeeId
+        ? offRequests
+            .filter((request) => request.karyawanId === offDetailEmployeeId)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        : [],
+    [offDetailEmployeeId, offRequests]
+  );
 
   const branchStats = useMemo(() => {
     const statsByBranch = new Map<string, { name: string; total: number; pending: number; rejected: number }>();
@@ -180,13 +204,18 @@ const PicRaportDashboardPage: React.FC = () => {
 
   const submitReview = async (nextStatus: PicRaportReviewStatus) => {
     if (!selectedEvidence || reviewBusy) return;
-    const numericScore = Math.max(0, Math.min(100, Number(score) || 0));
+    const trimmedScore = score.trim();
+    const numericScore = Number(trimmedScore);
+    if (nextStatus === 'approved' && (trimmedScore === '' || !Number.isFinite(numericScore) || numericScore < 0 || numericScore > 100)) {
+      setReviewMessage('Pilih preset nilai atau isi nilai manual 0-100 sebelum menyimpan.');
+      return;
+    }
     setReviewBusy(true);
     setReviewMessage('');
     try {
       await reviewEvidence(selectedEvidence.id, {
         status: nextStatus,
-        score: nextStatus === 'rejected' ? 0 : numericScore,
+        score: nextStatus === 'rejected' ? 0 : Math.round(numericScore),
         comment: comment.trim(),
       });
       const nextPending = filteredEvidence.find((item) => item.id !== selectedEvidence.id && item.reviewStatus === 'pending');
@@ -197,6 +226,23 @@ const PicRaportDashboardPage: React.FC = () => {
       setReviewMessage(error instanceof Error ? error.message : 'Review gagal disimpan.');
     } finally {
       setReviewBusy(false);
+    }
+  };
+
+  const submitOffReview = async (requestId: string, status: 'approved' | 'rejected') => {
+    if (offReviewBusyId) return;
+    setOffReviewBusyId(requestId);
+    setOffReviewMessage('');
+    try {
+      await reviewOffRequest(requestId, { status, comment: offReviewComment.trim() });
+      await fetchOffRequests({ limit: 200 });
+      setOffReviewComment('');
+      setOffReviewMessage(status === 'approved' ? 'Pengajuan OFF disetujui.' : 'Pengajuan OFF ditolak.');
+      window.setTimeout(() => setOffReviewMessage(''), 2400);
+    } catch (error) {
+      setOffReviewMessage(error instanceof Error ? error.message : 'Pengajuan OFF gagal diproses.');
+    } finally {
+      setOffReviewBusyId(null);
     }
   };
 
@@ -277,6 +323,123 @@ const PicRaportDashboardPage: React.FC = () => {
           </div>
         </motion.div>
       </section>
+
+      <motion.section variants={itemVariants} className="rounded-xl border border-outline-variant/20 bg-surface p-4 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 px-3 py-1 text-label-xs font-bold uppercase tracking-widest text-primary">
+              <CalendarOff className="h-3.5 w-3.5" />
+              Approval OFF
+            </div>
+            <h2 className="text-title-md font-black text-on-surface">{pendingOffRequests.length} pengajuan menunggu</h2>
+            <p className="mt-1 text-body-sm text-on-surface-variant">Klik Detail untuk melihat history OFF karyawan sebelum approve.</p>
+          </div>
+          {(offReviewMessage || offError) && (
+            <p className={`rounded-lg px-3 py-2 text-label-sm font-bold ${(offReviewMessage || offError || '').toLowerCase().includes('gagal') ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'}`}>
+              {offReviewMessage || offError}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="grid gap-3 md:grid-cols-2">
+            {pendingOffRequests.map((request) => {
+              const detailOpened = offDetailEmployeeId === request.karyawanId;
+              return (
+                <article key={request.id} className="rounded-xl border border-outline-variant/15 bg-surface-high/35 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-body-sm font-black text-on-surface">{request.karyawanNama}</p>
+                      <p className="mt-1 text-label-xs font-semibold text-on-surface-variant">{request.cabang || '-'} | {request.divisi || '-'}</p>
+                    </div>
+                    <span className="rounded-lg bg-yellow-500/10 px-2.5 py-1 text-label-xs font-black text-yellow-600">Pending</span>
+                  </div>
+                  <p className="mt-3 text-label-xs font-bold uppercase tracking-widest text-on-surface-variant">Tanggal OFF</p>
+                  <p className="mt-1 text-body-sm font-bold text-on-surface">{request.tanggal}</p>
+                  <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-body-sm text-on-surface-variant">{request.alasan}</p>
+                  <p className="mt-2 text-label-xs font-semibold text-on-surface-variant">Kadaluarsa: {request.expiresAt}</p>
+
+                  <textarea
+                    value={detailOpened ? offReviewComment : ''}
+                    onChange={(event) => setOffReviewComment(event.target.value)}
+                    disabled={!detailOpened || offReviewBusyId === request.id}
+                    rows={2}
+                    placeholder={detailOpened ? 'Catatan PIC opsional' : 'Buka Detail dulu sebelum approve'}
+                    className="mt-3 w-full resize-none rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-body-sm text-on-surface outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOffDetailEmployeeId(request.karyawanId);
+                        setOffReviewComment('');
+                      }}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 text-label-sm font-bold text-primary transition hover:bg-primary hover:text-on-primary"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Detail
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitOffReview(request.id, 'rejected')}
+                      disabled={!detailOpened || Boolean(offReviewBusyId)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-error/25 bg-error/10 px-3 text-label-sm font-bold text-error transition hover:bg-error hover:text-on-error disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Ban className="h-4 w-4" />
+                      Tolak
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitOffReview(request.id, 'approved')}
+                      disabled={!detailOpened || Boolean(offReviewBusyId)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-label-sm font-bold text-on-primary transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Approve
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+            {pendingOffRequests.length === 0 && (
+              <div className="rounded-xl border border-dashed border-outline-variant/20 bg-surface-high/20 p-8 text-center md:col-span-2">
+                <CalendarOff className="mx-auto h-7 w-7 text-on-surface-variant" />
+                <p className="mt-3 text-body-sm font-bold text-on-surface">Tidak ada pengajuan OFF pending.</p>
+              </div>
+            )}
+          </div>
+
+          <aside className="rounded-xl border border-outline-variant/15 bg-surface-high/35 p-4">
+            <h3 className="text-title-sm font-black text-on-surface">History OFF karyawan</h3>
+            <p className="mt-1 text-label-sm text-on-surface-variant">Terbuka setelah PIC menekan Detail.</p>
+            <div className="mt-4 space-y-2">
+              {selectedOffHistory.slice(0, 8).map((request) => (
+                <div key={request.id} className="rounded-lg bg-surface px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-label-sm font-black text-on-surface">{request.tanggal}</span>
+                    <span className={`rounded-md px-2 py-0.5 text-[11px] font-black ${
+                      request.status === 'approved'
+                        ? 'bg-secondary/10 text-secondary'
+                        : request.status === 'pending'
+                          ? 'bg-yellow-500/10 text-yellow-600'
+                          : 'bg-error/10 text-error'
+                    }`}>
+                      {request.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-label-sm text-on-surface-variant">{request.alasan}</p>
+                </div>
+              ))}
+              {selectedOffHistory.length === 0 && (
+                <p className="rounded-lg border border-dashed border-outline-variant/20 px-3 py-6 text-center text-label-sm font-semibold text-on-surface-variant">
+                  Pilih Detail pada salah satu pengajuan.
+                </p>
+              )}
+            </div>
+          </aside>
+        </div>
+      </motion.section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
         {(raportError || reviewMessage) && (
@@ -481,8 +644,12 @@ const PicRaportDashboardPage: React.FC = () => {
                       max={100}
                       value={score}
                       onChange={(event) => setScore(event.target.value)}
+                      placeholder="Pilih atau isi nilai"
                       className="h-11 w-full rounded-lg border border-outline-variant/20 bg-surface-high px-4 text-body-md font-bold text-on-surface outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
                     />
+                    <p className="mt-1 text-label-xs font-semibold text-on-surface-variant">
+                      Nilai tidak diisi otomatis. PIC wajib memilih preset atau input manual sebelum simpan.
+                    </p>
                   </div>
 
                   <label className="block space-y-1.5">

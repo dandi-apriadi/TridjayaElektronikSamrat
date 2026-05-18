@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { BadgeDollarSign, Users, Target, BarChart3, Trophy, Search, SlidersHorizontal, X, Eye, CalendarDays } from 'lucide-react';
 import Pagination from '../../components/ui/Pagination';
 import { useCabangStore } from '../../store/useCabangStore';
+import { useOffRequestStore } from '../../store/offRequestStore';
 import { apiFetch } from '../../utils/apiClient';
 import { createCabangLookup, getCabangDisplay } from '../../utils/cabangDisplay';
 import { DENDA_PER_HARI, calculateProspekDailyFine, formatRupiah } from '../../utils/denda';
@@ -96,13 +98,6 @@ const getMonthEndKey = (monthKey: string) => {
   return toDateKey(new Date(year, month, 0));
 };
 
-const countDaysInclusive = (from: string, to: string) => {
-  const fromDate = new Date(`${from}T12:00:00`);
-  const toDate = new Date(`${to}T12:00:00`);
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 1;
-  return Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1);
-};
-
 const buildDateKeysInRange = (from: string, to: string) => {
   const start = new Date(`${from}T12:00:00`);
   const end = new Date(`${to}T12:00:00`);
@@ -115,6 +110,16 @@ const buildDateKeysInRange = (from: string, to: string) => {
     cursor.setDate(cursor.getDate() + 1);
   }
   return keys;
+};
+
+const buildElapsedDateKeysInRange = (from: string, to: string, today: string) =>
+  buildDateKeysInRange(from, to).filter((tanggal) => tanggal <= today);
+
+const formatTargetDelta = (actual: number, target: number) => {
+  const delta = actual - target;
+  if (delta > 0) return `+${delta.toLocaleString('id-ID')} prospek`;
+  if (delta < 0) return `-${Math.abs(delta).toLocaleString('id-ID')} prospek`;
+  return '0 prospek';
 };
 
 const mapProspekActivity = (item: any): ProspekActivityRow => ({
@@ -133,6 +138,30 @@ const mapProspekActivity = (item: any): ProspekActivityRow => ({
   createdAt: String(item.createdAt || item.created_at || ''),
 });
 
+const fetchAllProspekActivity = async (baseQuery: URLSearchParams): Promise<ProspekActivityRow[]> => {
+  const limit = 500;
+  const items: ProspekActivityRow[] = [];
+  let page = 1;
+
+  while (page <= 50) {
+    const query = new URLSearchParams(baseQuery);
+    query.set('limit', String(limit));
+    query.set('page', String(page));
+
+    const response = await apiFetch(`/api/prospek-harian?${query.toString()}`);
+    if (!response.ok) throw new Error('Aktivitas prospek gagal dimuat.');
+
+    const payload = await response.json();
+    const pageItems = (payload.data?.items || []).map(mapProspekActivity);
+    items.push(...pageItems);
+
+    if (pageItems.length < limit) break;
+    page += 1;
+  }
+
+  return items;
+};
+
 const OwnerProspekPage: React.FC = () => {
   const today = todayDateKey();
   const [periodMode, setPeriodMode] = useState<PeriodMode>('day');
@@ -149,6 +178,7 @@ const OwnerProspekPage: React.FC = () => {
   const [employeeSort, setEmployeeSort] = useState<EmployeeSortKey>('rank');
   const [backendEmployeeProspek, setBackendEmployeeProspek] = useState<EmployeeProspekRow[]>([]);
   const [prospekActivity, setProspekActivity] = useState<ProspekActivityRow[]>([]);
+  const [loadedProspekPeriodKey, setLoadedProspekPeriodKey] = useState('');
   const [detailEmployee, setDetailEmployee] = useState<EmployeeProspekRow | null>(null);
   const [detailProspek, setDetailProspek] = useState<ProspekActivityRow[]>([]);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -157,6 +187,8 @@ const OwnerProspekPage: React.FC = () => {
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const cabangList = useCabangStore((state) => state.cabang);
   const fetchCabang = useCabangStore((state) => state.fetchCabang);
+  const offRequests = useOffRequestStore((state) => state.requests);
+  const fetchOffRequests = useOffRequestStore((state) => state.fetchRequests);
   const employeeItemsPerPage = 12;
   const periodRange = useMemo(() => {
     if (periodMode === 'month') {
@@ -186,39 +218,60 @@ const OwnerProspekPage: React.FC = () => {
       label: formatPeriodDate(selectedDate),
     };
   }, [customFrom, customTo, periodMode, selectedDate, selectedMonth]);
-  const activeDate = periodRange.to;
-  const activeMonthStart = periodRange.from;
-  const periodDayCount = useMemo(() => countDaysInclusive(periodRange.from, periodRange.to), [periodRange.from, periodRange.to]);
+  const reportableDateKeys = useMemo(
+    () => buildElapsedDateKeysInRange(periodRange.from, periodRange.to, today),
+    [periodRange.from, periodRange.to, today]
+  );
+  const activeDate = reportableDateKeys[reportableDateKeys.length - 1] || periodRange.to;
+  const activeMonthStart = reportableDateKeys[0] || periodRange.from;
+  const periodDayCount = reportableDateKeys.length;
   const isSingleDayPeriod = periodRange.from === periodRange.to;
+  const prospekPeriodKey = `${periodMode}|${periodRange.from}|${activeDate}`;
+  const isProspekDataReady = loadedProspekPeriodKey === prospekPeriodKey;
+  const currentBackendEmployeeProspek = isProspekDataReady ? backendEmployeeProspek : [];
+  const currentProspekActivity = isProspekDataReady ? prospekActivity : [];
+  const approvedOffDateByEmployee = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    offRequests
+      .filter((request) => request.status === 'approved')
+      .forEach((request) => {
+        const keys = [request.karyawanId, request.karyawanNama.toLowerCase()].filter(Boolean);
+        keys.forEach((key) => {
+          const dates = map.get(key) || new Set<string>();
+          dates.add(request.tanggal);
+          map.set(key, dates);
+        });
+      });
+    return map;
+  }, [offRequests]);
   const selectedMonthYear = selectedMonth.slice(0, 4);
   const selectedMonthNumber = selectedMonth.slice(5, 7);
   const employeeRows = useMemo(() => {
     const countsByEmployee = new Map<string, number>();
     const countsByEmployeeDate = new Map<string, number>();
-    const dateKeys = buildDateKeysInRange(periodRange.from, periodRange.to);
-    prospekActivity.forEach((item) => {
+    currentProspekActivity.forEach((item) => {
       const key = item.karyawanId || item.karyawanName.toLowerCase();
       if (!key) return;
       countsByEmployee.set(key, (countsByEmployee.get(key) || 0) + 1);
       countsByEmployeeDate.set(`${key}|${item.tanggal}`, (countsByEmployeeDate.get(`${key}|${item.tanggal}`) || 0) + 1);
     });
 
-    return backendEmployeeProspek
+    return currentBackendEmployeeProspek
       .map((row) => {
         const employeeKey = row.employeeId || row.nama.toLowerCase();
         const nameKey = row.nama.toLowerCase();
         const dailyTarget = Math.max(row.target || (row.kategori === 'Sales' ? 20 : 5), 0);
-        const actual = isSingleDayPeriod
-          ? row.prospekHariIni
-          : countsByEmployee.get(employeeKey) ?? countsByEmployee.get(nameKey) ?? 0;
-        const periodTarget = isSingleDayPeriod ? dailyTarget : Math.max(dailyTarget * periodDayCount, 0);
+        const actual = countsByEmployee.get(employeeKey) ?? countsByEmployee.get(nameKey) ?? 0;
+        const offDates = approvedOffDateByEmployee.get(employeeKey) || approvedOffDateByEmployee.get(nameKey) || new Set<string>();
+        const activeTargetDays = reportableDateKeys.filter((tanggal) => !offDates.has(tanggal)).length;
+        const periodTarget = Math.max(dailyTarget * activeTargetDays, 0);
         const percent = periodTarget > 0 ? Math.round((actual / periodTarget) * 100) : 0;
-        const fineDays = dateKeys.filter((tanggal) => {
-          const dailyActual = isSingleDayPeriod
-            ? actual
-            : countsByEmployeeDate.get(`${employeeKey}|${tanggal}`) ?? countsByEmployeeDate.get(`${nameKey}|${tanggal}`) ?? 0;
+        const dailyMissedDays = reportableDateKeys.filter((tanggal) => {
+          if (offDates.has(tanggal)) return false;
+          const dailyActual = countsByEmployeeDate.get(`${employeeKey}|${tanggal}`) ?? countsByEmployeeDate.get(`${nameKey}|${tanggal}`) ?? 0;
           return calculateProspekDailyFine(dailyActual, dailyTarget) > 0;
         }).length;
+        const periodShortfall = Math.max(periodTarget - actual, 0);
         return {
           ...row,
           prospekHariIni: actual,
@@ -227,14 +280,14 @@ const OwnerProspekPage: React.FC = () => {
           prospekBulanIni: actual,
           targetBulanan: periodTarget,
           persentaseBulanan: percent,
-          sisaTargetBulanan: Math.max(periodTarget - actual, 0),
-          hariDendaProspek: fineDays,
-          dendaProspek: fineDays * DENDA_PER_HARI,
+          sisaTargetBulanan: periodShortfall,
+          hariDendaProspek: dailyMissedDays,
+          dendaProspek: dailyMissedDays * DENDA_PER_HARI,
         };
       })
       .sort((a, b) => b.prospekHariIni - a.prospekHariIni || a.nama.localeCompare(b.nama, 'id'))
       .map((row, index) => ({ ...row, rank: index + 1 }));
-  }, [backendEmployeeProspek, isSingleDayPeriod, periodDayCount, periodRange.from, periodRange.to, prospekActivity]);
+  }, [approvedOffDateByEmployee, currentBackendEmployeeProspek, currentProspekActivity, reportableDateKeys]);
   const cabangLookup = useMemo(() => createCabangLookup(cabangList), [cabangList]);
   const getBranchDisplay = (value: string) => getCabangDisplay(value, cabangLookup);
   const employeeBranchOptions = useMemo(
@@ -254,10 +307,20 @@ const OwnerProspekPage: React.FC = () => {
   const totalProspekBulanan = useMemo(() => employeeRows.reduce((sum, row) => sum + row.prospekBulanIni, 0), [employeeRows]);
   const totalTargetBulanan = useMemo(() => employeeRows.reduce((sum, row) => sum + row.targetBulanan, 0), [employeeRows]);
   const monthlyAchievementPercent = totalTargetBulanan > 0 ? Math.round((totalProspekBulanan / totalTargetBulanan) * 100) : 0;
-  const monthlyTargetGap = Math.max(totalTargetBulanan - totalProspekBulanan, 0);
+  const monthlyTargetDelta = totalProspekBulanan - totalTargetBulanan;
+  const monthlyTargetDeltaLabel = formatTargetDelta(totalProspekBulanan, totalTargetBulanan);
   const totalDendaProspek = useMemo(() => employeeRows.reduce((sum, row) => sum + row.dendaProspek, 0), [employeeRows]);
   const totalHariDendaProspek = useMemo(() => employeeRows.reduce((sum, row) => sum + row.hariDendaProspek, 0), [employeeRows]);
-  const totalClosing = useMemo(() => prospekActivity.filter((row) => row.statusProspek === 'deal').length, [prospekActivity]);
+  const totalKaryawanDendaProspek = useMemo(() => employeeRows.filter((row) => row.hariDendaProspek > 0).length, [employeeRows]);
+  const fineReportQuery = useMemo(() => {
+    const query = new URLSearchParams();
+    query.set('mode', periodMode);
+    query.set('from', periodRange.from);
+    query.set('to', activeDate);
+    query.set('label', periodRange.label);
+    return query.toString();
+  }, [activeDate, periodMode, periodRange.from, periodRange.label]);
+  const totalClosing = useMemo(() => currentProspekActivity.filter((row) => row.statusProspek === 'deal').length, [currentProspekActivity]);
   const conversionPercent = totalProspek > 0 ? Math.round((totalClosing / totalProspek) * 100) : 0;
   const categoryByEmployee = useMemo(() => {
     const map = new Map<string, EmployeeProspekRow['kategori']>();
@@ -340,21 +403,25 @@ const OwnerProspekPage: React.FC = () => {
   }, [fetchCabang]);
 
   useEffect(() => {
+    fetchOffRequests({ tanggalFrom: periodRange.from, tanggalTo: activeDate, limit: 500 });
+  }, [activeDate, fetchOffRequests, periodRange.from]);
+
+  useEffect(() => {
     let mounted = true;
     const loadProspek = async () => {
       setIsLoadingProspek(true);
+      setLoadedProspekPeriodKey('');
       const query = new URLSearchParams();
-      query.set('limit', '500');
       if (isSingleDayPeriod) {
         query.set('tanggal', periodRange.from);
       } else {
         query.set('date_from', periodRange.from);
-        query.set('date_to', periodRange.to);
+        query.set('date_to', activeDate);
       }
 
       const [summaryResponse, activityResponse] = await Promise.all([
         apiFetch(`/api/prospek-harian/summary?tanggal=${encodeURIComponent(activeDate)}`),
-        apiFetch(`/api/prospek-harian?${query.toString()}`),
+        fetchAllProspekActivity(query),
       ]);
       if (!mounted) return;
 
@@ -381,12 +448,8 @@ const OwnerProspekPage: React.FC = () => {
         setBackendEmployeeProspek([]);
       }
 
-      if (activityResponse.ok) {
-        const activityPayload = await activityResponse.json();
-        setProspekActivity((activityPayload.data?.items || []).map(mapProspekActivity));
-      } else {
-        setProspekActivity([]);
-      }
+      setProspekActivity(activityResponse);
+      setLoadedProspekPeriodKey(prospekPeriodKey);
 
       setIsLoadingProspek(false);
     };
@@ -394,12 +457,13 @@ const OwnerProspekPage: React.FC = () => {
       if (!mounted) return;
       setBackendEmployeeProspek([]);
       setProspekActivity([]);
+      setLoadedProspekPeriodKey('');
       setIsLoadingProspek(false);
     });
     return () => {
       mounted = false;
     };
-  }, [activeDate, isSingleDayPeriod, periodRange.from, periodRange.to]);
+  }, [activeDate, isSingleDayPeriod, periodRange.from, periodRange.to, prospekPeriodKey]);
 
   useEffect(() => {
     setDetailEmployee(null);
@@ -425,21 +489,15 @@ const OwnerProspekPage: React.FC = () => {
     if (row.employeeId.trim()) {
       query.set('karyawan_id', row.employeeId);
     }
-    query.set('limit', '500');
     if (isSingleDayPeriod) {
       query.set('tanggal', periodRange.from);
     } else {
       query.set('date_from', periodRange.from);
-      query.set('date_to', periodRange.to);
+      query.set('date_to', activeDate);
     }
 
     try {
-      const response = await apiFetch(`/api/prospek-harian?${query.toString()}`);
-      if (!response.ok) {
-        throw new Error('Detail prospek gagal dimuat.');
-      }
-      const payload = await response.json();
-      const items = (payload.data?.items || []).map(mapProspekActivity);
+      const items = await fetchAllProspekActivity(query);
       const employeeItems = row.employeeId.trim()
         ? items
         : items.filter((item: ProspekActivityRow) => item.karyawanName.toLowerCase() === row.nama.toLowerCase());
@@ -477,60 +535,68 @@ const OwnerProspekPage: React.FC = () => {
   const detailDateRows = useMemo(() => {
     if (!detailEmployee) return [];
     const fallbackDailyTarget = detailEmployee.kategori === 'Sales' ? 20 : 5;
+    const offDates =
+      approvedOffDateByEmployee.get(detailEmployee.employeeId) ||
+      approvedOffDateByEmployee.get(detailEmployee.nama.toLowerCase()) ||
+      new Set<string>();
+    const activeTargetDays = Math.max(reportableDateKeys.filter((tanggal) => !offDates.has(tanggal)).length, 1);
     const dailyTarget = Math.max(
       1,
-      Math.round((detailEmployee.target || fallbackDailyTarget * periodDayCount) / Math.max(periodDayCount, 1))
+      Math.round((detailEmployee.target || fallbackDailyTarget * activeTargetDays) / activeTargetDays)
     );
     const map = new Map<string, number>();
     detailProspek.forEach((item) => {
       map.set(item.tanggal, (map.get(item.tanggal) || 0) + 1);
     });
-    return buildDateKeysInRange(periodRange.from, periodRange.to)
+    return reportableDateKeys
+      .slice()
       .sort((a, b) => b.localeCompare(a))
       .map((tanggal) => {
         const total = map.get(tanggal) || 0;
+        const isOffDay = offDates.has(tanggal);
         return {
         tanggal,
         total,
         target: dailyTarget,
-        gap: Math.max(dailyTarget - total, 0),
-        fine: calculateProspekDailyFine(total, dailyTarget),
-        percent: dailyTarget > 0 ? Math.round((total / dailyTarget) * 100) : 0,
+        gap: isOffDay ? 0 : Math.max(dailyTarget - total, 0),
+        fine: isOffDay ? 0 : calculateProspekDailyFine(total, dailyTarget),
+        percent: isOffDay ? 100 : dailyTarget > 0 ? Math.round((total / dailyTarget) * 100) : 0,
+        isOffDay,
       };
       });
-  }, [detailEmployee, detailProspek, periodDayCount, periodRange.from, periodRange.to]);
+  }, [approvedOffDateByEmployee, detailEmployee, detailProspek, reportableDateKeys]);
 
   const hourlyData = useMemo<ProspekChartRow[]>(() => {
     const rows = Array.from({ length: 24 }, (_, hour) => {
       const jam = `${String(hour).padStart(2, '0')}:00`;
       return { jam, label: jam, sales: 0, nonSales: 0 };
     });
-    prospekActivity.forEach((row) => {
+    currentProspekActivity.forEach((row) => {
       if (row.tanggal !== activeDate) return;
-      const hour = Number(row.createdAt.slice(11, 13));
+      const hour = Number((row.createdAt.includes('T') ? row.createdAt.slice(11, 13) : row.createdAt.slice(0, 2)) || -1);
       if (!Number.isFinite(hour) || hour < 0 || hour > 23) return;
       if (getActivityCategory(row) === 'Sales') rows[hour].sales += 1;
       else rows[hour].nonSales += 1;
     });
     return rows;
-  }, [activeDate, categoryByEmployee, prospekActivity]);
+  }, [activeDate, categoryByEmployee, currentProspekActivity]);
 
   const dailyPeriodData = useMemo<ProspekChartRow[]>(() => {
-    const rows = buildDateKeysInRange(periodRange.from, periodRange.to).map((tanggal) => ({
+    const rows = reportableDateKeys.map((tanggal) => ({
       tanggal,
       label: formatShortDate(tanggal),
       sales: 0,
       nonSales: 0,
     }));
     const rowsByDate = new Map(rows.map((row) => [row.tanggal, row]));
-    prospekActivity.forEach((row) => {
+    currentProspekActivity.forEach((row) => {
       const target = rowsByDate.get(row.tanggal);
       if (!target) return;
       if (getActivityCategory(row) === 'Sales') target.sales += 1;
       else target.nonSales += 1;
     });
     return rows;
-  }, [categoryByEmployee, periodRange.from, periodRange.to, prospekActivity]);
+  }, [categoryByEmployee, currentProspekActivity, reportableDateKeys]);
 
   const chartData = isSingleDayPeriod ? hourlyData : dailyPeriodData;
   const chartXAxisKey = 'label';
@@ -576,7 +642,7 @@ const OwnerProspekPage: React.FC = () => {
     {
       label: 'Capaian Target Periode',
       formattedValue: `${monthlyAchievementPercent}%`,
-      helper: `${totalProspekBulanan} prospek dari target ${totalTargetBulanan}, kurang ${monthlyTargetGap}`,
+      helper: `${totalProspekBulanan} prospek dari target ${totalTargetBulanan}, selisih ${monthlyTargetDeltaLabel}`,
       icon: CalendarDays,
       color: 'text-secondary',
       bg: 'bg-secondary/10',
@@ -585,11 +651,12 @@ const OwnerProspekPage: React.FC = () => {
     {
       label: 'Denda Prospek',
       formattedValue: formatRupiah(totalDendaProspek),
-      helper: totalHariDendaProspek > 0 ? `${totalHariDendaProspek} hari gagal target` : 'Semua target harian aman',
+      helper: totalHariDendaProspek > 0 ? `${totalKaryawanDendaProspek} karyawan melanggar, ${totalHariDendaProspek} hari` : 'Semua karyawan capai target harian',
       icon: BadgeDollarSign,
       color: totalDendaProspek > 0 ? 'text-error' : 'text-secondary',
       bg: totalDendaProspek > 0 ? 'bg-error/10' : 'bg-secondary/10',
       valueColor: totalDendaProspek > 0 ? 'text-error' : 'text-secondary',
+      actionPath: `/dashboard/owner/prospek/denda?${fineReportQuery}`,
     },
   ];
 
@@ -715,6 +782,14 @@ const OwnerProspekPage: React.FC = () => {
               <div className="text-label-xs text-on-surface-variant uppercase tracking-widest mb-1">{card.label}</div>
               <div className={`font-display text-headline-sm font-bold ${card.valueColor}`}>{card.formattedValue}</div>
               <div className="text-label-xs text-on-surface-variant mt-1">{card.helper}</div>
+              {'actionPath' in card && card.actionPath && (
+                <Link
+                  to={card.actionPath}
+                  className="mt-4 inline-flex h-8 items-center justify-center rounded-lg border border-outline-variant/20 bg-surface-high px-3 text-label-xs font-bold text-primary transition hover:border-primary/40 hover:bg-primary/10"
+                >
+                  Detail laporan
+                </Link>
+              )}
             </motion.div>
           );
         })}
@@ -838,8 +913,12 @@ const OwnerProspekPage: React.FC = () => {
               Periode {formatShortDate(activeMonthStart)} sampai {formatShortDate(activeDate)}, target mengikuti rentang tanggal aktif.
             </p>
           </div>
-          <span className="rounded-lg border border-outline-variant/10 bg-surface-high px-3 py-2 text-label-xs font-bold text-on-surface-variant">
-            Kurang {monthlyTargetGap.toLocaleString('id-ID')} prospek
+          <span className={`rounded-lg border px-3 py-2 text-label-xs font-bold ${
+            monthlyTargetDelta >= 0
+              ? 'border-secondary/20 bg-secondary/10 text-secondary'
+              : 'border-error/20 bg-error/10 text-error'
+          }`}>
+            Target {monthlyTargetDeltaLabel}
           </span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1083,7 +1162,7 @@ const OwnerProspekPage: React.FC = () => {
                 <th className="text-left text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Posisi</th>
                 <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Prospek Periode</th>
                 <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Target Periode</th>
-                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Kurang Target</th>
+                <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Selisih Target</th>
                 <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Denda</th>
                 <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Capaian</th>
                 <th className="text-right text-label-xs text-on-surface-variant uppercase tracking-widest py-2 px-3">Detail</th>
@@ -1115,7 +1194,11 @@ const OwnerProspekPage: React.FC = () => {
                   <td className="py-2.5 px-3 text-body-sm text-on-surface-variant">{row.posisi}</td>
                   <td className="py-2.5 px-3 text-body-sm text-on-surface text-right font-semibold">{row.prospekHariIni}</td>
                   <td className="py-2.5 px-3 text-body-sm text-on-surface-variant text-right">{row.targetBulanan}</td>
-                  <td className="py-2.5 px-3 text-body-sm text-on-surface-variant text-right">{row.sisaTargetBulanan}</td>
+                  <td className={`py-2.5 px-3 text-body-sm font-bold text-right ${
+                    row.prospekBulanIni >= row.targetBulanan ? 'text-secondary' : 'text-error'
+                  }`}>
+                    {formatTargetDelta(row.prospekBulanIni, row.targetBulanan)}
+                  </td>
                   <td className="py-2.5 px-3 text-right">
                     <div className={`text-body-sm font-bold ${row.dendaProspek > 0 ? 'text-error' : 'text-secondary'}`}>{formatRupiah(row.dendaProspek)}</div>
                     <div className="text-[11px] font-semibold text-on-surface-variant">{row.hariDendaProspek} hari</div>
@@ -1156,7 +1239,7 @@ const OwnerProspekPage: React.FC = () => {
                   </span>
                 </div>
                 <p className="mt-1 text-label-xs text-on-surface-variant">
-                  Periode {periodRange.label}: {detailEmployee.prospekBulanIni} / {detailEmployee.targetBulanan} prospek, kurang {detailEmployee.sisaTargetBulanan}
+                  Periode {periodRange.label}: {detailEmployee.prospekBulanIni} / {detailEmployee.targetBulanan} prospek, selisih {formatTargetDelta(detailEmployee.prospekBulanIni, detailEmployee.targetBulanan)}
                 </p>
                 <p className={`mt-1 text-label-xs font-bold ${detailEmployee.dendaProspek > 0 ? 'text-error' : 'text-secondary'}`}>
                   Denda prospek: {formatRupiah(detailEmployee.dendaProspek)} ({detailEmployee.hariDendaProspek} hari gagal target)
@@ -1198,7 +1281,7 @@ const OwnerProspekPage: React.FC = () => {
                           <div className={`h-full rounded-full ${item.gap === 0 ? 'bg-secondary' : 'bg-error'}`} style={{ width: `${Math.min(item.percent, 100)}%` }} />
                         </div>
                         <p className="mt-1 text-label-xs text-on-surface-variant">
-                          {item.gap > 0 ? `Kurang ${item.gap} prospek, denda ${formatRupiah(item.fine)}` : 'Target tanggal ini tercapai'}
+                          {item.isOffDay ? 'OFF disetujui PIC, denda tidak dihitung' : item.gap > 0 ? `Kurang ${item.gap} prospek, denda ${formatRupiah(item.fine)}` : 'Target tanggal ini tercapai'}
                         </p>
                       </div>
                     ))}

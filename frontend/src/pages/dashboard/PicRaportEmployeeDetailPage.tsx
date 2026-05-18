@@ -28,7 +28,7 @@ const getCurrentMonthRange = () => {
   const now = new Date();
   return {
     from: toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)),
-    to: toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    to: toDateKey(now),
   };
 };
 

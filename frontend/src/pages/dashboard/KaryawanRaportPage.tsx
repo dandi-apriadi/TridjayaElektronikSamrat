@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Ban,
   BadgeDollarSign,
+  CalendarOff,
   CalendarDays,
   CheckCircle,
   Circle,
@@ -30,6 +31,7 @@ import { usePicRaportStore } from '../../store/picRaportStore';
 import { apiFetch } from '../../utils/apiClient';
 import { calculateJobdeskScoreFine, formatRupiah } from '../../utils/denda';
 import { ImagePreviewModal, type PreviewImage } from '../../components/ui';
+import { useOffRequestStore } from '../../store/offRequestStore';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { type: 'spring' as const, stiffness: 120, damping: 18 } } };
@@ -225,6 +227,8 @@ const KaryawanRaportPage: React.FC = () => {
   const fetchDivisions = usePicRaportStore((state) => state.fetchDivisions);
   const submitRaport = usePicRaportStore((state) => state.submitRaport);
   const raportError = usePicRaportStore((state) => state.error);
+  const offRequests = useOffRequestStore((state) => state.requests);
+  const fetchOffRequests = useOffRequestStore((state) => state.fetchRequests);
   const divisi = user?.divisi || '';
   const cabang = getUserCabang(user);
   const position = getPositionMatch(divisi, divisions);
@@ -281,7 +285,8 @@ const KaryawanRaportPage: React.FC = () => {
     fetchEvidence({ tanggal: todayKey, limit: 2000 });
     fetchDivisions();
     fetchReportingWindow();
-  }, [fetchDivisions, fetchEvidence, fetchReportingWindow]);
+    fetchOffRequests({ tanggal: todayKey, limit: 50 });
+  }, [fetchDivisions, fetchEvidence, fetchOffRequests, fetchReportingWindow]);
 
   useEffect(() => {
     return () => {
@@ -351,10 +356,11 @@ const KaryawanRaportPage: React.FC = () => {
   const averageTodayScore = scoredTodayItems.length
     ? Math.round(scoredTodayItems.reduce((sum, item) => sum + (item.score || 0), 0) / scoredTodayItems.length)
     : 0;
-  const dendaJobdeskHariIni = calculateJobdeskScoreFine(averageTodayScore, scoredTodayItems.length > 0);
+  const approvedOffToday = offRequests.find((request) => request.karyawanId === user?.id && request.tanggal === todayKey && request.status === 'approved');
+  const dendaJobdeskHariIni = approvedOffToday ? 0 : calculateJobdeskScoreFine(averageTodayScore, scoredTodayItems.length > 0);
   const persentase = totalCount > 0 ? Math.round((scoredJobdeskCount / totalCount) * 100) : 0;
   const evidencePercentage = totalCount > 0 ? Math.round((evidenceCount / totalCount) * 100) : 0;
-  const canSubmitReport = isWithinReportingWindow(reportSettings);
+  const canSubmitReport = isWithinReportingWindow(reportSettings) && !approvedOffToday;
 
   const revokeEvidenceFiles = (files?: EvidenceAsset[]) => {
     files?.forEach((asset) => {
@@ -646,10 +652,12 @@ const KaryawanRaportPage: React.FC = () => {
               <p className="mt-1 text-title-sm font-black text-on-surface">{today}</p>
               <div className={`mt-3 rounded-xl px-3 py-2 ${canSubmitReport ? 'bg-secondary/10 text-secondary' : 'bg-error/10 text-error'}`}>
                 <div className="flex items-center gap-2 text-label-sm font-bold">
-                  <Clock3 className="h-4 w-4" />
-                  {canSubmitReport ? 'Pelaporan dibuka' : 'Pelaporan ditutup'}
+                  {approvedOffToday ? <CalendarOff className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+                  {approvedOffToday ? 'OFF disetujui PIC' : canSubmitReport ? 'Pelaporan dibuka' : 'Pelaporan ditutup'}
                 </div>
-                <p className="mt-1 text-label-xs text-on-surface-variant">{getReportingWindowLabel(reportSettings)}</p>
+                <p className="mt-1 text-label-xs text-on-surface-variant">
+                  {approvedOffToday ? 'Laporan jobdesk tidak wajib hari ini.' : getReportingWindowLabel(reportSettings)}
+                </p>
               </div>
             </div>
             <Link
@@ -665,7 +673,9 @@ const KaryawanRaportPage: React.FC = () => {
 
       {!canSubmitReport && (
         <motion.div variants={itemVariants} className="rounded-3xl border border-error/20 bg-error/10 p-4 text-body-sm font-semibold text-error">
-          Pelaporan jobdesk sedang ditutup oleh owner. Anda tetap bisa melihat daftar jobdesk, tetapi checklist dan upload bukti baru dibuka pada {getReportingWindowLabel(reportSettings)}.
+          {approvedOffToday
+            ? 'OFF hari ini sudah disetujui PIC. Anda tidak perlu mengirim laporan jobdesk dan denda jobdesk hari ini tidak dihitung.'
+            : `Pelaporan jobdesk sedang ditutup oleh owner. Anda tetap bisa melihat daftar jobdesk, tetapi checklist dan upload bukti baru dibuka pada ${getReportingWindowLabel(reportSettings)}.`}
         </motion.div>
       )}
 

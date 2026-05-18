@@ -62,10 +62,16 @@ const itemVariants = { hidden: { y: 14, opacity: 0 }, visible: { y: 0, opacity: 
 const itemsPerPage = 10;
 const branchChartColors = ['#2563eb', '#0891b2', '#16a34a', '#ca8a04', '#dc2626'];
 
-const getMonthRange = (date: Date) => ({
-  from: toDateKey(new Date(date.getFullYear(), date.getMonth(), 1)),
-  to: toDateKey(new Date(date.getFullYear(), date.getMonth() + 1, 0)),
-});
+const getMonthRange = (date: Date) => {
+  const now = new Date();
+  const isCurrentMonth = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+  return {
+    from: toDateKey(new Date(date.getFullYear(), date.getMonth(), 1)),
+    to: toDateKey(isCurrentMonth ? now : monthEnd),
+  };
+};
 
 const getTrendRange = (mode: TrendMode, dateKey: string) => {
   const selectedDate = new Date(`${dateKey}T00:00:00`);
@@ -80,7 +86,8 @@ const getTrendRange = (mode: TrendMode, dateKey: string) => {
     start.setDate(selectedDate.getDate() - selectedDate.getDay());
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
-    return { from: toDateKey(start), to: toDateKey(end) };
+    const today = new Date();
+    return { from: toDateKey(start), to: toDateKey(start <= today && end > today ? today : end) };
   }
   return getMonthRange(selectedDate);
 };
@@ -832,7 +839,7 @@ const OwnerRaportPage: React.FC = () => {
                         <span className={`text-title-sm font-black ${scoreStatus.textClass}`}>{monthlyReport.rataNilai}</span>
                         <span className="text-label-xs font-semibold text-on-surface-variant">/ 100</span>
                       </div>
-                      <div className="text-label-xs text-on-surface-variant">Rata-rata bulan ini</div>
+                      <div className="text-label-xs text-on-surface-variant">Rata-rata periode</div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -851,7 +858,7 @@ const OwnerRaportPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className={`text-body-sm font-black ${employeeFine > 0 ? 'text-red-400' : 'text-green-400'}`}>{formatRupiah(employeeFine)}</div>
-                      <div className="text-[11px] font-semibold text-on-surface-variant">bulan ini</div>
+                      <div className="text-[11px] font-semibold text-on-surface-variant">periode aktif</div>
                     </td>
                     <td className="py-3 px-4 text-right">
                       <Link

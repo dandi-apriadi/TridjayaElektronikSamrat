@@ -45,6 +45,7 @@ const AdminDashboard = lazy(() => import('./pages/dashboard/AdminDashboard'));
 const AgentDashboard = lazy(() => import('./pages/dashboard/AgentDashboard'));
 const OwnerDashboard = lazy(() => import('./pages/dashboard/OwnerDashboard'));
 const OwnerProspekPage = lazy(() => import('./pages/dashboard/OwnerProspekPage'));
+const OwnerProspekFineReportPage = lazy(() => import('./pages/dashboard/OwnerProspekFineReportPage'));
 const OwnerOmsetCabangPage = lazy(() => import('./pages/dashboard/OwnerOmsetCabangPage'));
 const OwnerOmsetRealtimePage = lazy(() => import('./pages/dashboard/OwnerOmsetRealtimePage'));
 const OwnerTargetActualPage = lazy(() => import('./pages/dashboard/OwnerTargetActualPage'));
@@ -576,6 +577,7 @@ const App: React.FC = () => {
             }
           />
           <Route path="owner/prospek" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerProspekPage)}</RoleGuard>} />
+          <Route path="owner/prospek/denda" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerProspekFineReportPage)}</RoleGuard>} />
           <Route path="owner/omset-cabang" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerOmsetCabangPage)}</RoleGuard>} />
           <Route path="owner/omset-realtime" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerOmsetRealtimePage)}</RoleGuard>} />
           <Route path="owner/target-actual" element={<RoleGuard roles={["owner"]}>{lazyPage(OwnerTargetActualPage)}</RoleGuard>} />

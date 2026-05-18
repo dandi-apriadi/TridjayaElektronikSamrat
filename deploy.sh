@@ -75,6 +75,12 @@ systemctl restart tridjaya-backend
 systemctl disable --now tridjaya-frontend 2>/dev/null || true
 
 echo "[7/7] Installing nginx reverse proxy..."
+cat > /etc/nginx/conf.d/tridjaya-limits.conf <<EOF
+limit_req_zone \$binary_remote_addr zone=api_per_ip:10m rate=60r/s;
+limit_req_zone \$binary_remote_addr zone=public_per_ip:10m rate=30r/s;
+limit_conn_zone \$binary_remote_addr zone=conn_per_ip:10m;
+EOF
+
 cat > /etc/nginx/sites-available/${DOMAIN} <<EOF
 server {
     listen 80;
@@ -91,6 +97,8 @@ server {
     gzip_types text/plain text/css application/json application/javascript image/svg+xml;
 
     location /api/ {
+        limit_conn conn_per_ip 100;
+        limit_req zone=api_per_ip burst=180 nodelay;
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
         proxy_connect_timeout 5s;
@@ -103,6 +111,8 @@ server {
     }
 
     location /uploads/ {
+        limit_conn conn_per_ip 20;
+        limit_req zone=public_per_ip burst=40 nodelay;
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
         proxy_connect_timeout 5s;

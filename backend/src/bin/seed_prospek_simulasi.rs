@@ -37,6 +37,58 @@ struct Employee {
     cabang_name: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum SimulationScenario {
+    MajorityReached,
+    MajorityBelowTarget,
+    Balanced,
+    SomeEmployeesBelowTarget,
+}
+
+impl SimulationScenario {
+    fn from_env() -> Self {
+        let value = env::var("PROSPEK_SIMULATION_SCENARIO")
+            .unwrap_or_else(|_| "majority_reached".to_string())
+            .trim()
+            .to_lowercase()
+            .replace([' ', '-'], "_");
+
+        match value.as_str() {
+            "majority_below_target"
+            | "majority_below"
+            | "below_target"
+            | "kurang_target"
+            | "mayoritas_kurang"
+            | "tidak_tercapai" => Self::MajorityBelowTarget,
+            "balanced" | "imbang" | "campuran" | "mixed" => Self::Balanced,
+            "some_below_target"
+            | "some_below"
+            | "beberapa_kurang"
+            | "april_some_below"
+            | "april_kurang_target" => Self::SomeEmployeesBelowTarget,
+            _ => Self::MajorityReached,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::MajorityReached => "majority_reached",
+            Self::MajorityBelowTarget => "majority_below_target",
+            Self::Balanced => "balanced",
+            Self::SomeEmployeesBelowTarget => "some_employees_below_target",
+        }
+    }
+
+    fn reached_threshold(self) -> usize {
+        match self {
+            Self::MajorityReached => 72,
+            Self::MajorityBelowTarget => 28,
+            Self::Balanced => 50,
+            Self::SomeEmployeesBelowTarget => 82,
+        }
+    }
+}
+
 fn normalize_target_kategori(jabatan: &str, divisi: &str) -> &'static str {
     let normalized_jabatan = jabatan.trim().to_lowercase().replace([' ', '-'], "_");
 
@@ -56,6 +108,46 @@ fn normalize_target_kategori(jabatan: &str, divisi: &str) -> &'static str {
     }
 }
 
+fn target_for_category(target_kategori: &str) -> usize {
+    if target_kategori == "sales" {
+        20
+    } else {
+        5
+    }
+}
+
+fn simulated_prospect_count(
+    employee_index: usize,
+    day_index: usize,
+    target: usize,
+    scenario: SimulationScenario,
+) -> usize {
+    if target == 0 {
+        return 0;
+    }
+
+    if matches!(scenario, SimulationScenario::SomeEmployeesBelowTarget) {
+        if employee_index % 4 == 0 {
+            let shortfall = 1 + ((employee_index + day_index) % target.max(1));
+            return target.saturating_sub(shortfall);
+        }
+
+        let extra = 1 + ((employee_index * 7 + day_index * 5) % 6);
+        return target + extra;
+    }
+
+    let seed = (employee_index * 37 + day_index * 19 + target * 11) % 100;
+    let reaches_target = seed < scenario.reached_threshold();
+
+    if reaches_target {
+        let extra = (employee_index * 7 + day_index * 5) % 6;
+        target + extra
+    } else {
+        let shortfall = 1 + ((employee_index * 5 + day_index * 3) % target.max(1));
+        target.saturating_sub(shortfall)
+    }
+}
+
 fn lead_status(status: &str) -> &'static str {
     match status {
         "deal" => "Closed Won",
@@ -72,6 +164,14 @@ fn simulation_end_date() -> NaiveDate {
         }
     }
     Local::now().date_naive()
+}
+
+fn simulation_marker() -> String {
+    env::var("PROSPEK_SIMULATION_MARKER")
+        .map(|value| value.trim().to_string())
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| SIMULATION_MARKER.to_string())
 }
 
 fn source_json_path() -> PathBuf {
@@ -221,6 +321,7 @@ async fn fetch_employees(pool: &MySqlPool) -> Result<Vec<Employee>, sqlx::Error>
 async fn reset_previous_simulation(
     pool: &MySqlPool,
     manifest_file: &PathBuf,
+    marker: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if manifest_file.exists() {
         let manifest_text = fs::read_to_string(manifest_file)?;
@@ -240,7 +341,7 @@ async fn reset_previous_simulation(
         }
     }
 
-    let pattern = format!("%{}%", SIMULATION_MARKER);
+    let pattern = format!("%{}%", marker);
     sqlx::query("DELETE FROM leads WHERE notes LIKE ?")
         .bind(&pattern)
         .execute(pool)
@@ -264,6 +365,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let source_path = source_json_path();
     let manifest_file = manifest_path();
+    let marker = simulation_marker();
     let source_text = fs::read_to_string(&source_path)?;
     let source: SourceData = serde_json::from_str(&source_text)?;
     let employees = fetch_employees(&pool).await?;
@@ -283,65 +385,94 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|offset| start_date + Duration::days(offset))
         .collect::<Vec<_>>();
 
-    reset_previous_simulation(&pool, &manifest_file).await?;
+    reset_previous_simulation(&pool, &manifest_file, &marker).await?;
 
+    let scenario = SimulationScenario::from_env();
     let mut inserted = 0usize;
-    let mut inserted_ids = Vec::with_capacity(source.prospects.len());
-    for (index, prospect) in source.prospects.iter().enumerate() {
-        let employee = &employees[index % employees.len()];
-        let date =
-            dates[((index / employees.len()) + ((index % employees.len()) * 3)) % dates.len()];
-        let hour = 9 + ((index * 7) % 9) as u32;
-        let minute = ((index * 13) % 60) as u32;
-        let created_at = NaiveDateTime::new(
-            date,
-            NaiveTime::from_hms_opt(hour, minute, 0).unwrap_or(NaiveTime::MIN),
-        );
-        let id = Uuid::new_v4().to_string();
-        let cabang = if employee.cabang_name.trim().is_empty() {
-            if employee.cabang_id.trim().is_empty() {
-                "Cabang belum diatur"
-            } else {
-                employee.cabang_id.as_str()
-            }
-        } else {
-            employee.cabang_name.as_str()
-        };
+    let mut reached_cells = 0usize;
+    let mut below_target_cells = 0usize;
+    let mut inserted_ids = Vec::new();
+    let mut employee_monthly_summaries = Vec::new();
+
+    for (employee_index, employee) in employees.iter().enumerate() {
         let target_kategori = normalize_target_kategori(&employee.jabatan, &employee.divisi);
-        let note = build_field_note(index, prospect, employee);
-        let fincoy = build_fincoy(index, prospect);
-        let lead_note = format!(
-            "Sumber: Prospek Harian Karyawan | {} | Cabang: {} | Divisi: {} | Sumber data: {}",
-            SIMULATION_MARKER, cabang, employee.divisi, prospect.source
+        let daily_target = target_for_category(target_kategori);
+        let monthly_target = daily_target * dates.len();
+        let mut employee_monthly_total = 0usize;
+
+        for (day_index, date) in dates.iter().enumerate() {
+            let daily_count =
+                simulated_prospect_count(employee_index, day_index, daily_target, scenario);
+            employee_monthly_total += daily_count;
+            if daily_count >= daily_target {
+                reached_cells += 1;
+            } else {
+                below_target_cells += 1;
+            }
+
+            for item_index in 0..daily_count {
+                let index = inserted;
+                let prospect = &source.prospects[index % source.prospects.len()];
+                let hour = 9 + ((item_index * 2 + employee_index + day_index) % 9) as u32;
+                let minute = ((index * 13 + item_index * 7) % 60) as u32;
+                let created_at = NaiveDateTime::new(
+                    *date,
+                    NaiveTime::from_hms_opt(hour, minute, 0).unwrap_or(NaiveTime::MIN),
+                );
+                let id = Uuid::new_v4().to_string();
+                let cabang = if employee.cabang_name.trim().is_empty() {
+                    if employee.cabang_id.trim().is_empty() {
+                        "Cabang belum diatur"
+                    } else {
+                        employee.cabang_id.as_str()
+                    }
+                } else {
+                    employee.cabang_name.as_str()
+                };
+                let note = format!(
+                    "{} | {} | target_harian={} | total_hari_ini={}",
+                    build_field_note(index, prospect, employee),
+                    marker,
+                    daily_target,
+                    daily_count
+                );
+                let fincoy = build_fincoy(index, prospect);
+                let lead_note = format!(
+                    "Sumber: Prospek Harian Karyawan | {} | scenario={} | Cabang: {} | Divisi: {} | Sumber data: {}",
+                    marker,
+                    scenario.label(),
+                    cabang,
+                    employee.divisi,
+                    prospect.source
         );
 
-        sqlx::query(
-            "INSERT INTO prospek_harian \
+                sqlx::query(
+                    "INSERT INTO prospek_harian \
              (id, karyawan_id, karyawan_nama, tanggal, cabang, divisi, target_kategori, \
               nama_prospek, no_whatsapp, nomor_hp, minat_barang, alamat, keterangan_prospek, \
               status_prospek, keterangan_fincoy, created_at) \
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&id)
-        .bind(&employee.id)
-        .bind(&employee.name)
-        .bind(date)
-        .bind(cabang)
-        .bind(&employee.divisi)
-        .bind(target_kategori)
-        .bind(prospect.name.trim().to_uppercase())
-        .bind(&prospect.phone)
-        .bind(&prospect.phone)
-        .bind(prospect.product.trim().to_uppercase())
-        .bind(prospect.product.trim().to_uppercase())
-        .bind(&note)
-        .bind(&prospect.status)
-        .bind(&fincoy)
-        .bind(created_at)
-        .execute(&pool)
-        .await?;
+                )
+                .bind(&id)
+                .bind(&employee.id)
+                .bind(&employee.name)
+                .bind(*date)
+                .bind(cabang)
+                .bind(&employee.divisi)
+                .bind(target_kategori)
+                .bind(prospect.name.trim().to_uppercase())
+                .bind(&prospect.phone)
+                .bind(&prospect.phone)
+                .bind(prospect.product.trim().to_uppercase())
+                .bind(prospect.product.trim().to_uppercase())
+                .bind(&note)
+                .bind(&prospect.status)
+                .bind(&fincoy)
+                .bind(created_at)
+                .execute(&pool)
+                .await?;
 
-        sqlx::query(
+                sqlx::query(
             "INSERT INTO leads \
              (id, agent_id, customer_name, phone_number, interested_product, status, notes, created_at, updated_at) \
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
@@ -361,8 +492,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .execute(&pool)
         .await?;
 
-        inserted += 1;
-        inserted_ids.push(id);
+                inserted += 1;
+                inserted_ids.push(id);
+            }
+        }
+
+        employee_monthly_summaries.push((
+            employee.name.clone(),
+            target_kategori.to_string(),
+            monthly_target,
+            employee_monthly_total,
+        ));
     }
 
     if let Some(parent) = manifest_file.parent() {
@@ -381,6 +521,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         end_date,
         source_path.display()
     );
+    println!(
+        "Scenario: {}. Marker: {}. Reached target cells: {}. Below target cells: {}. Manifest: {}",
+        scenario.label(),
+        marker,
+        reached_cells,
+        below_target_cells,
+        manifest_file.display()
+    );
+    for (name, target_kategori, monthly_target, monthly_total) in employee_monthly_summaries
+        .iter()
+        .filter(|(_, _, monthly_target, monthly_total)| monthly_total < monthly_target)
+    {
+        println!(
+            "Below monthly target: {} ({}) = {}/{}",
+            name, target_kategori, monthly_total, monthly_target
+        );
+    }
 
     Ok(())
 }

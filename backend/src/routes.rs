@@ -281,6 +281,14 @@ pub fn router(state: AppState) -> Router {
             get(get_jobdesk_divisions).patch(update_jobdesk_divisions),
         )
         .route(
+            "/api/off-requests",
+            get(list_off_requests).post(create_off_request),
+        )
+        .route(
+            "/api/off-requests/{id}/review",
+            patch(review_off_request),
+        )
+        .route(
             "/api/pixels",
             post(pixel::handlers::create_pixel).get(pixel::handlers::list_pixels),
         )
@@ -13010,6 +13018,50 @@ struct ReviewRaportPayload {
     comment: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct ListOffRequestsQuery {
+    status: Option<String>,
+    karyawan_id: Option<String>,
+    tanggal: Option<String>,
+    tanggal_from: Option<String>,
+    tanggal_to: Option<String>,
+    page: Option<u32>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateOffRequestPayload {
+    tanggal: Option<String>,
+    alasan: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReviewOffRequestPayload {
+    status: String,
+    comment: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+struct OffRequestPublic {
+    id: String,
+    karyawan_id: String,
+    karyawan_nama: String,
+    cabang: String,
+    divisi: String,
+    tanggal: String,
+    alasan: String,
+    status: String,
+    reviewer_id: Option<String>,
+    reviewer_nama: Option<String>,
+    reviewer_comment: Option<String>,
+    reviewed_at: Option<String>,
+    expires_at: String,
+    created_at: String,
+    updated_at: String,
+}
+
 const JOBDESK_REPORT_SETTINGS_KEY: &str = "jobdesk_report_settings";
 const JOBDESK_DIVISIONS_KEY: &str = "jobdesk_divisions";
 
@@ -13215,6 +13267,317 @@ async fn update_jobdesk_divisions(
         .audit("raport.jobdesk_divisions_updated", Some(&user.id))
         .await;
     Ok(json_ok("Jobdesk divisions saved", json!(saved_payload)))
+}
+
+fn off_request_select_sql() -> &'static str {
+    "SELECT id, karyawan_id, karyawan_nama, cabang, divisi, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal, alasan, \
+     CASE WHEN status = 'pending' AND expires_at < CURRENT_TIMESTAMP THEN 'expired' ELSE status END AS status, \
+     reviewer_id, reviewer_nama, reviewer_comment, DATE_FORMAT(reviewed_at, '%Y-%m-%dT%H:%i:%s') AS reviewed_at, \
+     DATE_FORMAT(expires_at, '%Y-%m-%dT%H:%i:%s') AS expires_at, DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at, \
+     DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s') AS updated_at FROM off_requests WHERE 1=1"
+}
+
+fn normalize_off_status(value: &str) -> Option<&'static str> {
+    match value.trim().to_lowercase().as_str() {
+        "pending" => Some("pending"),
+        "approved" => Some("approved"),
+        "rejected" => Some("rejected"),
+        "expired" => Some("expired"),
+        "all" => Some("all"),
+        _ => None,
+    }
+}
+
+async fn list_off_requests(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ListOffRequestsQuery>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport, Role::Karyawan],
+    )
+    .await?;
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = clamp_page_limit(query.limit, 50, 500);
+    let offset = (page - 1) * limit;
+    let is_karyawan = user.role == "karyawan";
+    let karyawan_filter = if is_karyawan {
+        Some(user.id.clone())
+    } else {
+        query
+            .karyawan_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty() && *value != "all")
+            .map(ToString::to_string)
+    };
+    let status_filter = query
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && *value != "all")
+        .map(|value| {
+            normalize_off_status(value).ok_or(AppError::Validation {
+                errors: vec!["status OFF harus pending, approved, rejected, expired, atau all".to_string()],
+            })
+        })
+        .transpose()?;
+    let tanggal_filter = match query
+        .tanggal
+        .clone()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        Some(value) => Some(normalize_date_key(Some(value))?),
+        None => None,
+    };
+    let tanggal_from_filter = if tanggal_filter.is_none() {
+        match query
+            .tanggal_from
+            .clone()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            Some(value) => Some(normalize_date_key(Some(value))?),
+            None => None,
+        }
+    } else {
+        None
+    };
+    let tanggal_to_filter = if tanggal_filter.is_none() {
+        match query
+            .tanggal_to
+            .clone()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            Some(value) => Some(normalize_date_key(Some(value))?),
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    let mut builder = sqlx::QueryBuilder::<sqlx::MySql>::new(off_request_select_sql());
+    if let Some(karyawan_id) = karyawan_filter.as_deref() {
+        builder.push(" AND karyawan_id = ");
+        builder.push_bind(karyawan_id);
+    }
+    if let Some(status) = status_filter {
+        if status == "expired" {
+            builder.push(" AND status = 'pending' AND expires_at < CURRENT_TIMESTAMP");
+        } else {
+            builder.push(" AND status = ");
+            builder.push_bind(status);
+            if status == "pending" {
+                builder.push(" AND expires_at >= CURRENT_TIMESTAMP");
+            }
+        }
+    }
+    if let Some(tanggal) = tanggal_filter.as_deref() {
+        builder.push(" AND tanggal = ");
+        builder.push_bind(tanggal);
+    }
+    if let Some(tanggal_from) = tanggal_from_filter.as_deref() {
+        builder.push(" AND tanggal >= ");
+        builder.push_bind(tanggal_from);
+    }
+    if let Some(tanggal_to) = tanggal_to_filter.as_deref() {
+        builder.push(" AND tanggal <= ");
+        builder.push_bind(tanggal_to);
+    }
+    builder.push(" ORDER BY tanggal DESC, created_at DESC LIMIT ");
+    builder.push_bind(limit as i64);
+    builder.push(" OFFSET ");
+    builder.push_bind(offset as i64);
+
+    let items = builder
+        .build_query_as::<OffRequestPublic>()
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|error| {
+            tracing::error!("DB error listing off_requests: {}", error);
+            AppError::Internal
+        })?;
+
+    let mut count_builder = sqlx::QueryBuilder::<sqlx::MySql>::new("SELECT COUNT(*) FROM off_requests WHERE 1=1");
+    if let Some(karyawan_id) = karyawan_filter.as_deref() {
+        count_builder.push(" AND karyawan_id = ");
+        count_builder.push_bind(karyawan_id);
+    }
+    if let Some(status) = status_filter {
+        if status == "expired" {
+            count_builder.push(" AND status = 'pending' AND expires_at < CURRENT_TIMESTAMP");
+        } else {
+            count_builder.push(" AND status = ");
+            count_builder.push_bind(status);
+            if status == "pending" {
+                count_builder.push(" AND expires_at >= CURRENT_TIMESTAMP");
+            }
+        }
+    }
+    if let Some(tanggal) = tanggal_filter.as_deref() {
+        count_builder.push(" AND tanggal = ");
+        count_builder.push_bind(tanggal);
+    }
+    if let Some(tanggal_from) = tanggal_from_filter.as_deref() {
+        count_builder.push(" AND tanggal >= ");
+        count_builder.push_bind(tanggal_from);
+    }
+    if let Some(tanggal_to) = tanggal_to_filter.as_deref() {
+        count_builder.push(" AND tanggal <= ");
+        count_builder.push_bind(tanggal_to);
+    }
+    let total: i64 = count_builder
+        .build_query_scalar()
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|error| {
+            tracing::error!("DB error counting off_requests: {}", error);
+            AppError::Internal
+        })?;
+    let total_pages = if total <= 0 {
+        1
+    } else {
+        ((total as u32) + limit - 1) / limit
+    };
+
+    Ok(json_ok(
+        "OFF requests fetched",
+        json!({ "items": items, "page": page, "limit": limit, "total": total, "totalPages": total_pages }),
+    ))
+}
+
+async fn create_off_request(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateOffRequestPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(&state, &headers, &[Role::Karyawan]).await?;
+    let tanggal = normalize_date_key(payload.tanggal)?;
+    let alasan = payload.alasan.trim();
+    if alasan.len() < 5 {
+        return Err(AppError::Validation {
+            errors: vec!["Alasan OFF minimal 5 karakter".to_string()],
+        });
+    }
+    if alasan.len() > 1000 {
+        return Err(AppError::Validation {
+            errors: vec!["Alasan OFF maksimal 1000 karakter".to_string()],
+        });
+    }
+
+    let active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM off_requests \
+         WHERE karyawan_id = ? AND tanggal = ? \
+         AND ((status = 'pending' AND expires_at >= CURRENT_TIMESTAMP) OR status = 'approved')",
+    )
+    .bind(&user.id)
+    .bind(&tanggal)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|error| {
+        tracing::error!("DB error checking active off_request: {}", error);
+        AppError::Internal
+    })?;
+    if active_count > 0 {
+        return Err(AppError::Validation {
+            errors: vec!["Pengajuan OFF untuk tanggal ini masih aktif atau sudah disetujui.".to_string()],
+        });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO off_requests \
+         (id, karyawan_id, karyawan_nama, cabang, divisi, tanggal, alasan, status, expires_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 24 HOUR))",
+    )
+    .bind(&id)
+    .bind(&user.id)
+    .bind(&user.name)
+    .bind(&user.cabang_name)
+    .bind(&user.divisi)
+    .bind(&tanggal)
+    .bind(alasan)
+    .execute(&state.pool)
+    .await
+    .map_err(|error| {
+        tracing::error!("DB error creating off_request: {}", error);
+        AppError::Internal
+    })?;
+
+    let item = sqlx::query_as::<_, OffRequestPublic>(&format!("{} AND id = ?", off_request_select_sql()))
+        .bind(&id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|error| {
+            tracing::error!("DB error fetching created off_request: {}", error);
+            AppError::Internal
+        })?;
+
+    state.audit("off.request_created", Some(&user.id)).await;
+    Ok(json_created("Pengajuan OFF berhasil dibuat", json!(item)))
+}
+
+async fn review_off_request(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<ReviewOffRequestPayload>,
+) -> Result<ResponseBody, AppError> {
+    let user = authorize(
+        &state,
+        &headers,
+        &[Role::Admin, Role::Owner, Role::PicRaport],
+    )
+    .await?;
+    let status = match normalize_off_status(&payload.status) {
+        Some("approved") => "approved",
+        Some("rejected") => "rejected",
+        _ => {
+            return Err(AppError::Validation {
+                errors: vec!["Review OFF hanya bisa approved atau rejected".to_string()],
+            });
+        }
+    };
+    let comment = payload.comment.unwrap_or_default();
+
+    let affected = sqlx::query(
+        "UPDATE off_requests SET status = ?, reviewer_id = ?, reviewer_nama = ?, reviewer_comment = ?, \
+         reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP \
+         WHERE id = ? AND status = 'pending' AND expires_at >= CURRENT_TIMESTAMP",
+    )
+    .bind(status)
+    .bind(&user.id)
+    .bind(&user.name)
+    .bind(comment.trim())
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|error| {
+        tracing::error!("DB error reviewing off_request: {}", error);
+        AppError::Internal
+    })?
+    .rows_affected();
+    if affected == 0 {
+        return Err(AppError::Validation {
+            errors: vec!["Pengajuan OFF tidak ditemukan, sudah diproses, atau sudah kadaluarsa.".to_string()],
+        });
+    }
+
+    let item = sqlx::query_as::<_, OffRequestPublic>(&format!("{} AND id = ?", off_request_select_sql()))
+        .bind(&id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|error| {
+            tracing::error!("DB error fetching reviewed off_request: {}", error);
+            AppError::Internal
+        })?;
+
+    state.audit("off.request_reviewed", Some(&user.id)).await;
+    Ok(json_ok("Pengajuan OFF berhasil diproses", json!(item)))
 }
 
 async fn list_raport_harian(

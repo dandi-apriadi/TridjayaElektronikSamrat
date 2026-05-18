@@ -68,6 +68,10 @@ name = "seed_prospek_simulasi"
 path = "src/bin/seed_prospek_simulasi.rs"
 
 [[bin]]
+name = "seed_raport_jobdesk_simulasi"
+path = "src/bin/seed_raport_jobdesk_simulasi.rs"
+
+[[bin]]
 name = "reset_cabang_data"
 path = "src/bin/reset_cabang_data.rs"
 

@@ -25,6 +25,9 @@ TRUST_PROXY_HEADERS=true
 PIXEL_ENCRYPTION_KEY=replace_with_64_hex_chars
 REDIS_URL=redis://127.0.0.1:6379
 MYSQL_MAX_CONNECTIONS=25
+MYSQL_ACQUIRE_TIMEOUT_SECS=5
+MYSQL_IDLE_TIMEOUT_SECS=300
+MAX_IN_FLIGHT_REQUESTS=300
 REQUEST_TIMEOUT_SECS=30
 PUBLIC_READ_MAX_PER_MINUTE=120
 TELEMETRY_ANALYTICS_WINDOW_DAYS=30
@@ -76,6 +79,13 @@ systemctl restart tridjaya-backend
 - `/api/` -> `http://127.0.0.1:8081`
 - `/uploads/` -> `http://127.0.0.1:8081`
 - `/` -> `${APP_DIR}/frontend/dist`
+
+`deploy.sh` juga membuat `/etc/nginx/conf.d/tridjaya-limits.conf`:
+
+- `/api/`: 60 request/detik per IP dengan burst 180.
+- `/uploads/`: 30 request/detik per IP dengan burst 40 dan batas koneksi lebih kecil.
+
+Limit ini melindungi backend sebelum request mencapai Rust/MySQL. Jika pengguna sah berada di belakang NAT besar atau saat load test dari satu IP, naikkan angka ini sementara.
 
 Setelah DNS aktif, pasang TLS:
 

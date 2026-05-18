@@ -412,7 +412,7 @@ const AdminDashboard: React.FC = () => {
           </div>
           <div className="relative h-[260px] w-full min-h-[260px] overflow-visible">
             {chartReady && (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
+            <ResponsiveContainer width="100%" height={260} minWidth={0} minHeight={0} debounce={200}>
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="gradBruto" x1="0" y1="0" x2="0" y2="1">
@@ -464,7 +464,7 @@ const AdminDashboard: React.FC = () => {
           </div>
           <div className="relative h-[220px] w-full min-h-[220px] flex-1 overflow-visible">
             {chartReady && (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
+            <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0} debounce={200}>
               <BarChart data={agentGrowthData} barSize={8} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#484847" vertical={false} />
                 <XAxis dataKey="month" stroke="#ADAAAA" fontSize={11} tickLine={false} axisLine={false} />
@@ -494,7 +494,7 @@ const AdminDashboard: React.FC = () => {
           </div>
           <div className="relative h-[300px] w-full min-h-[300px] flex-1">
             {chartReady && (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
+            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0} debounce={200}>
               <PieChart>
                 <Pie
                   data={categoryData}

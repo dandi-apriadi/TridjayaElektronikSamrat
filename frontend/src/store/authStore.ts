@@ -213,9 +213,6 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
-            if (!isSessionExpiredStatus(response.status)) {
-              return;
-            }
             set({ user: null, isAuthenticated: false, accessToken: null });
             return;
           }

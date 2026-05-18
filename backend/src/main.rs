@@ -1,8 +1,9 @@
 use axum::body::Body;
-use axum::extract::{ConnectInfo, DefaultBodyLimit};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, State};
 use axum::http::{HeaderName, HeaderValue, Method, Request, StatusCode};
 use axum::middleware::Next;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
 use dotenvy::dotenv;
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode};
 use std::net::SocketAddr;
@@ -10,6 +11,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Semaphore;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     timeout::TimeoutLayer,
@@ -102,6 +104,40 @@ async fn inject_peer_ip(mut request: Request<Body>, next: Next) -> Response {
                 .insert(HeaderName::from_static("x-tridjaya-peer-ip"), value);
         }
     }
+    next.run(request).await
+}
+
+async fn overload_guard(
+    State(limit): State<Arc<Semaphore>>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    if request.uri().path() == "/health" {
+        return next.run(request).await;
+    }
+
+    let Ok(_permit) = limit.try_acquire_owned() else {
+        let mut response = (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "success": false,
+                "message": "Server sedang sibuk. Coba lagi sebentar.",
+                "detail": "overloaded",
+                "errors": []
+            })),
+        )
+            .into_response();
+        response.headers_mut().insert(
+            HeaderName::from_static("retry-after"),
+            HeaderValue::from_static("2"),
+        );
+        response.headers_mut().insert(
+            HeaderName::from_static("x-overload-protection"),
+            HeaderValue::from_static("active"),
+        );
+        return response;
+    };
+
     next.run(request).await
 }
 
@@ -311,6 +347,18 @@ async fn main() {
         .and_then(|value| value.parse::<u32>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(25);
+    let mysql_acquire_timeout_secs = std::env::var("MYSQL_ACQUIRE_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(5)
+        .min(30);
+    let mysql_idle_timeout_secs = std::env::var("MYSQL_IDLE_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(300)
+        .min(3600);
 
     let mysql_options = MySqlConnectOptions::from_str(&database_url)
         .map_err(|e| {
@@ -323,7 +371,9 @@ async fn main() {
     let pool = MySqlPoolOptions::new()
         .max_connections(mysql_pool_max_connections)
         .min_connections(1)
-        .acquire_timeout(Duration::from_secs(30))
+        .acquire_timeout(Duration::from_secs(mysql_acquire_timeout_secs))
+        .idle_timeout(Duration::from_secs(mysql_idle_timeout_secs))
+        .max_lifetime(Duration::from_secs(1800))
         .connect_with(mysql_options)
         .await
         .map_err(|e| {
@@ -621,6 +671,20 @@ async fn main() {
         }
     });
 
+    let max_in_flight_requests = std::env::var("MAX_IN_FLIGHT_REQUESTS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(300)
+        .min(10_000);
+    tracing::info!(
+        max_in_flight_requests,
+        mysql_pool_max_connections,
+        mysql_acquire_timeout_secs,
+        "Overload protection configured"
+    );
+    let request_limit = Arc::new(Semaphore::new(max_in_flight_requests));
+
     let app = routes::router(state.clone())
         .layer(axum::middleware::from_fn(block_private_uploads))
         .layer(axum::middleware::from_fn(add_security_headers))
@@ -642,7 +706,11 @@ async fn main() {
             ),
         ))
         .layer(cors)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn_with_state(
+            request_limit,
+            overload_guard,
+        ));
 
     let listen_port = std::env::var("PORT")
         .ok()
